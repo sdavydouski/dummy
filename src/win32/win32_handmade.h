@@ -10,6 +10,7 @@ struct win32_platform_state
 	i32 WindowWidth;
 	i32 WindowHeight;
 	b32 IsFullScreen;
+	b32 VSync;
 
 	wchar EXEDirectoryFullPath[WIN32_FILE_PATH];
 
@@ -47,12 +48,10 @@ inline void
 Win32OutputString(char *String)
 {
 	OutputDebugStringA(String);
-	OutputDebugStringA("\n");
 }
 
 inline void
 Win32OutputString(wchar *String)
 {
 	OutputDebugStringW(String);
-	OutputDebugStringW(L"\n");
 }

@@ -1,12 +1,14 @@
 #pragma once
 
-#include "sandbox_defs.h"
-#include "sandbox_math.h"
+#include "handmade_defs.h"
+#include "handmade_math.h"
 
 enum render_command_type
 {
 	RenderCommand_SetViewport,
 	RenderCommand_Clear,
+
+	RenderCommand_InitRectangle,
 	RenderCommand_DrawRectangle
 };
 
@@ -31,17 +33,22 @@ struct render_command_clear
 	vec4 Color;
 };
 
+struct render_command_init_rectangle
+{
+	render_command_header Header;
+};
+
 struct render_command_draw_rectangle
 {
 	render_command_header Header;
-	vec2 Min;
-	vec2 Max;
+	vec2 Position;
+	vec2 Size;
 	vec4 Color;
 };
 
-struct render_buffer
+struct render_commands
 {
-	u32 Size;
-	u32 Used;
-	void *Base;
+	u32 MaxRenderCommandsBufferSize;
+	u32 RenderCommandsBufferSize;
+	void *RenderCommandsBuffer;
 };

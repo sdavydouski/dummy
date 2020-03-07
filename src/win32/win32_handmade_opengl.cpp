@@ -1,7 +1,24 @@
 #include <glad/glad.h>
 #include <wglext.h>
 
-#include "sandbox_renderer.h"
+#include "handmade_renderer.h"
+#include "win32_handmade_opengl.h"
+
+#define GladLoadGLLoader gladLoadGLLoader
+#define GladSetPostCallback glad_set_post_callback
+
+void GladPostCallback(const char *Name, void *FuncPtr, i32 LenArgs, ...) {
+	GLenum ErrorCode;
+	ErrorCode = glad_glGetError();
+
+	if (ErrorCode != GL_NO_ERROR)
+	{
+		char OpenGLError[256];
+		FormatString(OpenGLError, ArrayCount(OpenGLError), "OpenGL Error: %d in %s\n", ErrorCode, Name);
+
+		Win32OutputString(OpenGLError);
+	}
+}
 
 inline void *
 GetOpenGLFuncAddress(char *Name)
@@ -19,8 +36,14 @@ GetOpenGLFuncAddress(char *Name)
     return Result;
 }
 
+inline void
+Win32OpenGLSetVSync(opengl_state *State, b32 VSync)
+{
+	State->wglSwapIntervalEXT(VSync ? 1 : 0);
+}
+
 void internal
-Win32InitOpenGL(HINSTANCE hInstance, HWND WindowHandle, b32 VSync)
+Win32InitOpenGL(opengl_state *State, HINSTANCE hInstance, HWND WindowHandle)
 {
     WNDCLASS FakeWindowClass = {};
     FakeWindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -30,20 +53,9 @@ Win32InitOpenGL(HINSTANCE hInstance, HWND WindowHandle, b32 VSync)
 
     RegisterClass(&FakeWindowClass);
 
-    HWND FakeWindowHandle = CreateWindowEx(
-        0,                              // Optional window styles
-        FakeWindowClass.lpszClassName,  // Window class
-        L"Fake OpenGL Window",          // Window text
-        0,                              // Window style
-        CW_USEDEFAULT,                  // Window position x 
-        CW_USEDEFAULT,                  // Window position y
-        CW_USEDEFAULT,                  // Window width
-        CW_USEDEFAULT,                  // Window height
-        0,                              // Parent window    
-        0,                              // Menu
-        hInstance,                      // Instance handle
-        0                               // Additional application data
-    );
+    HWND FakeWindowHandle = CreateWindowEx(0, FakeWindowClass.lpszClassName, L"Fake OpenGL Window", 0,
+        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, hInstance, 0
+	);
     HDC FakeWindowDC = GetDC(FakeWindowHandle);
 
     PIXELFORMATDESCRIPTOR FakePFD = {};
@@ -70,7 +82,7 @@ Win32InitOpenGL(HINSTANCE hInstance, HWND WindowHandle, b32 VSync)
 
                 PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
                 PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
-                PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+                State->wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
 
                 i32 PixelAttribs[] = {
                     WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
@@ -116,19 +128,13 @@ Win32InitOpenGL(HINSTANCE hInstance, HWND WindowHandle, b32 VSync)
                     if (wglMakeCurrent(WindowDC, RC))
                     {
                         // OpenGL 4.5 is initialized
-                        gladLoadGLLoader((GLADloadproc)GetOpenGLFuncAddress);
+                        GladLoadGLLoader((GLADloadproc)GetOpenGLFuncAddress);
+						GladSetPostCallback(GladPostCallback);
 
-                        char *OpenGLVendor = (char *)glGetString(GL_VENDOR);
-                        char *OpenGLRenderer = (char *)glGetString(GL_RENDERER);
-                        char *OpenGLVersion = (char *)glGetString(GL_VERSION);
-                        char *OpenGLShadingLanguageVersion = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
-
-                        Win32OutputString(OpenGLVendor);
-                        Win32OutputString(OpenGLRenderer);
-                        Win32OutputString(OpenGLVersion);
-                        Win32OutputString(OpenGLShadingLanguageVersion);
-
-                        wglSwapIntervalEXT(VSync ? 1 : 0);
+                        State->Vendor = (char *)glGetString(GL_VENDOR);
+                        State->Renderer = (char *)glGetString(GL_RENDERER);
+                        State->Version = (char *)glGetString(GL_VERSION);
+                        State->ShadingLanguageVersion = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
                     }
                 }
             }
@@ -136,12 +142,68 @@ Win32InitOpenGL(HINSTANCE hInstance, HWND WindowHandle, b32 VSync)
     }
 }
 
-internal void
-OpenGLRender(render_buffer *Buffer)
+GLuint CreateShader(GLenum Type, char *Source)
 {
-    for (u32 BaseAddress = 0; BaseAddress < Buffer->Used;)
+	GLuint Shader = glCreateShader(Type);
+	glShaderSource(Shader, 1, &Source, NULL);
+	glCompileShader(Shader);
+
+	i32 IsShaderCompiled;
+	glGetShaderiv(Shader, GL_COMPILE_STATUS, &IsShaderCompiled);
+	if (!IsShaderCompiled)
+	{
+		i32 LogLength;
+		glGetShaderiv(Shader, GL_INFO_LOG_LENGTH, &LogLength);
+
+		char ErrorLog[256];
+		glGetShaderInfoLog(Shader, LogLength, NULL, ErrorLog);
+		
+		//PrintError("Error: ", "Shader compilation failed", ErrorLog);
+
+		glDeleteShader(Shader);
+	}
+	Assert(IsShaderCompiled);
+
+	return Shader;
+}
+
+internal GLuint
+CreateProgram(GLuint VertexShader, GLuint FragmentShader)
+{
+	GLuint Program = glCreateProgram();
+	glAttachShader(Program, VertexShader);
+	glAttachShader(Program, FragmentShader);
+	glLinkProgram(Program);
+	glDeleteShader(VertexShader);
+	glDeleteShader(FragmentShader);
+
+	i32 IsProgramLinked;
+	glGetProgramiv(Program, GL_LINK_STATUS, &IsProgramLinked);
+
+	if (!IsProgramLinked)
+	{
+		i32 LogLength;
+		glGetProgramiv(Program, GL_INFO_LOG_LENGTH, &LogLength);
+
+		char ErrorLog[256];
+		glGetProgramInfoLog(Program, LogLength, nullptr, ErrorLog);
+
+		//PrintError("Error: ", "Shader program linkage failed", ErrorLog);
+	}
+	Assert(IsProgramLinked);
+
+	return Program;
+}
+
+char *SimpleVertexShader = (char *)"#version 450\nlayout(location = 0) in vec2 in_Position;\nuniform mat4 u_Model;\nvoid main() { gl_Position = vec4(in_Position, 1.f, 1.f) * u_Model; }";
+char *SimpleFragmentShader = (char *)"#version 450\nout vec4 out_Color;\nuniform vec4 u_Color;\nvoid main() { out_Color = u_Color; }";
+
+internal void
+OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
+{
+    for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
-        render_command_header *Entry = (render_command_header *)((u8 *)Buffer->Base + BaseAddress);
+        render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
 
         switch (Entry->Type)
         {
@@ -164,23 +226,57 @@ OpenGLRender(render_buffer *Buffer)
             BaseAddress += sizeof(*Command);
             break;
         }
+		case RenderCommand_InitRectangle:
+		{
+			render_command_init_rectangle *Command = (render_command_init_rectangle *)Entry;
+
+			vec2 RectangleVertices[] = {
+				vec2(-1.f, -1.f),
+				vec2(1.f, -1.f),
+				vec2(-1.f, 1.f),
+				vec2(1.f, 1.f)
+			};
+
+			glGenVertexArrays(1, &State->RectangleVAO);
+			glBindVertexArray(State->RectangleVAO);
+
+			GLuint RectangleVBO;
+			glGenBuffers(1, &RectangleVBO);
+			glBindBuffer(GL_ARRAY_BUFFER, RectangleVBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(RectangleVertices), RectangleVertices, GL_STATIC_DRAW);
+
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+
+			glBindVertexArray(0);
+
+			GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, SimpleVertexShader);
+			GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, SimpleFragmentShader);
+
+			State->SimpleShaderProgram = CreateProgram(VertexShader, FragmentShader);
+		}
         case RenderCommand_DrawRectangle:
         {
             render_command_draw_rectangle *Command = (render_command_draw_rectangle *)Entry;
 
-            glBegin(GL_TRIANGLES);
+			glBindVertexArray(State->RectangleVAO);
 
-            glColor4f(Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+			glUseProgram(State->SimpleShaderProgram);
+			{
+				mat4 Model = mat4(1.f);
 
-            glVertex2f(Command->Min.x, Command->Min.y);
-            glVertex2f(-Command->Min.x, Command->Min.y);
-            glVertex2f(Command->Min.x, -Command->Min.y);
+				Model = Translate(Model, vec3(Command->Position, 0.f));
+				Model = Scale(Model, Command->Size.x);
 
-            glVertex2f(-Command->Max.x, Command->Max.y);
-            glVertex2f(Command->Max.x, Command->Max.y);
-            glVertex2f(Command->Max.x, -Command->Max.y);
+				i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
+				glUniformMatrix4fv(ModelUniformLocation, 1, GL_FALSE, &Model.Elements[0][0]);
 
-            glEnd();
+				i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
+				glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+			}
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			
+			glBindVertexArray(0);
 
             BaseAddress += sizeof(*Command);
             break;

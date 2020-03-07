@@ -2,13 +2,13 @@
 
 #include <glad/glad.c>
 
-#include "sandbox_defs.h"
-#include "sandbox_platform.h"
-#include "sandbox_utils.h"
-#include "sandbox_memory.h"
-#include "win32_sandbox.h"
+#include "handmade_defs.h"
+#include "handmade_platform.h"
+#include "handmade_utils.h"
+#include "handmade_memory.h"
+#include "win32_handmade.h"
 
-#include "win32_opengl.cpp"
+#include "win32_handmade_opengl.cpp"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -150,54 +150,34 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
 
     switch (uMsg)
     {
-    case WM_CREATE:
-    {
-        //OutputDebugString(L"WM_CREATE\n");
-
-        CREATESTRUCT *pCreate = (CREATESTRUCT *)lParam;
-        win32_platform_state *PlatformState = (win32_platform_state *)pCreate->lpCreateParams;
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)PlatformState);
-    }
-    break;
-    case WM_DESTROY:
-    {
-        //OutputDebugString(L"WM_DESTROY\n");
-
-#if 0
-        win32_platform_state *PlatformState = (win32_platform_state *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        PlatformState->IsGameRunning = false;
-#endif
-    }
-    break;
-    case WM_CLOSE:
-    {
-        //OutputDebugString(L"WM_CLOSE\n");
-
-        win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
-        PlatformState->IsGameRunning = false;
-    }
-    break;
-    case WM_SIZE:
-    {
-        win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
-        PlatformState->WindowWidth = LOWORD(lParam);
-        PlatformState->WindowHeight = HIWORD(lParam);
-    }
-    break;
-#if 0
-    case WM_PAINT:
-    {
-        OutputDebugString(L"WM_PAINT\n");
-        
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-        EndPaint(hwnd, &ps);
-    }
-    break;
-#endif
-    default:
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+		case WM_CREATE:
+		{
+			CREATESTRUCT *pCreate = (CREATESTRUCT *)lParam;
+			win32_platform_state *PlatformState = (win32_platform_state *)pCreate->lpCreateParams;
+			SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)PlatformState);
+		}
+		break;
+		case WM_DESTROY:
+		{
+			win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+			PlatformState->IsGameRunning = false;
+		}
+		break;
+		case WM_CLOSE:
+		{
+			win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+			PlatformState->IsGameRunning = false;
+		}
+		break;
+		case WM_SIZE:
+		{
+			win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+			PlatformState->WindowWidth = LOWORD(lParam);
+			PlatformState->WindowHeight = HIWORD(lParam);
+		}
+		break;
+		default:
+			return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
     
     return 0;
@@ -209,42 +189,42 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.WindowWidth = 1600;
     PlatformState.WindowHeight = 900;
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
+	PlatformState.VSync = true;
 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(64);
     GameMemory.TransientStorageSize = Megabytes(256);
-
-    GameMemory.RenderBuffer = {};
-    GameMemory.RenderBuffer.Size = Megabytes(4);
+    GameMemory.RenderCommandsStorageSize = Megabytes(4);
 
     void *BaseAddress = (void *)Terabytes(2);
 
-    PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderBuffer.Size;
+    PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize;
     PlatformState.GameMemoryBlock = Win32AllocateMemory(BaseAddress, PlatformState.GameMemoryBlockSize);
 
     GameMemory.PermanentStorage = PlatformState.GameMemoryBlock;
     GameMemory.TransientStorage = (u8 *)PlatformState.GameMemoryBlock + GameMemory.PermanentStorageSize;
-
-    GameMemory.RenderBuffer.Base = (u8 *)PlatformState.GameMemoryBlock + GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
+    GameMemory.RenderCommandsStorage = (u8 *)PlatformState.GameMemoryBlock + GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
 
     Win32GetFullPathToEXEDirectory(PlatformState.EXEDirectoryFullPath);
 
     wchar SourceGameCodeDLLFullPath[WIN32_FILE_PATH];
-    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"sandbox.dll", SourceGameCodeDLLFullPath);
+    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"handmade.dll", SourceGameCodeDLLFullPath);
 
     wchar TempGameCodeDLLFullPath[WIN32_FILE_PATH];
-    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"sandbox_temp.dll", TempGameCodeDLLFullPath);
+    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"handmade_temp.dll", TempGameCodeDLLFullPath);
 
     wchar GameCodeLockFullPath[WIN32_FILE_PATH];
-    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"sandbox_lock.tmp", GameCodeLockFullPath);
+    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"handmade_lock.tmp", GameCodeLockFullPath);
 
     win32_game_code GameCode = Win32LoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath, GameCodeLockFullPath);
+
+	Assert(GameCode.IsValid);
 
     WNDCLASS WindowClass = {};
     WindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     WindowClass.lpfnWndProc = WindowProc;
     WindowClass.hInstance = hInstance;
-    WindowClass.lpszClassName = L"Sandbox Window Class";
+    WindowClass.lpszClassName = L"Handmade Window Class";
     WindowClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
 
     RegisterClass(&WindowClass);
@@ -258,27 +238,17 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 FullWindowWidth = Rect.right - Rect.left;
     u32 FullWindowHeight = Rect.bottom - Rect.top;
 
-    PlatformState.WindowHandle = CreateWindowEx(
-        0,                              // Optional window styles
-        WindowClass.lpszClassName,      // Window class
-        L"Sandbox",                     // Window text
-        WindowStyles,                   // Window style
-        CW_USEDEFAULT,                  // Window position x
-        CW_USEDEFAULT,                  // Window position y
-        FullWindowWidth,                // Window width
-        FullWindowHeight,               // Window height
-        0,                              // Parent window    
-        0,                              // Menu
-        hInstance,                      // Instance handle
-        &PlatformState                  // Additional application data
+    PlatformState.WindowHandle = CreateWindowEx(0, WindowClass.lpszClassName, L"Handmade", WindowStyles,
+        CW_USEDEFAULT, CW_USEDEFAULT, FullWindowWidth, FullWindowHeight, 0, 0, hInstance, &PlatformState
     );
 
     if (PlatformState.WindowHandle)
     {
         HDC WindowDC = GetDC(PlatformState.WindowHandle);
         
-        b32 VSync = true;
-        Win32InitOpenGL(hInstance, PlatformState.WindowHandle, VSync);
+		opengl_state OpenGLState = {};
+        Win32InitOpenGL(&OpenGLState, hInstance, PlatformState.WindowHandle);
+		Win32OpenGLSetVSync(&OpenGLState, PlatformState.VSync);
 
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
 
@@ -299,11 +269,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         PlatformState.IsGameRunning = true;
 
-        if (GameCode.IsValid)
-        {
-            GameCode.Init(&GameMemory);
-        }
+		render_commands *RenderCommands = GetRenderCommandsFromMemory(&GameMemory);
 
+		GameCode.Init(&GameMemory);
+		OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
+
+		// Game Loop
         while (PlatformState.IsGameRunning)
         {
             MSG WindowMessage = {};
@@ -327,9 +298,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameParameters.WindowHeight = PlatformState.WindowHeight;
 
                 GameCode.Render(&GameMemory, &GameParameters);
+				OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
             }
-
-            OpenGLRender(&GameMemory.RenderBuffer);
 
             win32_platform_state LastPlatformState = PlatformState;
 #if 1
@@ -343,6 +313,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::Text("Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
             ImGui::Checkbox("FullScreen", (bool *)&PlatformState.IsFullScreen);
+            ImGui::Checkbox("VSync", (bool *)&PlatformState.VSync);
 
             ImGui::End();
 
@@ -354,6 +325,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             {
                 Win32ToggleFullScreen(&PlatformState);
             }
+			if (LastPlatformState.VSync != PlatformState.VSync)
+			{
+				Win32OpenGLSetVSync(&OpenGLState, PlatformState.VSync);
+			}
 
             SwapBuffers(WindowDC);
         }
@@ -362,6 +337,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
+
+		Win32DeallocateMemory(PlatformState.GameMemoryBlock);
 
         DestroyWindow(PlatformState.WindowHandle);
         UnregisterClass(WindowClass.lpszClassName, hInstance);

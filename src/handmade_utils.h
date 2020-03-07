@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string.h>
-#include "sandbox_defs.h"
+#include "handmade_defs.h"
 
 inline b32
 StringEquals(const wchar *Str1, const wchar *Str2) {
@@ -48,4 +48,24 @@ inline void
 CopyString(const wchar *Source, wchar *Dest, u32 DestLength)
 {
     wcscpy_s(Dest, DestLength, Source);
+}
+
+inline void
+FormatString(char *String, u32 Size, const char *Format, ...)
+{
+	va_list ArgPtr;
+
+	va_start(ArgPtr, Format);
+	vsnprintf(String, Size, Format, ArgPtr);
+	va_end(ArgPtr);
+}
+
+inline void
+FormatString(wchar *String, u32 Size, const wchar *Format, ...)
+{
+	va_list ArgPtr;
+
+	va_start(ArgPtr, Format);
+	_vsnwprintf_s(String, Size, Size, Format, ArgPtr);
+	va_end(ArgPtr);
 }
