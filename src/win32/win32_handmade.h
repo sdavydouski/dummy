@@ -6,6 +6,8 @@ struct win32_platform_state
 {
 	HWND WindowHandle;
 	WINDOWPLACEMENT WindowPlacement;
+	
+	u64 PerformanceFrequency;
 
 	i32 WindowWidth;
 	i32 WindowHeight;

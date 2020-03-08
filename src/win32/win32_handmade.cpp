@@ -14,7 +14,6 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui.cpp>
-#include <imgui_demo.cpp>
 #include <imgui_draw.cpp>
 #include <imgui_widgets.cpp>
 
@@ -191,6 +190,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
 	PlatformState.VSync = true;
 
+	LARGE_INTEGER PerformanceFrequency;
+	QueryPerformanceFrequency(&PerformanceFrequency);
+	PlatformState.PerformanceFrequency = PerformanceFrequency.QuadPart;
+
+	SetProcessDPIAware();
+
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(64);
     GameMemory.TransientStorageSize = Megabytes(256);
@@ -228,8 +233,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     WindowClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
 
     RegisterClass(&WindowClass);
-
-    SetProcessDPIAware();
 
     DWORD WindowStyles = WS_OVERLAPPEDWINDOW;
     RECT Rect = { 0, 0, PlatformState.WindowWidth, PlatformState.WindowHeight };
@@ -271,8 +274,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 		render_commands *RenderCommands = GetRenderCommandsFromMemory(&GameMemory);
 
+		game_parameters GameParameters = {};
+
 		GameCode.Init(&GameMemory);
 		OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
+
+		LARGE_INTEGER LastPerformanceCounter;
+		QueryPerformanceCounter(&LastPerformanceCounter);
 
 		// Game Loop
         while (PlatformState.IsGameRunning)
@@ -293,7 +301,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             if (GameCode.IsValid)
             {
-                game_parameters GameParameters = {};
                 GameParameters.WindowWidth = PlatformState.WindowWidth;
                 GameParameters.WindowHeight = PlatformState.WindowHeight;
 
@@ -331,6 +338,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			}
 
             SwapBuffers(WindowDC);
+
+			// Counting
+			LARGE_INTEGER CurrentPerformanceCounter;
+			QueryPerformanceCounter(&CurrentPerformanceCounter);
+
+			u64 DeltaPerformanceCounter = CurrentPerformanceCounter.QuadPart - LastPerformanceCounter.QuadPart;
+			GameParameters.Delta = (f32)DeltaPerformanceCounter / (f32)PlatformState.PerformanceFrequency;
+			GameParameters.Time += GameParameters.Delta;
+
+			LastPerformanceCounter = CurrentPerformanceCounter;
         }
 
         // Cleanup

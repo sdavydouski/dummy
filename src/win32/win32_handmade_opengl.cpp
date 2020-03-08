@@ -195,7 +195,7 @@ CreateProgram(GLuint VertexShader, GLuint FragmentShader)
 	return Program;
 }
 
-char *SimpleVertexShader = (char *)"#version 450\nlayout(location = 0) in vec2 in_Position;\nuniform mat4 u_Model;\nvoid main() { gl_Position = vec4(in_Position, 1.f, 1.f) * u_Model; }";
+char *SimpleVertexShader = (char *)"#version 450\nlayout(location = 0) in vec2 in_Position;\nuniform mat4 u_Projection; uniform mat4 u_Model;\nvoid main() { gl_Position = vec4(in_Position, 1.f, 1.f) * u_Model * u_Projection; }";
 char *SimpleFragmentShader = (char *)"#version 450\nout vec4 out_Color;\nuniform vec4 u_Color;\nvoid main() { out_Color = u_Color; }";
 
 internal void
@@ -216,6 +216,23 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             BaseAddress += sizeof(*Command);
             break;
         }
+		case RenderCommand_SetOrthographicProjection:
+		{
+			render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *)Entry;
+
+			// todo: use uniform buffer
+			glUseProgram(State->SimpleShaderProgram);
+			{
+				mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
+
+				i32 ProjectionUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Projection");
+				glUniformMatrix4fv(ProjectionUniformLocation, 1, GL_FALSE, &Projection.Elements[0][0]);
+			}
+			glUseProgram(0);
+
+			BaseAddress += sizeof(*Command);
+			break;
+		}
         case RenderCommand_Clear:
         {
             render_command_clear *Command = (render_command_clear *)Entry;

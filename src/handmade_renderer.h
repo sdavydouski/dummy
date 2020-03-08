@@ -6,6 +6,9 @@
 enum render_command_type
 {
 	RenderCommand_SetViewport,
+	RenderCommand_SetOrthographicProjection,
+	RenderCommand_SetPerspectiveProjection,
+
 	RenderCommand_Clear,
 
 	RenderCommand_InitRectangle,
@@ -25,6 +28,17 @@ struct render_command_set_viewport
 	u32 y;
 	u32 Width;
 	u32 Height;
+};
+
+struct render_command_set_orthographic_projection
+{
+	render_command_header Header;
+	f32 Left;
+	f32 Right;
+	f32 Bottom;
+	f32 Top;
+	f32 Near;
+	f32 Far;
 };
 
 struct render_command_clear

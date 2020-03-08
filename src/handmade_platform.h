@@ -29,6 +29,9 @@ struct game_parameters
 {
 	u32 WindowWidth;
 	u32 WindowHeight;
+
+	f32 Time;
+	f32 Delta;
 };
 
 #define GAME_INIT(name) void name(game_memory *Memory)

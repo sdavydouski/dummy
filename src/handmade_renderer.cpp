@@ -39,6 +39,19 @@ SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height)
 }
 
 inline void
+SetOrthographicProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
+{
+	render_command_set_orthographic_projection *Command = 
+		PushRenderCommand(Commands, render_command_set_orthographic_projection, RenderCommand_SetOrthographicProjection);
+	Command->Left = Left;
+	Command->Right = Right;
+	Command->Bottom = Bottom;
+	Command->Top = Top;
+	Command->Near = Near;
+	Command->Far = Far;
+}
+
+inline void
 Clear(render_commands *Commands, vec4 Color)
 {
 	render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear);

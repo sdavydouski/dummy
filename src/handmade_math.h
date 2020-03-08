@@ -1,5 +1,10 @@
 #pragma once
 
+#define PI 3.14159265359f
+#define HALF_PI (PI / 2.f)
+
+// todo: SIMD
+
 struct vec2
 {
 	union
@@ -18,7 +23,7 @@ struct vec2
 
 		struct
 		{
-			f32 Elements[4];
+			f32 Elements[2];
 		};
 	};
 
@@ -34,6 +39,12 @@ struct vec2
 	inline vec2 operator *(f32 Scalar)
 	{
 		vec2 Result = vec2(Scalar * x, Scalar * y);
+		return Result;
+	}
+
+	inline vec2 operator *(vec2 Vector)
+	{
+		vec2 Result = vec2(x * Vector.x, y * Vector.y);
 		return Result;
 	}
 };
@@ -77,6 +88,12 @@ struct vec3
 		vec3 Result = vec3(Scalar * x, Scalar * y, Scalar * z);
 		return Result;
 	}
+
+	inline vec3 operator *(vec3 Vector)
+	{
+		vec3 Result = vec3(x * Vector.x, y * Vector.y, z * Vector.z);
+		return Result;
+	}
 };
 
 
@@ -118,6 +135,12 @@ struct vec4
 	inline vec4 operator *(f32 Scalar)
 	{
 		vec4 Result = vec4(Scalar * x, Scalar * y, Scalar * z, Scalar * w);
+		return Result;
+	}
+
+	inline vec4 operator *(vec4 Vector)
+	{
+		vec4 Result = vec4(x * Vector.x, y * Vector.y, z * Vector.z, w * Vector.w);
 		return Result;
 	}
 };
@@ -179,6 +202,19 @@ Translate(mat4 M, vec3 Value)
 	Result[0][3] += Value.x;
 	Result[1][3] += Value.y;
 	Result[2][3] += Value.z;
+
+	return Result;
+}
+
+inline mat4
+Orthographic(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
+{
+	mat4 Result = mat4(1.f);
+
+	Result.Rows[0] = vec4(2.f / (Right - Left), 0.f, 0.f, -(Right + Left) / (Right - Left));
+	Result.Rows[1] = vec4(0.f, 2.f / (Top - Bottom), 0.f, -(Top + Bottom) / (Top - Bottom));
+	Result.Rows[2] = vec4(0.f, 0.f, -2.f / (Far - Near), -(Far + Near) / (Far - Near));
+	Result.Rows[3] = vec4(0.f, 0.f, 0.f, 1.f);
 
 	return Result;
 }
