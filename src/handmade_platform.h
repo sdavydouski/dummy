@@ -25,6 +25,23 @@ GetRenderCommandsFromMemory(game_memory *Memory)
 	return RenderCommands;
 }
 
+struct game_input_action
+{
+	b32 IsActive;
+};
+
+struct game_input_range
+{
+	vec2 Range;
+};
+
+struct game_input
+{
+	game_input_range Move;
+	game_input_action Action;
+	game_input_action Jump;
+};
+
 struct game_parameters
 {
 	u32 WindowWidth;
@@ -36,6 +53,9 @@ struct game_parameters
 
 #define GAME_INIT(name) void name(game_memory *Memory)
 typedef GAME_INIT(game_init);
+
+#define GAME_PROCESS_INPUT(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
+typedef GAME_PROCESS_INPUT(game_process_input);
 
 #define GAME_RENDER(name) void name(game_memory *Memory, game_parameters *Parameters)
 typedef GAME_RENDER(game_render);

@@ -28,6 +28,7 @@ struct win32_game_code
 	FILETIME LastWriteTime;
 
 	game_init *Init;
+	game_process_input *ProcessInput;
 	game_render *Render;
 
 	b32 IsValid;

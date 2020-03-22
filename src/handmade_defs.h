@@ -4,7 +4,7 @@
 
 #define internal static
 
-#define DllExport __declspec(dllexport)
+#define DLLExport __declspec(dllexport)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
 

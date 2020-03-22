@@ -39,7 +39,7 @@ GetOpenGLFuncAddress(char *Name)
 inline void
 Win32OpenGLSetVSync(opengl_state *State, b32 VSync)
 {
-	State->wglSwapIntervalEXT(VSync ? 1 : 0);
+	State->wglSwapIntervalEXT(VSync);
 }
 
 void internal
@@ -142,7 +142,8 @@ Win32InitOpenGL(opengl_state *State, HINSTANCE hInstance, HWND WindowHandle)
     }
 }
 
-GLuint CreateShader(GLenum Type, char *Source)
+internal GLuint
+CreateShader(GLenum Type, char *Source)
 {
 	GLuint Shader = glCreateShader(Type);
 	glShaderSource(Shader, 1, &Source, NULL);
@@ -286,7 +287,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				Model = Scale(Model, Command->Size.x);
 
 				i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
-				glUniformMatrix4fv(ModelUniformLocation, 1, GL_FALSE, &Model.Elements[0][0]);
+				glUniformMatrix4fv(ModelUniformLocation, 1, GL_FALSE, (f32 *)Model.Elements);
 
 				i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
 				glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);

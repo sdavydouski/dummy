@@ -82,9 +82,10 @@ Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
         if (Result.GameDLL)
         {
             Result.Init = (game_init *)GetProcAddress(Result.GameDLL, "GameInit");
+            Result.ProcessInput = (game_process_input *)GetProcAddress(Result.GameDLL, "GameProcessInput");
             Result.Render = (game_render *)GetProcAddress(Result.GameDLL, "GameRender");
 
-            if (Result.Init && Result.Render)
+            if (Result.Init && Result.ProcessInput && Result.Render)
             {
                 Result.IsValid = true;
             }
@@ -126,7 +127,8 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
                 MonitorInfo.rcMonitor.left, MonitorInfo.rcMonitor.top,
                 MonitorInfo.rcMonitor.right - MonitorInfo.rcMonitor.left,
                 MonitorInfo.rcMonitor.bottom - MonitorInfo.rcMonitor.top,
-                SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+                SWP_NOOWNERZORDER | SWP_FRAMECHANGED
+            );
         }
     }
     else
@@ -136,7 +138,8 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
         SetWindowPlacement(PlatformState->WindowHandle, &PlatformState->WindowPlacement);
         SetWindowPos(PlatformState->WindowHandle, 0, 0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
-            SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            SWP_NOOWNERZORDER | SWP_FRAMECHANGED
+        );
     }
 }
 
@@ -156,37 +159,136 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
 			SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)PlatformState);
 		}
 		break;
+        case WM_CLOSE:
+        {
+            win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+            PlatformState->IsGameRunning = false;
+        }
+        break;
 		case WM_DESTROY:
 		{
 			win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
 			PlatformState->IsGameRunning = false;
 		}
 		break;
-		case WM_CLOSE:
-		{
-			win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
-			PlatformState->IsGameRunning = false;
-		}
-		break;
-		case WM_SIZE:
-		{
-			win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
-			PlatformState->WindowWidth = LOWORD(lParam);
-			PlatformState->WindowHeight = HIWORD(lParam);
-		}
-		break;
-		default:
+        case WM_SIZE:
+        {
+            win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+            PlatformState->WindowWidth = LOWORD(lParam);
+            PlatformState->WindowHeight = HIWORD(lParam);
+        }
+        break;
+        default:
 			return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
     
     return 0;
 }
 
+internal void
+Win32ProcessWindowMessages(win32_platform_state *PlatformState, game_input *Input)
+{
+    MSG WindowMessage = {};
+    while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
+    {
+        switch (WindowMessage.message)
+        {
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            {
+                u32 VKeyCode = (u32)WindowMessage.wParam;
+                b32 IsKeyDown = (WindowMessage.lParam & (1u << 31)) == 0;
+                b32 WasKeyDown = (WindowMessage.lParam & (1u << 30)) != 0;
+
+                if (IsKeyDown != WasKeyDown)
+                {
+                    switch (VKeyCode)
+                    {
+                        case 'W':
+                        case VK_UP:
+                        {
+                            if (IsKeyDown)
+                            {
+                                Input->Move.Range.y += 1.f;
+                            }
+                            else
+                            {
+                                Input->Move.Range.y -= 1.f;
+                            }
+                        }
+                        break;
+                        case 'S':
+                        case VK_DOWN:
+                        {
+                            if (IsKeyDown)
+                            {
+                                Input->Move.Range.y += -1.f;
+                            }
+                            else
+                            {
+                                Input->Move.Range.y -= -1.f;
+                            }
+                        }
+                        break;
+                        case 'A':
+                        case VK_LEFT:
+                        {
+                            if (IsKeyDown)
+                            {
+                                Input->Move.Range.x += -1.f;
+                            }
+                            else
+                            {
+                                Input->Move.Range.x -= -1.f;
+                            }
+                        }
+                        break;
+                        case 'D':
+                        case VK_RIGHT:
+                        {
+                            if (IsKeyDown)
+                            {
+                                Input->Move.Range.x += 1.f;
+                            }
+                            else
+                            {
+                                Input->Move.Range.x -= 1.f;
+                            }
+                        }
+                        break;
+                        case 'E':
+                        case VK_RETURN:
+                        {
+                            if (IsKeyDown)
+                            {
+                                Input->Action.IsActive = true;
+                            }
+                        }
+                        break;
+                        case VK_ESCAPE:
+                        {
+                            PlatformState->IsGameRunning = false;
+                        }
+                        break;
+                    }
+                }
+            }
+            break;
+            default:
+            {
+                TranslateMessage(&WindowMessage);
+                DispatchMessage(&WindowMessage);
+            }
+            break;
+        }
+    }
+}
+
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 1600;
-    PlatformState.WindowHeight = 900;
+    PlatformState.WindowWidth = 1920;
+    PlatformState.WindowHeight = 1080;
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
 	PlatformState.VSync = true;
 
@@ -268,13 +370,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         ImGui_ImplOpenGL3_Init();
 
         // Load Fonts
-        io.Fonts->AddFontFromFileTTF("c:/windows/fonts/consola.ttf", 24);
-
-        PlatformState.IsGameRunning = true;
+        io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/consola.ttf", 24);
 
 		render_commands *RenderCommands = GetRenderCommandsFromMemory(&GameMemory);
 
 		game_parameters GameParameters = {};
+        game_input GameInput = {};
 
 		GameCode.Init(&GameMemory);
 		OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
@@ -282,15 +383,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		LARGE_INTEGER LastPerformanceCounter;
 		QueryPerformanceCounter(&LastPerformanceCounter);
 
+        PlatformState.IsGameRunning = true;
+
 		// Game Loop
         while (PlatformState.IsGameRunning)
         {
-            MSG WindowMessage = {};
-            while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
-            {
-                TranslateMessage(&WindowMessage);
-                DispatchMessage(&WindowMessage);
-            }
+            Win32ProcessWindowMessages(&PlatformState, &GameInput);
 
             FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
             if (CompareFileTime(&NewDLLWriteTime, &GameCode.LastWriteTime) != 0)
@@ -304,6 +402,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameParameters.WindowWidth = PlatformState.WindowWidth;
                 GameParameters.WindowHeight = PlatformState.WindowHeight;
 
+                GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
                 GameCode.Render(&GameMemory, &GameParameters);
 				OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
             }

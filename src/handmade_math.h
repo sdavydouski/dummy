@@ -1,9 +1,25 @@
 #pragma once
 
+#include <math.h>
+
 #define PI 3.14159265359f
 #define HALF_PI (PI / 2.f)
 
 // todo: SIMD
+
+inline f32
+Square(f32 Value)
+{
+	f32 Result = Value * Value;
+	return Result;
+}
+
+inline f32
+Sqrt(f32 Value)
+{
+	f32 Result = (f32)sqrt(Value);
+	return Result;
+}
 
 struct vec2
 {
@@ -27,6 +43,7 @@ struct vec2
 		};
 	};
 
+	vec2() = default;
 	vec2(f32 Value) : x(Value), y(Value) {}
 	vec2(f32 x, f32 y) : x(x), y(y) {}
 
@@ -42,12 +59,56 @@ struct vec2
 		return Result;
 	}
 
+	inline vec2 operator /(f32 Scalar)
+	{
+		vec2 Result = vec2(x, y) * (1.f / Scalar);
+		return Result;
+	}
+
 	inline vec2 operator *(vec2 Vector)
 	{
 		vec2 Result = vec2(x * Vector.x, y * Vector.y);
 		return Result;
 	}
+
+	inline vec2 operator +(vec2 Vector)
+	{
+		vec2 Result = vec2(x + Vector.x, y + Vector.y);
+		return Result;
+	}
+
+	inline vec2 operator -(vec2 Vector)
+	{
+		vec2 Result = vec2(x - Vector.x, y - Vector.y);
+		return Result;
+	}
 };
+
+inline vec2 &operator +=(vec2 &Dest, vec2 Vector)
+{
+	Dest = Dest + Vector;
+	return Dest;
+}
+
+inline vec2 &operator -=(vec2 &Dest, vec2 Vector)
+{
+	Dest = Dest - Vector;
+	return Dest;
+}
+
+inline f32
+Magnitude(vec2 Vector)
+{
+	f32 Result = Sqrt(Square(Vector.x) + Square(Vector.y));
+	return Result;
+}
+
+inline vec2
+Normalize(vec2 Vector)
+{
+	vec2 Result = Vector / Magnitude(Vector);
+	return Result;
+}
 
 struct vec3
 {
@@ -89,13 +150,56 @@ struct vec3
 		return Result;
 	}
 
+	inline vec3 operator /(f32 Scalar)
+	{
+		vec3 Result = vec3(x, y, z) * (1.f / Scalar);
+		return Result;
+	}
+
 	inline vec3 operator *(vec3 Vector)
 	{
 		vec3 Result = vec3(x * Vector.x, y * Vector.y, z * Vector.z);
 		return Result;
 	}
+
+	inline vec3 operator +(vec3 Vector)
+	{
+		vec3 Result = vec3(x + Vector.x, y + Vector.y, z + Vector.z);
+		return Result;
+	}
+
+	inline vec3 operator -(vec3 Vector)
+	{
+		vec3 Result = vec3(x - Vector.x, y - Vector.y, z - Vector.z);
+		return Result;
+	}
 };
 
+inline vec3 &operator +=(vec3 &Dest, vec3 Vector)
+{
+	Dest = Dest + Vector;
+	return Dest;
+}
+
+inline vec3 &operator -=(vec3 &Dest, vec3 Vector)
+{
+	Dest = Dest - Vector;
+	return Dest;
+}
+
+inline f32
+Magnitude(vec3 Vector)
+{
+	f32 Result = Sqrt(Square(Vector.x) + Square(Vector.y));
+	return Result;
+}
+
+inline vec3
+Normalize(vec3 Vector)
+{
+	vec3 Result = Vector / Magnitude(Vector);
+	return Result;
+}
 
 struct vec4
 {
@@ -137,13 +241,57 @@ struct vec4
 		vec4 Result = vec4(Scalar * x, Scalar * y, Scalar * z, Scalar * w);
 		return Result;
 	}
+	
+	inline vec4 operator /(f32 Scalar)
+	{
+		vec4 Result = vec4(x, y, z, w) * (1.f / Scalar);
+		return Result;
+	}
 
 	inline vec4 operator *(vec4 Vector)
 	{
 		vec4 Result = vec4(x * Vector.x, y * Vector.y, z * Vector.z, w * Vector.w);
 		return Result;
 	}
+
+	inline vec4 operator +(vec4 Vector)
+	{
+		vec4 Result = vec4(x + Vector.x, y + Vector.y, z + Vector.z, w + Vector.w);
+		return Result;
+	}
+
+	inline vec4 operator -(vec4 Vector)
+	{
+		vec4 Result = vec4(x - Vector.x, y - Vector.y, z - Vector.z, w - Vector.w);
+		return Result;
+	}
 };
+
+inline vec4 operator +=(vec4 &Dest, vec4 Vector)
+{
+	Dest = Dest + Vector;
+	return Dest;
+}
+
+inline vec4 operator -=(vec4 &Dest, vec4 Vector)
+{
+	Dest = Dest - Vector;
+	return Dest;
+}
+
+inline f32
+Magnitude(vec4 Vector)
+{
+	f32 Result = Sqrt(Square(Vector.x) + Square(Vector.y));
+	return Result;
+}
+
+inline vec4
+Normalize(vec4 Vector)
+{
+	vec4 Result = Vector / Magnitude(Vector);
+	return Result;
+}
 
 struct mat4
 {
