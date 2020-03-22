@@ -5,6 +5,7 @@
 #include "handmade_defs.h"
 #include "handmade_platform.h"
 #include "handmade_utils.h"
+#include "handmade_math.h"
 #include "handmade_memory.h"
 #include "win32_handmade.h"
 
@@ -186,102 +187,178 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
 }
 
 internal void
-Win32ProcessWindowMessages(win32_platform_state *PlatformState, game_input *Input)
+Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_input_xbox_controller *XboxControllerInput)
 {
+    SavePrevButtonState(&XboxControllerInput->Start);
+
+    XINPUT_STATE PrevControllerState = {};
+    XINPUT_STATE CurrentControllerState = {};
+
+    if (XInputGetState(0, &CurrentControllerState) == ERROR_SUCCESS)
+    {
+        PlatformState->HasXboxController = true;
+
+        if (PrevControllerState.dwPacketNumber != CurrentControllerState.dwPacketNumber)
+        {
+            XboxControllerInput->LeftStick = vec2(0.f);
+
+            if (CurrentControllerState.Gamepad.sThumbLX < -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
+            {
+                XboxControllerInput->LeftStick.x = (f32)CurrentControllerState.Gamepad.sThumbLX / 32768.f;
+            }
+            else if (CurrentControllerState.Gamepad.sThumbLX > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
+            {
+                XboxControllerInput->LeftStick.x = (f32)CurrentControllerState.Gamepad.sThumbLX / 32767.f;
+            }
+
+            if (CurrentControllerState.Gamepad.sThumbLY < -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
+            {
+                XboxControllerInput->LeftStick.y = (f32)CurrentControllerState.Gamepad.sThumbLY / 32768.f;
+            }
+            else if (CurrentControllerState.Gamepad.sThumbLY > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
+            {
+                XboxControllerInput->LeftStick.y = (f32)CurrentControllerState.Gamepad.sThumbLY / 32767.f;
+            }
+
+            XboxControllerInput->Start.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_START) == XINPUT_GAMEPAD_START;
+            XboxControllerInput->Back.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_BACK);
+
+            PrevControllerState = CurrentControllerState;
+        }
+    }
+    else
+    {
+        PlatformState->HasXboxController = false;
+    }
+}
+
+internal void
+Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform_state *PlatformState, MSG *WindowMessage)
+{
+    u32 VKeyCode = (u32)WindowMessage->wParam;
+    b32 WasKeyPressed = (WindowMessage->lParam & (1u << 30)) != 0;
+    b32 IsKeyPressed = (WindowMessage->lParam & (1u << 31)) == 0;
+
+    if (IsKeyPressed != WasKeyPressed)
+    {
+        switch (VKeyCode)
+        {
+            case 'W':
+            case VK_UP:
+            {
+                KeyboardInput->Up.IsPressed = IsKeyPressed;
+            }
+            break;
+            case 'S':
+            case VK_DOWN:
+            {
+                KeyboardInput->Down.IsPressed = IsKeyPressed;
+            }
+            break;
+            case 'A':
+            case VK_LEFT:
+            {
+                KeyboardInput->Left.IsPressed = IsKeyPressed;
+            }
+            break;
+            case 'D':
+            case VK_RIGHT:
+            {
+                KeyboardInput->Right.IsPressed = IsKeyPressed;
+            }
+            break;
+            case VK_TAB:
+            {
+                KeyboardInput->Tab.IsPressed = IsKeyPressed;
+            }
+            break;
+            case VK_CONTROL:
+            {
+                KeyboardInput->Ctrl.IsPressed = IsKeyPressed;
+            }
+            break;
+            case VK_ESCAPE:
+            {
+                PlatformState->IsGameRunning = false;
+            }
+            break;
+        }
+    }
+}
+
+internal void
+Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput)
+{
+    SavePrevButtonState(&KeyboardInput->Tab);
+
     MSG WindowMessage = {};
     while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
     {
         switch (WindowMessage.message)
         {
-            case WM_KEYDOWN:
-            case WM_KEYUP:
-            {
-                u32 VKeyCode = (u32)WindowMessage.wParam;
-                b32 IsKeyDown = (WindowMessage.lParam & (1u << 31)) == 0;
-                b32 WasKeyDown = (WindowMessage.lParam & (1u << 30)) != 0;
-
-                if (IsKeyDown != WasKeyDown)
-                {
-                    switch (VKeyCode)
-                    {
-                        case 'W':
-                        case VK_UP:
-                        {
-                            if (IsKeyDown)
-                            {
-                                Input->Move.Range.y += 1.f;
-                            }
-                            else
-                            {
-                                Input->Move.Range.y -= 1.f;
-                            }
-                        }
-                        break;
-                        case 'S':
-                        case VK_DOWN:
-                        {
-                            if (IsKeyDown)
-                            {
-                                Input->Move.Range.y += -1.f;
-                            }
-                            else
-                            {
-                                Input->Move.Range.y -= -1.f;
-                            }
-                        }
-                        break;
-                        case 'A':
-                        case VK_LEFT:
-                        {
-                            if (IsKeyDown)
-                            {
-                                Input->Move.Range.x += -1.f;
-                            }
-                            else
-                            {
-                                Input->Move.Range.x -= -1.f;
-                            }
-                        }
-                        break;
-                        case 'D':
-                        case VK_RIGHT:
-                        {
-                            if (IsKeyDown)
-                            {
-                                Input->Move.Range.x += 1.f;
-                            }
-                            else
-                            {
-                                Input->Move.Range.x -= 1.f;
-                            }
-                        }
-                        break;
-                        case 'E':
-                        case VK_RETURN:
-                        {
-                            if (IsKeyDown)
-                            {
-                                Input->Action.IsActive = true;
-                            }
-                        }
-                        break;
-                        case VK_ESCAPE:
-                        {
-                            PlatformState->IsGameRunning = false;
-                        }
-                        break;
-                    }
-                }
-            }
-            break;
-            default:
-            {
-                TranslateMessage(&WindowMessage);
-                DispatchMessage(&WindowMessage);
-            }
-            break;
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        {
+            Win32ProcessKeyboardInput(KeyboardInput, PlatformState, &WindowMessage);
+        }
+        break;
+        default:
+        {
+            TranslateMessage(&WindowMessage);
+            DispatchMessage(&WindowMessage);
+        }
+        break;
         }
     }
+}
+
+inline void
+Win32XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInput, game_input *GameInput)
+{
+    GameInput->Move.Range = XboxControllerInput->LeftStick;
+    GameInput->Menu.IsActivated = XboxControllerInput->Start.IsPressed && (XboxControllerInput->Start.IsPressed != XboxControllerInput->Start.WasPressed);
+    GameInput->HighlightBackground.IsActive = XboxControllerInput->Back.IsPressed;
+}
+
+internal void
+Win32KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *GameInput)
+{
+    if (KeyboardInput->Left.IsPressed && KeyboardInput->Right.IsPressed)
+    {
+        GameInput->Move.Range.x = 0.f;
+    }
+    else if (KeyboardInput->Left.IsPressed)
+    {
+        GameInput->Move.Range.x = -1.f;
+    }
+    else if (KeyboardInput->Right.IsPressed)
+    {
+        GameInput->Move.Range.x = 1.f;
+    }
+    else
+    {
+        GameInput->Move.Range.x = 0.f;
+    }
+
+    if (KeyboardInput->Up.IsPressed && KeyboardInput->Down.IsPressed)
+    {
+        GameInput->Move.Range.y = 0.f;
+    }
+    else if (KeyboardInput->Up.IsPressed)
+    {
+        GameInput->Move.Range.y = 1.f;
+    }
+    else if (KeyboardInput->Down.IsPressed)
+    {
+        GameInput->Move.Range.y = -1.f;
+    }
+    else
+    {
+        GameInput->Move.Range.y = 0.f;
+    }
+
+    GameInput->Menu.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
+    GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
 }
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
@@ -377,6 +454,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		game_parameters GameParameters = {};
         game_input GameInput = {};
 
+        platform_input_keyboard KeyboardInput = {};
+        platform_input_xbox_controller XboxControllerInput = {};
+
 		GameCode.Init(&GameMemory);
 		OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
 
@@ -388,7 +468,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		// Game Loop
         while (PlatformState.IsGameRunning)
         {
-            Win32ProcessWindowMessages(&PlatformState, &GameInput);
+            Win32ProcessWindowMessages(&PlatformState, &KeyboardInput);
+            Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
 
             FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
             if (CompareFileTime(&NewDLLWriteTime, &GameCode.LastWriteTime) != 0)
@@ -402,7 +483,17 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameParameters.WindowWidth = PlatformState.WindowWidth;
                 GameParameters.WindowHeight = PlatformState.WindowHeight;
 
+                if (PlatformState.HasXboxController)
+                {
+                    Win32XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
+                }
+                else
+                {
+                    Win32KeyboardInput2GameInput(&KeyboardInput, &GameInput);
+                }
+
                 GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
+                
                 GameCode.Render(&GameMemory, &GameParameters);
 				OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
             }

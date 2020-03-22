@@ -20,6 +20,8 @@ struct win32_platform_state
 	void *GameMemoryBlock;
 
 	b32 IsGameRunning;
+
+	b32 HasXboxController;
 };
 
 struct win32_game_code
@@ -48,7 +50,7 @@ Win32DeallocateMemory(void *Address)
 }
 
 inline void
-Win32OutputString(char *String)
+Win32OutputString(const char *String)
 {
 	OutputDebugStringA(String);
 }

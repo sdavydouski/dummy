@@ -14,4 +14,5 @@ struct game_state
 	game_mode Mode;
 
 	vec2 PlayerPosition;
+	b32 IsBackgroundHighlighted;
 };

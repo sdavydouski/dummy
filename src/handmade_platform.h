@@ -25,7 +25,43 @@ GetRenderCommandsFromMemory(game_memory *Memory)
 	return RenderCommands;
 }
 
+struct platform_button_state
+{
+	b32 IsPressed;
+	b32 WasPressed;
+};
+
+inline void
+SavePrevButtonState(platform_button_state *Button)
+{
+	Button->WasPressed = Button->IsPressed;
+}
+
+struct platform_input_keyboard
+{
+	platform_button_state Up;
+	platform_button_state Down;
+	platform_button_state Left;
+	platform_button_state Right;
+
+	platform_button_state Tab;
+	platform_button_state Ctrl;
+};
+
+struct platform_input_xbox_controller
+{
+	vec2 LeftStick;
+
+	platform_button_state Start;
+	platform_button_state Back;
+};
+
 struct game_input_action
+{
+	b32 IsActivated;
+};
+
+struct game_input_state
 {
 	b32 IsActive;
 };
@@ -38,8 +74,8 @@ struct game_input_range
 struct game_input
 {
 	game_input_range Move;
-	game_input_action Action;
-	game_input_action Jump;
+	game_input_action Menu;
+	game_input_state HighlightBackground;
 };
 
 struct game_parameters

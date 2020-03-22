@@ -32,17 +32,19 @@ GAME_PROCESS_INPUT(GameProcessInput)
 		Move = Normalize(Move);
 	}
 
-	if (Input->Action.IsActive)
+	if (Input->Menu.IsActivated)
 	{
-		Input->Action.IsActive = false;
-
-		if (State->Mode == GameMode_Menu) {
+		if (State->Mode == GameMode_Menu)
+		{
 			State->Mode = GameMode_World;
 		}
-		else if (State->Mode == GameMode_World) {
+		else if (State->Mode == GameMode_World)
+		{
 			State->Mode = GameMode_Menu;
 		}
 	}
+
+	State->IsBackgroundHighlighted = Input->HighlightBackground.IsActive;
 
 	switch (State->Mode)
 	{
@@ -71,7 +73,7 @@ GAME_RENDER(GameRender)
 	render_commands *RenderCommands = GetRenderCommandsFromMemory(Memory);
 
 	SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
-	Clear(RenderCommands, vec4(0.1f, 0.1f, 0.1f, 1.f));
+	
 
 	f32 FrustrumWidthInUnits = 20.f;
 	f32 PixelsPerUnit = (f32)Parameters->WindowWidth / FrustrumWidthInUnits;
@@ -87,11 +89,22 @@ GAME_RENDER(GameRender)
 	{
 		case GameMode_World:
 		{
+			if (State->IsBackgroundHighlighted)
+			{
+				Clear(RenderCommands, vec4(0.f, 1.f, 1.f, 1.f));
+			}
+			else
+			{
+				Clear(RenderCommands, vec4(0.1f, 0.1f, 0.1f, 1.f));
+			}
+
 			DrawRectangle(RenderCommands, State->PlayerPosition, vec2(0.5f), vec4(1.f, 1.f, 0.f, 1.f));
 		}
 		break;
 		case GameMode_Menu:
 		{
+			Clear(RenderCommands, vec4(1.f, 1.f, 1.f, 1.f));
+
 			DrawRectangle(RenderCommands, vec2(-2.f, 2.f) * vec2(cos(Parameters->Time), 1.f), vec2(0.5f), vec4(1.f, 0.f, 0.f, 1.f));
 			DrawRectangle(RenderCommands, vec2(2.f, 2.f) * vec2(1.f, cos(Parameters->Time)), vec2(0.5f), vec4(0.f, 1.f, 0.f, 1.f));
 			DrawRectangle(RenderCommands, vec2(2.f, -2.f) * vec2(-cos(Parameters->Time + PI), 1.f), vec2(0.5f), vec4(0.f, 0.f, 1.f, 1.f));
