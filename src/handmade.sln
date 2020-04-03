@@ -15,6 +15,20 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{1323D42F-8
 		..\misc\game_build.bat = ..\misc\game_build.bat
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "renderers", "renderers", "{3E191EB3-512A-46B4-A48B-DE0918E1FF94}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "OpenGL", "OpenGL", "{68A7B3C9-664F-4610-813C-8954F4AAE036}"
+	ProjectSection(SolutionItems) = preProject
+		renderers\OpenGL\wglext.h = renderers\OpenGL\wglext.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "glad", "glad", "{1A5F8808-61F9-4753-9608-C7ABE5CC337A}"
+	ProjectSection(SolutionItems) = preProject
+		renderers\OpenGL\glad\glad.c = renderers\OpenGL\glad\glad.c
+		renderers\OpenGL\glad\glad.h = renderers\OpenGL\glad\glad.h
+		renderers\OpenGL\glad\khrplatform.h = renderers\OpenGL\glad\khrplatform.h
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -42,6 +56,10 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{68A7B3C9-664F-4610-813C-8954F4AAE036} = {3E191EB3-512A-46B4-A48B-DE0918E1FF94}
+		{1A5F8808-61F9-4753-9608-C7ABE5CC337A} = {68A7B3C9-664F-4610-813C-8954F4AAE036}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3FF4CA08-A1FC-4054-A392-813D6849B305}

@@ -23,6 +23,8 @@ void GladPostCallback(const char *Name, void *FuncPtr, i32 LenArgs, ...) {
 inline void *
 GetOpenGLFuncAddress(char *Name)
 {
+	// https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions
+
     void *Result = (void *)wglGetProcAddress(Name);
     if (Result == 0 || (Result == (void *)0x1) || (Result == (void *)0x2) || (Result == (void *)0x3) || (Result == (void *)-1))
     {
@@ -83,6 +85,7 @@ Win32InitOpenGL(opengl_state *State, HINSTANCE hInstance, HWND WindowHandle)
                 PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
                 PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
                 State->wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+				State->wglGetSwapIntervalEXT = (PFNWGLGETSWAPINTERVALEXTPROC)wglGetProcAddress("wglGetSwapIntervalEXT");
 
                 i32 PixelAttribs[] = {
                     WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
@@ -196,8 +199,28 @@ CreateProgram(GLuint VertexShader, GLuint FragmentShader)
 	return Program;
 }
 
-char *SimpleVertexShader = (char *)"#version 450\nlayout(location = 0) in vec2 in_Position;\nuniform mat4 u_Projection; uniform mat4 u_Model;\nvoid main() { gl_Position = vec4(in_Position, 1.f, 1.f) * u_Model * u_Projection; }";
-char *SimpleFragmentShader = (char *)"#version 450\nout vec4 out_Color;\nuniform vec4 u_Color;\nvoid main() { out_Color = u_Color; }";
+char *SimpleVertexShader = (char *)
+R"SHADER(
+#version 450
+layout(location = 0) in vec3 in_Position;
+uniform mat4 u_Projection;
+uniform mat4 u_Model;
+void main()
+{ 
+    gl_Position = u_Projection * u_Model * vec4(in_Position, 1.f);
+}
+)SHADER";
+
+char *SimpleFragmentShader = (char *)
+R"SHADER(
+#version 450
+out vec4 out_Color;
+uniform vec4 u_Color;
+void main()
+{
+	out_Color = u_Color;
+}
+)SHADER";
 
 internal void
 OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
@@ -208,99 +231,251 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
         switch (Entry->Type)
         {
-        case RenderCommand_SetViewport:
-        {
-            render_command_set_viewport *Command = (render_command_set_viewport *)Entry;
-
-            glViewport(Command->x, Command->y, Command->Width, Command->Height);
-
-            BaseAddress += sizeof(*Command);
-            break;
-        }
-		case RenderCommand_SetOrthographicProjection:
-		{
-			render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *)Entry;
-
-			// todo: use uniform buffer
-			glUseProgram(State->SimpleShaderProgram);
+			case RenderCommand_SetViewport:
 			{
-				mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
+				render_command_set_viewport *Command = (render_command_set_viewport *)Entry;
 
-				i32 ProjectionUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Projection");
-				glUniformMatrix4fv(ProjectionUniformLocation, 1, GL_FALSE, &Projection.Elements[0][0]);
+				glViewport(Command->x, Command->y, Command->Width, Command->Height);
+
+				BaseAddress += sizeof(*Command);
+				break;
 			}
-			glUseProgram(0);
-
-			BaseAddress += sizeof(*Command);
-			break;
-		}
-        case RenderCommand_Clear:
-        {
-            render_command_clear *Command = (render_command_clear *)Entry;
-
-            glClearColor(Command->Color.x, Command->Color.y, Command->Color.z, Command->Color.w);
-            glClear(GL_COLOR_BUFFER_BIT);
-
-            BaseAddress += sizeof(*Command);
-            break;
-        }
-		case RenderCommand_InitRectangle:
-		{
-			render_command_init_rectangle *Command = (render_command_init_rectangle *)Entry;
-
-			vec2 RectangleVertices[] = {
-				vec2(-1.f, -1.f),
-				vec2(1.f, -1.f),
-				vec2(-1.f, 1.f),
-				vec2(1.f, 1.f)
-			};
-
-			glGenVertexArrays(1, &State->RectangleVAO);
-			glBindVertexArray(State->RectangleVAO);
-
-			GLuint RectangleVBO;
-			glGenBuffers(1, &RectangleVBO);
-			glBindBuffer(GL_ARRAY_BUFFER, RectangleVBO);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(RectangleVertices), RectangleVertices, GL_STATIC_DRAW);
-
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
-
-			glBindVertexArray(0);
-
-			GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, SimpleVertexShader);
-			GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, SimpleFragmentShader);
-
-			State->SimpleShaderProgram = CreateProgram(VertexShader, FragmentShader);
-		}
-        case RenderCommand_DrawRectangle:
-        {
-            render_command_draw_rectangle *Command = (render_command_draw_rectangle *)Entry;
-
-			glBindVertexArray(State->RectangleVAO);
-
-			glUseProgram(State->SimpleShaderProgram);
+			case RenderCommand_SetOrthographicProjection:
 			{
-				mat4 Model = mat4(1.f);
+				render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *)Entry;
 
-				Model = Translate(Model, vec3(Command->Position, 0.f));
-				Model = Scale(Model, Command->Size.x);
+				// todo: use uniform buffer
+				glUseProgram(State->SimpleShaderProgram);
+				{
+					mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
 
-				i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
-				glUniformMatrix4fv(ModelUniformLocation, 1, GL_FALSE, (f32 *)Model.Elements);
+					i32 ProjectionUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Projection");
+					glUniformMatrix4fv(ProjectionUniformLocation, 1, GL_TRUE, &Projection.Elements[0][0]);
+				}
+				glUseProgram(0);
 
-				i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
-				glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+				BaseAddress += sizeof(*Command);
+				break;
 			}
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			case RenderCommand_SetPerspectiveProjection:
+			{
+				// todo:
+				glEnable(GL_CULL_FACE);
+
+				render_command_set_perspective_projection *Command = (render_command_set_perspective_projection *)Entry;
+
+				// todo: use uniform buffer
+				glUseProgram(State->SimpleShaderProgram);
+				{
+					mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
+
+					i32 ProjectionUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Projection");
+					glUniformMatrix4fv(ProjectionUniformLocation, 1, GL_TRUE, &Projection.Elements[0][0]);
+				}
+				glUseProgram(0);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_SetWireframe:
+			{
+				render_command_set_wireframe *Command = (render_command_set_wireframe *)Entry;
+
+				if (Command->IsWireframe)
+				{
+					glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				}
+				else
+				{
+					glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				}
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_Clear:
+			{
+				render_command_clear *Command = (render_command_clear *)Entry;
+
+				glClearColor(Command->Color.x, Command->Color.y, Command->Color.z, Command->Color.w);
+				glClear(GL_COLOR_BUFFER_BIT);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_InitRectangle:
+			{
+				render_command_init_rectangle *Command = (render_command_init_rectangle *)Entry;
+
+				vec3 RectangleVertices[] = {
+					vec3(-1.f, -1.f, 0.f),
+					vec3(1.f, -1.f, 0.f),
+					vec3(-1.f, 1.f, 0.f),
+					vec3(1.f, 1.f, 0.f)
+				};
+
+				glGenVertexArrays(1, &State->RectangleVAO);
+				glBindVertexArray(State->RectangleVAO);
+
+				GLuint RectangleVBO;
+				glGenBuffers(1, &RectangleVBO);
+				glBindBuffer(GL_ARRAY_BUFFER, RectangleVBO);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(RectangleVertices), RectangleVertices, GL_STATIC_DRAW);
+
+				glEnableVertexAttribArray(0);
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
+
+				glBindVertexArray(0);
+
+				GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, SimpleVertexShader);
+				GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, SimpleFragmentShader);
+
+				State->SimpleShaderProgram = CreateProgram(VertexShader, FragmentShader);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_DrawRectangle:
+			{
+				render_command_draw_rectangle *Command = (render_command_draw_rectangle *)Entry;
+
+				glBindVertexArray(State->RectangleVAO);
+
+				glUseProgram(State->SimpleShaderProgram);
+
+				{
+					mat4 T = Translate(vec3(Command->Position, 0.f));
+					mat4 R = mat4(1.f);
+
+					f32 Angle = Command->Rotation.x;
+					vec3 Axis = Command->Rotation.yzw;
+
+					if (IsXAxis(Axis))
+					{
+						R = RotateX(Angle);
+					}
+					else if (IsYAxis(Axis))
+					{
+						R = RotateY(Angle);
+					}
+					else if (IsZAxis(Axis))
+					{
+						R = RotateZ(Angle);
+					}
+					else
+					{
+						// todo:
+					}
+
+					mat4 S = Scale(Command->Size.x);
+
+					mat4 Model = T * R * S;
+
+					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
+					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+					i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
+					glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+				}
+				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 			
-			glBindVertexArray(0);
+				glBindVertexArray(0);
 
-            BaseAddress += sizeof(*Command);
-            break;
-        }
-        default:
-            Assert(!"Render command is not supported");
-        }
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_InitBox:
+			{
+				render_command_init_box *Command = (render_command_init_box *)Entry;
+
+				vec3 BoxVertices[] = {
+					vec3(-1.f, 1.f, 1.f),		// Front-top-left
+					vec3(1.f, 1.f, 1.f),		// Front-top-right
+					vec3(-1.f, -1.f, 1.f),		// Front-bottom-left
+					vec3(1.f, -1.f, 1.f),		// Front-bottom-right
+					vec3(1.f, -1.f, -1.f),		// Back-bottom-right
+					vec3(1.f, 1.f, 1.f),		// Front-top-right
+					vec3(1.f, 1.f, -1.f),		// Back-top-right
+					vec3(-1.f, 1.f, 1.f),		// Front-top-left
+					vec3(-1.f, 1.f, -1.f),		// Back-top-left
+					vec3(-1.f, -1.f, 1.f),		// Front-bottom-left
+					vec3(-1.f, -1.f, -1.f),		// Back-bottom-left
+					vec3(1.f, -1.f, -1.f),		// Back-bottom-right
+					vec3(-1.f, 1.f, -1.f),		// Back-top-left
+					vec3(1.f, 1.f, -1.f)		// Back-top-right
+				};
+
+				glGenVertexArrays(1, &State->BoxVAO);
+				glBindVertexArray(State->BoxVAO);
+
+				GLuint BoxVBO;
+				glGenBuffers(1, &BoxVBO);
+				glBindBuffer(GL_ARRAY_BUFFER, BoxVBO);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(BoxVertices), BoxVertices, GL_STATIC_DRAW);
+
+				glEnableVertexAttribArray(0);
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
+
+				glBindVertexArray(0);
+
+				GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, SimpleVertexShader);
+				GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, SimpleFragmentShader);
+
+				//State->SimpleShaderProgram = CreateProgram(VertexShader, FragmentShader);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_DrawBox:
+			{
+				render_command_draw_box *Command = (render_command_draw_box *)Entry;
+
+				glBindVertexArray(State->BoxVAO);
+
+				glUseProgram(State->SimpleShaderProgram);
+				{
+					mat4 T = Translate(Command->Position);
+					mat4 R = mat4(1.f);
+				
+					f32 Angle = Command->Rotation.x;
+					vec3 Axis = Command->Rotation.yzw;
+
+					if (IsXAxis(Axis))
+					{
+						R = RotateX(Angle);
+					}
+					else if (IsYAxis(Axis))
+					{
+						R = RotateY(Angle);
+					}
+					else if (IsZAxis(Axis))
+					{
+						R = RotateZ(Angle);
+					}
+					else
+					{
+						// todo:
+					}
+
+					mat4 S = Scale(Command->Size);
+
+					mat4 Model = T * R * S;
+
+					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
+					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+					i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
+					glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+				}
+				glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
+
+				glBindVertexArray(0);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			default:
+				Assert(!"Render command is not supported");
+			}
     }
 }

@@ -13,6 +13,6 @@ struct game_state
 {
 	game_mode Mode;
 
-	vec2 PlayerPosition;
+	vec3 PlayerPosition;
 	b32 IsBackgroundHighlighted;
 };

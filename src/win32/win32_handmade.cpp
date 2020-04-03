@@ -67,6 +67,16 @@ Win32GetLastWriteTime(wchar *FileName)
     return LastWriteTime;
 }
 
+inline void
+Win32HideMouseCursor()
+{
+    i32 DisplayCounter = ShowCursor(false);
+    while (DisplayCounter >= 0)
+    {
+        DisplayCounter = ShowCursor(false);
+    }
+}
+
 internal win32_game_code
 Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
 {
@@ -107,7 +117,21 @@ Win32UnloadGameCode(win32_game_code *GameCode)
 
     GameCode->IsValid = false;
     GameCode->Init = 0;
+    GameCode->ProcessInput = 0;
     GameCode->Render = 0;
+}
+
+inline RECT
+GetCursorClipRect(win32_platform_state *PlatformState)
+{
+    RECT Rect;
+
+    Rect.left = PlatformState->WindowPositionX;
+    Rect.right = Rect.left + PlatformState->WindowWidth;
+    Rect.top = PlatformState->WindowPositionY;
+    Rect.bottom = Rect.top + PlatformState->WindowHeight;
+
+    return Rect;
 }
 
 internal void
@@ -116,14 +140,13 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
     // https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
 
     DWORD Style = GetWindowLong(PlatformState->WindowHandle, GWL_STYLE);
-    if (Style & WS_OVERLAPPEDWINDOW)
+    if (Style & PlatformState->WindowStyles)
     {
         MONITORINFO MonitorInfo = { sizeof(MonitorInfo) };
         if (GetWindowPlacement(PlatformState->WindowHandle, &PlatformState->WindowPlacement) &&
             GetMonitorInfo(MonitorFromWindow(PlatformState->WindowHandle, MONITOR_DEFAULTTOPRIMARY), &MonitorInfo))
         {
-            SetWindowLong(PlatformState->WindowHandle, GWL_STYLE, Style & ~WS_OVERLAPPEDWINDOW);
-
+            SetWindowLong(PlatformState->WindowHandle, GWL_STYLE, Style & ~PlatformState->WindowStyles);
             SetWindowPos(PlatformState->WindowHandle, HWND_TOP,
                 MonitorInfo.rcMonitor.left, MonitorInfo.rcMonitor.top,
                 MonitorInfo.rcMonitor.right - MonitorInfo.rcMonitor.left,
@@ -134,7 +157,7 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
     }
     else
     {
-        SetWindowLong(PlatformState->WindowHandle, GWL_STYLE, Style | WS_OVERLAPPEDWINDOW);
+        SetWindowLong(PlatformState->WindowHandle, GWL_STYLE, Style | PlatformState->WindowStyles);
 
         SetWindowPlacement(PlatformState->WindowHandle, &PlatformState->WindowPlacement);
         SetWindowPos(PlatformState->WindowHandle, 0, 0, 0, 0, 0,
@@ -142,6 +165,11 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
             SWP_NOOWNERZORDER | SWP_FRAMECHANGED
         );
     }
+
+#if 0
+    RECT Rect = GetCursorClipRect(PlatformState);
+    ClipCursor(&Rect);
+#endif
 }
 
 LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, _In_ LPARAM lParam)
@@ -158,32 +186,100 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
 			CREATESTRUCT *pCreate = (CREATESTRUCT *)lParam;
 			win32_platform_state *PlatformState = (win32_platform_state *)pCreate->lpCreateParams;
 			SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)PlatformState);
+            break;
 		}
-		break;
         case WM_CLOSE:
         {
             win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
             PlatformState->IsGameRunning = false;
+            break;
         }
-        break;
 		case WM_DESTROY:
 		{
 			win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
 			PlatformState->IsGameRunning = false;
+            break;
 		}
-		break;
-        case WM_SIZE:
+        case WM_ACTIVATE:
+        {
+            win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+
+            i32 IsActive = LOWORD(wParam);
+            if (IsActive == WA_ACTIVE || IsActive == WA_CLICKACTIVE)
+            {
+                PlatformState->IsWindowActive = true;
+
+#if 0
+                RECT Rect = GetCursorClipRect(PlatformState);
+                ClipCursor(&Rect);
+#endif
+            }
+            else if (IsActive == WA_INACTIVE)
+            {
+                PlatformState->IsWindowActive = false;
+            }
+
+            break;
+        }
+        case WM_MOVE:
+        {
+            win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+
+            PlatformState->WindowPositionX = (i32)LOWORD(lParam);
+            PlatformState->WindowPositionY = (i32)HIWORD(lParam);
+
+            break;
+        }
+        case WM_SIZE :
         {
             win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
             PlatformState->WindowWidth = LOWORD(lParam);
             PlatformState->WindowHeight = HIWORD(lParam);
+
+            break;
         }
-        break;
+#if 0
+        case WM_EXITSIZEMOVE:
+        {
+            win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+
+            RECT Rect = GetCursorClipRect(PlatformState);
+            ClipCursor(&Rect);
+
+            break;
+        }
+#endif
         default:
 			return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
     
     return 0;
+}
+
+inline vec2
+Win32ProcessXboxControllerStick(SHORT sThumbX, SHORT sThumbY, f32 DeadZone)
+{
+    vec2 StickValue = vec2(0.f);
+
+    if (sThumbX < -DeadZone)
+    {
+        StickValue.x = (f32)sThumbX / 32768.f;
+    }
+    else if (sThumbX > DeadZone)
+    {
+        StickValue.x = (f32)sThumbX / 32767.f;
+    }
+
+    if (sThumbY < -DeadZone)
+    {
+        StickValue.y = (f32)sThumbY / 32768.f;
+    }
+    else if (sThumbY > DeadZone)
+    {
+        StickValue.y = (f32)sThumbY / 32767.f;
+    }
+
+    return StickValue;
 }
 
 internal void
@@ -200,25 +296,16 @@ Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_in
 
         if (PrevControllerState.dwPacketNumber != CurrentControllerState.dwPacketNumber)
         {
-            XboxControllerInput->LeftStick = vec2(0.f);
-
-            if (CurrentControllerState.Gamepad.sThumbLX < -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
-            {
-                XboxControllerInput->LeftStick.x = (f32)CurrentControllerState.Gamepad.sThumbLX / 32768.f;
-            }
-            else if (CurrentControllerState.Gamepad.sThumbLX > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
-            {
-                XboxControllerInput->LeftStick.x = (f32)CurrentControllerState.Gamepad.sThumbLX / 32767.f;
-            }
-
-            if (CurrentControllerState.Gamepad.sThumbLY < -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
-            {
-                XboxControllerInput->LeftStick.y = (f32)CurrentControllerState.Gamepad.sThumbLY / 32768.f;
-            }
-            else if (CurrentControllerState.Gamepad.sThumbLY > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
-            {
-                XboxControllerInput->LeftStick.y = (f32)CurrentControllerState.Gamepad.sThumbLY / 32767.f;
-            }
+            XboxControllerInput->LeftStick = Win32ProcessXboxControllerStick(
+                CurrentControllerState.Gamepad.sThumbLX, 
+                CurrentControllerState.Gamepad.sThumbLY, 
+                XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE
+            );
+            XboxControllerInput->RightStick = Win32ProcessXboxControllerStick(
+                CurrentControllerState.Gamepad.sThumbRX, 
+                CurrentControllerState.Gamepad.sThumbRY, 
+                XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE
+            );
 
             XboxControllerInput->Start.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_START) == XINPUT_GAMEPAD_START;
             XboxControllerInput->Back.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_BACK);
@@ -286,8 +373,44 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
     }
 }
 
+inline void
+Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *PlatformState, MSG *WindowMessage)
+{
+    i32 MouseCursorX = GET_MOUSE_CURSOR_X(WindowMessage->lParam);
+    i32 MouseCursorY = GET_MOUSE_CURSOR_Y(WindowMessage->lParam);
+
+    switch (PlatformState->MouseMode)
+    {
+        case MouseMode_Navigation:
+        {
+            i32 WindowCenterX = PlatformState->WindowWidth / 2;
+            i32 WindowCenterY = PlatformState->WindowHeight / 2;
+
+            MouseInput->dx = MouseCursorX - WindowCenterX;
+            MouseInput->dy = MouseCursorY - WindowCenterY;
+
+            SetCursorPos(PlatformState->WindowPositionX + WindowCenterX, PlatformState->WindowPositionY + WindowCenterY);
+
+            break;
+        }
+        case MouseMode_Cursor:
+        {
+            MouseInput->x = MouseCursorX;
+            MouseInput->y = MouseCursorY;
+
+            break;
+        }
+        default:
+        {
+            Assert(!"Mouse mode is not supported");
+            break;
+        }
+    }
+
+}
+
 internal void
-Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput)
+Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput, platform_input_mouse *MouseInput)
 {
     SavePrevButtonState(&KeyboardInput->Tab);
 
@@ -296,89 +419,84 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
     {
         switch (WindowMessage.message)
         {
-        case WM_KEYDOWN:
-        case WM_KEYUP:
-        {
-            Win32ProcessKeyboardInput(KeyboardInput, PlatformState, &WindowMessage);
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            {
+                if (PlatformState->IsWindowActive)
+                {
+                    Win32ProcessKeyboardInput(KeyboardInput, PlatformState, &WindowMessage);
+                }
+                break;
+            }
+            case WM_MOUSEMOVE:
+            {
+                if (PlatformState->IsWindowActive)
+                {
+                    Win32ProcessMouseInput(MouseInput, PlatformState, &WindowMessage);
+                }
+                break;
+            }
+            default:
+            {
+                TranslateMessage(&WindowMessage);
+                DispatchMessage(&WindowMessage);
+                break;
+            }
         }
-        break;
+    }
+}
+
+PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
+{
+    win32_platform_state *PlatformState = (win32_platform_state *)PlatformStateHandle;
+    PlatformState->MouseMode = MouseMode;
+
+    switch (PlatformState->MouseMode)
+    {
+        case MouseMode_Navigation:
+        {
+            Win32HideMouseCursor();
+            SetCursorPos(PlatformState->WindowPositionX + PlatformState->WindowWidth / 2, PlatformState->WindowPositionY + PlatformState->WindowHeight / 2);
+            break;
+        }
+        case MouseMode_Cursor:
+        {
+            ShowCursor(true);
+            break;
+        }
         default:
         {
-            TranslateMessage(&WindowMessage);
-            DispatchMessage(&WindowMessage);
-        }
-        break;
+            Assert(!"Mouse mode is not supported");
+            break;
         }
     }
-}
-
-inline void
-Win32XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInput, game_input *GameInput)
-{
-    GameInput->Move.Range = XboxControllerInput->LeftStick;
-    GameInput->Menu.IsActivated = XboxControllerInput->Start.IsPressed && (XboxControllerInput->Start.IsPressed != XboxControllerInput->Start.WasPressed);
-    GameInput->HighlightBackground.IsActive = XboxControllerInput->Back.IsPressed;
-}
-
-internal void
-Win32KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *GameInput)
-{
-    if (KeyboardInput->Left.IsPressed && KeyboardInput->Right.IsPressed)
-    {
-        GameInput->Move.Range.x = 0.f;
-    }
-    else if (KeyboardInput->Left.IsPressed)
-    {
-        GameInput->Move.Range.x = -1.f;
-    }
-    else if (KeyboardInput->Right.IsPressed)
-    {
-        GameInput->Move.Range.x = 1.f;
-    }
-    else
-    {
-        GameInput->Move.Range.x = 0.f;
-    }
-
-    if (KeyboardInput->Up.IsPressed && KeyboardInput->Down.IsPressed)
-    {
-        GameInput->Move.Range.y = 0.f;
-    }
-    else if (KeyboardInput->Up.IsPressed)
-    {
-        GameInput->Move.Range.y = 1.f;
-    }
-    else if (KeyboardInput->Down.IsPressed)
-    {
-        GameInput->Move.Range.y = -1.f;
-    }
-    else
-    {
-        GameInput->Move.Range.y = 0.f;
-    }
-
-    GameInput->Menu.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
-    GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
 }
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
+    SetProcessDPIAware();
+
     win32_platform_state PlatformState = {};
     PlatformState.WindowWidth = 1920;
     PlatformState.WindowHeight = 1080;
+    PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
+    PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-	PlatformState.VSync = true;
+	PlatformState.VSync = false;
 
-	LARGE_INTEGER PerformanceFrequency;
-	QueryPerformanceFrequency(&PerformanceFrequency);
-	PlatformState.PerformanceFrequency = PerformanceFrequency.QuadPart;
+    LARGE_INTEGER PerformanceFrequency;
+    QueryPerformanceFrequency(&PerformanceFrequency);
+    PlatformState.PerformanceFrequency = PerformanceFrequency.QuadPart;
 
-	SetProcessDPIAware();
+    platform_api PlatformApi = {};
+    PlatformApi.StateHandle = (void *)&PlatformState;
+    PlatformApi.SetMouseMode = Win32SetMouseMode;
 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(64);
     GameMemory.TransientStorageSize = Megabytes(256);
     GameMemory.RenderCommandsStorageSize = Megabytes(4);
+    GameMemory.Platform = &PlatformApi;
 
     void *BaseAddress = (void *)Terabytes(2);
 
@@ -413,26 +531,39 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     RegisterClass(&WindowClass);
 
-    DWORD WindowStyles = WS_OVERLAPPEDWINDOW;
+    PlatformState.WindowStyles = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
     RECT Rect = { 0, 0, PlatformState.WindowWidth, PlatformState.WindowHeight };
-    AdjustWindowRectEx(&Rect, WindowStyles, false, 0);
+    AdjustWindowRectEx(&Rect, PlatformState.WindowStyles, false, 0);
 
     u32 FullWindowWidth = Rect.right - Rect.left;
     u32 FullWindowHeight = Rect.bottom - Rect.top;
 
-    PlatformState.WindowHandle = CreateWindowEx(0, WindowClass.lpszClassName, L"Handmade", WindowStyles,
+    PlatformState.WindowHandle = CreateWindowEx(0, WindowClass.lpszClassName, L"Handmade", PlatformState.WindowStyles,
         CW_USEDEFAULT, CW_USEDEFAULT, FullWindowWidth, FullWindowHeight, 0, 0, hInstance, &PlatformState
     );
 
     if (PlatformState.WindowHandle)
     {
         HDC WindowDC = GetDC(PlatformState.WindowHandle);
-        
+
 		opengl_state OpenGLState = {};
         Win32InitOpenGL(&OpenGLState, hInstance, PlatformState.WindowHandle);
 		Win32OpenGLSetVSync(&OpenGLState, PlatformState.VSync);
 
+        PlatformState.WindowPositionX = PlatformState.ScreenWidth / 2 - PlatformState.WindowWidth / 2;
+        PlatformState.WindowPositionY = PlatformState.ScreenHeight / 2 - PlatformState.WindowHeight / 2;
+
+        // Center window on screen
+        SetWindowPos(PlatformState.WindowHandle, 0, 
+            PlatformState.WindowPositionX, PlatformState.WindowPositionY,
+            FullWindowWidth, FullWindowHeight, 0
+        );
+
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
+        
+        PlatformState.MouseMode = MouseMode_Navigation;
+        Win32HideMouseCursor();
+        SetCursorPos(PlatformState.WindowPositionX + PlatformState.WindowWidth / 2, PlatformState.WindowPositionY + PlatformState.WindowHeight / 2);
 
         // Setup Dear ImGui context
         IMGUI_CHECKVERSION();
@@ -447,7 +578,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         ImGui_ImplOpenGL3_Init();
 
         // Load Fonts
-        io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/consola.ttf", 24);
+        io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/Consola.ttf", 24);
 
 		render_commands *RenderCommands = GetRenderCommandsFromMemory(&GameMemory);
 
@@ -455,6 +586,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         game_input GameInput = {};
 
         platform_input_keyboard KeyboardInput = {};
+        platform_input_mouse MouseInput = {};
         platform_input_xbox_controller XboxControllerInput = {};
 
 		GameCode.Init(&GameMemory);
@@ -468,8 +600,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		// Game Loop
         while (PlatformState.IsGameRunning)
         {
-            Win32ProcessWindowMessages(&PlatformState, &KeyboardInput);
-            Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
+            Win32ProcessWindowMessages(&PlatformState, &KeyboardInput, &MouseInput);
+            if (PlatformState.IsWindowActive)
+            {
+                Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
+            }
 
             FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
             if (CompareFileTime(&NewDLLWriteTime, &GameCode.LastWriteTime) != 0)
@@ -485,11 +620,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                 if (PlatformState.HasXboxController)
                 {
-                    Win32XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
+                    XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
                 }
                 else
                 {
-                    Win32KeyboardInput2GameInput(&KeyboardInput, &GameInput);
+                    KeyboardInput2GameInput(&KeyboardInput, &GameInput);
+                    MouseInput2GameInput(&MouseInput, &GameInput);
                 }
 
                 GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);

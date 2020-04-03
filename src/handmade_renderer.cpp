@@ -52,6 +52,24 @@ SetOrthographicProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bo
 }
 
 inline void
+SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far)
+{
+	render_command_set_perspective_projection *Command =
+		PushRenderCommand(Commands, render_command_set_perspective_projection, RenderCommand_SetPerspectiveProjection);
+	Command->FovY = FovY;
+	Command->Aspect = Aspect;
+	Command->Near = Near;
+	Command->Far = Far;
+}
+
+inline void
+SetWireframe(render_commands *Commands, b32 IsWireframe)
+{
+	render_command_set_wireframe *Command = PushRenderCommand(Commands, render_command_set_wireframe, RenderCommand_SetWireframe);
+	Command->IsWireframe = IsWireframe;
+}
+
+inline void
 Clear(render_commands *Commands, vec4 Color)
 {
 	render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear);
@@ -61,14 +79,31 @@ Clear(render_commands *Commands, vec4 Color)
 inline void
 InitRectangle(render_commands *Commands)
 {
-	render_command_init_rectangle *Command = PushRenderCommand(Commands, render_command_init_rectangle, RenderCommand_InitRectangle);
+	PushRenderCommand(Commands, render_command_init_rectangle, RenderCommand_InitRectangle);
 }
 
 inline void
-DrawRectangle(render_commands *Commands, vec2 Position, vec2 Size, vec4 Color)
+DrawRectangle(render_commands *Commands, vec2 Position, vec2 Size, vec4 Color, vec4 Rotation = vec4(0.f))
 {
 	render_command_draw_rectangle *Command = PushRenderCommand(Commands, render_command_draw_rectangle, RenderCommand_DrawRectangle);
 	Command->Position = Position;
 	Command->Size = Size;
+	Command->Rotation = Rotation;
+	Command->Color = Color;
+}
+
+inline void
+InitBox(render_commands *Commands)
+{
+	PushRenderCommand(Commands, render_command_init_box, RenderCommand_InitBox);
+}
+
+inline void
+DrawBox(render_commands *Commands, vec3 Position, vec3 Size, vec4 Color, vec4 Rotation = vec4(0.f))
+{
+	render_command_draw_box *Command = PushRenderCommand(Commands, render_command_draw_box, RenderCommand_DrawBox);
+	Command->Position = Position;
+	Command->Size = Size;
+	Command->Rotation = Rotation;
 	Command->Color = Color;
 }

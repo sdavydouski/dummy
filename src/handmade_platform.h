@@ -2,6 +2,21 @@
 
 #include "handmade_renderer.h"
 
+enum mouse_mode
+{
+    MouseMode_Navigation,
+    MouseMode_Cursor
+};
+
+#define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformStateHandle, mouse_mode MouseMode)
+typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
+
+struct platform_api
+{
+    void *StateHandle;
+    platform_set_mouse_mode *SetMouseMode;
+};
+
 struct game_memory
 {
 	umm PermanentStorageSize;
@@ -12,6 +27,8 @@ struct game_memory
 
 	umm RenderCommandsStorageSize;
 	void *RenderCommandsStorage;
+
+    platform_api *Platform;
 };
 
 inline render_commands *
@@ -48,9 +65,28 @@ struct platform_input_keyboard
 	platform_button_state Ctrl;
 };
 
+struct platform_input_mouse
+{
+    union
+    {
+        struct
+        {
+            i32 x;
+            i32 y;
+        };
+
+        struct
+        {
+            i32 dx;
+            i32 dy;
+        };
+    };
+};
+
 struct platform_input_xbox_controller
 {
 	vec2 LeftStick;
+    vec2 RightStick;
 
 	platform_button_state Start;
 	platform_button_state Back;
@@ -74,9 +110,70 @@ struct game_input_range
 struct game_input
 {
 	game_input_range Move;
+    game_input_range Camera;
 	game_input_action Menu;
 	game_input_state HighlightBackground;
 };
+
+inline void
+XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInput, game_input *GameInput)
+{
+    GameInput->Move.Range = XboxControllerInput->LeftStick;
+    GameInput->Camera.Range = XboxControllerInput->RightStick;
+    GameInput->Menu.IsActivated = XboxControllerInput->Start.IsPressed && (XboxControllerInput->Start.IsPressed != XboxControllerInput->Start.WasPressed);
+    GameInput->HighlightBackground.IsActive = XboxControllerInput->Back.IsPressed;
+}
+
+internal void
+KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *GameInput)
+{
+    if (KeyboardInput->Left.IsPressed && KeyboardInput->Right.IsPressed)
+    {
+        GameInput->Move.Range.x = 0.f;
+    }
+    else if (KeyboardInput->Left.IsPressed)
+    {
+        GameInput->Move.Range.x = -1.f;
+    }
+    else if (KeyboardInput->Right.IsPressed)
+    {
+        GameInput->Move.Range.x = 1.f;
+    }
+    else
+    {
+        GameInput->Move.Range.x = 0.f;
+    }
+
+    if (KeyboardInput->Up.IsPressed && KeyboardInput->Down.IsPressed)
+    {
+        GameInput->Move.Range.y = 0.f;
+    }
+    else if (KeyboardInput->Up.IsPressed)
+    {
+        GameInput->Move.Range.y = 1.f;
+    }
+    else if (KeyboardInput->Down.IsPressed)
+    {
+        GameInput->Move.Range.y = -1.f;
+    }
+    else
+    {
+        GameInput->Move.Range.y = 0.f;
+    }
+
+    GameInput->Menu.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
+    GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
+}
+
+inline void
+MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
+{
+	vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy);
+    MouseMovement.x = Clamp(MouseMovement.x, -1.f, 1.f);
+    MouseMovement.y = Clamp(MouseMovement.y, -1.f, 1.f);
+
+	GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
+}
 
 struct game_parameters
 {
