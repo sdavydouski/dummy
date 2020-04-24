@@ -63,6 +63,16 @@ SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Ne
 }
 
 inline void
+SetCameraTransform(render_commands *Commands, vec3 Eye, vec3 Target, vec3 Up)
+{
+	render_command_set_camera_transform *Command =
+		PushRenderCommand(Commands, render_command_set_camera_transform, RenderCommand_SetCameraTransform);
+	Command->Eye = Eye;
+	Command->Target = Target;
+	Command->Up = Up;
+}
+
+inline void
 SetWireframe(render_commands *Commands, b32 IsWireframe)
 {
 	render_command_set_wireframe *Command = PushRenderCommand(Commands, render_command_set_wireframe, RenderCommand_SetWireframe);
@@ -74,6 +84,22 @@ Clear(render_commands *Commands, vec4 Color)
 {
 	render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear);
 	Command->Color = Color;
+}
+
+inline void
+InitLine(render_commands *Commands)
+{
+	PushRenderCommand(Commands, render_command_init_line, RenderCommand_InitLine);
+}
+
+inline void
+DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness)
+{
+	render_command_draw_line *Command = PushRenderCommand(Commands, render_command_draw_line, RenderCommand_DrawLine);
+	Command->Start = Start;
+	Command->End = End;
+	Command->Color = Color;
+	Command->Thickness = Thickness;
 }
 
 inline void
@@ -105,5 +131,22 @@ DrawBox(render_commands *Commands, vec3 Position, vec3 Size, vec4 Color, vec4 Ro
 	Command->Position = Position;
 	Command->Size = Size;
 	Command->Rotation = Rotation;
+	Command->Color = Color;
+}
+
+inline void
+InitGrid(render_commands *Commands, u32 Count)
+{
+	render_command_init_grid *Command = PushRenderCommand(Commands, render_command_init_grid, RenderCommand_InitGrid);
+	Command->Count = Count;
+}
+
+inline void
+DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, vec3 Color)
+{
+	render_command_draw_grid *Command = PushRenderCommand(Commands, render_command_draw_grid, RenderCommand_DrawGrid);
+	Command->Size = Size;
+	Command->Count = Count;
+	Command->CameraPosition = CameraPosition;
 	Command->Color = Color;
 }

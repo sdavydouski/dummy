@@ -20,12 +20,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="handmade.h" />
+    <ClInclude Include="handmade_collision.h" />
     <ClInclude Include="handmade_defs.h" />
+    <ClInclude Include="handmade_mat4.h" />
     <ClInclude Include="handmade_math.h" />
     <ClInclude Include="handmade_memory.h" />
+    <ClInclude Include="handmade_physics.h" />
     <ClInclude Include="handmade_platform.h" />
+    <ClInclude Include="handmade_quaternion.h" />
     <ClInclude Include="handmade_renderer.h" />
     <ClInclude Include="handmade_utils.h" />
+    <ClInclude Include="handmade_vec2.h" />
+    <ClInclude Include="handmade_vec3.h" />
+    <ClInclude Include="handmade_vec4.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="handmade.cpp" />

@@ -202,23 +202,69 @@ CreateProgram(GLuint VertexShader, GLuint FragmentShader)
 char *SimpleVertexShader = (char *)
 R"SHADER(
 #version 450
+
 layout(location = 0) in vec3 in_Position;
+
 uniform mat4 u_Projection;
+uniform mat4 u_View;
 uniform mat4 u_Model;
+
 void main()
 { 
-    gl_Position = u_Projection * u_Model * vec4(in_Position, 1.f);
+    gl_Position = u_Projection * u_View * u_Model * vec4(in_Position, 1.f);
 }
 )SHADER";
 
 char *SimpleFragmentShader = (char *)
 R"SHADER(
 #version 450
+
 out vec4 out_Color;
+
 uniform vec4 u_Color;
+
 void main()
 {
 	out_Color = u_Color;
+}
+)SHADER";
+
+char *GridVertexShader = (char *)
+R"SHADER(
+#version 450
+
+layout(location = 0) in vec3 in_Position;
+
+out vec3 ex_VertexPosition; 
+
+uniform mat4 u_Projection;
+uniform mat4 u_View;
+uniform mat4 u_Model;
+
+void main()
+{
+    ex_VertexPosition = (u_Model * vec4(in_Position, 1.f)).xyz;
+    gl_Position = u_Projection * u_View * u_Model * vec4(in_Position, 1.f);
+}
+)SHADER";
+
+char *GridFragmentShader = (char *)
+R"SHADER(
+#version 450
+
+in vec3 ex_VertexPosition;
+
+out vec4 out_Color;
+
+uniform vec3 u_CameraPosition;
+uniform vec3 u_Color;
+
+void main()
+{
+    float DistanceFromCamera = length(u_CameraPosition - ex_VertexPosition);
+    float Opacity = clamp(DistanceFromCamera * 0.01f, 0.f, 1.f);
+
+    out_Color = vec4(u_Color, 1.f - Opacity);
 }
 )SHADER";
 
@@ -233,6 +279,14 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         {
 			case RenderCommand_SetViewport:
 			{
+				// todo:
+				glEnable(GL_CULL_FACE);
+				//glEnable(GL_DEPTH_TEST);
+				glEnable(GL_BLEND);
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glEnable(GL_LINE_SMOOTH);
+				glEnable(GL_MULTISAMPLE);
+
 				render_command_set_viewport *Command = (render_command_set_viewport *)Entry;
 
 				glViewport(Command->x, Command->y, Command->Width, Command->Height);
@@ -259,9 +313,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			}
 			case RenderCommand_SetPerspectiveProjection:
 			{
-				// todo:
-				glEnable(GL_CULL_FACE);
-
 				render_command_set_perspective_projection *Command = (render_command_set_perspective_projection *)Entry;
 
 				// todo: use uniform buffer
@@ -271,6 +322,41 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
 					i32 ProjectionUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Projection");
 					glUniformMatrix4fv(ProjectionUniformLocation, 1, GL_TRUE, &Projection.Elements[0][0]);
+				}
+				glUseProgram(0);
+
+				glUseProgram(State->GridShaderProgram);
+				{
+					mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
+
+					i32 ProjectionUniformLocation = glGetUniformLocation(State->GridShaderProgram, "u_Projection");
+					glUniformMatrix4fv(ProjectionUniformLocation, 1, GL_TRUE, &Projection.Elements[0][0]);
+				}
+				glUseProgram(0);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_SetCameraTransform:
+			{
+				render_command_set_camera_transform *Command = (render_command_set_camera_transform *)Entry;
+
+				// todo: use uniform buffer
+				glUseProgram(State->SimpleShaderProgram);
+				{
+					mat4 View = LookAtLH(Command->Eye, Command->Target, Command->Up);
+
+					i32 ViewUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_View");
+					glUniformMatrix4fv(ViewUniformLocation, 1, GL_TRUE, &View.Elements[0][0]);
+				}
+				glUseProgram(0);
+
+				glUseProgram(State->GridShaderProgram);
+				{
+					mat4 View = LookAtLH(Command->Eye, Command->Target, Command->Up);
+
+					i32 ViewUniformLocation = glGetUniformLocation(State->GridShaderProgram, "u_View");
+					glUniformMatrix4fv(ViewUniformLocation, 1, GL_TRUE, &View.Elements[0][0]);
 				}
 				glUseProgram(0);
 
@@ -298,7 +384,65 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				render_command_clear *Command = (render_command_clear *)Entry;
 
 				glClearColor(Command->Color.x, Command->Color.y, Command->Color.z, Command->Color.w);
-				glClear(GL_COLOR_BUFFER_BIT);
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_InitLine:
+			{
+				render_command_init_line *Command = (render_command_init_line *)Entry;
+
+				vec3 LineVertices[] = {
+					vec3(0.f, 0.f, 0.f),
+					vec3(1.f, 1.f, 1.f),
+				};
+
+				glGenVertexArrays(1, &State->LineVAO);
+				glBindVertexArray(State->LineVAO);
+
+				GLuint LineVBO;
+				glGenBuffers(1, &LineVBO);
+				glBindBuffer(GL_ARRAY_BUFFER, LineVBO);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertices), LineVertices, GL_STATIC_DRAW);
+
+				glEnableVertexAttribArray(0);
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
+
+				glBindVertexArray(0);
+
+				GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, SimpleVertexShader);
+				GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, SimpleFragmentShader);
+
+				//State->SimpleShaderProgram = CreateProgram(VertexShader, FragmentShader);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_DrawLine:
+			{
+				render_command_draw_line *Command = (render_command_draw_line *)Entry;
+
+				// todo: restore line width
+				glLineWidth(Command->Thickness);
+
+				glBindVertexArray(State->LineVAO);
+				glUseProgram(State->SimpleShaderProgram);
+				{
+					mat4 T = Translate(Command->Start);
+					mat4 S = Scale(Command->End - Command->Start);
+
+					mat4 Model = T * S;
+					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
+					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+					i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
+					glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+				}
+				glDrawArrays(GL_LINES, 0, 2);
+
+				glUseProgram(0);
+				glBindVertexArray(0);
 
 				BaseAddress += sizeof(*Command);
 				break;
@@ -340,7 +484,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				render_command_draw_rectangle *Command = (render_command_draw_rectangle *)Entry;
 
 				glBindVertexArray(State->RectangleVAO);
-
 				glUseProgram(State->SimpleShaderProgram);
 
 				{
@@ -370,15 +513,21 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 					mat4 S = Scale(Command->Size.x);
 
 					mat4 Model = T * R * S;
-
 					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
 					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+#if 1
+					mat4 View = mat4(1.f);
+					i32 ViewUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_View");
+					glUniformMatrix4fv(ViewUniformLocation, 1, GL_TRUE, &View.Elements[0][0]);
+#endif
 
 					i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
 					glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 				}
 				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 			
+				glUseProgram(0);
 				glBindVertexArray(0);
 
 				BaseAddress += sizeof(*Command);
@@ -431,7 +580,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				render_command_draw_box *Command = (render_command_draw_box *)Entry;
 
 				glBindVertexArray(State->BoxVAO);
-
 				glUseProgram(State->SimpleShaderProgram);
 				{
 					mat4 T = Translate(Command->Position);
@@ -469,6 +617,92 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				}
 				glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
 
+				glUseProgram(0);
+				glBindVertexArray(0);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_InitGrid:
+			{
+				render_command_init_grid *Command = (render_command_init_grid *)Entry;
+
+				temporary_memory TempMemory(&State->Arena);
+
+				vec3 *GridVertices = PushArray(TempMemory.Arena, Command->Count * 8, vec3);
+
+				for (u32 Index = 0; Index < Command->Count; ++Index)
+				{
+					f32 Coord = (f32)(Index + 1) / (f32)Command->Count;
+					u32 GridVertexIndex = Index * 8;
+
+					vec3 *GridVertex0 = GridVertices + GridVertexIndex + 0;
+					*GridVertex0 = vec3(-Coord, 0.f, -1.f);
+
+					vec3 *GridVertex1 = GridVertices + GridVertexIndex + 1;
+					*GridVertex1 = vec3(-Coord, 0.f, 1.f);
+
+					vec3 *GridVertex2 = GridVertices + GridVertexIndex + 2;
+					*GridVertex2 = vec3(Coord, 0.f, -1.f);
+
+					vec3 *GridVertex3 = GridVertices + GridVertexIndex + 3;
+					*GridVertex3 = vec3(Coord, 0.f, 1.f);
+					
+					vec3 *GridVertex4 = GridVertices + GridVertexIndex + 4;
+					*GridVertex4 = vec3(-1.f, 0.f, -Coord);
+
+					vec3 *GridVertex5 = GridVertices + GridVertexIndex + 5;
+					*GridVertex5 = vec3(1.f, 0.f, -Coord);
+
+					vec3 *GridVertex6 = GridVertices + GridVertexIndex + 6;
+					*GridVertex6 = vec3(-1.f, 0.f, Coord);
+
+					vec3 *GridVertex7 = GridVertices + GridVertexIndex + 7;
+					*GridVertex7 = vec3(1.f, 0.f, Coord);
+				}
+
+				glGenVertexArrays(1, &State->GridVAO);
+				glBindVertexArray(State->GridVAO);
+
+				GLuint GridVBO;
+				glGenBuffers(1, &GridVBO);
+				glBindBuffer(GL_ARRAY_BUFFER, GridVBO);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) *Command->Count * 8, GridVertices, GL_STATIC_DRAW);
+
+				glEnableVertexAttribArray(0);
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
+
+				glBindVertexArray(0);
+
+				GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, GridVertexShader);
+				GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, GridFragmentShader);
+
+				State->GridShaderProgram = CreateProgram(VertexShader, FragmentShader);
+
+				BaseAddress += sizeof(*Command);
+				break;
+			}
+			case RenderCommand_DrawGrid:
+			{
+				render_command_draw_grid *Command = (render_command_draw_grid *)Entry;
+
+				glBindVertexArray(State->GridVAO);
+				glUseProgram(State->GridShaderProgram);
+				{
+					mat4 Model = Scale(Command->Size);
+
+					i32 ModelUniformLocation = glGetUniformLocation(State->GridShaderProgram, "u_Model");
+					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+					i32 ColorUniformLocation = glGetUniformLocation(State->GridShaderProgram, "u_Color");
+					glUniform3f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b);
+
+					i32 CameraPositionUniformLocation = glGetUniformLocation(State->GridShaderProgram, "u_CameraPosition");
+					glUniform3f(CameraPositionUniformLocation, Command->CameraPosition.x, Command->CameraPosition.y, Command->CameraPosition.z);
+				}
+				glDrawArrays(GL_LINES, 0, Command->Count * 8);
+
+				glUseProgram(0);
 				glBindVertexArray(0);
 
 				BaseAddress += sizeof(*Command);

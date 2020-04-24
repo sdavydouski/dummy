@@ -45,6 +45,7 @@ struct win32_game_code
 
 	game_init *Init;
 	game_process_input *ProcessInput;
+	game_update *Update;
 	game_render *Render;
 
 	b32 IsValid;

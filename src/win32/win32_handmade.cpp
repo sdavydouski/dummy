@@ -94,9 +94,10 @@ Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
         {
             Result.Init = (game_init *)GetProcAddress(Result.GameDLL, "GameInit");
             Result.ProcessInput = (game_process_input *)GetProcAddress(Result.GameDLL, "GameProcessInput");
+            Result.Update = (game_update *)GetProcAddress(Result.GameDLL, "GameUpdate");
             Result.Render = (game_render *)GetProcAddress(Result.GameDLL, "GameRender");
 
-            if (Result.Init && Result.ProcessInput && Result.Render)
+            if (Result.Init && Result.ProcessInput && Result.Update && Result.Render)
             {
                 Result.IsValid = true;
             }
@@ -118,6 +119,7 @@ Win32UnloadGameCode(win32_game_code *GameCode)
     GameCode->IsValid = false;
     GameCode->Init = 0;
     GameCode->ProcessInput = 0;
+    GameCode->Update = 0;
     GameCode->Render = 0;
 }
 
@@ -208,11 +210,6 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
             if (IsActive == WA_ACTIVE || IsActive == WA_CLICKACTIVE)
             {
                 PlatformState->IsWindowActive = true;
-
-#if 0
-                RECT Rect = GetCursorClipRect(PlatformState);
-                ClipCursor(&Rect);
-#endif
             }
             else if (IsActive == WA_INACTIVE)
             {
@@ -238,7 +235,7 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
 
             break;
         }
-#if 0
+#if 1
         case WM_EXITSIZEMOVE:
         {
             win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
@@ -364,6 +361,11 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
                 KeyboardInput->Ctrl.IsPressed = IsKeyPressed;
             }
             break;
+            case VK_SPACE:
+            {
+                KeyboardInput->Space.IsPressed = IsKeyPressed;
+            }
+            break;
             case VK_ESCAPE:
             {
                 PlatformState->IsGameRunning = false;
@@ -412,7 +414,9 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
 internal void
 Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput, platform_input_mouse *MouseInput)
 {
+    // todo:
     SavePrevButtonState(&KeyboardInput->Tab);
+    SavePrevButtonState(&KeyboardInput->Space);
 
     MSG WindowMessage = {};
     while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
@@ -457,11 +461,14 @@ PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
         {
             Win32HideMouseCursor();
             SetCursorPos(PlatformState->WindowPositionX + PlatformState->WindowWidth / 2, PlatformState->WindowPositionY + PlatformState->WindowHeight / 2);
+            RECT ClipRegion = GetCursorClipRect(PlatformState);
+            ClipCursor(&ClipRegion);
             break;
         }
         case MouseMode_Cursor:
         {
             ShowCursor(true);
+            ClipCursor(0);
             break;
         }
         default:
@@ -477,8 +484,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 1920;
-    PlatformState.WindowHeight = 1080;
+    PlatformState.WindowWidth = 2560;
+    PlatformState.WindowHeight = 1440;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
@@ -547,6 +554,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         HDC WindowDC = GetDC(PlatformState.WindowHandle);
 
 		opengl_state OpenGLState = {};
+
+        umm RendererArenaSize = Megabytes(32);
+        InitMemoryArena(&OpenGLState.Arena, Win32AllocateMemory(0, RendererArenaSize), RendererArenaSize);
         Win32InitOpenGL(&OpenGLState, hInstance, PlatformState.WindowHandle);
 		Win32OpenGLSetVSync(&OpenGLState, PlatformState.VSync);
 
@@ -561,9 +571,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
         
-        PlatformState.MouseMode = MouseMode_Navigation;
-        Win32HideMouseCursor();
-        SetCursorPos(PlatformState.WindowPositionX + PlatformState.WindowWidth / 2, PlatformState.WindowPositionY + PlatformState.WindowHeight / 2);
+        Win32SetMouseMode((void *)&PlatformState, MouseMode_Navigation);
 
         // Setup Dear ImGui context
         IMGUI_CHECKVERSION();
@@ -595,6 +603,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		LARGE_INTEGER LastPerformanceCounter;
 		QueryPerformanceCounter(&LastPerformanceCounter);
 
+        GameParameters.UpdateRate = 1.f / 30.f;
+        f32 UpdateLag = 0.f;
+        u32 UpdateCount = 0;
+        u32 MaxUpdateCount = 5;
+
         PlatformState.IsGameRunning = true;
 
 		// Game Loop
@@ -625,11 +638,23 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 else
                 {
                     KeyboardInput2GameInput(&KeyboardInput, &GameInput);
-                    MouseInput2GameInput(&MouseInput, &GameInput);
+                    MouseInput2GameInput(&MouseInput, &GameInput, GameParameters.Delta);
                 }
 
                 GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
-                
+
+                UpdateLag += GameParameters.Delta;
+                UpdateCount = 0;
+
+                while (UpdateLag >= GameParameters.UpdateRate && UpdateCount < MaxUpdateCount)
+                {
+                    GameCode.Update(&GameMemory, &GameParameters);
+
+                    UpdateLag -= GameParameters.UpdateRate;
+                    UpdateCount++;
+                }
+
+                // todo: pass interpolated normalized update value (UpdateLag / UpdateRage) ?
                 GameCode.Render(&GameMemory, &GameParameters);
 				OpenGLProcessRenderCommands(&OpenGLState, RenderCommands);
             }

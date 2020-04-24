@@ -12,6 +12,18 @@ struct memory_arena
 	void *Base;
 };
 
+struct temporary_memory
+{
+	memory_arena *Arena;
+	umm Used;
+
+	temporary_memory(memory_arena *Arena) : Arena(Arena), Used(Arena->Used) {}
+	~temporary_memory()
+	{
+		Arena->Used = Used;
+	}
+};
+
 inline void
 InitMemoryArena(memory_arena *Arena, void *Memory, umm Size)
 {
@@ -31,5 +43,5 @@ PushSize(memory_arena *Arena, umm Size)
 	return Result;
 }
 
-#define PushStruct(Arena, Type) PushSize(Arena, sizeof(Type))
-#define PushArray(Arena, Count, Type) PushSize(Arena, Count * sizeof(Type))
+#define PushStruct(Arena, Type) (Type *)PushSize(Arena, sizeof(Type))
+#define PushArray(Arena, Count, Type) (Type *)PushSize(Arena, Count * sizeof(Type))

@@ -63,6 +63,7 @@ struct platform_input_keyboard
 
 	platform_button_state Tab;
 	platform_button_state Ctrl;
+	platform_button_state Space;
 };
 
 struct platform_input_mouse
@@ -112,6 +113,7 @@ struct game_input
 	game_input_range Move;
     game_input_range Camera;
 	game_input_action Menu;
+    game_input_action Advance;
 	game_input_state HighlightBackground;
 };
 
@@ -161,18 +163,24 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
         GameInput->Move.Range.y = 0.f;
     }
 
+    // todo:
     GameInput->Menu.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
+    GameInput->Advance.IsActivated = KeyboardInput->Space.IsPressed && (KeyboardInput->Space.IsPressed != KeyboardInput->Space.WasPressed);
+    //GameInput->Advance.IsActivated = KeyboardInput->Space.IsPressed;
+
     GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
 }
 
 inline void
-MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
+MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput, f32 Delta)
 {
-	vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy);
-    MouseMovement.x = Clamp(MouseMovement.x, -1.f, 1.f);
-    MouseMovement.y = Clamp(MouseMovement.y, -1.f, 1.f);
+    if (Delta > 0.f)
+    {
+        f32 MouseSensitivity = (1.f / Delta) * 0.0001f;
+        vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy) * MouseSensitivity;
 
-	GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
+        GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
+    }
 }
 
 struct game_parameters
@@ -182,6 +190,7 @@ struct game_parameters
 
 	f32 Time;
 	f32 Delta;
+    f32 UpdateRate;
 };
 
 #define GAME_INIT(name) void name(game_memory *Memory)
@@ -189,6 +198,9 @@ typedef GAME_INIT(game_init);
 
 #define GAME_PROCESS_INPUT(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
 typedef GAME_PROCESS_INPUT(game_process_input);
+
+#define GAME_UPDATE(name) void name(game_memory *Memory, game_parameters *Parameters)
+typedef GAME_UPDATE(game_update);
 
 #define GAME_RENDER(name) void name(game_memory *Memory, game_parameters *Parameters)
 typedef GAME_RENDER(game_render);
