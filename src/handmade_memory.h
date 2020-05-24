@@ -12,13 +12,13 @@ struct memory_arena
 	void *Base;
 };
 
-struct temporary_memory
+struct scoped_memory
 {
 	memory_arena *Arena;
 	umm Used;
 
-	temporary_memory(memory_arena *Arena) : Arena(Arena), Used(Arena->Used) {}
-	~temporary_memory()
+	scoped_memory(memory_arena *Arena) : Arena(Arena), Used(Arena->Used) {}
+	~scoped_memory()
 	{
 		Arena->Used = Used;
 	}

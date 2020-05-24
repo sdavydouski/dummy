@@ -7,6 +7,7 @@
 #define DLLExport __declspec(dllexport)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
+#define StructOffset(StructType, StructMember) ((u64)(&(((StructType *)0)->StructMember)))
 
 #define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
 #define InvalidCodePath Assert(!"Invalid code path")

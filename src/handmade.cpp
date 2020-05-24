@@ -43,7 +43,7 @@ GAME_INIT(GameInit)
 
 	State->GridCount = 100;
 
-	State->RigidBodiesCount = 4;
+	State->RigidBodiesCount = 1;
 	State->RigidBodies = PushArray(&State->WorldArena, State->RigidBodiesCount, rigid_body);
 
 	{
@@ -55,53 +55,10 @@ GAME_INIT(GameInit)
 		SetRigidBodyMass(Body, 10.f);
 	}
 
-	{
-		rigid_body *Body = State->RigidBodies + 1;
-		*Body = {};
-		Body->Position = vec3(0.f, 15.f, 0.f);
-		Body->Damping = 0.6f;
-		Body->HalfSize = vec3(0.75f);
-		SetRigidBodyMass(Body, 5.f);
-	}
-
-	{
-		rigid_body *Body = State->RigidBodies + 2;
-		*Body = {};
-		Body->Position = vec3(0.f, 20.f, 0.f);
-		Body->Damping = 0.7f;
-		Body->HalfSize = vec3(0.5f);
-		SetRigidBodyMass(Body, 1.f);
-	}
-
-	{
-		rigid_body *Body = State->RigidBodies + 3;
-		*Body = {};
-		Body->Position = vec3(20.f, 0.25f, 0.f);
-		Body->Velocity = vec3(-8.f, 0.f, 0.f);
-		Body->Damping = 0.8f;
-		Body->HalfSize = vec3(0.25f);
-		SetInfiniteRigidBodyMass(Body);
-		//SetRigidBodyMass(Body, 25.f);
-	}
-
-	{
-		rigid_body *Body = State->RigidBodies + 4;
-		*Body = {};
-		Body->Position = vec3(0.f, 0.25f, -35.f);
-		Body->Velocity = vec3(0.f, 0.f, 5.f);
-		Body->Damping = 0.9f;
-		Body->HalfSize = vec3(2.f, 0.25f, 0.25f);
-		SetInfiniteRigidBodyMass(Body);
-		//SetRigidBodyMass(Body, 25.f);
-	}
-
 	State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
 
 	render_commands *RenderCommands = GetRenderCommandsFromMemory(Memory);
-	InitLine(RenderCommands);
-	InitRectangle(RenderCommands);
-	InitBox(RenderCommands);
-	InitGrid(RenderCommands, State->GridCount);
+	InitRenderer(RenderCommands, State->GridCount);
 }
 
 extern "C" DLLExport
@@ -212,37 +169,14 @@ GAME_UPDATE(GameUpdate)
 
 			aabb BodyAABB = GetRigidBodyAABB(Body);
 
-			// todo: spatial partition
-#if 1
-			for (u32 OtherRigidBodyIndex = 0; OtherRigidBodyIndex < State->RigidBodiesCount; ++OtherRigidBodyIndex)
-			{
-				if (RigidBodyIndex != OtherRigidBodyIndex)
-				{
-					rigid_body *OtherBody = State->RigidBodies + OtherRigidBodyIndex;
-
-					aabb OtherBodyAABB = GetRigidBodyAABB(OtherBody);
-
-					if (TestAABBAABB(BodyAABB, OtherBodyAABB))
-					{
-						Body->Acceleration = vec3(0.f);
-						ResolveVelocity(Body, OtherBody, Parameters->UpdateRate, 0.f);
-
-						f32 Overlap = GetAABBAABBMinDistance(BodyAABB, OtherBodyAABB);
-						ResolveIntepenetration(Body, OtherBody, Abs(Overlap));
-					}
-			}
-			}
-#endif
-
-			// todo: collision with ground is treated separatly?
 			// todo: dymamic intersection test
 			if (TestAABBPlane(BodyAABB, State->Ground))
 			{
-				// todo: acceleration keeps increasing...
 				ResolveVelocity(Body, &State->Ground, Parameters->UpdateRate, 0.f);
 
 				f32 Overlap = GetAABBPlaneMinDistance(BodyAABB, State->Ground);
 				ResolveIntepenetration(Body, &State->Ground, Overlap);
+				Body->Acceleration = vec3(0.f);
 			}
 		}
 	}
@@ -279,10 +213,10 @@ GAME_RENDER(GameRender)
 
 			SetPerspectiveProjection(RenderCommands, State->DebugCamera.FovY, FrustrumWidthInUnits / FrustrumHeightInUnits, 0.1f, 1000.f);
 			
-			SetCameraTransform(RenderCommands, State->DebugCamera.Position, State->DebugCamera.Position + State->DebugCamera.Direction, State->DebugCamera.Up);
-			//SetCameraTransform(RenderCommands, State->PlayerCamera.Position, State->PlayerCamera.Position + State->PlayerCamera.Direction, State->PlayerCamera.Up);
+			SetCamera(RenderCommands, State->DebugCamera.Position, State->DebugCamera.Position + State->DebugCamera.Direction, State->DebugCamera.Up, State->DebugCamera.Position);
+			//SetCamera(RenderCommands, State->PlayerCamera.Position, State->PlayerCamera.Position + State->PlayerCamera.Direction, State->PlayerCamera.Up, State->DebugCamera.Position);
 			
-			SetWireframe(RenderCommands, true);
+			//SetWireframe(RenderCommands, true);
 
 			f32 Bounds = 100.f;
 
@@ -292,30 +226,42 @@ GAME_RENDER(GameRender)
 
 			DrawGrid(RenderCommands, Bounds, State->GridCount, State->DebugCamera.Position, vec3(0.f, 0.f, 1.f));
 
+			directional_light DirectionalLight = {};
+			DirectionalLight.Color = vec3(0.25f);
+			DirectionalLight.Direction = vec3(-0.1f, -0.5f, -0.5f);
+
+			SetDirectionalLight(RenderCommands, DirectionalLight);
+
+			material BoxMaterial = {};
+			BoxMaterial.DiffuseColor = vec3(1.f, 1.f, 0.f);
+			BoxMaterial.AmbientStrength = 0.25f;
+			BoxMaterial.SpecularStrength = 1.f;
+			BoxMaterial.SpecularShininess = 32;
+
 			for (u32 RigidBodyCount = 0; RigidBodyCount < State->RigidBodiesCount; ++RigidBodyCount)
 			{
 				rigid_body *Body = State->RigidBodies + RigidBodyCount;
 
-				DrawBox(RenderCommands, Body->Position, Body->HalfSize, vec4(1.f, 1.f, 0.f, 1.f));
+				DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial);//, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
 			}
 
 			//DrawBox(RenderCommands, State->Player.Position, State->Player.HalfSize, vec4(0.f, 1.f, 1.f, 1.f));
-#if 0
-			DrawBox(RenderCommands, vec3(4.f, 2.f, -14.2f), vec3(0.2f, 2.f, 10.f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(-4.f, 2.f, -14.2f), vec3(0.2f, 2.f, 10.f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(0.f, 2.f, -24.f), vec3(3.8f, 2.f, 0.2f), vec4(1.f, 1.f, 0.f, 1.f));
+#if 1
+			DrawBox(RenderCommands, vec3(4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(-4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(0.f, 2.f, -24.f), vec3(4.2f, 2.f, 0.2f), BoxMaterial);
 
-			DrawBox(RenderCommands, vec3(4.f, 2.f, 14.2f), vec3(0.2f, 2.f, 10.f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(-4.f, 2.f, 14.2f), vec3(0.2f, 2.f, 10.f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(0.f, 2.f, 24.f), vec3(3.8f, 2.f, 0.2f), vec4(1.f, 1.f, 0.f, 1.f));
+			DrawBox(RenderCommands, vec3(4.f, 2.f, 13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(-4.f, 2.f, 13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(0.f, 2.f, 24.f), vec3(4.2f, 2.f, 0.2f), BoxMaterial);
 
-			DrawBox(RenderCommands, vec3(-14.2f, 2.f, 4.f), vec3(10.f, 2.f, 0.2f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(-14.2f, 2.f, -4.f), vec3(10.f, 2.f, 0.2f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(-24.f, 2.f, 0.f), vec3(0.2f, 2.f, 3.8f), vec4(1.f, 1.f, 0.f, 1.f));
+			DrawBox(RenderCommands, vec3(-14.2f, 2.f, 4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(-14.2f, 2.f, -4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(-24.f, 2.f, 0.f), vec3(0.2f, 2.f, 3.8f), BoxMaterial);
 
-			DrawBox(RenderCommands, vec3(14.2f, 2.f, 4.f), vec3(10.f, 2.f, 0.2f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(14.2f, 2.f, -4.f), vec3(10.f, 2.f, 0.2f), vec4(1.f, 1.f, 0.f, 1.f));
-			DrawBox(RenderCommands, vec3(24.f, 2.f, 0.f), vec3(0.2f, 2.f, 3.8f), vec4(1.f, 1.f, 0.f, 1.f));
+			DrawBox(RenderCommands, vec3(14.2f, 2.f, 4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(14.2f, 2.f, -4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
+			DrawBox(RenderCommands, vec3(24.f, 2.f, 0.f), vec3(0.2f, 2.f, 3.8f), BoxMaterial);
 #endif
 		}
 		break;

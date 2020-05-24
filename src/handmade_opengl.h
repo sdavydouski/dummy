@@ -1,5 +1,11 @@
 #pragma once
 
+struct box_vertex
+{
+	vec3 Position;
+	vec3 Normal;
+};
+
 struct opengl_state
 {
 	char *Vendor;
@@ -16,7 +22,9 @@ struct opengl_state
 
 	GLuint SimpleShaderProgram;
 	GLuint GridShaderProgram;
+	GLuint ForwardShadingShaderProgram;
 
+	// Win32
 	PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 	PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
 };

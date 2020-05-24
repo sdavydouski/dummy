@@ -51,19 +51,6 @@ struct win32_game_code
 	b32 IsValid;
 };
 
-inline void *
-Win32AllocateMemory(void *BaseAddress, umm Size)
-{
-	void *Result = VirtualAlloc(BaseAddress, Size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	return Result;
-}
-
-inline void
-Win32DeallocateMemory(void *Address)
-{
-	VirtualFree(Address, 0, MEM_RELEASE);
-}
-
 inline void
 Win32OutputString(const char *String)
 {

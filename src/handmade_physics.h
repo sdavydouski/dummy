@@ -157,7 +157,6 @@ inline void
 ResolveIntepenetration(rigid_body *Body, plane *Plane, f32 Penetration)
 {
     //if (Penetration > 0.f)
-    if (HasFiniteMass(Body))
     {
         vec3 ContactNormal = Plane->Normal;
         f32 TotalInverseMass = Body->InverseMass;

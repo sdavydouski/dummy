@@ -228,10 +228,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="win32_handmade_opengl.cpp" />
+    <None Include="..\handmade_opengl.cpp" />
     <ClCompile Include="win32_handmade.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="win32_handmade_opengl.h" />
+    <ClInclude Include="..\handmade_opengl.h" />
+    <ClInclude Include="..\handmade_opengl_shaders.h" />
     <ClInclude Include="win32_handmade.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

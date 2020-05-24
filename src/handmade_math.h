@@ -1,6 +1,16 @@
 #pragma once
 
 #include <cmath>
+#include <cstdarg>
+
+inline f32 Square(f32 Value);
+inline f32 Sqrt(f32 Value);
+
+#include "handmade_vec2.h"
+#include "handmade_vec3.h"
+#include "handmade_vec4.h"
+#include "handmade_mat4.h"
+#include "handmade_quaternion.h"
 
 #define PI 3.14159265359f
 #define HALF_PI (PI / 2.f)
@@ -58,6 +68,13 @@ Abs(f32 Value)
 	return Result;
 }
 
+inline vec3
+Abs(vec3 Value)
+{
+	vec3 Result = vec3(Abs(Value.x), Abs(Value.y), Abs(Value.z));
+	return Result;
+}
+
 inline f32
 Clamp(f32 Value, f32 Min, f32 Max)
 {
@@ -82,17 +99,55 @@ Min(f32 a, f32 b)
 }
 
 inline f32
+Min(i32 ArgCount, ...)
+{
+	std::va_list Args;
+	va_start(Args, ArgCount);
+
+	f32 Result = (f32)va_arg(Args, f64);
+
+	for (i32 Index = 2; Index < ArgCount; ++Index)
+	{
+		f32 Value = (f32)va_arg(Args, f64);
+		if (Value < Result)
+		{
+			Result = Value;
+		}
+	}
+
+	va_end(Args);
+
+	return Result;
+}
+
+inline f32
 Max(f32 a, f32 b)
 {
 	f32 Result = fmax(a, b);
 	return Result;
 }
 
-#include "handmade_vec2.h"
-#include "handmade_vec3.h"
-#include "handmade_vec4.h"
-#include "handmade_mat4.h"
-#include "handmade_quaternion.h"
+inline f32
+Max(i32 ArgCount, ...)
+{
+	va_list Args;
+	va_start(Args, ArgCount);
+
+	f32 Result = (f32)va_arg(Args, f64);
+
+	for (i32 Index = 2; Index < ArgCount; ++Index)
+	{
+		f32 Value = (f32)va_arg(Args, f64);
+		if (Value > Result)
+		{
+			Result = Value;
+		}
+	}
+
+	va_end(Args);
+
+	return Result;
+}
 
 inline mat4
 Scale(f32 Value)

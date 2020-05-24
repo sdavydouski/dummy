@@ -29,6 +29,13 @@ PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type
 #define PushRenderCommand(Buffer, Struct, Type) (Struct *)PushRenderCommand_(Buffer, sizeof(Struct), Type)
 
 inline void
+InitRenderer(render_commands *Commands, u32 GridCount)
+{
+	render_command_init_renderer *Command = PushRenderCommand(Commands, render_command_init_renderer, RenderCommand_InitRenderer);
+	Command->GridCount = GridCount;
+}
+
+inline void
 SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height)
 {
 	render_command_set_viewport *Command = PushRenderCommand(Commands, render_command_set_viewport, RenderCommand_SetViewport);
@@ -63,13 +70,14 @@ SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Ne
 }
 
 inline void
-SetCameraTransform(render_commands *Commands, vec3 Eye, vec3 Target, vec3 Up)
+SetCamera(render_commands *Commands, vec3 Eye, vec3 Target, vec3 Up, vec3 Position)
 {
-	render_command_set_camera_transform *Command =
-		PushRenderCommand(Commands, render_command_set_camera_transform, RenderCommand_SetCameraTransform);
+	render_command_set_camera *Command =
+		PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera);
 	Command->Eye = Eye;
 	Command->Target = Target;
 	Command->Up = Up;
+	Command->Position = Position;
 }
 
 inline void
@@ -87,12 +95,6 @@ Clear(render_commands *Commands, vec4 Color)
 }
 
 inline void
-InitLine(render_commands *Commands)
-{
-	PushRenderCommand(Commands, render_command_init_line, RenderCommand_InitLine);
-}
-
-inline void
 DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness)
 {
 	render_command_draw_line *Command = PushRenderCommand(Commands, render_command_draw_line, RenderCommand_DrawLine);
@@ -100,12 +102,6 @@ DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickn
 	Command->End = End;
 	Command->Color = Color;
 	Command->Thickness = Thickness;
-}
-
-inline void
-InitRectangle(render_commands *Commands)
-{
-	PushRenderCommand(Commands, render_command_init_rectangle, RenderCommand_InitRectangle);
 }
 
 inline void
@@ -119,26 +115,13 @@ DrawRectangle(render_commands *Commands, vec2 Position, vec2 Size, vec4 Color, v
 }
 
 inline void
-InitBox(render_commands *Commands)
-{
-	PushRenderCommand(Commands, render_command_init_box, RenderCommand_InitBox);
-}
-
-inline void
-DrawBox(render_commands *Commands, vec3 Position, vec3 Size, vec4 Color, vec4 Rotation = vec4(0.f))
+DrawBox(render_commands *Commands, vec3 Position, vec3 Size, material Material, vec4 Rotation = vec4(0.f))
 {
 	render_command_draw_box *Command = PushRenderCommand(Commands, render_command_draw_box, RenderCommand_DrawBox);
 	Command->Position = Position;
 	Command->Size = Size;
 	Command->Rotation = Rotation;
-	Command->Color = Color;
-}
-
-inline void
-InitGrid(render_commands *Commands, u32 Count)
-{
-	render_command_init_grid *Command = PushRenderCommand(Commands, render_command_init_grid, RenderCommand_InitGrid);
-	Command->Count = Count;
+	Command->Material = Material;
 }
 
 inline void
@@ -149,4 +132,11 @@ DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, ve
 	Command->Count = Count;
 	Command->CameraPosition = CameraPosition;
 	Command->Color = Color;
+}
+
+inline void
+SetDirectionalLight(render_commands *Commands, directional_light Light)
+{
+	render_command_set_directional_light *Command = PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight);
+	Command->Light = Light;
 }

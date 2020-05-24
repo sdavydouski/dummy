@@ -3,34 +3,78 @@
 #include "handmade_defs.h"
 #include "handmade_math.h"
 
-// todo: probably need to have only one "Init" command type where the renderer will do initialization
+struct material
+{
+	vec3 DiffuseColor;
+
+	f32 AmbientStrength;
+	f32 SpecularStrength;
+	f32 SpecularShininess;
+};
+
+struct light_attenuation
+{
+	f32 Constant;
+	f32 Linear;
+	f32 Quadratic;
+};
+
+struct directional_light
+{
+	vec3 Direction;
+	vec3 Color;
+};
+
+struct point_light
+{
+	vec3 Position;
+	vec3 Color;
+
+	light_attenuation Attenuation;
+};
+
+struct spot_light
+{
+	vec3 Position;
+	vec3 Color;
+	vec3 Direction;
+
+	f32 InnerCutOffAngle;
+	f32 OuterCutOffAngle;
+
+	light_attenuation Attenuation;
+};
+
 enum render_command_type
 {
+	RenderCommand_InitRenderer,
+
 	RenderCommand_SetViewport,
 	RenderCommand_SetOrthographicProjection,
 	RenderCommand_SetPerspectiveProjection,
-	RenderCommand_SetCameraTransform,
+	RenderCommand_SetCamera,
 	RenderCommand_SetWireframe,
 
 	RenderCommand_Clear,
-
-	RenderCommand_InitLine,
+	
 	RenderCommand_DrawLine,
-
-	RenderCommand_InitRectangle,
 	RenderCommand_DrawRectangle,
-
-	RenderCommand_InitBox,
 	RenderCommand_DrawBox,
+	RenderCommand_DrawGrid,
 
-	RenderCommand_InitGrid,
-	RenderCommand_DrawGrid
+	RenderCommand_SetDirectionalLight
 };
 
 struct render_command_header
 {
 	render_command_type Type;
 	u32 Size;
+};
+
+struct render_command_init_renderer
+{
+	render_command_header Header;
+	u32 GridCount;
 };
 
 struct render_command_set_viewport
@@ -62,12 +106,13 @@ struct render_command_set_perspective_projection
 	f32 Far;
 };
 
-struct render_command_set_camera_transform
+struct render_command_set_camera
 {
 	render_command_header Header;
 	vec3 Eye;
 	vec3 Target;
 	vec3 Up;
+	vec3 Position;
 };
 
 struct render_command_set_wireframe
@@ -82,11 +127,6 @@ struct render_command_clear
 	vec4 Color;
 };
 
-struct render_command_init_line
-{
-	render_command_header Header;
-};
-
 struct render_command_draw_line
 {
 	render_command_header Header;
@@ -94,11 +134,6 @@ struct render_command_draw_line
 	vec3 End;
 	vec4 Color;
 	f32 Thickness;
-};
-
-struct render_command_init_rectangle
-{
-	render_command_header Header;
 };
 
 struct render_command_draw_rectangle
@@ -110,24 +145,14 @@ struct render_command_draw_rectangle
 	vec4 Color;
 };
 
-struct render_command_init_box
-{
-	render_command_header Header;
-};
-
 struct render_command_draw_box
 {
 	render_command_header Header;
 	vec3 Position;
 	vec3 Size;
 	vec4 Rotation;
-	vec4 Color;
-};
-
-struct render_command_init_grid
-{
-	render_command_header Header;
-	u32 Count;
+	material Material;
+	// todo: include point_light(s)?
 };
 
 struct render_command_draw_grid
@@ -137,6 +162,12 @@ struct render_command_draw_grid
 	u32 Count;
 	vec3 CameraPosition;
 	vec3 Color;
+};
+
+struct render_command_set_directional_light
+{
+	render_command_header Header;
+	directional_light Light;
 };
 
 struct render_commands

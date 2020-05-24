@@ -10,6 +10,7 @@
 #include "win32_handmade.h"
 
 #include "win32_handmade_opengl.cpp"
+#include "handmade_opengl.cpp"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -23,6 +24,19 @@
 
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_opengl3.cpp>
+
+inline void *
+Win32AllocateMemory(void *BaseAddress, umm Size)
+{
+    void *Result = VirtualAlloc(BaseAddress, Size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    return Result;
+}
+
+inline void
+Win32DeallocateMemory(void *Address)
+{
+    VirtualFree(Address, 0, MEM_RELEASE);
+}
 
 inline win32_platform_state *
 GetWin32PlatformState(HWND WindowHandle) {
@@ -668,7 +682,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             ImGui::Begin("Stats");
 
-            ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
             ImGui::Text("Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
             ImGui::Checkbox("FullScreen", (bool *)&PlatformState.IsFullScreen);
             ImGui::Checkbox("VSync", (bool *)&PlatformState.VSync);

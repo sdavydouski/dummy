@@ -2,10 +2,12 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="win32_handmade.cpp" />
+    <ClCompile Include="..\handmade_opengl.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="win32_handmade.h" />
-    <ClInclude Include="win32_handmade_opengl.h" />
+    <ClInclude Include="..\handmade_opengl.h" />
+    <ClInclude Include="..\handmade_opengl_shaders.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="win32_handmade_opengl.cpp" />
