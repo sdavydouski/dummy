@@ -12,6 +12,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "handmade", "handmade.vcxpro
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{1323D42F-8D97-4904-8973-05B0E90511FE}"
 	ProjectSection(SolutionItems) = preProject
+		..\misc\assimp_build.bat = ..\misc\assimp_build.bat
 		..\misc\game_build.bat = ..\misc\game_build.bat
 	EndProjectSection
 EndProject
@@ -28,6 +29,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "glad", "glad", "{1A5F8808-6
 		renderers\OpenGL\glad\glad.h = renderers\OpenGL\glad\glad.h
 		renderers\OpenGL\glad\khrplatform.h = renderers\OpenGL\glad\khrplatform.h
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "assets_builder", "assets_builder\assets_builder.vcxproj", "{0964849F-7896-4266-9242-BEAAAAF15CD5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -53,6 +56,14 @@ Global
 		{8F312A3F-56C3-4B6C-916B-486F17C46BD4}.Release|x64.Build.0 = Release|x64
 		{8F312A3F-56C3-4B6C-916B-486F17C46BD4}.Release|x86.ActiveCfg = Release|Win32
 		{8F312A3F-56C3-4B6C-916B-486F17C46BD4}.Release|x86.Build.0 = Release|Win32
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Debug|x64.ActiveCfg = Debug|x64
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Debug|x64.Build.0 = Debug|x64
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Debug|x86.ActiveCfg = Debug|Win32
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Debug|x86.Build.0 = Debug|Win32
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Release|x64.ActiveCfg = Release|x64
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Release|x64.Build.0 = Release|x64
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Release|x86.ActiveCfg = Release|Win32
+		{0964849F-7896-4266-9242-BEAAAAF15CD5}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

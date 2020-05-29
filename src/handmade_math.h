@@ -10,7 +10,7 @@ inline f32 Sqrt(f32 Value);
 #include "handmade_vec3.h"
 #include "handmade_vec4.h"
 #include "handmade_mat4.h"
-#include "handmade_quaternion.h"
+#include "handmade_quat.h"
 
 #define PI 3.14159265359f
 #define HALF_PI (PI / 2.f)

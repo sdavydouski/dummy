@@ -228,7 +228,7 @@ GAME_RENDER(GameRender)
 
 			directional_light DirectionalLight = {};
 			DirectionalLight.Color = vec3(0.25f);
-			DirectionalLight.Direction = vec3(-0.1f, -0.5f, -0.5f);
+			DirectionalLight.Direction = vec3(0.f, -0.5f, -0.3f);
 
 			SetDirectionalLight(RenderCommands, DirectionalLight);
 
@@ -242,7 +242,7 @@ GAME_RENDER(GameRender)
 			{
 				rigid_body *Body = State->RigidBodies + RigidBodyCount;
 
-				DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial);//, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
+				DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
 			}
 
 			//DrawBox(RenderCommands, State->Player.Position, State->Player.HalfSize, vec4(0.f, 1.f, 1.f, 1.f));

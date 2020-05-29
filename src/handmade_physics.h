@@ -11,7 +11,7 @@ struct rigid_body
     vec3 Rotation;
     vec3 HalfSize;
 
-    quaternion Orientation;
+    quat Orientation;
 
     mat4 TransformMatrix;
 
