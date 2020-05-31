@@ -35,6 +35,23 @@ InitRenderer(render_commands *Commands, u32 GridCount)
 	Command->GridCount = GridCount;
 }
 
+// todo: pass mesh id as a way to referring ot it later when calling DrawMesh?
+inline void
+AddMesh(
+	render_commands *Commands,
+	u32 VertexCount,
+	vertex *Vertices,
+	u32 IndexCount,
+	u32 *Indices
+)
+{
+	render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh);
+	Command->VertexCount = VertexCount;
+	Command->Vertices = Vertices;
+	Command->IndexCount = IndexCount;
+	Command->Indices = Indices;
+}
+
 inline void
 SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height)
 {
@@ -132,6 +149,22 @@ DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, ve
 	Command->Count = Count;
 	Command->CameraPosition = CameraPosition;
 	Command->Color = Color;
+}
+
+inline void
+DrawMesh(
+	render_commands *Commands, 
+	u32 IndexCount, 
+	vec3 Position, 
+	vec3 Scale, 
+	vec4 Rotation = vec4(0.f)
+)
+{
+	render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
+	Command->IndexCount = IndexCount;
+	Command->Position = Position;
+	Command->Scale = Scale;
+	Command->Rotation = Rotation;
 }
 
 inline void

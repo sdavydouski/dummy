@@ -1,5 +1,6 @@
 #pragma once
 
+#include "handmade_memory.h"
 #include "handmade_renderer.h"
 
 enum mouse_mode
@@ -8,13 +9,23 @@ enum mouse_mode
     MouseMode_Cursor
 };
 
-#define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformStateHandle, mouse_mode MouseMode)
+struct read_file_result
+{
+    u32 Size;
+    void *Contents;
+};
+
+#define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformHandle, mouse_mode MouseMode)
 typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
+
+#define PLATFORM_READ_FILE(name) read_file_result name(void *PlatformHandle, char *FileName, memory_arena *Arena)
+typedef PLATFORM_READ_FILE(platform_read_file);
 
 struct platform_api
 {
-    void *StateHandle;
+    void *PlatformHandle;
     platform_set_mouse_mode *SetMouseMode;
+    platform_read_file *ReadFile;
 };
 
 struct game_memory

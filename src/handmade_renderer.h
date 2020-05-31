@@ -45,9 +45,19 @@ struct spot_light
 	light_attenuation Attenuation;
 };
 
+struct vertex
+{
+	vec3 Position;
+	vec3 Normal;
+	vec2 TextureCoords;
+	i32 JointIndices[4];
+	vec4 Weights;
+};
+
 enum render_command_type
 {
 	RenderCommand_InitRenderer,
+	RenderCommand_AddMesh,
 
 	RenderCommand_SetViewport,
 	RenderCommand_SetOrthographicProjection,
@@ -61,6 +71,7 @@ enum render_command_type
 	RenderCommand_DrawRectangle,
 	RenderCommand_DrawBox,
 	RenderCommand_DrawGrid,
+	RenderCommand_DrawMesh,
 
 	RenderCommand_SetDirectionalLight
 };
@@ -75,6 +86,16 @@ struct render_command_init_renderer
 {
 	render_command_header Header;
 	u32 GridCount;
+};
+
+struct render_command_add_mesh
+{
+	render_command_header Header;
+
+	u32 VertexCount;
+	vertex *Vertices;
+	u32 IndexCount;
+	u32 *Indices;
 };
 
 struct render_command_set_viewport
@@ -162,6 +183,18 @@ struct render_command_draw_grid
 	u32 Count;
 	vec3 CameraPosition;
 	vec3 Color;
+};
+
+// todo: a lot of unneccessary data
+struct render_command_draw_mesh
+{
+	render_command_header Header;
+
+	u32 IndexCount;
+
+	vec3 Position;
+	vec3 Scale;
+	vec4 Rotation;
 };
 
 struct render_command_set_directional_light

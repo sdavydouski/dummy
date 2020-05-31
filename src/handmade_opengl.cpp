@@ -108,7 +108,7 @@ internal void
 InitBox(opengl_state *State)
 {
 	// todo: how is it that vertices are defined in CW order but OpenGL doesn't cull them???
-	box_vertex BoxVertices[] = {
+	opengl_box_vertex BoxVertices[] = {
 		// Back face
 		{ vec3(-1.f, -1.f, -1.f), vec3(0.f, 0.f, -1.f) },		// bottom-left
 		{ vec3(1.f, -1.f, -1.f), vec3(0.f, 0.f, -1.f) },		// bottom-right  
@@ -167,10 +167,10 @@ InitBox(opengl_state *State)
 	glBufferData(GL_ARRAY_BUFFER, sizeof(BoxVertices), BoxVertices, GL_STATIC_DRAW);
 
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(box_vertex), (void *)StructOffset(box_vertex, Position));
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_box_vertex), (void *)StructOffset(opengl_box_vertex, Position));
 
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(box_vertex), (void *)StructOffset(box_vertex, Normal));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_box_vertex), (void *)StructOffset(opengl_box_vertex, Normal));
 
 	glBindVertexArray(0);
 }
@@ -232,6 +232,54 @@ InitGrid(opengl_state *State, u32 GridCount)
 }
 
 internal void
+OpenGLAddMesh(opengl_state *State, u32 VertexCount, vertex *Vertices, u32 IndexCount, u32 *Indices)
+{
+	Assert(State->MeshCount < OPENGL_MAX_MESH_BUFFER_COUNT);
+
+	GLuint VAO;
+	GLuint VBO;
+	GLuint EBO;
+
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
+
+	glGenBuffers(1, &VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(vertex), Vertices, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, Position));
+
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, Normal));
+
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, TextureCoords));
+
+	glEnableVertexAttribArray(3);
+	glVertexAttribIPointer(3, 4, GL_UNSIGNED_INT, sizeof(vertex), (void *)StructOffset(vertex, JointIndices));
+
+	glEnableVertexAttribArray(4);
+	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, Weights));
+
+	glGenBuffers(1, &EBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u32), Indices, GL_STATIC_DRAW);
+
+	glBindVertexArray(0);
+
+	//opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + State->MeshCount++;
+	//MeshBuffer->VAO = VAO;
+	//MeshBuffer->VBO = VBO;
+	//MeshBuffer->EBO = EBO;
+
+	// todo: remove this
+	State->TempVAO = VAO;
+	State->TempVBO = VBO;
+	State->TempEBO = EBO;
+}
+
+internal void
 OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 {
 	for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
@@ -269,6 +317,15 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			glEnable(GL_LINE_SMOOTH);
 			glEnable(GL_MULTISAMPLE);
+
+			BaseAddress += sizeof(*Command);
+			break;
+		}
+		case RenderCommand_AddMesh:
+		{
+			render_command_add_mesh *Command = (render_command_add_mesh *)Entry;
+
+			OpenGLAddMesh(State, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices);
 
 			BaseAddress += sizeof(*Command);
 			break;
@@ -556,6 +613,69 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				glUniform3f(CameraPositionUniformLocation, Command->CameraPosition.x, Command->CameraPosition.y, Command->CameraPosition.z);
 			}
 			glDrawArrays(GL_LINES, 0, Command->Count * 8);
+
+			glUseProgram(0);
+			glBindVertexArray(0);
+
+			BaseAddress += sizeof(*Command);
+			break;
+		}
+		case RenderCommand_DrawMesh:
+		{
+			render_command_draw_mesh *Command = (render_command_draw_mesh *)Entry;
+
+			glBindVertexArray(State->TempVAO);
+			glUseProgram(State->ForwardShadingShaderProgram);
+			{
+				mat4 T = Translate(Command->Position);
+				mat4 R = mat4(1.f);
+
+				f32 Angle = Command->Rotation.x;
+				vec3 Axis = Command->Rotation.yzw;
+
+				if (IsXAxis(Axis))
+				{
+					R = RotateX(Angle);
+				}
+				else if (IsYAxis(Axis))
+				{
+					R = RotateY(Angle);
+				}
+				else if (IsZAxis(Axis))
+				{
+					R = RotateZ(Angle);
+				}
+				else
+				{
+					// todo: rotation around arbitrary axis
+				}
+				mat4 S = Scale(Command->Scale);
+
+				mat4 Model = T * R * S;
+
+				i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
+				glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+				vec3 DiffuseColor = vec3(1.f, 1.f, 0.f);
+				f32 AmbientStrength = 0.25f;
+				f32 SpecularStrength = 1.f;
+				f32 SpecularShininess = 32;
+
+				i32 MaterialDiffuseColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.DiffuseColor");
+				i32 MaterialAmbientStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.AmbientStrength");
+				i32 MaterialSpecularStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularStrength");
+				i32 MaterialSpecularShininessUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularShininess");
+				glUniform3f(
+					MaterialDiffuseColorUniformLocation,
+					DiffuseColor.r,
+					DiffuseColor.g,
+					DiffuseColor.b
+				);
+				glUniform1f(MaterialAmbientStrengthUniformLocation, AmbientStrength);
+				glUniform1f(MaterialSpecularStrengthUniformLocation, SpecularStrength);
+				glUniform1f(MaterialSpecularShininessUniformLocation, SpecularShininess);
+			}
+			glDrawElements(GL_TRIANGLES, Command->IndexCount, GL_UNSIGNED_INT, 0);
 
 			glUseProgram(0);
 			glBindVertexArray(0);

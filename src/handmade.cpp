@@ -5,6 +5,7 @@
 #include "handmade_physics.h"
 #include "handmade.h"
 
+#include "handmade_assets.cpp"
 #include "handmade_renderer.cpp"
 
 inline vec3
@@ -59,6 +60,11 @@ GAME_INIT(GameInit)
 
 	render_commands *RenderCommands = GetRenderCommandsFromMemory(Memory);
 	InitRenderer(RenderCommands, State->GridCount);
+
+	model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\monkey.asset", &State->WorldArena);
+	// todo: process all meshes in a model
+	mesh *Mesh = ModelAsset.Meshes + 0;
+	AddMesh(RenderCommands, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
 }
 
 extern "C" DLLExport
@@ -79,12 +85,12 @@ GAME_PROCESS_INPUT(GameProcessInput)
 		if (State->Mode == GameMode_Menu)
 		{
 			State->Mode = GameMode_World;
-			Platform->SetMouseMode(Platform->StateHandle, MouseMode_Navigation);
+			Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 		}
 		else if (State->Mode == GameMode_World)
 		{
 			State->Mode = GameMode_Menu;
-			Platform->SetMouseMode(Platform->StateHandle, MouseMode_Cursor);
+			Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
 		}
 	}
 
@@ -103,7 +109,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
 			f32 DebugCameraSensitivity = 100.f;
 
 			State->DebugCamera.Pitch += RADIANS(Input->Camera.Range.y) * DebugCameraSensitivity * Parameters->Delta;
-			State->DebugCamera.Yaw += RADIANS(-Input->Camera.Range.x) * DebugCameraSensitivity * Parameters->Delta;
+			State->DebugCamera.Yaw += RADIANS(Input->Camera.Range.x) * DebugCameraSensitivity * Parameters->Delta;
 
 			State->DebugCamera.Pitch = Clamp(State->DebugCamera.Pitch, RADIANS(-89.f), RADIANS(89.f));
 			State->DebugCamera.Yaw = Mod(State->DebugCamera.Yaw, 2 * PI);
@@ -112,7 +118,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
 			State->DebugCamera.Position += 
 				(
-					Move.x * (Normalize(Cross(-State->DebugCamera.Direction, State->DebugCamera.Up))) + 
+					Move.x * (Normalize(Cross(State->DebugCamera.Direction, State->DebugCamera.Up))) + 
 					Move.y * State->DebugCamera.Direction
 				) * DebugCameraSpeed * Parameters->Delta;
 
@@ -216,8 +222,6 @@ GAME_RENDER(GameRender)
 			SetCamera(RenderCommands, State->DebugCamera.Position, State->DebugCamera.Position + State->DebugCamera.Direction, State->DebugCamera.Up, State->DebugCamera.Position);
 			//SetCamera(RenderCommands, State->PlayerCamera.Position, State->PlayerCamera.Position + State->PlayerCamera.Direction, State->PlayerCamera.Up, State->DebugCamera.Position);
 			
-			//SetWireframe(RenderCommands, true);
-
 			f32 Bounds = 100.f;
 
 			DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 1.f);
@@ -232,9 +236,11 @@ GAME_RENDER(GameRender)
 
 			SetDirectionalLight(RenderCommands, DirectionalLight);
 
+			//SetWireframe(RenderCommands, true);
+
 			material BoxMaterial = {};
 			BoxMaterial.DiffuseColor = vec3(1.f, 1.f, 0.f);
-			BoxMaterial.AmbientStrength = 0.25f;
+			BoxMaterial.AmbientStrength = 0.75f;
 			BoxMaterial.SpecularStrength = 1.f;
 			BoxMaterial.SpecularShininess = 32;
 
@@ -242,11 +248,14 @@ GAME_RENDER(GameRender)
 			{
 				rigid_body *Body = State->RigidBodies + RigidBodyCount;
 
-				DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
+				//DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
 			}
 
+			u32 IndexCount = 2904;
+			DrawMesh(RenderCommands, IndexCount, vec3(0.f, 2.f, 0.f), vec3(2.f), vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
+
 			//DrawBox(RenderCommands, State->Player.Position, State->Player.HalfSize, vec4(0.f, 1.f, 1.f, 1.f));
-#if 1
+#if 0
 			DrawBox(RenderCommands, vec3(4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
 			DrawBox(RenderCommands, vec3(-4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
 			DrawBox(RenderCommands, vec3(0.f, 2.f, -24.f), vec3(4.2f, 2.f, 0.2f), BoxMaterial);

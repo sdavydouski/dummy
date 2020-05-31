@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="handmade.h" />
+    <ClInclude Include="handmade_assets.h" />
     <ClInclude Include="handmade_collision.h" />
     <ClInclude Include="handmade_defs.h" />
     <ClInclude Include="handmade_mat4.h" />
@@ -36,6 +37,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="handmade.cpp" />
+    <None Include="handmade_assets.cpp" />
     <None Include="handmade_renderer.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

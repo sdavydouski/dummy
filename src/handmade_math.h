@@ -246,12 +246,22 @@ Orthographic(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 inline mat4
 Perspective(f32 FovY, f32 Aspect, f32 Near, f32 Far)
 {
+#if 0
 	mat4 Result = mat4(
 		vec4(1.f / (Aspect * Tan(FovY * 0.5f)), 0.f, 0.f, 0.f),
 		vec4(0.f, 1.f / Tan(FovY / 2), 0.f, 0.f),
 		vec4(0.f, 0.f, (-Near - Far) / (Near - Far), 2.f * (Near * Far) / (Near - Far)),
 		vec4(0.f, 0.f, 1.f, 0.f)
 	);
+#else
+	mat4 Result = mat4(
+		vec4(1.f / (Aspect * Tan(FovY * 0.5f)), 0.f, 0.f, 0.f),
+		vec4(0.f, 1.f / Tan(FovY / 2), 0.f, 0.f),
+		vec4(0.f, 0.f, (-Near - Far) / (Far - Near), 2.f * (Near * Far) / (Near - Far)),
+		vec4(0.f, 0.f, -1.f, 0.f)
+	);
+#endif
+
 
 	return Result;
 }
@@ -259,7 +269,7 @@ Perspective(f32 FovY, f32 Aspect, f32 Near, f32 Far)
 inline mat4
 LookAtLH(vec3 Eye, vec3 Target, vec3 WorldUp)
 {
-	vec3 Forward = Normalize(Target - Eye);
+	vec3 Forward = Normalize(Eye - Target);
 	vec3 Right = Normalize(Cross(WorldUp, Forward));
 	vec3 Up = Cross(Forward, Right);
 

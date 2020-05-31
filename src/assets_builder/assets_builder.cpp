@@ -141,7 +141,7 @@ void ProcessAssimpTextures(
     }
 }
 
-void ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, material *Material)
+void ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, material_asset *Material)
 {
     Material->Properties = (material_property *)malloc(MAX_MATERIAL_PROPERTY_COUNT * sizeof(material_property));
     u32 MaterialPropertyIndex = 0;
@@ -534,7 +534,8 @@ void ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
 
 void ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_asset *Asset)
 {
-    ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
+    // todo: check if model has skeleton information
+    //ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
 
     if (AssimpScene->HasMeshes())
     {
@@ -553,12 +554,12 @@ void ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, m
     if (AssimpScene->HasMaterials())
     {
         Asset->MaterialCount = AssimpScene->mNumMaterials;
-        Asset->Materials = (material *)malloc(Asset->MaterialCount * sizeof(material));
+        Asset->Materials = (material_asset *)malloc(Asset->MaterialCount * sizeof(material_asset));
 
         for (u32 MaterialIndex = 0; MaterialIndex < Asset->MaterialCount; ++MaterialIndex)
         {
             aiMaterial *AssimpMaterial = AssimpScene->mMaterials[MaterialIndex];
-            material *Material = Asset->Materials + MaterialIndex;
+            material_asset *Material = Asset->Materials + MaterialIndex;
 
             ProcessAssimpMaterial(AssimpMaterial, DirectoryPath, Material);
         }
@@ -611,36 +612,57 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
     model_asset_header *Header = (model_asset_header *)Buffer;
 
-    model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)((u8 *)Buffer + sizeof(model_asset_header));
+    model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)((u8 *)Buffer + Header->SkeletonHeaderOffset);
     skeleton Skeleton = {};
     Skeleton.JointCount = SkeletonHeader->JointCount;
     Skeleton.Joints = (joint *)((u8*)Buffer + SkeletonHeader->JointsOffset);
     Skeleton.LocalJointPoses = (joint_pose *)((u8*)Buffer + SkeletonHeader->LocalJointPosesOffset);
     Skeleton.GlobalJointPoses = (mat4 *)((u8*)Buffer + SkeletonHeader->GlobalJointPosesOffset);
 
+    model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)((u8 *)Buffer + Header->MeshesHeaderOffset);
+
+    u32 NextMeshHeaderOffset = 0;
+
+    for (u32 MeshIndex = 0; MeshIndex < MeshesHeader->MeshCount; ++MeshIndex)
+    {
+        model_asset_mesh_header *MeshHeader = (model_asset_mesh_header *)((u8 *)Buffer + 
+            MeshesHeader->MeshesOffset + NextMeshHeaderOffset);
+        mesh Mesh = {};
+        Mesh.VertexCount = MeshHeader->VertexCount;
+        Mesh.IndexCount = MeshHeader->IndexCount;
+        Mesh.Vertices = (vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
+        Mesh.Indices = (u32 *)((u8 *)Buffer + MeshHeader->IndicesOffset);
+
+        NextMeshHeaderOffset += sizeof(model_asset_mesh_header) + 
+            MeshHeader->VertexCount * sizeof(vertex) + MeshHeader->IndexCount * sizeof(u32);
+    }
+
     fclose(AssetFile);
 }
 
 i32 main(i32 ArgCount, char **Args)
 {
-    char *FilePath = (char *)"models\\Animated Human.fbx";
+    char *FilePath = (char *)"models\\monkey.obj";
     u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure;
 
     model_asset Asset;
     LoadModelAsset(FilePath, Flags, &Asset);
 
-    FILE *AssetFile = fopen("assets/dummy.asset", "wb");
+    FILE *AssetFile = fopen("assets\\monkey.asset", "wb");
 
     model_asset_header Header = {};
     Header.MagicValue = 0x451;
     Header.Version = 1;
+    Header.SkeletonHeaderOffset = sizeof(model_asset_header);
+    Header.MeshesHeaderOffset = Header.SkeletonHeaderOffset + sizeof(model_asset_skeleton_header) + 
+        Asset.Skeleton.JointCount * (sizeof(joint) + sizeof(joint_pose) + sizeof(mat4));
 
     fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
 
     // Writing skeleton
     model_asset_skeleton_header SkeletonHeader = {};
     SkeletonHeader.JointCount = Asset.Skeleton.JointCount;
-    SkeletonHeader.JointsOffset = sizeof(Header) + sizeof(SkeletonHeader);
+    SkeletonHeader.JointsOffset = Header.SkeletonHeaderOffset + sizeof(SkeletonHeader);
     SkeletonHeader.LocalJointPosesOffset = SkeletonHeader.JointsOffset + SkeletonHeader.JointCount * sizeof(joint);
     SkeletonHeader.GlobalJointPosesOffset = SkeletonHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(joint_pose);
 
@@ -649,10 +671,35 @@ i32 main(i32 ArgCount, char **Args)
     fwrite(Asset.Skeleton.LocalJointPoses, sizeof(joint_pose), Asset.Skeleton.JointCount, AssetFile);
     fwrite(Asset.Skeleton.GlobalJointPoses, sizeof(mat4), Asset.Skeleton.JointCount, AssetFile);
 
+    // Writing meshes
+    model_asset_meshes_header MeshesHeader = {};
+    MeshesHeader.MeshCount = Asset.MeshCount;
+    MeshesHeader.MeshesOffset = Header.MeshesHeaderOffset + sizeof(model_asset_meshes_header);
+
+    fwrite(&MeshesHeader, sizeof(model_asset_meshes_header), 1, AssetFile);
+
+    for (u32 MeshIndex = 0; MeshIndex < Asset.MeshCount; ++MeshIndex)
+    {
+        mesh *Mesh = Asset.Meshes + MeshIndex;
+
+        model_asset_mesh_header MeshHeader = {};
+        MeshHeader.VertexCount = Mesh->VertexCount;
+        MeshHeader.IndexCount = Mesh->IndexCount;
+        MeshHeader.VerticesOffset = MeshesHeader.MeshesOffset + MeshIndex * (sizeof(model_asset_mesh_header) + 
+            Mesh->VertexCount * sizeof(vertex) + Mesh->IndexCount * sizeof(u32)) + sizeof(model_asset_mesh_header);
+        MeshHeader.IndicesOffset = MeshHeader.VerticesOffset + Mesh->VertexCount * sizeof(vertex);
+
+        fwrite(&MeshHeader, sizeof(model_asset_mesh_header), 1, AssetFile);
+        fwrite(Mesh->Vertices, sizeof(vertex), Mesh->VertexCount, AssetFile);
+        fwrite(Mesh->Indices, sizeof(u32), Mesh->IndexCount, AssetFile);
+    }
+
+    // todo: add materials and animations
+
     fclose(AssetFile);
 
 #if 1
     model_asset TestAsset = {};
-    ReadAssetFile("assets/dummy.asset", &TestAsset, &Asset);
+    ReadAssetFile("assets\\monkey.asset", &TestAsset, &Asset);
 #endif
 }

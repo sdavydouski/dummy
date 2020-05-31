@@ -15,9 +15,11 @@
     <ClInclude Include="handmade_vec3.h" />
     <ClInclude Include="handmade_vec4.h" />
     <ClInclude Include="handmade_quat.h" />
+    <ClInclude Include="handmade_assets.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="handmade.cpp" />
+    <ClCompile Include="handmade_assets.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="handmade_renderer.cpp" />

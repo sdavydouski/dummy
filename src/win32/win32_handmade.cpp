@@ -466,7 +466,7 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
 
 PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
 {
-    win32_platform_state *PlatformState = (win32_platform_state *)PlatformStateHandle;
+    win32_platform_state *PlatformState = (win32_platform_state *)PlatformHandle;
     PlatformState->MouseMode = MouseMode;
 
     switch (PlatformState->MouseMode)
@@ -493,13 +493,49 @@ PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
     }
 }
 
+PLATFORM_READ_FILE(Win32ReadFile)
+{
+    read_file_result Result = {};
+
+    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    if (FileHandle != INVALID_HANDLE_VALUE)
+    {
+        LARGE_INTEGER FileSize;
+        if (GetFileSizeEx(FileHandle, &FileSize))
+        {
+            u32 FileSize32 = (u32)FileSize.QuadPart;
+            Result.Contents = PushSize(Arena, FileSize32);
+
+            DWORD BytesRead;
+            if (ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, 0) && FileSize32 == BytesRead)
+            {
+                Result.Size = FileSize32;
+            }
+            else
+            {
+                Assert(!"ReadFile failed");
+            }
+        }
+        else
+        {
+            Assert(!"GetFileSizeEx failed");
+        }
+    }
+    else
+    {
+        Assert(!"CreateFileA failed");
+    }
+
+    return Result;
+}
+
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 2560;
-    PlatformState.WindowHeight = 1440;
+    PlatformState.WindowWidth = 1600;
+    PlatformState.WindowHeight = 900;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
@@ -510,8 +546,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.PerformanceFrequency = PerformanceFrequency.QuadPart;
 
     platform_api PlatformApi = {};
-    PlatformApi.StateHandle = (void *)&PlatformState;
+    PlatformApi.PlatformHandle = (void *)&PlatformState;
     PlatformApi.SetMouseMode = Win32SetMouseMode;
+    PlatformApi.ReadFile = Win32ReadFile;
 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(64);
