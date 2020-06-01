@@ -231,10 +231,29 @@ InitGrid(opengl_state *State, u32 GridCount)
 	State->GridShaderProgram = CreateProgram(VertexShader, FragmentShader);
 }
 
-internal void
-OpenGLAddMesh(opengl_state *State, u32 VertexCount, vertex *Vertices, u32 IndexCount, u32 *Indices)
+// todo: use hashtable
+inline opengl_mesh_buffer *
+OpenGLGetMeshBuffer(opengl_state *State, u32 Id)
 {
-	Assert(State->MeshCount < OPENGL_MAX_MESH_BUFFER_COUNT);
+	opengl_mesh_buffer *Result = 0;
+
+	for (u32 MeshBufferIndex = 0; MeshBufferIndex < State->CurrentMeshBufferCount; ++MeshBufferIndex)
+	{
+		opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + MeshBufferIndex;
+
+		if (MeshBuffer->Id == Id)
+		{
+			Result = MeshBuffer;
+		}
+	}
+
+	return Result;
+}
+
+internal void
+OpenGLAddMeshBuffer(opengl_state *State, u32 Id, primitive_type PrimitiveType, u32 VertexCount, vertex *Vertices, u32 IndexCount, u32 *Indices)
+{
+	Assert(State->CurrentMeshBufferCount < OPENGL_MAX_MESH_BUFFER_COUNT);
 
 	GLuint VAO;
 	GLuint VBO;
@@ -268,15 +287,13 @@ OpenGLAddMesh(opengl_state *State, u32 VertexCount, vertex *Vertices, u32 IndexC
 
 	glBindVertexArray(0);
 
-	//opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + State->MeshCount++;
-	//MeshBuffer->VAO = VAO;
-	//MeshBuffer->VBO = VBO;
-	//MeshBuffer->EBO = EBO;
-
-	// todo: remove this
-	State->TempVAO = VAO;
-	State->TempVBO = VBO;
-	State->TempEBO = EBO;
+	opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + State->CurrentMeshBufferCount++;
+	MeshBuffer->Id = Id;
+	MeshBuffer->PrimitiveType = PrimitiveType;
+	MeshBuffer->IndexCount = IndexCount;
+	MeshBuffer->VAO = VAO;
+	MeshBuffer->VBO = VBO;
+	MeshBuffer->EBO = EBO;
 }
 
 internal void
@@ -325,7 +342,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 		{
 			render_command_add_mesh *Command = (render_command_add_mesh *)Entry;
 
-			OpenGLAddMesh(State, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices);
+			OpenGLAddMeshBuffer(State, Command->Id, Command->PrimitiveType, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices);
 
 			BaseAddress += sizeof(*Command);
 			break;
@@ -624,7 +641,11 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 		{
 			render_command_draw_mesh *Command = (render_command_draw_mesh *)Entry;
 
-			glBindVertexArray(State->TempVAO);
+			opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->Id);
+
+			Assert(MeshBuffer);
+
+			glBindVertexArray(MeshBuffer->VAO);
 			glUseProgram(State->ForwardShadingShaderProgram);
 			{
 				mat4 T = Translate(Command->Position);
@@ -656,7 +677,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
 				glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
 
-				vec3 DiffuseColor = vec3(1.f, 1.f, 0.f);
+				vec3 DiffuseColor = vec3(1.f, 1.f, 1.f);
 				f32 AmbientStrength = 0.25f;
 				f32 SpecularStrength = 1.f;
 				f32 SpecularShininess = 32;
@@ -675,7 +696,23 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				glUniform1f(MaterialSpecularStrengthUniformLocation, SpecularStrength);
 				glUniform1f(MaterialSpecularShininessUniformLocation, SpecularShininess);
 			}
-			glDrawElements(GL_TRIANGLES, Command->IndexCount, GL_UNSIGNED_INT, 0);
+			switch (MeshBuffer->PrimitiveType)
+			{
+				case PrimitiveType_Line:
+				{
+					glDrawElements(GL_LINES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+					break;
+				}
+				case PrimitiveType_Triangle:
+				{
+					glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+					break;
+				}
+				default:
+				{
+					Assert(!"Invalid primitive type");
+				}
+			}
 
 			glUseProgram(0);
 			glBindVertexArray(0);

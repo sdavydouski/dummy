@@ -107,6 +107,7 @@ struct joint_weight
 struct mesh
 {
     //skeleton *Skeleton;
+    primitive_type PrimitiveType;
 
     u32 VertexCount;
     vertex *Vertices;
@@ -155,6 +156,7 @@ struct model_asset_meshes_header
 
 struct model_asset_mesh_header
 {
+    primitive_type PrimitiveType;
     u32 VertexCount;
     u32 IndexCount;
     u32 VerticesOffset;

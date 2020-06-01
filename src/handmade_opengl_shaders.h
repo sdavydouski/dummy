@@ -226,7 +226,7 @@ void main()
         LightImpact += CalculatePointLight(PointLight, u_Material, UnitNormal, EyeDirection, ex_VertexPosition);
     }
 #endif
-#if 1
+#if 0
     out_Color = vec4(LightImpact, 1.f) * vec4(u_Material.DiffuseColor, 1.f);
 #else
     out_Color = vec4(u_Material.DiffuseColor, 1.f);

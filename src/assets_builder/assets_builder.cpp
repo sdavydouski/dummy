@@ -1,9 +1,36 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "assets_builder.h"
+#include "handmade_defs.h"
+#include "handmade_math.h"
+#include "handmade_renderer.h"
+#include "handmade_assets.h"
+
+#undef PI
+
+#include <assimp/cimport.h>        // Plain-C interface
+#include <assimp/scene.h>          // Output data structure
+#include <assimp/postprocess.h>    // Post processing flags
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#include <string>
+#include <vector>
+#include <unordered_map>
+
+using std::string;
+
+template <typename TValue>
+using dynamic_array = std::vector<TValue>;
+
+template <typename TKey, typename TValue>
+using hashtable = std::unordered_map<TKey, TValue>;
+
+struct assimp_node
+{
+    aiNode *Node;
+    aiBone *Bone;
+};
 
 #define INVALID_FLOAT -1.f
 #define INVALID_COLOR vec4(-1.f)
@@ -292,6 +319,23 @@ u32 FindJointIndexByName(const char *JointName, skeleton *Skeleton)
 
 void ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNode, mesh *Mesh, skeleton *Skeleton)
 {
+    switch (AssimpMesh->mPrimitiveTypes)
+    {
+        case aiPrimitiveType_LINE:
+        {
+            Mesh->PrimitiveType = PrimitiveType_Line;
+            break;
+        }
+        case aiPrimitiveType_TRIANGLE:
+        {
+            Mesh->PrimitiveType = PrimitiveType_Triangle;
+            break;
+        }
+        default: {
+            Assert(!"Invalid primitive type");
+        }
+    }
+
     Mesh->VertexCount = AssimpMesh->mNumVertices;
     Mesh->Vertices = (vertex *)malloc(Mesh->VertexCount * sizeof(vertex));
 
@@ -299,14 +343,23 @@ void ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRo
     {
         for (u32 VertexIndex = 0; VertexIndex < AssimpMesh->mNumVertices; ++VertexIndex)
         {
-            aiVector3D AssimpPosition = AssimpMesh->mVertices[VertexIndex];
-            aiVector3D AssimpNormal = AssimpMesh->mNormals[VertexIndex];
-            aiVector3D AssimpTextureCoords = AssimpMesh->mTextureCoords[TEXTURE_COORDINATES_SET_INDEX][VertexIndex];
-
             vertex *Vertex = Mesh->Vertices + VertexIndex;
+            *Vertex = {};
+
+            aiVector3D AssimpPosition = AssimpMesh->mVertices[VertexIndex];
             Vertex->Position = AssimpVector2Vector(AssimpPosition);
-            Vertex->Normal = AssimpVector2Vector(AssimpNormal);
-            Vertex->TextureCoords = vec2(AssimpVector2Vector(AssimpTextureCoords).xy);
+
+            if (AssimpMesh->HasNormals())
+            {
+                aiVector3D AssimpNormal = AssimpMesh->mNormals[VertexIndex];
+                Vertex->Normal = AssimpVector2Vector(AssimpNormal);
+            }
+
+            if (AssimpMesh->HasTextureCoords(TEXTURE_COORDINATES_SET_INDEX))
+            {
+                aiVector3D AssimpTextureCoords = AssimpMesh->mTextureCoords[TEXTURE_COORDINATES_SET_INDEX][VertexIndex];
+                Vertex->TextureCoords = vec2(AssimpVector2Vector(AssimpTextureCoords).xy);
+            }
         }
     }
 
@@ -535,7 +588,7 @@ void ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
 void ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_asset *Asset)
 {
     // todo: check if model has skeleton information
-    //ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
+    ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
 
     if (AssimpScene->HasMeshes())
     {
@@ -628,6 +681,7 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
         model_asset_mesh_header *MeshHeader = (model_asset_mesh_header *)((u8 *)Buffer + 
             MeshesHeader->MeshesOffset + NextMeshHeaderOffset);
         mesh Mesh = {};
+        Mesh.PrimitiveType = MeshHeader->PrimitiveType;
         Mesh.VertexCount = MeshHeader->VertexCount;
         Mesh.IndexCount = MeshHeader->IndexCount;
         Mesh.Vertices = (vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
@@ -642,13 +696,14 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
 i32 main(i32 ArgCount, char **Args)
 {
-    char *FilePath = (char *)"models\\monkey.obj";
+    char *FilePath = (char *)"models\\Animated Human.fbx";
+    // todo: http://assimp.sourceforge.net/lib_html/postprocess_8h.html
     u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure;
 
     model_asset Asset;
     LoadModelAsset(FilePath, Flags, &Asset);
 
-    FILE *AssetFile = fopen("assets\\monkey.asset", "wb");
+    FILE *AssetFile = fopen("assets\\dummy.asset", "wb");
 
     model_asset_header Header = {};
     Header.MagicValue = 0x451;
@@ -683,6 +738,7 @@ i32 main(i32 ArgCount, char **Args)
         mesh *Mesh = Asset.Meshes + MeshIndex;
 
         model_asset_mesh_header MeshHeader = {};
+        MeshHeader.PrimitiveType = Mesh->PrimitiveType;
         MeshHeader.VertexCount = Mesh->VertexCount;
         MeshHeader.IndexCount = Mesh->IndexCount;
         MeshHeader.VerticesOffset = MeshesHeader.MeshesOffset + MeshIndex * (sizeof(model_asset_mesh_header) + 
@@ -700,6 +756,6 @@ i32 main(i32 ArgCount, char **Args)
 
 #if 1
     model_asset TestAsset = {};
-    ReadAssetFile("assets\\monkey.asset", &TestAsset, &Asset);
+    ReadAssetFile("assets\\dummy.asset", &TestAsset, &Asset);
 #endif
 }

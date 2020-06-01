@@ -454,6 +454,33 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                 }
                 break;
             }
+            case WM_LBUTTONDOWN:
+            case WM_RBUTTONDOWN:
+            case WM_LBUTTONUP:
+            case WM_RBUTTONUP:
+            {
+                if (PlatformState->IsWindowActive)
+                {
+                    // todo: mouse input as well
+                    b32 IsLeftMouseDown = WindowMessage.wParam == MK_LBUTTON;
+                    b32 IsRightMouseDown = WindowMessage.wParam == MK_RBUTTON;
+
+                    MouseInput->LeftButton.IsPressed = IsLeftMouseDown;
+                    MouseInput->RightButton.IsPressed = IsRightMouseDown;
+
+                    i32 WindowCenterX = PlatformState->WindowWidth / 2;
+                    i32 WindowCenterY = PlatformState->WindowHeight / 2;
+
+                    MouseInput->dx = 0;
+                    MouseInput->dy = 0;
+                }
+
+                // pass event for imgui
+                TranslateMessage(&WindowMessage);
+                DispatchMessage(&WindowMessage);
+
+                break;
+            }
             default:
             {
                 TranslateMessage(&WindowMessage);
@@ -467,28 +494,32 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
 PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
 {
     win32_platform_state *PlatformState = (win32_platform_state *)PlatformHandle;
-    PlatformState->MouseMode = MouseMode;
 
-    switch (PlatformState->MouseMode)
+    if (MouseMode != PlatformState->MouseMode)
     {
-        case MouseMode_Navigation:
+        PlatformState->MouseMode = MouseMode;
+
+        switch (PlatformState->MouseMode)
         {
-            Win32HideMouseCursor();
-            SetCursorPos(PlatformState->WindowPositionX + PlatformState->WindowWidth / 2, PlatformState->WindowPositionY + PlatformState->WindowHeight / 2);
-            RECT ClipRegion = GetCursorClipRect(PlatformState);
-            ClipCursor(&ClipRegion);
-            break;
-        }
-        case MouseMode_Cursor:
-        {
-            ShowCursor(true);
-            ClipCursor(0);
-            break;
-        }
-        default:
-        {
-            Assert(!"Mouse mode is not supported");
-            break;
+            case MouseMode_Navigation:
+            {
+                Win32HideMouseCursor();
+                SetCursorPos(PlatformState->WindowPositionX + PlatformState->WindowWidth / 2, PlatformState->WindowPositionY + PlatformState->WindowHeight / 2);
+                RECT ClipRegion = GetCursorClipRect(PlatformState);
+                ClipCursor(&ClipRegion);
+                break;
+            }
+            case MouseMode_Cursor:
+            {
+                ShowCursor(true);
+                ClipCursor(0);
+                break;
+            }
+            default:
+            {
+                Assert(!"Mouse mode is not supported");
+                break;
+            }
         }
     }
 }
@@ -534,8 +565,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 1600;
-    PlatformState.WindowHeight = 900;
+    PlatformState.WindowWidth = 2560;
+    PlatformState.WindowHeight = 1440;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
@@ -622,7 +653,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
         
-        Win32SetMouseMode((void *)&PlatformState, MouseMode_Navigation);
+        Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
         // Setup Dear ImGui context
         IMGUI_CHECKVERSION();
@@ -637,7 +668,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         ImGui_ImplOpenGL3_Init();
 
         // Load Fonts
-        io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/Consola.ttf", 24);
+        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
 		render_commands *RenderCommands = GetRenderCommandsFromMemory(&GameMemory);
 

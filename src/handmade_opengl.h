@@ -10,6 +10,10 @@ struct opengl_box_vertex
 
 struct opengl_mesh_buffer
 {
+	u32 Id;
+	u32 IndexCount;
+	primitive_type PrimitiveType;
+
 	GLuint VAO;
 	GLuint VBO;
 	GLuint EBO;
@@ -29,13 +33,8 @@ struct opengl_state
 	GLuint BoxVAO;
 	GLuint GridVAO;
 
-	u32 MeshCount;
-	opengl_mesh_buffer *MeshBuffers;
-
-	// todo: remove this
-	GLuint TempVAO;
-	GLuint TempVBO;
-	GLuint TempEBO;
+	u32 CurrentMeshBufferCount;
+	opengl_mesh_buffer MeshBuffers[OPENGL_MAX_MESH_BUFFER_COUNT];
 
 	GLuint SimpleShaderProgram;
 	GLuint GridShaderProgram;

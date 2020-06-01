@@ -40,7 +40,6 @@ GAME_INIT(GameInit)
 	State->Mode = GameMode_World;
 	
 	InitCamera(&State->DebugCamera, RADIANS(0.f), RADIANS(-90.f), RADIANS(45.f), vec3(0.f, 4.f, 16.f));
-	InitCamera(&State->PlayerCamera, RADIANS(-10.f), RADIANS(-90.f), RADIANS(45.f), vec3(0.f, 2.f, 16.f));
 
 	State->GridCount = 100;
 
@@ -61,10 +60,19 @@ GAME_INIT(GameInit)
 	render_commands *RenderCommands = GetRenderCommandsFromMemory(Memory);
 	InitRenderer(RenderCommands, State->GridCount);
 
-	model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\monkey.asset", &State->WorldArena);
-	// todo: process all meshes in a model
-	mesh *Mesh = ModelAsset.Meshes + 0;
-	AddMesh(RenderCommands, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+	{
+		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\monkey.asset", &State->WorldArena);
+		// todo: process all meshes in a model
+		mesh *Mesh = ModelAsset.Meshes + 0;
+		AddMesh(RenderCommands, 1, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+	}
+
+	{
+		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\light.asset", &State->WorldArena);
+		// todo: process all meshes in a model
+		mesh *Mesh = ModelAsset.Meshes + 0;
+		AddMesh(RenderCommands, 2, PrimitiveType_Line, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+	}
 }
 
 extern "C" DLLExport
@@ -85,18 +93,25 @@ GAME_PROCESS_INPUT(GameProcessInput)
 		if (State->Mode == GameMode_Menu)
 		{
 			State->Mode = GameMode_World;
-			Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 		}
 		else if (State->Mode == GameMode_World)
 		{
 			State->Mode = GameMode_Menu;
-			Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
 		}
 	}
 
 	if (Input->Advance.IsActivated)
 	{
 		State->Advance = true;
+	}
+
+	if (Input->EnableFreeCameraMovement.IsActive)
+	{
+		Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
+	}
+	else
+	{
+		Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
 	}
 
 	State->IsBackgroundHighlighted = Input->HighlightBackground.IsActive;
@@ -108,40 +123,22 @@ GAME_PROCESS_INPUT(GameProcessInput)
 			f32 DebugCameraSpeed = 5.f;
 			f32 DebugCameraSensitivity = 100.f;
 
-			State->DebugCamera.Pitch += RADIANS(Input->Camera.Range.y) * DebugCameraSensitivity * Parameters->Delta;
-			State->DebugCamera.Yaw += RADIANS(Input->Camera.Range.x) * DebugCameraSensitivity * Parameters->Delta;
+			if (Input->EnableFreeCameraMovement.IsActive)
+			{
+				State->DebugCamera.Pitch += RADIANS(Input->Camera.Range.y) * DebugCameraSensitivity * Parameters->Delta;
+				State->DebugCamera.Yaw += RADIANS(Input->Camera.Range.x) * DebugCameraSensitivity * Parameters->Delta;
 
-			State->DebugCamera.Pitch = Clamp(State->DebugCamera.Pitch, RADIANS(-89.f), RADIANS(89.f));
-			State->DebugCamera.Yaw = Mod(State->DebugCamera.Yaw, 2 * PI);
+				State->DebugCamera.Pitch = Clamp(State->DebugCamera.Pitch, RADIANS(-89.f), RADIANS(89.f));
+				State->DebugCamera.Yaw = Mod(State->DebugCamera.Yaw, 2 * PI);
 
-			State->DebugCamera.Direction = CalculateDirectionFromEulerAngles(State->DebugCamera.Pitch, State->DebugCamera.Yaw);
+				State->DebugCamera.Direction = CalculateDirectionFromEulerAngles(State->DebugCamera.Pitch, State->DebugCamera.Yaw);
+			}
 
 			State->DebugCamera.Position += 
 				(
 					Move.x * (Normalize(Cross(State->DebugCamera.Direction, State->DebugCamera.Up))) + 
 					Move.y * State->DebugCamera.Direction
 				) * DebugCameraSpeed * Parameters->Delta;
-
-			// ---
-
-			f32 PlayerCameraSpeed = 5.f;
-			f32 PlayerCameraSensitivity = 100.f;
-
-			State->PlayerCamera.Pitch += RADIANS(Input->Camera.Range.y) * PlayerCameraSensitivity * Parameters->Delta;
-			State->PlayerCamera.Yaw += RADIANS(-Input->Camera.Range.x) * PlayerCameraSensitivity * Parameters->Delta;
-
-			State->PlayerCamera.Pitch = Clamp(State->PlayerCamera.Pitch, RADIANS(-89.f), RADIANS(89.f));
-			State->PlayerCamera.Yaw = Mod(State->PlayerCamera.Yaw, 2 * PI);
-
-			State->PlayerCamera.Direction = CalculateDirectionFromEulerAngles(State->PlayerCamera.Pitch, State->PlayerCamera.Yaw);
-
-			// todo: doesn't help when moving on ladders
-			vec3 PlayerDirection = vec3(State->PlayerCamera.Direction.x, 0.f, State->PlayerCamera.Direction.z);
-			State->PlayerCamera.Position +=
-				(
-					Move.x * (Normalize(Cross(-PlayerDirection, State->PlayerCamera.Up))) +
-					Move.y * PlayerDirection
-				) * PlayerCameraSpeed * Parameters->Delta;
 		}
 		break;
 		case GameMode_Menu:
@@ -220,7 +217,6 @@ GAME_RENDER(GameRender)
 			SetPerspectiveProjection(RenderCommands, State->DebugCamera.FovY, FrustrumWidthInUnits / FrustrumHeightInUnits, 0.1f, 1000.f);
 			
 			SetCamera(RenderCommands, State->DebugCamera.Position, State->DebugCamera.Position + State->DebugCamera.Direction, State->DebugCamera.Up, State->DebugCamera.Position);
-			//SetCamera(RenderCommands, State->PlayerCamera.Position, State->PlayerCamera.Position + State->PlayerCamera.Direction, State->PlayerCamera.Up, State->DebugCamera.Position);
 			
 			f32 Bounds = 100.f;
 
@@ -236,10 +232,10 @@ GAME_RENDER(GameRender)
 
 			SetDirectionalLight(RenderCommands, DirectionalLight);
 
-			//SetWireframe(RenderCommands, true);
+			SetWireframe(RenderCommands, true);
 
 			material BoxMaterial = {};
-			BoxMaterial.DiffuseColor = vec3(1.f, 1.f, 0.f);
+			BoxMaterial.DiffuseColor = vec3(1.f, 1.f, 1.f);
 			BoxMaterial.AmbientStrength = 0.75f;
 			BoxMaterial.SpecularStrength = 1.f;
 			BoxMaterial.SpecularShininess = 32;
@@ -251,8 +247,8 @@ GAME_RENDER(GameRender)
 				//DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
 			}
 
-			u32 IndexCount = 2904;
-			DrawMesh(RenderCommands, IndexCount, vec3(0.f, 2.f, 0.f), vec3(2.f), vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
+			DrawMesh(RenderCommands, 1, vec3(0.f, 2.f, 0.f), vec3(2.f));//, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
+			DrawMesh(RenderCommands, 2, vec3(Cos(Parameters->Time) * 5.f, 2.f, Sin(Parameters->Time) * 5.f), vec3(0.5f));
 
 			//DrawBox(RenderCommands, State->Player.Position, State->Player.HalfSize, vec4(0.f, 1.f, 1.f, 1.f));
 #if 0

@@ -93,6 +93,9 @@ struct platform_input_mouse
             i32 dy;
         };
     };
+
+    platform_button_state LeftButton;
+    platform_button_state RightButton;
 };
 
 struct platform_input_xbox_controller
@@ -126,6 +129,7 @@ struct game_input
 	game_input_action Menu;
     game_input_action Advance;
 	game_input_state HighlightBackground;
+    game_input_state EnableFreeCameraMovement;
 };
 
 inline void
@@ -177,7 +181,6 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
     // todo:
     GameInput->Menu.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
     GameInput->Advance.IsActivated = KeyboardInput->Space.IsPressed && (KeyboardInput->Space.IsPressed != KeyboardInput->Space.WasPressed);
-    //GameInput->Advance.IsActivated = KeyboardInput->Space.IsPressed;
 
     GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
 }
@@ -191,6 +194,7 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput, f3
         vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy) * MouseSensitivity;
 
         GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
+        GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
     }
 }
 

@@ -39,6 +39,8 @@ InitRenderer(render_commands *Commands, u32 GridCount)
 inline void
 AddMesh(
 	render_commands *Commands,
+	u32 Id,
+	primitive_type PrimitiveType,
 	u32 VertexCount,
 	vertex *Vertices,
 	u32 IndexCount,
@@ -46,6 +48,8 @@ AddMesh(
 )
 {
 	render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh);
+	Command->Id = Id;
+	Command->PrimitiveType = PrimitiveType;
 	Command->VertexCount = VertexCount;
 	Command->Vertices = Vertices;
 	Command->IndexCount = IndexCount;
@@ -154,14 +158,14 @@ DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, ve
 inline void
 DrawMesh(
 	render_commands *Commands, 
-	u32 IndexCount, 
+	u32 Id, 
 	vec3 Position, 
 	vec3 Scale, 
 	vec4 Rotation = vec4(0.f)
 )
 {
 	render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
-	Command->IndexCount = IndexCount;
+	Command->Id = Id;
 	Command->Position = Position;
 	Command->Scale = Scale;
 	Command->Rotation = Rotation;

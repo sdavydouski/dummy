@@ -28,6 +28,7 @@ ReadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
         
         mesh *Mesh = Result.Meshes + MeshIndex;
 
+        Mesh->PrimitiveType = MeshHeader->PrimitiveType;
         Mesh->VertexCount = MeshHeader->VertexCount;
         Mesh->IndexCount = MeshHeader->IndexCount;
         Mesh->Vertices = (vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);

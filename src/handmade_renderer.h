@@ -54,6 +54,12 @@ struct vertex
 	vec4 Weights;
 };
 
+enum primitive_type
+{
+	PrimitiveType_Line,
+	PrimitiveType_Triangle
+};
+
 enum render_command_type
 {
 	RenderCommand_InitRenderer,
@@ -91,6 +97,9 @@ struct render_command_init_renderer
 struct render_command_add_mesh
 {
 	render_command_header Header;
+
+	u32 Id;
+	primitive_type PrimitiveType;
 
 	u32 VertexCount;
 	vertex *Vertices;
@@ -185,13 +194,11 @@ struct render_command_draw_grid
 	vec3 Color;
 };
 
-// todo: a lot of unneccessary data
 struct render_command_draw_mesh
 {
 	render_command_header Header;
 
-	u32 IndexCount;
-
+	u32 Id;
 	vec3 Position;
 	vec3 Scale;
 	vec4 Rotation;

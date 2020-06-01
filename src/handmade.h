@@ -25,7 +25,6 @@ struct game_state
 	memory_arena WorldArena;
 
 	game_mode Mode;
-	game_camera PlayerCamera;
 	game_camera DebugCamera;
 
 	u32 RigidBodiesCount;
