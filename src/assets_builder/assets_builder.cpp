@@ -289,10 +289,10 @@ void ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation *Animation)
 
             key_frame *KeyFrame = AnimationSample->KeyFrames + KeyIndex;
             KeyFrame->Time = (f32)PositionKey->mTime;
-            KeyFrame->Pose = (joint_pose *)malloc(sizeof(joint_pose));
-            KeyFrame->Pose->Rotation = AssimpQuaternion2Quaternion(RotationKey->mValue);
-            KeyFrame->Pose->Translation = AssimpVector2Vector(PositionKey->mValue);
-            KeyFrame->Pose->Scale = AssimpVector2Vector(ScalingKey->mValue);
+            KeyFrame->Pose = {};
+            KeyFrame->Pose.Rotation = AssimpQuaternion2Quaternion(RotationKey->mValue);
+            KeyFrame->Pose.Translation = AssimpVector2Vector(PositionKey->mValue);
+            KeyFrame->Pose.Scale = AssimpVector2Vector(ScalingKey->mValue);
         }
     }
 }
@@ -483,12 +483,12 @@ void ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_nod
     string Name = AssimpString2StdString(AssimpNode->mName);
     assimp_node *SceneNode = SceneNodes[Name];
 
-    Assert(SceneNode->Bone);
+    //Assert(SceneNode->Bone);
 
     joint *Joint = Skeleton->Joints + CurrentIndex;
     Assert(Name.length() < MAX_JOINT_NAME_LENGTH);
     CopyString(Name, Joint->Name);
-    Joint->InvBindTranform = AssimpMatrix2Matrix(SceneNode->Bone->mOffsetMatrix);
+    //Joint->InvBindTranform = AssimpMatrix2Matrix(SceneNode->Bone->mOffsetMatrix);
     Joint->ParentIndex = ParentIndex;
 
     aiVector3D Scale;
@@ -498,6 +498,10 @@ void ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_nod
 
     joint_pose *LocalJointPose = Skeleton->LocalJointPoses + CurrentIndex;
     LocalJointPose->Scale = AssimpVector2Vector(Scale);
+    if (Scale.x > 65.f)
+    {
+        //LocalJointPose->Scale *= 0.1f;
+    }
     LocalJointPose->Translation = AssimpVector2Vector(Translation);
     LocalJointPose->Rotation = AssimpQuaternion2Quaternion(Rotation);
 
@@ -524,14 +528,19 @@ CalculateJointPose(joint_pose *JointPose)
     return Result;
 }
 
+// todo: check ParentIndex!
 mat4 CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton *Skeleton)
 {
     mat4 Result = mat4(1.f);
 
+    dynamic_array<mat4> JointPoses;
+
     while (true)
     {
         mat4 Pose = CalculateJointPose(CurrentJointPose);
-        Result = Result * Pose;
+        //Result = Result * Pose;
+
+        JointPoses.push_back(Pose);
 
         if (CurrentJoint->ParentIndex == -1)
         {
@@ -542,15 +551,22 @@ mat4 CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose,
         CurrentJoint = Skeleton->Joints + CurrentJoint->ParentIndex;
     }
 
+    for (i32 Index = (i32)JointPoses.size() - 1; Index >= 0; --Index)
+    {
+        Result = Result * JointPoses[Index];
+    }
+
     return Result;
 }
 
+// todo: forget about the bones right now and just draw joints of the skeleton
 void ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
 {
     hashtable<string, assimp_node *> SceneNodes;
     ProcessAssimpNodeHierarchy(AssimpScene->mRootNode, SceneNodes);
 
-    u32 JointCount = 0;
+    u32 JointCount = SceneNodes.size();
+#if 0
     for (u32 MeshIndex = 0; MeshIndex < AssimpScene->mNumMeshes; ++MeshIndex)
     {
         aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
@@ -566,14 +582,16 @@ void ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
             SceneNodes[Name]->Bone = AssimpBone;
         }
     }
+#endif
 
     Skeleton->JointCount = JointCount;
     Skeleton->Joints = (joint *)malloc(sizeof(joint) * JointCount);
     Skeleton->LocalJointPoses = (joint_pose *)malloc(sizeof(joint_pose) * JointCount);
     Skeleton->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
 
-    aiNode *BoneRoot = GetBoneRootNode(AssimpScene->mRootNode, SceneNodes);
-    ProcessAssimpBoneHierarchy(BoneRoot, SceneNodes, Skeleton, -1);
+    //aiNode *BoneRoot = GetBoneRootNode(AssimpScene->mRootNode, SceneNodes);
+    //ProcessAssimpBoneHierarchy(BoneRoot, SceneNodes, Skeleton, -1);
+    ProcessAssimpBoneHierarchy(AssimpScene->mRootNode, SceneNodes, Skeleton, -1);
 
     for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
     {

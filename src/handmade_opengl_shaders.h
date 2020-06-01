@@ -219,14 +219,14 @@ void main()
     vec3 EyeDirection = normalize(u_CameraPosition - ex_VertexPosition);
 
     vec3 LightImpact = CalculateDirectionalLight(u_DirectionalLight, u_Material, UnitNormal, EyeDirection);
-#if 0
+#if 1
     for (int PointLightIndex = 0; PointLightIndex < MAX_NUMBER_OF_POINT_LIGHTS; ++PointLightIndex)
     {
         point_light PointLight = u_PointLights[PointLightIndex];
         LightImpact += CalculatePointLight(PointLight, u_Material, UnitNormal, EyeDirection, ex_VertexPosition);
     }
 #endif
-#if 0
+#if 1
     out_Color = vec4(LightImpact, 1.f) * vec4(u_Material.DiffuseColor, 1.f);
 #else
     out_Color = vec4(u_Material.DiffuseColor, 1.f);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "handmade_renderer.h"
+#include "handmade_assets.h"
 
 enum game_mode
 {
@@ -31,6 +32,8 @@ struct game_state
 	rigid_body *RigidBodies;
 
 	plane Ground;
+
+	skeleton Skeleton;
 
 	u32 GridCount;
 	b32 IsBackgroundHighlighted;

@@ -47,7 +47,7 @@ struct material_asset
 struct joint
 {
     char Name[MAX_JOINT_NAME_LENGTH];
-    mat4 InvBindTranform;
+    //mat4 InvBindTranform;
     i32 ParentIndex;
 };
 
@@ -69,7 +69,7 @@ struct skeleton
 struct key_frame
 {
     f32 Time;
-    joint_pose *Pose;
+    joint_pose Pose;
 };
 
 struct animation_sample
@@ -123,6 +123,7 @@ struct model_asset
     u32 MeshCount;
     mesh *Meshes;
 
+    // todo: remove?
     u32 MaterialCount;
     material_asset *Materials;
 
@@ -136,8 +137,7 @@ struct model_asset_header
     i32 Version;
     u32 SkeletonHeaderOffset;
     u32 MeshesHeaderOffset;
-    //u32 MaterialsHeaderOffset;
-    //u32 AnimationsHeaderOffset;
+    u32 AnimationsHeaderOffset;
 };
 
 struct model_asset_skeleton_header
@@ -161,4 +161,10 @@ struct model_asset_mesh_header
     u32 IndexCount;
     u32 VerticesOffset;
     u32 IndicesOffset;
+};
+
+struct model_asset_animations_header
+{
+    u32 AnimationCount;
+    u32 AnimationsOffset;
 };

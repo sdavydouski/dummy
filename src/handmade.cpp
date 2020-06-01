@@ -26,6 +26,27 @@ InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FovY, vec3 Position, vec
 	Camera->Direction = CalculateDirectionFromEulerAngles(Camera->Pitch, Camera->Yaw);
 }
 
+internal void
+DrawSkeleton(render_commands *RenderCommands, skeleton *Skeleton)
+{
+	for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
+	{
+		joint *Joint = Skeleton->Joints + JointIndex;
+		mat4 *GlobalJointPose = Skeleton->GlobalJointPoses + JointIndex;
+
+		mat4 S = Scale(0.05f);
+		mat4 Model = (*GlobalJointPose);
+
+		Model = Model * S;
+
+		material Material = {};
+		Material.Type = MaterialType_Unlit;
+		Material.Color = vec3(1.f, 1.f, 0.f);
+
+		DrawMesh(RenderCommands, 3, Model, Material, {}, {});
+	}
+}
+
 extern "C" DLLExport
 GAME_INIT(GameInit)
 {
@@ -61,10 +82,12 @@ GAME_INIT(GameInit)
 	InitRenderer(RenderCommands, State->GridCount);
 
 	{
-		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\monkey.asset", &State->WorldArena);
+		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\dummy.asset", &State->WorldArena);
 		// todo: process all meshes in a model
 		mesh *Mesh = ModelAsset.Meshes + 0;
 		AddMesh(RenderCommands, 1, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+
+		State->Skeleton = ModelAsset.Skeleton;
 	}
 
 	{
@@ -72,6 +95,13 @@ GAME_INIT(GameInit)
 		// todo: process all meshes in a model
 		mesh *Mesh = ModelAsset.Meshes + 0;
 		AddMesh(RenderCommands, 2, PrimitiveType_Line, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+	}
+
+	{
+		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\cube.asset", &State->WorldArena);
+		// todo: process all meshes in a model
+		mesh *Mesh = ModelAsset.Meshes + 0;
+		AddMesh(RenderCommands, 3, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
 	}
 }
 
@@ -120,7 +150,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
 	{
 		case GameMode_World:
 		{
-			f32 DebugCameraSpeed = 5.f;
+			f32 DebugCameraSpeed = 500.f;
 			f32 DebugCameraSensitivity = 100.f;
 
 			if (Input->EnableFreeCameraMovement.IsActive)
@@ -218,6 +248,7 @@ GAME_RENDER(GameRender)
 			
 			SetCamera(RenderCommands, State->DebugCamera.Position, State->DebugCamera.Position + State->DebugCamera.Direction, State->DebugCamera.Up, State->DebugCamera.Position);
 			
+			// todo: SetTransform render command?
 			f32 Bounds = 100.f;
 
 			DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 1.f);
@@ -227,28 +258,85 @@ GAME_RENDER(GameRender)
 			DrawGrid(RenderCommands, Bounds, State->GridCount, State->DebugCamera.Position, vec3(0.f, 0.f, 1.f));
 
 			directional_light DirectionalLight = {};
-			DirectionalLight.Color = vec3(0.25f);
+			DirectionalLight.Color = vec3(0.1f);
 			DirectionalLight.Direction = vec3(0.f, -0.5f, -0.3f);
 
 			SetDirectionalLight(RenderCommands, DirectionalLight);
 
-			SetWireframe(RenderCommands, true);
+			//SetWireframe(RenderCommands, true);
 
-			material BoxMaterial = {};
-			BoxMaterial.DiffuseColor = vec3(1.f, 1.f, 1.f);
-			BoxMaterial.AmbientStrength = 0.75f;
-			BoxMaterial.SpecularStrength = 1.f;
-			BoxMaterial.SpecularShininess = 32;
-
+#if 0
 			for (u32 RigidBodyCount = 0; RigidBodyCount < State->RigidBodiesCount; ++RigidBodyCount)
 			{
 				rigid_body *Body = State->RigidBodies + RigidBodyCount;
 
-				//DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
+				DrawBox(RenderCommands, Body->Position, Body->HalfSize, BoxMaterial, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
+			}
+#endif
+
+			vec3 PointLight1Position = vec3(Cos(Parameters->Time) * 5.f, 1.f, Sin(Parameters->Time) * 5.f);
+			vec3 PointLight1Color = vec3(0.f, 1.f, 0.f);
+
+			vec3 PointLight2Position = vec3(-Cos(Parameters->Time) * 5.f, 4.f, Sin(Parameters->Time) * 5.f);
+			vec3 PointLight2Color = vec3(1.f, 0.f, 0.f);
+
+			point_light DummyPointLight = {};
+			DummyPointLight.Attenuation.Constant = 1.f;
+			DummyPointLight.Attenuation.Linear = 1.f;
+			DummyPointLight.Attenuation.Quadratic = 1.f;
+
+			{
+				material Material = {};
+				Material.Type = MaterialType_Standard;
+				Material.DiffuseColor = vec3(1.f, 1.f, 1.f);
+				Material.AmbientStrength = 0.1f;
+				Material.SpecularStrength = 1.f;
+				Material.SpecularShininess = 32;
+
+				point_light PointLight1 = {};
+				PointLight1.Position = PointLight1Position;
+				PointLight1.Color = PointLight1Color;
+				PointLight1.Attenuation.Constant = 1.f;
+				PointLight1.Attenuation.Linear = 0.09f;
+				PointLight1.Attenuation.Quadratic = 0.032f;
+
+				point_light PointLight2 = {};
+				PointLight2.Position = PointLight2Position;
+				PointLight2.Color = PointLight2Color;
+				PointLight2.Attenuation.Constant = 1.f;
+				PointLight2.Attenuation.Linear = 0.09f;
+				PointLight2.Attenuation.Quadratic = 0.032f;
+
+				//DrawMesh(RenderCommands, 1, vec3(0.f, 2.f, 0.f), vec3(2.f), vec4(0.f), Material, PointLight1, PointLight2);
+			}
+			{
+				material Material = {};
+				Material.Type = MaterialType_Unlit;
+				Material.Color = PointLight1Color;
+
+				//DrawMesh(RenderCommands, 2, PointLight1Position, vec3(0.5f), vec4(0.f), Material, {}, {});
+			}
+			{
+				material Material = {};
+				Material.Type = MaterialType_Unlit;
+				Material.Color = PointLight2Color;
+
+				//DrawMesh(RenderCommands, 2, PointLight2Position, vec3(0.5f), vec4(0.f), Material, {}, {});
 			}
 
-			DrawMesh(RenderCommands, 1, vec3(0.f, 2.f, 0.f), vec3(2.f));//, vec4(Parameters->Time, vec3(0.f, 1.f, 0.f)));
-			DrawMesh(RenderCommands, 2, vec3(Cos(Parameters->Time) * 5.f, 2.f, Sin(Parameters->Time) * 5.f), vec3(0.5f));
+			{
+				material Material = {};
+				Material.Type = MaterialType_Unlit;
+				Material.Color = vec3(1.f, 1.f, 0.f);
+				Material.DiffuseColor = vec3(1.f, 1.f, 0.f);
+				Material.AmbientStrength = 1.f;
+				Material.SpecularStrength = 1.f;
+				Material.SpecularShininess = 32;
+
+				//DrawMesh(RenderCommands, 3, vec3(0.f), vec3(1.f), vec4(0.f), Material, {}, {});
+			}
+
+			DrawSkeleton(RenderCommands, &State->Skeleton);
 
 			//DrawBox(RenderCommands, State->Player.Position, State->Player.HalfSize, vec4(0.f, 1.f, 1.f, 1.f));
 #if 0

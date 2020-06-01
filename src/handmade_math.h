@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdarg>
 
+struct quat;
 inline f32 Square(f32 Value);
 inline f32 Sqrt(f32 Value);
 
@@ -310,6 +311,38 @@ CalculateDirectionFromEulerAngles(f32 Pitch, f32 Yaw)
 	Result.z = Sin(Yaw) * Cos(Pitch);
 
 	Result = Normalize(Result);
+
+	return Result;
+}
+
+inline mat4
+CalculateModelMatrix(vec3 Position, vec3 Size, vec4 Rotation)
+{
+	mat4 T = Translate(Position);
+	mat4 R = mat4(1.f);
+
+	f32 Angle = Rotation.x;
+	vec3 RotationAxis = Rotation.yzw;
+
+	if (IsXAxis(RotationAxis))
+	{
+		R = RotateX(Angle);
+	}
+	else if (IsYAxis(RotationAxis))
+	{
+		R = RotateY(Angle);
+	}
+	else if (IsZAxis(RotationAxis))
+	{
+		R = RotateZ(Angle);
+	}
+	else
+	{
+		// todo: rotation around arbitrary axis
+	}
+	mat4 S = Scale(Size);
+
+	mat4 Result = T * R * S;
 
 	return Result;
 }

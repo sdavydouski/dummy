@@ -121,3 +121,10 @@ Inverse(mat4 M)
 
 	return Result;
 }
+
+// todo: implement
+inline void
+Decompose(mat4 M, vec3 *Scale, quat *Rotation, vec3 *Translation)
+{
+
+}

@@ -30,7 +30,6 @@ struct opengl_state
 
 	GLuint LineVAO;
 	GLuint RectangleVAO;
-	GLuint BoxVAO;
 	GLuint GridVAO;
 
 	u32 CurrentMeshBufferCount;

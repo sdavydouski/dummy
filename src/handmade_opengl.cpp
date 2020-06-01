@@ -105,77 +105,6 @@ InitRectangle(opengl_state *State)
 }
 
 internal void
-InitBox(opengl_state *State)
-{
-	// todo: how is it that vertices are defined in CW order but OpenGL doesn't cull them???
-	opengl_box_vertex BoxVertices[] = {
-		// Back face
-		{ vec3(-1.f, -1.f, -1.f), vec3(0.f, 0.f, -1.f) },		// bottom-left
-		{ vec3(1.f, -1.f, -1.f), vec3(0.f, 0.f, -1.f) },		// bottom-right  
-		{ vec3(1.f, 1.f, -1.f), vec3(0.f, 0.f, -1.f) },			// top-right       
-		{ vec3(1.f, 1.f, -1.f), vec3(0.f, 0.f, -1.f) },			// top-right
-		{ vec3(-1.f, 1.f, -1.f), vec3(0.f, 0.f, -1.f) },		// top-left
-		{ vec3(-1.f, -1.f, -1.f), vec3(0.f, 0.f, -1.f) },		// bottom-left        
-
-		// Front face
-		{ vec3(-1.f, -1.f, 1.f), vec3(0.f, 0.f, 1.f) },			// bottom-left
-		{ vec3(1.f, 1.f, 1.f), vec3(0.f, 0.f, 1.f) },			// top-right
-		{ vec3(1.f, -1.f, 1.f), vec3(0.f, 0.f, 1.f) },			// bottom-right    
-		{ vec3(1.f, 1.f, 1.f), vec3(0.f, 0.f, 1.f) },			// top-right
-		{ vec3(-1.f, -1.f, 1.f), vec3(0.f, 0.f, 1.f) },			// bottom-left
-		{ vec3(-1.f, 1.f, 1.f), vec3(0.f, 0.f, 1.f) },			// top-left    
-
-		// Left face
-		{ vec3(-1.f, 1.f, 1.f), vec3(-1.f, 0.f, 0.f) },			// top-right
-		{ vec3(-1.f, -1.f, -1.f), vec3(-1.f, 0.f, 0.f) },		// bottom-left
-		{ vec3(-1.f, 1.f, -1.f), vec3(-1.f, 0.f, 0.f) },		// top-left    
-		{ vec3(-1.f, -1.f, -1.f), vec3(-1.f, 0.f, 0.f) },		// bottom-left
-		{ vec3(-1.f, 1.f, 1.f), vec3(-1.f, 0.f, 0.f) },			// top-right
-		{ vec3(-1.f, -1.f, 1.f), vec3(-1.f, 0.f, 0.f) },		// bottom-right
-
-		// Right face
-		{ vec3(1.f, 1.f, 1.f), vec3(1.f, 0.f, 0.f) },			// top-left
-		{ vec3(1.f, 1.f, -1.f), vec3(1.f, 0.f, 0.f) },			// top-right   
-		{ vec3(1.f, -1.f, -1.f), vec3(1.f, 0.f, 0.f) },			// bottom-right     
-		{ vec3(1.f, -1.f, -1.f), vec3(1.f, 0.f, 0.f) },			// bottom-right
-		{ vec3(1.f, -1.f, 1.f), vec3(1.f, 0.f, 0.f) },			// bottom-left
-		{ vec3(1.f, 1.f, 1.f), vec3(1.f, 0.f, 0.f) },			// top-left
-
-		// Bottom face     
-		{ vec3(-1.f, -1.f, -1.f), vec3(0.f, -1.f, 0.f) },		// top-right
-		{ vec3(1.f, -1.f, 1.f), vec3(0.f, -1.f, 0.f) },			// bottom-left
-		{ vec3(1.f, -1.f, -1.f), vec3(0.f, -1.f, 0.f) },		// top-left    
-		{ vec3(1.f, -1.f, 1.f), vec3(0.f, -1.f, 0.f) },			// bottom-left
-		{ vec3(-1.f, -1.f, -1.f), vec3(0.f, -1.f, 0.f) },		// top-right
-		{ vec3(-1.f, -1.f, 1.f), vec3(0.f, -1.f, 0.f) },		// bottom-right
-
-		// Top face
-		{ vec3(-1.f, 1.f, -1.f), vec3(0.f, 1.f, 0.f) },			// top-left
-		{ vec3(1.f, 1.f, -1.f), vec3(0.f, 1.f, 0.f) },			// top-right
-		{ vec3(1.f, 1.f, 1.f), vec3(0.f, 1.f, 0.f) },			// bottom-right         
-		{ vec3(1.f, 1.f, 1.f), vec3(0.f, 1.f, 0.f) },			// bottom-right
-		{ vec3(-1.f, 1.f, 1.f), vec3(0.f, 1.f, 0.f) },			// bottom-left 
-		{ vec3(-1.f, 1.f, -1.f), vec3(0.f, 1.f, 0.f) }			// top-left
-	};
-
-	glGenVertexArrays(1, &State->BoxVAO);
-	glBindVertexArray(State->BoxVAO);
-
-	GLuint BoxVBO;
-	glGenBuffers(1, &BoxVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, BoxVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(BoxVertices), BoxVertices, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_box_vertex), (void *)StructOffset(opengl_box_vertex, Position));
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_box_vertex), (void *)StructOffset(opengl_box_vertex, Normal));
-
-	glBindVertexArray(0);
-}
-
-internal void
 InitGrid(opengl_state *State, u32 GridCount)
 {
 	scoped_memory ScopedMemory(&State->Arena);
@@ -311,7 +240,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
 			InitLine(State);
 			InitRectangle(State);
-			InitBox(State);
 			InitGrid(State, Command->GridCount);
 
 			{
@@ -484,8 +412,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			{
 				mat4 T = Translate(Command->Start);
 				mat4 S = Scale(Command->End - Command->Start);
-
 				mat4 Model = T * S;
+
 				i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
 				glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
 
@@ -508,32 +436,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			glUseProgram(State->SimpleShaderProgram);
 
 			{
-				mat4 T = Translate(vec3(Command->Position, 0.f));
-				mat4 R = mat4(1.f);
+				mat4 Model = CalculateModelMatrix(vec3(Command->Position, 0.f), vec3(Command->Size, 0.f), Command->Rotation);
 
-				f32 Angle = Command->Rotation.x;
-				vec3 Axis = Command->Rotation.yzw;
-
-				if (IsXAxis(Axis))
-				{
-					R = RotateX(Angle);
-				}
-				else if (IsYAxis(Axis))
-				{
-					R = RotateY(Angle);
-				}
-				else if (IsZAxis(Axis))
-				{
-					R = RotateZ(Angle);
-				}
-				else
-				{
-					// todo:
-				}
-
-				mat4 S = Scale(Command->Size.x);
-
-				mat4 Model = T * R * S;
 				i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
 				glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
 
@@ -545,65 +449,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				glUniform4f(ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 			}
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-			glUseProgram(0);
-			glBindVertexArray(0);
-
-			BaseAddress += sizeof(*Command);
-			break;
-		}
-		case RenderCommand_DrawBox:
-		{
-			render_command_draw_box *Command = (render_command_draw_box *)Entry;
-
-			glBindVertexArray(State->BoxVAO);
-			glUseProgram(State->ForwardShadingShaderProgram);
-			{
-				mat4 T = Translate(Command->Position);
-				mat4 R = mat4(1.f);
-
-				f32 Angle = Command->Rotation.x;
-				vec3 Axis = Command->Rotation.yzw;
-
-				if (IsXAxis(Axis))
-				{
-					R = RotateX(Angle);
-				}
-				else if (IsYAxis(Axis))
-				{
-					R = RotateY(Angle);
-				}
-				else if (IsZAxis(Axis))
-				{
-					R = RotateZ(Angle);
-				}
-				else
-				{
-					// todo:
-				}
-
-				mat4 S = Scale(Command->Size);
-
-				mat4 Model = T * R * S;
-
-				i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
-				glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
-
-				i32 MaterialDiffuseColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.DiffuseColor");
-				i32 MaterialAmbientStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.AmbientStrength");
-				i32 MaterialSpecularStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularStrength");
-				i32 MaterialSpecularShininessUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularShininess");
-				glUniform3f(
-					MaterialDiffuseColorUniformLocation,
-					Command->Material.DiffuseColor.r, 
-					Command->Material.DiffuseColor.g, 
-					Command->Material.DiffuseColor.b
-				);
-				glUniform1f(MaterialAmbientStrengthUniformLocation,Command->Material.AmbientStrength);
-				glUniform1f(MaterialSpecularStrengthUniformLocation,Command->Material.SpecularStrength);
-				glUniform1f(MaterialSpecularShininessUniformLocation,Command->Material.SpecularShininess);
-			}
-			glDrawArrays(GL_TRIANGLES, 0, 36);
 
 			glUseProgram(0);
 			glBindVertexArray(0);
@@ -646,56 +491,107 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			Assert(MeshBuffer);
 
 			glBindVertexArray(MeshBuffer->VAO);
-			glUseProgram(State->ForwardShadingShaderProgram);
+
+			switch (Command->Material.Type)
 			{
-				mat4 T = Translate(Command->Position);
-				mat4 R = mat4(1.f);
-
-				f32 Angle = Command->Rotation.x;
-				vec3 Axis = Command->Rotation.yzw;
-
-				if (IsXAxis(Axis))
+				case MaterialType_Standard:
 				{
-					R = RotateX(Angle);
+					glUseProgram(State->ForwardShadingShaderProgram);
+
+					//mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
+					mat4 Model = Command->Model;
+
+					i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
+					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+					// todo: store uniform locations
+					i32 MaterialDiffuseColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.DiffuseColor");
+					i32 MaterialAmbientStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.AmbientStrength");
+					i32 MaterialSpecularStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularStrength");
+					i32 MaterialSpecularShininessUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularShininess");
+					glUniform3f(
+						MaterialDiffuseColorUniformLocation,
+						Command->Material.DiffuseColor.r,
+						Command->Material.DiffuseColor.g,
+						Command->Material.DiffuseColor.b
+					);
+					glUniform1f(MaterialAmbientStrengthUniformLocation, Command->Material.AmbientStrength);
+					glUniform1f(MaterialSpecularStrengthUniformLocation, Command->Material.SpecularStrength);
+					glUniform1f(MaterialSpecularShininessUniformLocation, Command->Material.SpecularShininess);
+
+					// Point Lights
+					{
+						i32 PointLight1PositionUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Position");
+						i32 PointLight1ColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Color");
+						i32 PointLight1AttenuationConstantUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Constant");
+						i32 PointLight1AttenuationLinearUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Linear");
+						i32 PointLight1AttenuationQuadraticUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Quadratic");
+
+						glUniform3f(
+							PointLight1PositionUniformLocation,
+							Command->PointLight1.Position.x,
+							Command->PointLight1.Position.y,
+							Command->PointLight1.Position.z
+						);
+						glUniform3f(
+							PointLight1ColorUniformLocation,
+							Command->PointLight1.Color.r,
+							Command->PointLight1.Color.g,
+							Command->PointLight1.Color.b
+						);
+						glUniform1f(PointLight1AttenuationConstantUniformLocation, Command->PointLight1.Attenuation.Constant);
+						glUniform1f(PointLight1AttenuationLinearUniformLocation, Command->PointLight1.Attenuation.Linear);
+						glUniform1f(PointLight1AttenuationQuadraticUniformLocation, Command->PointLight1.Attenuation.Quadratic);
+					}
+
+					{
+						i32 PointLight2PositionUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Position");
+						i32 PointLight2ColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Color");
+						i32 PointLight2AttenuationConstantUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Constant");
+						i32 PointLight2AttenuationLinearUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Linear");
+						i32 PointLight2AttenuationQuadraticUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Quadratic");
+
+						glUniform3f(
+							PointLight2PositionUniformLocation,
+							Command->PointLight2.Position.x,
+							Command->PointLight2.Position.y,
+							Command->PointLight2.Position.z
+						);
+						glUniform3f(
+							PointLight2ColorUniformLocation,
+							Command->PointLight2.Color.r,
+							Command->PointLight2.Color.g,
+							Command->PointLight2.Color.b
+						);
+						glUniform1f(PointLight2AttenuationConstantUniformLocation, Command->PointLight2.Attenuation.Constant);
+						glUniform1f(PointLight2AttenuationLinearUniformLocation, Command->PointLight2.Attenuation.Linear);
+						glUniform1f(PointLight2AttenuationQuadraticUniformLocation, Command->PointLight2.Attenuation.Quadratic);
+					}
+
+					break;
 				}
-				else if (IsYAxis(Axis))
+				case MaterialType_Unlit:
 				{
-					R = RotateY(Angle);
+					glUseProgram(State->SimpleShaderProgram);
+
+					//mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
+					mat4 Model = Command->Model;
+
+					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
+					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+					i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
+					glUniform4f(ColorUniformLocation, Command->Material.Color.r, Command->Material.Color.g, Command->Material.Color.b, 1.f);
+
+					break;
 				}
-				else if (IsZAxis(Axis))
+				default:
 				{
-					R = RotateZ(Angle);
+					Assert(!"Invalid material type");
+					break;
 				}
-				else
-				{
-					// todo: rotation around arbitrary axis
-				}
-				mat4 S = Scale(Command->Scale);
-
-				mat4 Model = T * R * S;
-
-				i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
-				glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
-
-				vec3 DiffuseColor = vec3(1.f, 1.f, 1.f);
-				f32 AmbientStrength = 0.25f;
-				f32 SpecularStrength = 1.f;
-				f32 SpecularShininess = 32;
-
-				i32 MaterialDiffuseColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.DiffuseColor");
-				i32 MaterialAmbientStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.AmbientStrength");
-				i32 MaterialSpecularStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularStrength");
-				i32 MaterialSpecularShininessUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularShininess");
-				glUniform3f(
-					MaterialDiffuseColorUniformLocation,
-					DiffuseColor.r,
-					DiffuseColor.g,
-					DiffuseColor.b
-				);
-				glUniform1f(MaterialAmbientStrengthUniformLocation, AmbientStrength);
-				glUniform1f(MaterialSpecularStrengthUniformLocation, SpecularStrength);
-				glUniform1f(MaterialSpecularShininessUniformLocation, SpecularShininess);
 			}
+			
 			switch (MeshBuffer->PrimitiveType)
 			{
 				case PrimitiveType_Line:

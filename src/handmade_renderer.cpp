@@ -136,16 +136,6 @@ DrawRectangle(render_commands *Commands, vec2 Position, vec2 Size, vec4 Color, v
 }
 
 inline void
-DrawBox(render_commands *Commands, vec3 Position, vec3 Size, material Material, vec4 Rotation = vec4(0.f))
-{
-	render_command_draw_box *Command = PushRenderCommand(Commands, render_command_draw_box, RenderCommand_DrawBox);
-	Command->Position = Position;
-	Command->Size = Size;
-	Command->Rotation = Rotation;
-	Command->Material = Material;
-}
-
-inline void
 DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, vec3 Color)
 {
 	render_command_draw_grid *Command = PushRenderCommand(Commands, render_command_draw_grid, RenderCommand_DrawGrid);
@@ -161,7 +151,10 @@ DrawMesh(
 	u32 Id, 
 	vec3 Position, 
 	vec3 Scale, 
-	vec4 Rotation = vec4(0.f)
+	vec4 Rotation,
+	material Material,
+	point_light PointLight1,
+	point_light PointLight2
 )
 {
 	render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
@@ -169,6 +162,27 @@ DrawMesh(
 	Command->Position = Position;
 	Command->Scale = Scale;
 	Command->Rotation = Rotation;
+	Command->Material = Material;
+	Command->PointLight1 = PointLight1;
+	Command->PointLight2 = PointLight2;
+}
+
+inline void
+DrawMesh(
+	render_commands *Commands,
+	u32 Id,
+	mat4 Model,
+	material Material,
+	point_light PointLight1,
+	point_light PointLight2
+	)
+{
+	render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
+	Command->Id = Id;
+	Command->Model = Model;
+	Command->Material = Material;
+	Command->PointLight1 = PointLight1;
+	Command->PointLight2 = PointLight2;
 }
 
 inline void

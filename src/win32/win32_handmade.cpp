@@ -475,7 +475,7 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                     MouseInput->dy = 0;
                 }
 
-                // pass event for imgui
+                // pass event to imgui
                 TranslateMessage(&WindowMessage);
                 DispatchMessage(&WindowMessage);
 
@@ -637,6 +637,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 		opengl_state OpenGLState = {};
 
+        // todo: do I really need memory arena inside renderer?
         umm RendererArenaSize = Megabytes(32);
         InitMemoryArena(&OpenGLState.Arena, Win32AllocateMemory(0, RendererArenaSize), RendererArenaSize);
         Win32InitOpenGL(&OpenGLState, hInstance, PlatformState.WindowHandle);

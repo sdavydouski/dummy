@@ -3,13 +3,33 @@
 #include "handmade_defs.h"
 #include "handmade_math.h"
 
+#define MAX_NUMBER_OF_POINT_LIGHTS_PER_OBJECT 2
+
+enum material_type
+{
+	MaterialType_Standard,
+	MaterialType_Unlit
+};
+
 struct material
 {
-	vec3 DiffuseColor;
+	material_type Type;
 
-	f32 AmbientStrength;
-	f32 SpecularStrength;
-	f32 SpecularShininess;
+	union
+	{
+		struct
+		{
+			vec3 DiffuseColor;
+			f32 AmbientStrength;
+			f32 SpecularStrength;
+			f32 SpecularShininess;
+		};
+
+		struct
+		{
+			vec3 Color;
+		};
+	};
 };
 
 struct light_attenuation
@@ -75,7 +95,6 @@ enum render_command_type
 	
 	RenderCommand_DrawLine,
 	RenderCommand_DrawRectangle,
-	RenderCommand_DrawBox,
 	RenderCommand_DrawGrid,
 	RenderCommand_DrawMesh,
 
@@ -175,16 +194,6 @@ struct render_command_draw_rectangle
 	vec4 Color;
 };
 
-struct render_command_draw_box
-{
-	render_command_header Header;
-	vec3 Position;
-	vec3 Size;
-	vec4 Rotation;
-	material Material;
-	// todo: include point_light(s)?
-};
-
 struct render_command_draw_grid
 {
 	render_command_header Header;
@@ -194,14 +203,28 @@ struct render_command_draw_grid
 	vec3 Color;
 };
 
+// todo: represent rotation as quat?
 struct render_command_draw_mesh
 {
 	render_command_header Header;
 
 	u32 Id;
-	vec3 Position;
-	vec3 Scale;
-	vec4 Rotation;
+	union
+	{
+		struct
+		{
+			vec3 Position;
+			vec3 Scale;
+			vec4 Rotation;
+		};
+		
+		mat4 Model;
+	};
+
+	material Material;
+
+	point_light PointLight1;
+	point_light PointLight2;
 };
 
 struct render_command_set_directional_light
