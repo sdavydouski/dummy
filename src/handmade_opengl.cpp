@@ -1,6 +1,5 @@
 #include <glad/glad.h>
 
-#include "handmade_renderer.h"
 #include "handmade_opengl.h"
 #include "handmade_opengl_shaders.h"
 
@@ -498,8 +497,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				{
 					glUseProgram(State->ForwardShadingShaderProgram);
 
-					//mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
-					mat4 Model = Command->Model;
+					mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
+					//mat4 Model = Command->Model;
 
 					i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
 					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
@@ -574,8 +573,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				{
 					glUseProgram(State->SimpleShaderProgram);
 
-					//mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
-					mat4 Model = Command->Model;
+					mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
+					//mat4 Model = Command->Model;
 
 					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
 					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);

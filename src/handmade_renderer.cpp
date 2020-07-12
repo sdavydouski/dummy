@@ -1,5 +1,3 @@
-#include "handmade_renderer.h"
-
 #pragma warning(disable: 26812)
 
 inline void
@@ -167,6 +165,7 @@ DrawMesh(
 	Command->PointLight2 = PointLight2;
 }
 
+#if 1
 inline void
 DrawMesh(
 	render_commands *Commands,
@@ -184,6 +183,7 @@ DrawMesh(
 	Command->PointLight1 = PointLight1;
 	Command->PointLight2 = PointLight2;
 }
+#endif
 
 inline void
 SetDirectionalLight(render_commands *Commands, directional_light Light)

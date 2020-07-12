@@ -63,6 +63,13 @@ Tan(f32 Value)
 }
 
 inline f32
+Acos(f32 Value)
+{
+	f32 Result = (f32)acos(Value);
+	return Result;
+}
+
+inline f32
 Abs(f32 Value)
 {
 	f32 Result = abs(Value);
@@ -315,6 +322,7 @@ CalculateDirectionFromEulerAngles(f32 Pitch, f32 Yaw)
 	return Result;
 }
 
+// todo: use quaternion instead of vec4 for Rotation
 inline mat4
 CalculateModelMatrix(vec3 Position, vec3 Size, vec4 Rotation)
 {
@@ -343,6 +351,87 @@ CalculateModelMatrix(vec3 Position, vec3 Size, vec4 Rotation)
 	mat4 S = Scale(Size);
 
 	mat4 Result = T * R * S;
+
+	return Result;
+}
+
+inline vec3
+GetTranslation(mat4 M)
+{
+	vec3 Result = M.Column(3).xyz;
+
+	return Result;
+}
+
+inline f32
+Lerp(f32 A, f32 t, f32 B)
+{
+	f32 Result = A * (1 - t) + B * t;
+
+	return Result;
+}
+
+inline vec3
+Lerp(vec3 A, f32 t, vec3 B)
+{
+	vec3 Result;
+
+	Result.x = Lerp(A.x, t, B.x);
+	Result.y = Lerp(A.y, t, B.y);
+	Result.z = Lerp(A.z, t, B.z);
+
+	return Result;
+}
+
+inline quat
+Lerp(quat A, f32 t, quat B)
+{
+	quat Result;
+
+	Result.x = Lerp(A.x, t, B.x);
+	Result.y = Lerp(A.y, t, B.y);
+	Result.z = Lerp(A.z, t, B.z);
+	Result.w = Lerp(A.w, t, B.w);
+
+	Result = Normalize(Result);
+
+	return Result;
+}
+
+inline quat
+Slerp(quat A, f32 t, quat B)
+{
+	quat Result;
+
+	quat NormalizedA = Normalize(A);
+	quat NormalizedB = Normalize(B);
+
+	f32 d = Dot(NormalizedA, NormalizedB);
+
+	if (d < 0.f)
+	{
+		NormalizedA = -NormalizedA;
+		d = -d;
+	}
+
+	f32 Threshold = 0.9995f;
+
+	if (d < Threshold)
+	{
+		f32 Theta0 = Acos(d);
+		f32 Theta = Theta0 * t;
+		f32 SinTheta = Sin(Theta);
+		f32 SinTheta0 = Sin(Theta0);
+
+		f32 s0 = Cos(Theta) - d * SinTheta / SinTheta0;
+		f32 s1 = SinTheta / SinTheta0;
+
+		Result = (s0 * NormalizedA) + (s1 * NormalizedB);
+	}
+	else
+	{
+		Result = Lerp(NormalizedA, t, NormalizedB);
+	}
 
 	return Result;
 }

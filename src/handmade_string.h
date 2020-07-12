@@ -1,7 +1,14 @@
 #pragma once
 
+#include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
-#include "handmade_defs.h"
+
+inline b32
+StringEquals(const char *Str1, const char *Str2) {
+    b32 Result = strcmp(Str1, Str2) == 0;
+    return Result;
+}
 
 inline b32
 StringEquals(const wchar *Str1, const wchar *Str2) {
@@ -45,9 +52,26 @@ ConcatenateStrings(const wchar *SourceA, const wchar *SourceB, wchar *Dest) {
 }
 
 inline void
+CopyString(const char *Source, char *Dest, u32 DestLength)
+{
+    strcpy_s(Dest, DestLength, Source);
+}
+
+inline void
 CopyString(const wchar *Source, wchar *Dest, u32 DestLength)
 {
     wcscpy_s(Dest, DestLength, Source);
+}
+
+inline void
+CopyStringUnsafe(const char *Source, char *Dest, u32 DestLength)
+{
+    for (u32 Index = 0; Index < DestLength; ++Index)
+    {
+        Dest[Index] = Source[Index];
+    }
+
+    Dest[DestLength] = 0;
 }
 
 inline void
@@ -68,4 +92,20 @@ FormatString(wchar *String, u32 Size, const wchar *Format, ...)
 	va_start(ArgPtr, Format);
 	_vsnwprintf_s(String, Size, Size, Format, ArgPtr);
 	va_end(ArgPtr);
+}
+
+inline void
+GetDirectoryPath(char *FilePath, char *DirectoryPath)
+{
+    char *LastDelimiter = FilePath;
+
+    for (char *Scan = FilePath; *Scan; ++Scan)
+    {
+        if (*Scan == '\\')
+        {
+            LastDelimiter = Scan + 1;
+        }
+    }
+
+    CopyStringUnsafe(FilePath, DirectoryPath, (u32)(LastDelimiter - FilePath));
 }

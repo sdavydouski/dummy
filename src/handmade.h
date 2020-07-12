@@ -1,8 +1,5 @@
 #pragma once
 
-#include "handmade_renderer.h"
-#include "handmade_assets.h"
-
 enum game_mode
 {
 	GameMode_None,
@@ -33,7 +30,16 @@ struct game_state
 
 	plane Ground;
 
+	//
 	skeleton Skeleton;
+
+	u32 AnimationCount;
+	animation_clip *Animations;
+
+	animation_clip *CurrentAnimation;
+	f32 CurrentTime;
+	f32 PlaybackRate;
+	//
 
 	u32 GridCount;
 	b32 IsBackgroundHighlighted;

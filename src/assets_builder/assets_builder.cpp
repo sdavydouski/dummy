@@ -2,6 +2,7 @@
 
 #include "handmade_defs.h"
 #include "handmade_math.h"
+#include "handmade_string.h"
 #include "handmade_renderer.h"
 #include "handmade_assets.h"
 
@@ -18,6 +19,18 @@
 #include <vector>
 #include <unordered_map>
 
+// todo: specify per asset
+#undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
+#define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 0.1f
+
+#define INVALID_FLOAT -1.f
+#define INVALID_COLOR vec4(-1.f)
+
+#define MAX_MATERIAL_PROPERTY_COUNT 16u
+#define TEXTURE_COORDINATES_SET_INDEX 0
+
+#define MAX_WEIGHT_COUNT 4
+
 using std::string;
 
 template <typename TValue>
@@ -31,53 +44,6 @@ struct assimp_node
     aiNode *Node;
     aiBone *Bone;
 };
-
-#define INVALID_FLOAT -1.f
-#define INVALID_COLOR vec4(-1.f)
-
-#define MAX_MATERIAL_PROPERTY_COUNT 16u
-#define TEXTURE_COORDINATES_SET_INDEX 0
-
-#define MAX_WEIGHT_COUNT 4
-
-inline b32
-StringEquals(const char *Str1, const char *Str2) {
-    b32 Result = strcmp(Str1, Str2) == 0;
-    return Result;
-}
-
-inline void
-CopyString(const char *Source, char *Dest, u32 Length)
-{
-    for (u32 Index = 0; Index < Length; ++Index)
-    {
-        Dest[Index] = Source[Index];
-    }
-
-    Dest[Length] = 0;
-}
-
-inline void
-CopyString(string Source, char *Dest)
-{
-    CopyString(Source.c_str(), Dest, (u32)Source.length());
-}
-
-inline void
-GetDirectoryPath(char *FilePath, char *DirectoryPath)
-{
-    char *LastDelimiter = FilePath;
-
-    for (char *Scan = FilePath; *Scan; ++Scan)
-    {
-        if (*Scan == '\\')
-        {
-            LastDelimiter = Scan + 1;
-        }
-    }
-
-    CopyString(FilePath, DirectoryPath, (u32)(LastDelimiter - FilePath));
-}
 
 inline vec4
 AssimpColor2Vector(aiColor4D AssimpColor)
@@ -144,13 +110,14 @@ LoadImage(const char *FilePath, bitmap *Bitmap)
     Bitmap->Pixels = stbi_load(FilePath, &Bitmap->Width, &Bitmap->Height, &Bitmap->Channels, 0);
 }
 
-void ProcessAssimpTextures(
+internal void 
+ProcessAssimpTextures(
     aiMaterial *AssimpMaterial,
     aiTextureType AssimpTextureType,
     const char *DirectoryPath,
     u32 *TextureCount,
     bitmap **Bitmaps
-    )
+)
 {
     *TextureCount = aiGetMaterialTextureCount(AssimpMaterial, AssimpTextureType);
     *Bitmaps = (bitmap *)malloc(*TextureCount * sizeof(bitmap));
@@ -168,7 +135,8 @@ void ProcessAssimpTextures(
     }
 }
 
-void ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, material_asset *Material)
+internal void
+ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, material_asset *Material)
 {
     Material->Properties = (material_property *)malloc(MAX_MATERIAL_PROPERTY_COUNT * sizeof(material_property));
     u32 MaterialPropertyIndex = 0;
@@ -260,44 +228,8 @@ void ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath
     Assert(MaterialPropertyIndex < MAX_MATERIAL_PROPERTY_COUNT);
 }
 
-void ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation *Animation)
-{
-    Assert(AssimpAnimation->mName.length < MAX_ANIMATION_NAME_LENGTH);
-    CopyString(AssimpAnimation->mName.C_Str(), Animation->Name, (u32)(AssimpAnimation->mName.length + 1));
-    Animation->Duration = (f32)(AssimpAnimation->mDuration / AssimpAnimation->mTicksPerSecond);
-    Animation->PoseSampleCount = AssimpAnimation->mNumChannels;
-    Animation->PoseSamples = (animation_sample *)malloc(Animation->PoseSampleCount * sizeof(animation_sample));
-
-    for (u32 ChannelIndex = 0; ChannelIndex < AssimpAnimation->mNumChannels; ++ChannelIndex)
-    {
-        // Channel desribes the movement of a single joint over time
-        aiNodeAnim *Channel = AssimpAnimation->mChannels[ChannelIndex];
-
-        Assert((Channel->mNumPositionKeys == Channel->mNumRotationKeys) && (Channel->mNumPositionKeys == Channel->mNumScalingKeys));
-
-        animation_sample *AnimationSample = Animation->PoseSamples + ChannelIndex;
-        AnimationSample->KeyFrameCount = Channel->mNumPositionKeys;
-        AnimationSample->KeyFrames = (key_frame *)malloc(AnimationSample->KeyFrameCount * sizeof(key_frame));
-
-        for (u32 KeyIndex = 0; KeyIndex < Channel->mNumPositionKeys; ++KeyIndex)
-        {
-            aiVectorKey *PositionKey = Channel->mPositionKeys + KeyIndex;
-            aiQuatKey *RotationKey = Channel->mRotationKeys + KeyIndex;
-            aiVectorKey *ScalingKey = Channel->mScalingKeys + KeyIndex;
-
-            Assert((PositionKey->mTime == RotationKey->mTime) && (PositionKey->mTime == ScalingKey->mTime));
-
-            key_frame *KeyFrame = AnimationSample->KeyFrames + KeyIndex;
-            KeyFrame->Time = (f32)PositionKey->mTime;
-            KeyFrame->Pose = {};
-            KeyFrame->Pose.Rotation = AssimpQuaternion2Quaternion(RotationKey->mValue);
-            KeyFrame->Pose.Translation = AssimpVector2Vector(PositionKey->mValue);
-            KeyFrame->Pose.Scale = AssimpVector2Vector(ScalingKey->mValue);
-        }
-    }
-}
-
-u32 FindJointIndexByName(const char *JointName, skeleton *Skeleton)
+inline u32
+FindJointIndexByName(const char *JointName, skeleton *Skeleton)
 {
     u32 Result = -1;
 
@@ -317,7 +249,48 @@ u32 FindJointIndexByName(const char *JointName, skeleton *Skeleton)
     return Result;
 }
 
-void ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNode, mesh *Mesh, skeleton *Skeleton)
+// todo: reorder animations to be in the same order as joints in the skeleton
+internal void
+ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, skeleton *Skeleton)
+{
+    Assert(AssimpAnimation->mName.length < MAX_ANIMATION_NAME_LENGTH);
+    CopyString(AssimpAnimation->mName.C_Str(), Animation->Name, (u32)(AssimpAnimation->mName.length + 1));
+    Animation->Duration = (f32)AssimpAnimation->mDuration / (f32)AssimpAnimation->mTicksPerSecond;
+    Animation->PoseSampleCount = AssimpAnimation->mNumChannels;
+    Animation->PoseSamples = (animation_sample *)malloc(Animation->PoseSampleCount * sizeof(animation_sample));
+
+    for (u32 ChannelIndex = 0; ChannelIndex < AssimpAnimation->mNumChannels; ++ChannelIndex)
+    {
+        // Channel desribes the movement of a single joint over time
+        aiNodeAnim *Channel = AssimpAnimation->mChannels[ChannelIndex];
+
+        Assert((Channel->mNumPositionKeys == Channel->mNumRotationKeys) && (Channel->mNumPositionKeys == Channel->mNumScalingKeys));
+
+        animation_sample *AnimationSample = Animation->PoseSamples + ChannelIndex;
+        AnimationSample->JointIndex = FindJointIndexByName(Channel->mNodeName.C_Str(), Skeleton);
+        AnimationSample->KeyFrameCount = Channel->mNumPositionKeys;
+        AnimationSample->KeyFrames = (key_frame *)malloc(AnimationSample->KeyFrameCount * sizeof(key_frame));
+
+        for (u32 KeyIndex = 0; KeyIndex < Channel->mNumPositionKeys; ++KeyIndex)
+        {
+            aiVectorKey *PositionKey = Channel->mPositionKeys + KeyIndex;
+            aiQuatKey *RotationKey = Channel->mRotationKeys + KeyIndex;
+            aiVectorKey *ScalingKey = Channel->mScalingKeys + KeyIndex;
+
+            Assert((PositionKey->mTime == RotationKey->mTime) && (PositionKey->mTime == ScalingKey->mTime));
+
+            key_frame *KeyFrame = AnimationSample->KeyFrames + KeyIndex;
+            KeyFrame->Time = (f32)PositionKey->mTime / (f32)AssimpAnimation->mTicksPerSecond;
+            KeyFrame->Pose = {};
+            KeyFrame->Pose.Rotation = AssimpQuaternion2Quaternion(RotationKey->mValue);
+            KeyFrame->Pose.Translation = AssimpVector2Vector(PositionKey->mValue);
+            KeyFrame->Pose.Scale = AssimpVector2Vector(ScalingKey->mValue);
+        }
+    }
+}
+
+internal void
+ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNode, mesh *Mesh, skeleton *Skeleton)
 {
     switch (AssimpMesh->mPrimitiveTypes)
     {
@@ -442,7 +415,8 @@ void ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRo
     }
 }
 
-void ProcessAssimpNodeHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes)
+internal void
+ProcessAssimpNodeHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes)
 {
     assimp_node *Node = (assimp_node *)malloc(sizeof(assimp_node) * 1);
     Node->Node = AssimpNode;
@@ -458,7 +432,8 @@ void ProcessAssimpNodeHierarchy(aiNode *AssimpNode, hashtable<string, assimp_nod
     }
 }
 
-aiNode *GetBoneRootNode(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes)
+internal aiNode *
+GetBoneRootNode(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes)
 {
     string Name = AssimpString2StdString(AssimpNode->mName);
     assimp_node *SceneNode = SceneNodes[Name];
@@ -476,44 +451,47 @@ aiNode *GetBoneRootNode(aiNode *AssimpNode, hashtable<string, assimp_node *> &Sc
     return 0;
 }
 
-void ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes, skeleton *Skeleton, i32 ParentIndex)
+internal void
+ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes, skeleton *Skeleton)
 {
-    static u32 CurrentIndex = 0;
+    static u32 CurrentIndexForward = 0;
+    static i32 CurrentIndexParent = -1;
 
     string Name = AssimpString2StdString(AssimpNode->mName);
     assimp_node *SceneNode = SceneNodes[Name];
 
     //Assert(SceneNode->Bone);
 
-    joint *Joint = Skeleton->Joints + CurrentIndex;
+    joint *Joint = Skeleton->Joints + CurrentIndexForward;
     Assert(Name.length() < MAX_JOINT_NAME_LENGTH);
-    CopyString(Name, Joint->Name);
+    CopyString(Name.c_str(), Joint->Name, MAX_JOINT_NAME_LENGTH);
     //Joint->InvBindTranform = AssimpMatrix2Matrix(SceneNode->Bone->mOffsetMatrix);
-    Joint->ParentIndex = ParentIndex;
+    Joint->ParentIndex = CurrentIndexParent;
 
     aiVector3D Scale;
     aiVector3D Translation;
     aiQuaternion Rotation;
     SceneNode->Node->mTransformation.Decompose(Scale, Rotation, Translation);
 
-    joint_pose *LocalJointPose = Skeleton->LocalJointPoses + CurrentIndex;
+    joint_pose *LocalJointPose = Skeleton->LocalJointPoses + CurrentIndexForward;
     LocalJointPose->Scale = AssimpVector2Vector(Scale);
-    if (Scale.x > 65.f)
-    {
-        //LocalJointPose->Scale *= 0.1f;
-    }
     LocalJointPose->Translation = AssimpVector2Vector(Translation);
     LocalJointPose->Rotation = AssimpQuaternion2Quaternion(Rotation);
 
-    ++CurrentIndex;
+    CurrentIndexParent = CurrentIndexForward;
+    ++CurrentIndexForward;
 
     for (u32 ChildIndex = 0; ChildIndex < AssimpNode->mNumChildren; ++ChildIndex)
     {
         aiNode *ChildNode = AssimpNode->mChildren[ChildIndex];
-        ProcessAssimpBoneHierarchy(ChildNode, SceneNodes, Skeleton, ParentIndex + 1);
+
+        ProcessAssimpBoneHierarchy(ChildNode, SceneNodes, Skeleton);
     }
+
+    CurrentIndexParent = Joint->ParentIndex;
 }
 
+// todo: duplicate
 inline mat4
 CalculateJointPose(joint_pose *JointPose)
 {
@@ -528,19 +506,16 @@ CalculateJointPose(joint_pose *JointPose)
     return Result;
 }
 
-// todo: check ParentIndex!
-mat4 CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton *Skeleton)
+// todo: duplicate
+internal mat4
+CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton *Skeleton)
 {
     mat4 Result = mat4(1.f);
-
-    dynamic_array<mat4> JointPoses;
 
     while (true)
     {
         mat4 Pose = CalculateJointPose(CurrentJointPose);
-        //Result = Result * Pose;
-
-        JointPoses.push_back(Pose);
+        Result = Pose * Result;
 
         if (CurrentJoint->ParentIndex == -1)
         {
@@ -550,23 +525,20 @@ mat4 CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose,
         CurrentJointPose = Skeleton->LocalJointPoses + CurrentJoint->ParentIndex;
         CurrentJoint = Skeleton->Joints + CurrentJoint->ParentIndex;
     }
-
-    for (i32 Index = (i32)JointPoses.size() - 1; Index >= 0; --Index)
-    {
-        Result = Result * JointPoses[Index];
-    }
-
+    
     return Result;
 }
 
-// todo: forget about the bones right now and just draw joints of the skeleton
-void ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
+internal void 
+ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
 {
     hashtable<string, assimp_node *> SceneNodes;
     ProcessAssimpNodeHierarchy(AssimpScene->mRootNode, SceneNodes);
 
-    u32 JointCount = SceneNodes.size();
+    u32 JointCount = (u32)SceneNodes.size();
 #if 0
+    u32 JointCount = 0;
+
     for (u32 MeshIndex = 0; MeshIndex < AssimpScene->mNumMeshes; ++MeshIndex)
     {
         aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
@@ -589,9 +561,10 @@ void ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
     Skeleton->LocalJointPoses = (joint_pose *)malloc(sizeof(joint_pose) * JointCount);
     Skeleton->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
 
+    // todo:
     //aiNode *BoneRoot = GetBoneRootNode(AssimpScene->mRootNode, SceneNodes);
-    //ProcessAssimpBoneHierarchy(BoneRoot, SceneNodes, Skeleton, -1);
-    ProcessAssimpBoneHierarchy(AssimpScene->mRootNode, SceneNodes, Skeleton, -1);
+    //ProcessAssimpBoneHierarchy(BoneRoot, SceneNodes, Skeleton);
+    ProcessAssimpBoneHierarchy(AssimpScene->mRootNode, SceneNodes, Skeleton);
 
     for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
     {
@@ -603,7 +576,8 @@ void ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
     }
 }
 
-void ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_asset *Asset)
+internal void
+ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_asset *Asset)
 {
     // todo: check if model has skeleton information
     ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
@@ -639,19 +613,20 @@ void ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, m
     if (AssimpScene->HasAnimations())
     {
         Asset->AnimationCount = AssimpScene->mNumAnimations;
-        Asset->Animations = (animation *)malloc(Asset->AnimationCount * sizeof(animation));
+        Asset->Animations = (animation_clip *)malloc(Asset->AnimationCount * sizeof(animation_clip));
 
         for (u32 AnimationIndex = 0; AnimationIndex < Asset->AnimationCount; ++AnimationIndex)
         {
             aiAnimation *AssimpAnimation = AssimpScene->mAnimations[AnimationIndex];
-            animation *Animation = Asset->Animations + AnimationIndex;
+            animation_clip *Animation = Asset->Animations + AnimationIndex;
 
-            ProcessAssimpAnimation(AssimpAnimation, Animation);
+            ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
         }
     }
 }
 
-void LoadModelAsset(char *FilePath, u32 Flags, model_asset *Asset)
+internal void
+LoadModelAsset(char *FilePath, u32 Flags, model_asset *Asset)
 {
     const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
 
@@ -709,28 +684,73 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
             MeshHeader->VertexCount * sizeof(vertex) + MeshHeader->IndexCount * sizeof(u32);
     }
 
+    model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)((u8 *)Buffer + Header->AnimationsHeaderOffset);
+
+    u64 NextAnimationHeaderOffset = 0;
+
+    for (u32 AnimationIndex = 0; AnimationIndex < AnimationsHeader->AnimationCount; ++AnimationIndex)
+    {
+        model_asset_animation_header *AnimationHeader = (model_asset_animation_header *)((u8 *)Buffer + 
+            AnimationsHeader->AnimationsOffset + NextAnimationHeaderOffset);
+        animation_clip Animation = {};
+        CopyString(AnimationHeader->Name, Animation.Name, MAX_ANIMATION_NAME_LENGTH);
+        Animation.Duration = AnimationHeader->Duration;
+        Animation.PoseSampleCount = AnimationHeader->PoseSampleCount;
+        Animation.PoseSamples = (animation_sample *)((u8 *)Buffer + AnimationHeader->PoseSamplesOffset);
+
+        u64 NextAnimationSampleHeaderOffset = 0;
+
+        for (u32 AnimationPoseIndex = 0; AnimationPoseIndex < AnimationHeader->PoseSampleCount; ++AnimationPoseIndex)
+        {
+            model_asset_animation_sample_header *AnimationSampleHeader = (model_asset_animation_sample_header *)
+                ((u8 *)Buffer + AnimationHeader->PoseSamplesOffset + NextAnimationSampleHeaderOffset);
+
+            animation_sample *AnimationSample = Animation.PoseSamples + AnimationPoseIndex;
+
+            AnimationSample->KeyFrameCount = AnimationSampleHeader->KeyFrameCount;
+            AnimationSample->KeyFrames = (key_frame *)((u8 *)Buffer + AnimationSampleHeader->KeyFramesOffset);
+
+            NextAnimationSampleHeaderOffset += sizeof(model_asset_animation_sample_header) + 
+                AnimationSampleHeader->KeyFrameCount * sizeof(key_frame);
+        }
+
+        NextAnimationHeaderOffset += sizeof(model_asset_animation_header) + NextAnimationSampleHeaderOffset;
+    }
+
     fclose(AssetFile);
 }
 
 i32 main(i32 ArgCount, char **Args)
 {
-    char *FilePath = (char *)"models\\Animated Human.fbx";
+    char *FilePath = (char *)"models\\Animated Human Updated.fbx";
+    //char *FilePath = (char *)"models\\cube.obj";
+    //char *FilePath = (char *)"models\\monkey.obj";
+    //char *FilePath = (char *)"models\\light.obj";
     // todo: http://assimp.sourceforge.net/lib_html/postprocess_8h.html
-    u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure;
+    u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure | aiProcess_GlobalScale;
 
     model_asset Asset;
     LoadModelAsset(FilePath, Flags, &Asset);
 
     FILE *AssetFile = fopen("assets\\dummy.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\cube.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\monkey.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\light.asset", "wb");
 
     model_asset_header Header = {};
     Header.MagicValue = 0x451;
     Header.Version = 1;
-    Header.SkeletonHeaderOffset = sizeof(model_asset_header);
-    Header.MeshesHeaderOffset = Header.SkeletonHeaderOffset + sizeof(model_asset_skeleton_header) + 
-        Asset.Skeleton.JointCount * (sizeof(joint) + sizeof(joint_pose) + sizeof(mat4));
+    // will be filled later
+    Header.SkeletonHeaderOffset = 0;
+    Header.MeshesHeaderOffset = 0;
+    Header.AnimationsHeaderOffset = 0;
+
+    u32 CurrentStreamPosition = 0;
 
     fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.SkeletonHeaderOffset = CurrentStreamPosition;
 
     // Writing skeleton
     model_asset_skeleton_header SkeletonHeader = {};
@@ -743,6 +763,9 @@ i32 main(i32 ArgCount, char **Args)
     fwrite(Asset.Skeleton.Joints, sizeof(joint), Asset.Skeleton.JointCount, AssetFile);
     fwrite(Asset.Skeleton.LocalJointPoses, sizeof(joint_pose), Asset.Skeleton.JointCount, AssetFile);
     fwrite(Asset.Skeleton.GlobalJointPoses, sizeof(mat4), Asset.Skeleton.JointCount, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.MeshesHeaderOffset = CurrentStreamPosition;
 
     // Writing meshes
     model_asset_meshes_header MeshesHeader = {};
@@ -768,7 +791,54 @@ i32 main(i32 ArgCount, char **Args)
         fwrite(Mesh->Indices, sizeof(u32), Mesh->IndexCount, AssetFile);
     }
 
-    // todo: add materials and animations
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.AnimationsHeaderOffset = CurrentStreamPosition;
+
+    // Writing animation clips
+    model_asset_animations_header AnimationsHeader = {};
+    AnimationsHeader.AnimationCount = Asset.AnimationCount;
+    AnimationsHeader.AnimationsOffset = Header.AnimationsHeaderOffset + sizeof(model_asset_animations_header);
+
+    fwrite(&AnimationsHeader, sizeof(model_asset_animations_header), 1, AssetFile);
+
+    u64 TotalPrevKeyFrameSize = 0;
+    for (u32 AnimationIndex = 0; AnimationIndex < Asset.AnimationCount; ++AnimationIndex)
+    {
+        animation_clip *Animation = Asset.Animations + AnimationIndex;
+
+        model_asset_animation_header AnimationHeader = {};
+        CopyString(Animation->Name, AnimationHeader.Name, MAX_ANIMATION_NAME_LENGTH);
+        AnimationHeader.Duration = Animation->Duration;
+        AnimationHeader.PoseSampleCount = Animation->PoseSampleCount;
+        AnimationHeader.PoseSamplesOffset = AnimationsHeader.AnimationsOffset + sizeof(model_asset_animation_header) +
+            AnimationIndex * sizeof(model_asset_animation_header) + TotalPrevKeyFrameSize;
+
+        fwrite(&AnimationHeader, sizeof(model_asset_animation_header), 1, AssetFile);
+
+        u64 PrevKeyFrameSize = 0;
+        for (u32 AnimationPoseIndex = 0; AnimationPoseIndex < Animation->PoseSampleCount; ++AnimationPoseIndex)
+        {
+            animation_sample *AnimationPose = Animation->PoseSamples + AnimationPoseIndex;
+
+            model_asset_animation_sample_header AnimationSampleHeader = {};
+            AnimationSampleHeader.JointIndex = AnimationPose->JointIndex;
+            AnimationSampleHeader.KeyFrameCount = AnimationPose->KeyFrameCount;
+            AnimationSampleHeader.KeyFramesOffset = AnimationHeader.PoseSamplesOffset + sizeof(model_asset_animation_sample_header) +
+                PrevKeyFrameSize;
+
+            PrevKeyFrameSize += sizeof(model_asset_animation_sample_header) + AnimationSampleHeader.KeyFrameCount * sizeof(key_frame);
+
+            fwrite(&AnimationSampleHeader, sizeof(model_asset_animation_sample_header), 1, AssetFile);
+            fwrite(AnimationPose->KeyFrames, sizeof(key_frame), AnimationPose->KeyFrameCount, AssetFile);
+        }
+
+        TotalPrevKeyFrameSize += PrevKeyFrameSize;
+    }
+
+    // todo: add materials?
+
+    fseek(AssetFile, 0, SEEK_SET);
+    fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
 
     fclose(AssetFile);
 

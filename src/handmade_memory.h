@@ -45,3 +45,4 @@ PushSize(memory_arena *Arena, umm Size)
 
 #define PushStruct(Arena, Type) (Type *)PushSize(Arena, sizeof(Type))
 #define PushArray(Arena, Count, Type) (Type *)PushSize(Arena, Count * sizeof(Type))
+#define PushString(Arena, Count) (char *)PushSize(Arena, Count * sizeof(char))

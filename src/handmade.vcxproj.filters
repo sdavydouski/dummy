@@ -3,7 +3,6 @@
   <ItemGroup>
     <ClInclude Include="handmade_defs.h" />
     <ClInclude Include="handmade_platform.h" />
-    <ClInclude Include="handmade_utils.h" />
     <ClInclude Include="handmade_memory.h" />
     <ClInclude Include="handmade_renderer.h" />
     <ClInclude Include="handmade.h" />
@@ -16,12 +15,13 @@
     <ClInclude Include="handmade_vec4.h" />
     <ClInclude Include="handmade_quat.h" />
     <ClInclude Include="handmade_assets.h" />
+    <ClInclude Include="handmade_string.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="handmade.cpp" />
-    <ClCompile Include="handmade_assets.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="handmade_renderer.cpp" />
+    <None Include="handmade_assets.cpp" />
   </ItemGroup>
 </Project>

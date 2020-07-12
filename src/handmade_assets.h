@@ -68,17 +68,18 @@ struct skeleton
 
 struct key_frame
 {
-    f32 Time;
     joint_pose Pose;
+    f32 Time;
 };
 
 struct animation_sample
 {
+    u32 JointIndex;
     u32 KeyFrameCount;
     key_frame *KeyFrames;
 };
 
-struct animation
+struct animation_clip
 {
     //skeleton *Skeleton;
 
@@ -128,7 +129,7 @@ struct model_asset
     material_asset *Materials;
 
     u32 AnimationCount;
-    animation *Animations;
+    animation_clip *Animations;
 };
 
 struct model_asset_header
@@ -167,4 +168,19 @@ struct model_asset_animations_header
 {
     u32 AnimationCount;
     u32 AnimationsOffset;
+};
+
+struct model_asset_animation_header
+{
+    char Name[MAX_ANIMATION_NAME_LENGTH];
+    f32 Duration;
+    u32 PoseSampleCount;
+    u64 PoseSamplesOffset;
+};
+
+struct model_asset_animation_sample_header
+{
+    u32 JointIndex;
+    u32 KeyFrameCount;
+    u64 KeyFramesOffset;
 };

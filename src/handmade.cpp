@@ -1,8 +1,11 @@
 #include "handmade_defs.h"
 #include "handmade_math.h"
 #include "handmade_memory.h"
+#include "handmade_string.h"
 #include "handmade_platform.h"
+#include "handmade_collision.h"
 #include "handmade_physics.h"
+#include "handmade_assets.h"
 #include "handmade.h"
 
 #include "handmade_assets.cpp"
@@ -26,24 +29,159 @@ InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FovY, vec3 Position, vec
 	Camera->Direction = CalculateDirectionFromEulerAngles(Camera->Pitch, Camera->Yaw);
 }
 
+inline mat4
+CalculateJointPose(joint_pose *JointPose)
+{
+	mat4 Result = mat4(1.f);
+
+	mat4 S = Scale(JointPose->Scale);
+	mat4 T = Translate(JointPose->Translation);
+	mat4 R = GetRotationMatrix(JointPose->Rotation);
+
+	Result = T * R * S;
+
+	return Result;
+}
+
+inline joint_pose
+Interpolate(joint_pose A, f32 t, joint_pose B)
+{
+	joint_pose Result;
+
+	Result.Translation = Lerp(A.Translation, t, B.Translation);
+	Result.Rotation = Slerp(A.Rotation, t, B.Rotation);
+	// todo: logarithmic interpolation for scale? (https://www.cmu.edu/biolphys/deserno/pdf/log_interpol.pdf)
+	Result.Scale = Lerp(A.Scale, t, B.Scale);
+
+	return Result;
+}
+
+internal mat4
+CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton *Skeleton)
+{
+	mat4 Result = mat4(1.f);
+
+	while (true)
+	{
+		mat4 Pose = CalculateJointPose(CurrentJointPose);
+		Result = Pose * Result;
+
+		if (CurrentJoint->ParentIndex == -1)
+		{
+			break;
+		}
+
+		CurrentJointPose = Skeleton->LocalJointPoses + CurrentJoint->ParentIndex;
+		CurrentJoint = Skeleton->Joints + CurrentJoint->ParentIndex;
+	}
+
+	return Result;
+}
+
+// todo: optimize (caching?)
+inline animation_sample *
+GetAnimationSampleByJointIndex(animation_clip *Animation, u32 JointIndex)
+{
+	animation_sample *Result = 0;
+	
+	for (u32 AnimationSampleIndex = 0; AnimationSampleIndex < Animation->PoseSampleCount; ++AnimationSampleIndex)
+	{
+		animation_sample *AnimationSample = Animation->PoseSamples + AnimationSampleIndex;
+
+		if (AnimationSample->JointIndex == JointIndex)
+		{
+			Result = AnimationSample;
+			break;
+		}
+	}
+
+	return Result;
+}
+
+struct closest_key_frames_result
+{
+	key_frame *Current;
+	key_frame *Next;
+};
+
+internal closest_key_frames_result
+FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime)
+{
+	closest_key_frames_result Result = {};
+
+	for (u32 KeyFrameIndex = 0; KeyFrameIndex < PoseSample->KeyFrameCount - 1; ++KeyFrameIndex)
+	{
+		key_frame *CurrentKeyFrame = PoseSample->KeyFrames + KeyFrameIndex;
+		key_frame *NextKeyFrame = PoseSample->KeyFrames + KeyFrameIndex + 1;
+
+		if (CurrentKeyFrame->Time <= CurrentTime && CurrentTime < NextKeyFrame->Time)
+		{
+			Result.Current = CurrentKeyFrame;
+			Result.Next = NextKeyFrame;
+			break;
+		}
+	}
+
+	if (!Result.Current || !Result.Next)
+	{
+		Result.Current = PoseSample->KeyFrames + (PoseSample->KeyFrameCount - 1);
+		Result.Next = PoseSample->KeyFrames + 0;
+	}
+
+	return Result;
+}
+
+// todo: looping animations has discontinuity between last and first key frames (assimp issue?)
+internal void
+AnimateSkeleton(animation_clip *Animation, f32 CurrentTime, skeleton *Skeleton)
+{
+	for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
+	{
+		joint *Joint = Skeleton->Joints + JointIndex;
+		joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
+		mat4 *GlobalJointPose = Skeleton->GlobalJointPoses + JointIndex;
+
+		animation_sample *PoseSample = GetAnimationSampleByJointIndex(Animation, JointIndex);
+
+		if (PoseSample)
+		{
+			closest_key_frames_result ClosestKeyFrames = FindClosestKeyFrames(PoseSample, CurrentTime);
+			key_frame *CurrentKeyFrame = ClosestKeyFrames.Current;
+			key_frame *NextKeyFrame = ClosestKeyFrames.Next;
+
+			f32 t = (CurrentTime - CurrentKeyFrame->Time) / (Abs(NextKeyFrame->Time - CurrentKeyFrame->Time));
+
+			Assert(t >= 0.f && t <= 1.f);
+
+			*LocalJointPose = Interpolate(CurrentKeyFrame->Pose, t, NextKeyFrame->Pose);
+			*GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Skeleton);
+		}
+	}
+}
+
 internal void
 DrawSkeleton(render_commands *RenderCommands, skeleton *Skeleton)
 {
 	for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
 	{
 		joint *Joint = Skeleton->Joints + JointIndex;
+		joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
 		mat4 *GlobalJointPose = Skeleton->GlobalJointPoses + JointIndex;
-
-		mat4 S = Scale(0.05f);
-		mat4 Model = (*GlobalJointPose);
-
-		Model = Model * S;
 
 		material Material = {};
 		Material.Type = MaterialType_Unlit;
 		Material.Color = vec3(1.f, 1.f, 0.f);
 
-		DrawMesh(RenderCommands, 3, Model, Material, {}, {});
+		DrawMesh(RenderCommands, 3, GetTranslation(*GlobalJointPose), vec3(0.05f), vec4(0.f), Material, {}, {});
+
+		if (Joint->ParentIndex > -1)
+		{
+			mat4 *ParentGlobalJointPose = Skeleton->GlobalJointPoses + Joint->ParentIndex;
+
+			vec3 LineStart = GetTranslation(*ParentGlobalJointPose);
+			vec3 LineEnd = GetTranslation(*GlobalJointPose);
+			DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 1.f);
+		}
 	}
 }
 
@@ -88,8 +226,15 @@ GAME_INIT(GameInit)
 		AddMesh(RenderCommands, 1, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
 
 		State->Skeleton = ModelAsset.Skeleton;
+		State->AnimationCount = ModelAsset.AnimationCount;
+		State->Animations = ModelAsset.Animations;
+		State->CurrentAnimation = State->Animations + 7;
+		//State->CurrentAnimation->Duration += 0.02416666679f;
+		State->PlaybackRate = 1.f;
+		State->CurrentTime = 0.f;
 	}
 
+#if 1
 	{
 		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\light.asset", &State->WorldArena);
 		// todo: process all meshes in a model
@@ -103,6 +248,7 @@ GAME_INIT(GameInit)
 		mesh *Mesh = ModelAsset.Meshes + 0;
 		AddMesh(RenderCommands, 3, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
 	}
+#endif
 }
 
 extern "C" DLLExport
@@ -150,7 +296,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
 	{
 		case GameMode_World:
 		{
-			f32 DebugCameraSpeed = 500.f;
+			f32 DebugCameraSpeed = 10.f;
 			f32 DebugCameraSensitivity = 100.f;
 
 			if (Input->EnableFreeCameraMovement.IsActive)
@@ -212,6 +358,16 @@ GAME_UPDATE(GameUpdate)
 				Body->Acceleration = vec3(0.f);
 			}
 		}
+	}
+
+	f32 CurrentTime = State->CurrentTime * State->PlaybackRate;
+
+	AnimateSkeleton(State->CurrentAnimation, CurrentTime, &State->Skeleton);
+
+	State->CurrentTime += Parameters->UpdateRate;
+	if (State->CurrentTime > (State->CurrentAnimation->Duration / State->PlaybackRate))
+	{
+		State->CurrentTime = 0.f;
 	}
 }
 

@@ -21,7 +21,64 @@ struct quat
         );
         return Result;
     }
+
+    inline quat operator *(f32 Scalar)
+    {
+        quat Result = quat(Scalar * x, Scalar * y, Scalar * z, Scalar * w);
+        return Result;
+    }
+
+    inline quat operator /(f32 Scalar)
+    {
+        quat Result = quat(x, y, z, w) * (1.f / Scalar);
+        return Result;
+    }
+
+    inline quat operator +(quat q)
+    {
+        quat Result = quat(x + q.x, y + q.y, z + q.z, w + q.w);
+        return Result;
+    }
+
+    inline quat operator -(quat q)
+    {
+        quat Result = quat(x - q.x, y - q.y, z - q.z, w - q.w);
+        return Result;
+    }
+
+    inline quat operator -()
+    {
+        quat Result = quat(-x, -y, -z, -w);
+        return Result;
+    }
 };
+
+inline quat operator *(f32 Value, quat q)
+{
+    quat Result = q * Value;
+    return Result;
+}
+
+inline f32
+Dot(quat a, quat b)
+{
+    f32 Result = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+    return Result;
+}
+
+inline f32
+Magnitude(quat q)
+{
+    f32 Result = Sqrt(Square(q.x) + Square(q.y) + Square(q.z) + Square(q.w));
+    return Result;
+}
+
+inline quat
+Normalize(quat q)
+{
+    quat Result = q / Magnitude(q);
+    return Result;
+}
 
 inline mat4
 GetRotationMatrix(quat q)

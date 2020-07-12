@@ -1,7 +1,5 @@
 #pragma once
 
-#include "handmade_collision.h"
-
 struct rigid_body
 {
     f32 InverseMass;

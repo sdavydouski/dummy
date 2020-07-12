@@ -4,10 +4,15 @@
 
 #include "handmade_defs.h"
 #include "handmade_platform.h"
-#include "handmade_utils.h"
+#include "handmade_string.h"
 #include "handmade_math.h"
-#include "handmade_memory.h"
 #include "win32_handmade.h"
+
+// for debugging purpuses only!
+#include "handmade_collision.h"
+#include "handmade_physics.h"
+#include "handmade_assets.h"
+#include "handmade.h"
 
 #include "win32_handmade_opengl.cpp"
 #include "handmade_opengl.cpp"
@@ -565,8 +570,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 2560;
-    PlatformState.WindowHeight = 1440;
+    PlatformState.WindowWidth = 1600;
+    PlatformState.WindowHeight = 900;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
@@ -669,7 +674,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         ImGui_ImplOpenGL3_Init();
 
         // Load Fonts
-        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 
 		render_commands *RenderCommands = GetRenderCommandsFromMemory(&GameMemory);
 
@@ -749,12 +754,33 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             ImGui_ImplWin32_NewFrame();
             ImGui::NewFrame();
 
+            game_state *GameState = (game_state *)GameMemory.PermanentStorage;
+
             ImGui::Begin("Stats");
 
-            ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
+            ImGui::Text("%.3f ms/frame (%.1f FPS)", (f32)GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
             ImGui::Text("Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
             ImGui::Checkbox("FullScreen", (bool *)&PlatformState.IsFullScreen);
             ImGui::Checkbox("VSync", (bool *)&PlatformState.VSync);
+
+            ImGui::End();
+
+            ImGui::Begin("Game State");
+
+            ImGui::Text("Animations:");
+
+            for (u32 AnimationIndex = 0; AnimationIndex < GameState->AnimationCount; ++AnimationIndex)
+            {
+                animation_clip *Animation = GameState->Animations + AnimationIndex;
+
+                if (ImGui::RadioButton(Animation->Name, Animation == GameState->CurrentAnimation))
+                {
+                    GameState->CurrentAnimation = GameState->Animations + AnimationIndex;
+                    GameState->CurrentTime = 0.f;
+                }
+            }
+
+            ImGui::SliderFloat("Playback Rate", &GameState->PlaybackRate, 0.1f, 2.f);
 
             ImGui::End();
 
