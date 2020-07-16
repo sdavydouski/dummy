@@ -29,20 +29,6 @@ InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FovY, vec3 Position, vec
 	Camera->Direction = CalculateDirectionFromEulerAngles(Camera->Pitch, Camera->Yaw);
 }
 
-inline mat4
-CalculateJointPose(joint_pose *JointPose)
-{
-	mat4 Result = mat4(1.f);
-
-	mat4 S = Scale(JointPose->Scale);
-	mat4 T = Translate(JointPose->Translation);
-	mat4 R = GetRotationMatrix(JointPose->Rotation);
-
-	Result = T * R * S;
-
-	return Result;
-}
-
 inline joint_pose
 Interpolate(joint_pose A, f32 t, joint_pose B)
 {
@@ -63,7 +49,7 @@ CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skel
 
 	while (true)
 	{
-		mat4 Pose = CalculateJointPose(CurrentJointPose);
+		mat4 Pose = Transform(*CurrentJointPose);
 		Result = Pose * Result;
 
 		if (CurrentJoint->ParentIndex == -1)
@@ -172,7 +158,8 @@ DrawSkeleton(render_commands *RenderCommands, skeleton *Skeleton)
 		Material.Type = MaterialType_Unlit;
 		Material.Color = vec3(1.f, 1.f, 0.f);
 
-		DrawMesh(RenderCommands, 3, GetTranslation(*GlobalJointPose), vec3(0.05f), vec4(0.f), Material, {}, {});
+		transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), quat(0.f));
+		DrawMesh(RenderCommands, 3, Transform, Material, {}, {});
 
 		if (Joint->ParentIndex > -1)
 		{
@@ -226,9 +213,10 @@ GAME_INIT(GameInit)
 		AddMesh(RenderCommands, 1, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
 
 		State->Skeleton = ModelAsset.Skeleton;
+		State->SkinningMatrices = PushArray(&State->WorldArena, State->Skeleton.JointCount, mat4);
 		State->AnimationCount = ModelAsset.AnimationCount;
 		State->Animations = ModelAsset.Animations;
-		State->CurrentAnimation = State->Animations + 7;
+		State->CurrentAnimation = State->Animations + 0;
 		//State->CurrentAnimation->Duration += 0.02416666679f;
 		State->PlaybackRate = 1.f;
 		State->CurrentTime = 0.f;
@@ -359,16 +347,6 @@ GAME_UPDATE(GameUpdate)
 			}
 		}
 	}
-
-	f32 CurrentTime = State->CurrentTime * State->PlaybackRate;
-
-	AnimateSkeleton(State->CurrentAnimation, CurrentTime, &State->Skeleton);
-
-	State->CurrentTime += Parameters->UpdateRate;
-	if (State->CurrentTime > (State->CurrentAnimation->Duration / State->PlaybackRate))
-	{
-		State->CurrentTime = 0.f;
-	}
 }
 
 extern "C" DLLExport 
@@ -414,7 +392,7 @@ GAME_RENDER(GameRender)
 			DrawGrid(RenderCommands, Bounds, State->GridCount, State->DebugCamera.Position, vec3(0.f, 0.f, 1.f));
 
 			directional_light DirectionalLight = {};
-			DirectionalLight.Color = vec3(0.1f);
+			DirectionalLight.Color = vec3(0.5f);
 			DirectionalLight.Direction = vec3(0.f, -0.5f, -0.3f);
 
 			SetDirectionalLight(RenderCommands, DirectionalLight);
@@ -430,10 +408,34 @@ GAME_RENDER(GameRender)
 			}
 #endif
 
-			vec3 PointLight1Position = vec3(Cos(Parameters->Time) * 5.f, 1.f, Sin(Parameters->Time) * 5.f);
+			f32 CurrentTime = State->CurrentTime * State->PlaybackRate;
+
+			AnimateSkeleton(State->CurrentAnimation, CurrentTime, &State->Skeleton);
+
+			State->CurrentTime += Parameters->Delta;
+			if (State->CurrentTime > (State->CurrentAnimation->Duration / State->PlaybackRate))
+			{
+				State->CurrentTime = 0.f;
+			}
+
+#if 1
+			skeleton *Skeleton = &State->Skeleton;
+			for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
+			{
+				joint *Joint = Skeleton->Joints + JointIndex;
+				joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
+				mat4 *SkinningMatrix = State->SkinningMatrices + JointIndex;
+
+				mat4 GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Skeleton);
+				*SkinningMatrix = GlobalJointPose * Joint->InvBindTranform;
+		}
+#endif
+
+			f32 PointLightRadius = 6.f;
+			vec3 PointLight1Position = vec3(Cos(Parameters->Time) * PointLightRadius, 1.f, Sin(Parameters->Time) * PointLightRadius);
 			vec3 PointLight1Color = vec3(0.f, 1.f, 0.f);
 
-			vec3 PointLight2Position = vec3(-Cos(Parameters->Time) * 5.f, 4.f, Sin(Parameters->Time) * 5.f);
+			vec3 PointLight2Position = vec3(-Cos(Parameters->Time) * PointLightRadius, 4.f, Sin(Parameters->Time) * PointLightRadius);
 			vec3 PointLight2Color = vec3(1.f, 0.f, 0.f);
 
 			point_light DummyPointLight = {};
@@ -463,38 +465,41 @@ GAME_RENDER(GameRender)
 				PointLight2.Attenuation.Linear = 0.09f;
 				PointLight2.Attenuation.Quadratic = 0.032f;
 
-				//DrawMesh(RenderCommands, 1, vec3(0.f, 2.f, 0.f), vec3(2.f), vec4(0.f), Material, PointLight1, PointLight2);
+				DrawMesh(
+					RenderCommands, 3,
+					CreateTransform(vec3(4.f, 1.f, 0.f), vec3(1.f), AxisAngle2Quat(vec4(0.f, 1.f, 0.f, Parameters->Time))),
+					Material, PointLight1, PointLight2
+				);
+
+				// todo: named ids for meshes!!!
+
+				DrawSkinnedMesh(RenderCommands, 1, CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f)),
+					Material, PointLight1, PointLight2, State->Skeleton.JointCount, State->SkinningMatrices);
 			}
 			{
 				material Material = {};
 				Material.Type = MaterialType_Unlit;
 				Material.Color = PointLight1Color;
 
-				//DrawMesh(RenderCommands, 2, PointLight1Position, vec3(0.5f), vec4(0.f), Material, {}, {});
+				DrawMesh(RenderCommands, 2, CreateTransform(PointLight1Position, vec3(0.2f), quat(0.f)), Material, {}, {});
 			}
 			{
 				material Material = {};
 				Material.Type = MaterialType_Unlit;
 				Material.Color = PointLight2Color;
 
-				//DrawMesh(RenderCommands, 2, PointLight2Position, vec3(0.5f), vec4(0.f), Material, {}, {});
+				DrawMesh(RenderCommands, 2, CreateTransform(PointLight2Position, vec3(0.2f), quat(0.f)), Material, {}, {});
 			}
 
 			{
 				material Material = {};
 				Material.Type = MaterialType_Unlit;
 				Material.Color = vec3(1.f, 1.f, 0.f);
-				Material.DiffuseColor = vec3(1.f, 1.f, 0.f);
-				Material.AmbientStrength = 1.f;
-				Material.SpecularStrength = 1.f;
-				Material.SpecularShininess = 32;
 
-				//DrawMesh(RenderCommands, 3, vec3(0.f), vec3(1.f), vec4(0.f), Material, {}, {});
+				//DrawMesh(RenderCommands, 3, CreateTransform(vec3(-4.f, 1.f, 0.f), vec3(1.f), quat(0.f)), Material, {}, {});
 			}
 
-			DrawSkeleton(RenderCommands, &State->Skeleton);
-
-			//DrawBox(RenderCommands, State->Player.Position, State->Player.HalfSize, vec4(0.f, 1.f, 1.f, 1.f));
+			//DrawSkeleton(RenderCommands, &State->Skeleton);
 #if 0
 			DrawBox(RenderCommands, vec3(4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
 			DrawBox(RenderCommands, vec3(-4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
@@ -526,10 +531,26 @@ GAME_RENDER(GameRender)
 
 			SetWireframe(RenderCommands, false);
 
-			DrawRectangle(RenderCommands, vec2(-2.f, 2.f) * vec2(Cos(Parameters->Time), 1.f), vec2(0.5f), vec4(1.f, 0.f, 0.f, 1.f));
-			DrawRectangle(RenderCommands, vec2(2.f, 2.f) * vec2(1.f, Cos(Parameters->Time)), vec2(0.5f), vec4(0.f, 1.f, 0.f, 1.f));
-			DrawRectangle(RenderCommands, vec2(2.f, -2.f) * vec2(-Cos(Parameters->Time + PI), 1.f), vec2(0.5f), vec4(0.f, 0.f, 1.f, 1.f));
-			DrawRectangle(RenderCommands, vec2(-2.f, -2.f) * vec2(1.f, Cos(Parameters->Time)), vec2(0.5f), vec4(1.f, 1.f, 0.f, 1.f));
+			DrawRectangle(
+				RenderCommands, 
+				CreateTransform(vec3(-2.f, 2.f, 0.f) * vec3(Cos(Parameters->Time), 1.f, 0.f), vec3(0.5f), quat(0.f)), 
+				vec4(1.f, 0.f, 0.f, 1.f)
+			);
+			DrawRectangle(
+				RenderCommands, 
+				CreateTransform(vec3(2.f, 2.f, 0.f) *vec3(1.f, Cos(Parameters->Time), 0.f), vec3(0.5f), quat(0.f)), 
+				vec4(0.f, 1.f, 0.f, 1.f)
+			);
+			DrawRectangle(
+				RenderCommands, 
+				CreateTransform(vec3(2.f, -2.f, 0.f) * vec3(-Cos(Parameters->Time + PI), 1.f, 0.f), vec3(0.5f), quat(0.f)),
+				vec4(0.f, 0.f, 1.f, 1.f)
+			);
+			DrawRectangle(
+				RenderCommands, 
+				CreateTransform(vec3(-2.f, -2.f, 0.f) * vec3(1.f, Cos(Parameters->Time), 0.f), vec3(0.5f), quat(0.f)), 
+				vec4(1.f, 1.f, 0.f, 1.f)
+			);
 		}
 		break;
 		default:

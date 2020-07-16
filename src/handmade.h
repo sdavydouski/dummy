@@ -32,6 +32,7 @@ struct game_state
 
 	//
 	skeleton Skeleton;
+	mat4 *SkinningMatrices;
 
 	u32 AnimationCount;
 	animation_clip *Animations;

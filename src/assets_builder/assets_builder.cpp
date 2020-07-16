@@ -21,7 +21,7 @@
 
 // todo: specify per asset
 #undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
-#define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 0.1f
+#define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 1.f
 
 #define INVALID_FLOAT -1.f
 #define INVALID_COLOR vec4(-1.f)
@@ -310,13 +310,13 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
     }
 
     Mesh->VertexCount = AssimpMesh->mNumVertices;
-    Mesh->Vertices = (vertex *)malloc(Mesh->VertexCount * sizeof(vertex));
+    Mesh->Vertices = (skinned_vertex *)malloc(Mesh->VertexCount * sizeof(skinned_vertex));
 
     if (AssimpMesh->HasPositions())
     {
         for (u32 VertexIndex = 0; VertexIndex < AssimpMesh->mNumVertices; ++VertexIndex)
         {
-            vertex *Vertex = Mesh->Vertices + VertexIndex;
+            skinned_vertex *Vertex = Mesh->Vertices + VertexIndex;
             *Vertex = {};
 
             aiVector3D AssimpPosition = AssimpMesh->mVertices[VertexIndex];
@@ -375,7 +375,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
 
         for (u32 VertexIndex = 0; VertexIndex < Mesh->VertexCount; ++VertexIndex)
         {
-            vertex *Vertex = Mesh->Vertices + VertexIndex;
+            skinned_vertex *Vertex = Mesh->Vertices + VertexIndex;
 
             dynamic_array<joint_weight> &JointWeights = JointWeightsTable[VertexIndex];
 
@@ -460,12 +460,13 @@ ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> 
     string Name = AssimpString2StdString(AssimpNode->mName);
     assimp_node *SceneNode = SceneNodes[Name];
 
-    //Assert(SceneNode->Bone);
-
     joint *Joint = Skeleton->Joints + CurrentIndexForward;
     Assert(Name.length() < MAX_JOINT_NAME_LENGTH);
     CopyString(Name.c_str(), Joint->Name, MAX_JOINT_NAME_LENGTH);
-    //Joint->InvBindTranform = AssimpMatrix2Matrix(SceneNode->Bone->mOffsetMatrix);
+    Joint->InvBindTranform = SceneNode->Bone 
+        ? AssimpMatrix2Matrix(SceneNode->Bone->mOffsetMatrix) 
+        : mat4(1.f);
+
     Joint->ParentIndex = CurrentIndexParent;
 
     aiVector3D Scale;
@@ -492,21 +493,6 @@ ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> 
 }
 
 // todo: duplicate
-inline mat4
-CalculateJointPose(joint_pose *JointPose)
-{
-    mat4 Result = mat4(1.f);
-    
-    mat4 S = Scale(JointPose->Scale);
-    mat4 T = Translate(JointPose->Translation);
-    mat4 R = GetRotationMatrix(JointPose->Rotation);
-
-    Result = T * R * S;
-
-    return Result;
-}
-
-// todo: duplicate
 internal mat4
 CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton *Skeleton)
 {
@@ -514,7 +500,7 @@ CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skel
 
     while (true)
     {
-        mat4 Pose = CalculateJointPose(CurrentJointPose);
+        mat4 Pose = Transform(*CurrentJointPose);
         Result = Pose * Result;
 
         if (CurrentJoint->ParentIndex == -1)
@@ -536,14 +522,10 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
     ProcessAssimpNodeHierarchy(AssimpScene->mRootNode, SceneNodes);
 
     u32 JointCount = (u32)SceneNodes.size();
-#if 0
-    u32 JointCount = 0;
 
     for (u32 MeshIndex = 0; MeshIndex < AssimpScene->mNumMeshes; ++MeshIndex)
     {
         aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
-
-        JointCount += AssimpMesh->mNumBones;
 
         for (u32 BoneIndex = 0; BoneIndex < AssimpMesh->mNumBones; ++BoneIndex)
         {
@@ -554,16 +536,12 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
             SceneNodes[Name]->Bone = AssimpBone;
         }
     }
-#endif
 
     Skeleton->JointCount = JointCount;
     Skeleton->Joints = (joint *)malloc(sizeof(joint) * JointCount);
     Skeleton->LocalJointPoses = (joint_pose *)malloc(sizeof(joint_pose) * JointCount);
     Skeleton->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
 
-    // todo:
-    //aiNode *BoneRoot = GetBoneRootNode(AssimpScene->mRootNode, SceneNodes);
-    //ProcessAssimpBoneHierarchy(BoneRoot, SceneNodes, Skeleton);
     ProcessAssimpBoneHierarchy(AssimpScene->mRootNode, SceneNodes, Skeleton);
 
     for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
@@ -582,6 +560,7 @@ ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_
     // todo: check if model has skeleton information
     ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
 
+#if 1
     if (AssimpScene->HasMeshes())
     {
         Asset->MeshCount = AssimpScene->mNumMeshes;
@@ -595,7 +574,9 @@ ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_
             ProcessAssimpMesh(AssimpMesh, MeshIndex, AssimpScene->mRootNode, Mesh, &Asset->Skeleton);
         }
     }
+#endif
 
+#if 0
     if (AssimpScene->HasMaterials())
     {
         Asset->MaterialCount = AssimpScene->mNumMaterials;
@@ -609,7 +590,9 @@ ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_
             ProcessAssimpMaterial(AssimpMaterial, DirectoryPath, Material);
         }
     }
+#endif
 
+#if 1
     if (AssimpScene->HasAnimations())
     {
         Asset->AnimationCount = AssimpScene->mNumAnimations;
@@ -623,6 +606,7 @@ ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_
             ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
         }
     }
+#endif
 }
 
 internal void
@@ -677,11 +661,11 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
         Mesh.PrimitiveType = MeshHeader->PrimitiveType;
         Mesh.VertexCount = MeshHeader->VertexCount;
         Mesh.IndexCount = MeshHeader->IndexCount;
-        Mesh.Vertices = (vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
+        Mesh.Vertices = (skinned_vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
         Mesh.Indices = (u32 *)((u8 *)Buffer + MeshHeader->IndicesOffset);
 
         NextMeshHeaderOffset += sizeof(model_asset_mesh_header) + 
-            MeshHeader->VertexCount * sizeof(vertex) + MeshHeader->IndexCount * sizeof(u32);
+            MeshHeader->VertexCount * sizeof(skinned_vertex) + MeshHeader->IndexCount * sizeof(u32);
     }
 
     model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)((u8 *)Buffer + Header->AnimationsHeaderOffset);
@@ -720,19 +704,25 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
     fclose(AssetFile);
 }
 
+// check https://www.mixamo.com/ for more characters and animations
 i32 main(i32 ArgCount, char **Args)
 {
     char *FilePath = (char *)"models\\Animated Human Updated.fbx";
+    //char *FilePath = (char *)"models\\cowboy.dae";
+    //char *FilePath = (char *)"models\\Knight_Golden_Male_Updated.fbx";
     //char *FilePath = (char *)"models\\cube.obj";
     //char *FilePath = (char *)"models\\monkey.obj";
     //char *FilePath = (char *)"models\\light.obj";
     // todo: http://assimp.sourceforge.net/lib_html/postprocess_8h.html
     u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure | aiProcess_GlobalScale;
+    //u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure;
 
     model_asset Asset;
     LoadModelAsset(FilePath, Flags, &Asset);
 
     FILE *AssetFile = fopen("assets\\dummy.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\cowboy.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\knight.asset", "wb");
     //FILE *AssetFile = fopen("assets\\cube.asset", "wb");
     //FILE *AssetFile = fopen("assets\\monkey.asset", "wb");
     //FILE *AssetFile = fopen("assets\\light.asset", "wb");
@@ -783,11 +773,11 @@ i32 main(i32 ArgCount, char **Args)
         MeshHeader.VertexCount = Mesh->VertexCount;
         MeshHeader.IndexCount = Mesh->IndexCount;
         MeshHeader.VerticesOffset = MeshesHeader.MeshesOffset + MeshIndex * (sizeof(model_asset_mesh_header) + 
-            Mesh->VertexCount * sizeof(vertex) + Mesh->IndexCount * sizeof(u32)) + sizeof(model_asset_mesh_header);
-        MeshHeader.IndicesOffset = MeshHeader.VerticesOffset + Mesh->VertexCount * sizeof(vertex);
+            Mesh->VertexCount * sizeof(skinned_vertex) + Mesh->IndexCount * sizeof(u32)) + sizeof(model_asset_mesh_header);
+        MeshHeader.IndicesOffset = MeshHeader.VerticesOffset + Mesh->VertexCount * sizeof(skinned_vertex);
 
         fwrite(&MeshHeader, sizeof(model_asset_mesh_header), 1, AssetFile);
-        fwrite(Mesh->Vertices, sizeof(vertex), Mesh->VertexCount, AssetFile);
+        fwrite(Mesh->Vertices, sizeof(skinned_vertex), Mesh->VertexCount, AssetFile);
         fwrite(Mesh->Indices, sizeof(u32), Mesh->IndexCount, AssetFile);
     }
 

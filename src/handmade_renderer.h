@@ -11,6 +11,7 @@ enum material_type
 	MaterialType_Unlit
 };
 
+// todo: textures
 struct material
 {
 	material_type Type;
@@ -65,7 +66,7 @@ struct spot_light
 	light_attenuation Attenuation;
 };
 
-struct vertex
+struct skinned_vertex
 {
 	vec3 Position;
 	vec3 Normal;
@@ -95,8 +96,10 @@ enum render_command_type
 	
 	RenderCommand_DrawLine,
 	RenderCommand_DrawRectangle,
+	// todo: get rid of DrawGrid (he-he) and replace if with DrawMesh. (remove usage of a memory_arena inside the renderer)
 	RenderCommand_DrawGrid,
 	RenderCommand_DrawMesh,
+	RenderCommand_DrawSkinnedMesh,
 
 	RenderCommand_SetDirectionalLight
 };
@@ -121,7 +124,7 @@ struct render_command_add_mesh
 	primitive_type PrimitiveType;
 
 	u32 VertexCount;
-	vertex *Vertices;
+	skinned_vertex *Vertices;
 	u32 IndexCount;
 	u32 *Indices;
 };
@@ -188,9 +191,7 @@ struct render_command_draw_line
 struct render_command_draw_rectangle
 {
 	render_command_header Header;
-	vec2 Position;
-	vec2 Size;
-	vec4 Rotation;
+	transform Transform;
 	vec4 Color;
 };
 
@@ -203,28 +204,35 @@ struct render_command_draw_grid
 	vec3 Color;
 };
 
-// todo: represent rotation as quat?
 struct render_command_draw_mesh
 {
 	render_command_header Header;
 
 	u32 Id;
-	union
-	{
-		struct
-		{
-			vec3 Position;
-			vec3 Scale;
-			vec4 Rotation;
-		};
-		
-		mat4 Model;
-	};
+
+	transform Transform;
 
 	material Material;
 
 	point_light PointLight1;
 	point_light PointLight2;
+};
+
+struct render_command_draw_skinned_mesh
+{
+	render_command_header Header;
+
+	u32 Id;
+
+	transform Transform;
+
+	material Material;
+
+	point_light PointLight1;
+	point_light PointLight2;
+
+	u32 SkinningMatrixCount;
+	mat4 *SkinningMatrices;
 };
 
 struct render_command_set_directional_light

@@ -32,12 +32,16 @@ struct opengl_state
 	GLuint RectangleVAO;
 	GLuint GridVAO;
 
+	GLuint SkinningTBO;
+	GLuint SkinningTBOTexture;
+
 	u32 CurrentMeshBufferCount;
 	opengl_mesh_buffer MeshBuffers[OPENGL_MAX_MESH_BUFFER_COUNT];
 
 	GLuint SimpleShaderProgram;
 	GLuint GridShaderProgram;
 	GLuint ForwardShadingShaderProgram;
+	GLuint SkinnedMeshForwardShadingShaderProgram;
 
 	// Win32
 	PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;

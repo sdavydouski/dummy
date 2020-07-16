@@ -32,7 +32,6 @@ GetLastAfterDelimiter(wchar *String, const wchar Delimiter) {
 inline u32
 StringLength(const wchar *String) {
     u32 Result = (u32)wcslen(String);
-
     return Result;
 }
 

@@ -29,11 +29,11 @@ ReadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
         Mesh->PrimitiveType = MeshHeader->PrimitiveType;
         Mesh->VertexCount = MeshHeader->VertexCount;
         Mesh->IndexCount = MeshHeader->IndexCount;
-        Mesh->Vertices = (vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
+        Mesh->Vertices = (skinned_vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
         Mesh->Indices = (u32 *)((u8 *)Buffer + MeshHeader->IndicesOffset);
 
         NextMeshHeaderOffset += sizeof(model_asset_mesh_header) +
-            MeshHeader->VertexCount * sizeof(vertex) + MeshHeader->IndexCount * sizeof(u32);
+            MeshHeader->VertexCount * sizeof(skinned_vertex) + MeshHeader->IndexCount * sizeof(u32);
     }
 
     model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)

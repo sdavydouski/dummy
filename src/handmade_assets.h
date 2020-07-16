@@ -3,6 +3,8 @@
 #define MAX_JOINT_NAME_LENGTH 256
 #define MAX_ANIMATION_NAME_LENGTH 256
 
+#define joint_pose transform
+
 enum material_property_type
 {
     MATERIAL_PROPERTY_COLOR_AMBIENT,
@@ -47,15 +49,8 @@ struct material_asset
 struct joint
 {
     char Name[MAX_JOINT_NAME_LENGTH];
-    //mat4 InvBindTranform;
+    mat4 InvBindTranform;
     i32 ParentIndex;
-};
-
-struct joint_pose
-{
-    quat Rotation;
-    vec3 Translation;
-    vec3 Scale;
 };
 
 struct skeleton
@@ -108,10 +103,11 @@ struct joint_weight
 struct mesh
 {
     //skeleton *Skeleton;
+
     primitive_type PrimitiveType;
 
     u32 VertexCount;
-    vertex *Vertices;
+    skinned_vertex *Vertices;
 
     u32 IndexCount;
     u32 *Indices;

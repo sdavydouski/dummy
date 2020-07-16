@@ -50,6 +50,8 @@ CreateProgram(GLuint VertexShader, GLuint FragmentShader)
 		char ErrorLog[256];
 		glGetProgramInfoLog(Program, LogLength, nullptr, ErrorLog);
 
+		int t = 0;
+
 		//PrintError("Error: ", "Shader program linkage failed", ErrorLog);
 	}
 	Assert(IsProgramLinked);
@@ -152,11 +154,6 @@ InitGrid(opengl_state *State, u32 GridCount)
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
 
 	glBindVertexArray(0);
-
-	GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, GridVertexShader);
-	GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, GridFragmentShader);
-
-	State->GridShaderProgram = CreateProgram(VertexShader, FragmentShader);
 }
 
 // todo: use hashtable
@@ -179,7 +176,7 @@ OpenGLGetMeshBuffer(opengl_state *State, u32 Id)
 }
 
 internal void
-OpenGLAddMeshBuffer(opengl_state *State, u32 Id, primitive_type PrimitiveType, u32 VertexCount, vertex *Vertices, u32 IndexCount, u32 *Indices)
+OpenGLAddMeshBuffer(opengl_state *State, u32 Id, primitive_type PrimitiveType, u32 VertexCount, skinned_vertex *Vertices, u32 IndexCount, u32 *Indices)
 {
 	Assert(State->CurrentMeshBufferCount < OPENGL_MAX_MESH_BUFFER_COUNT);
 
@@ -192,22 +189,22 @@ OpenGLAddMeshBuffer(opengl_state *State, u32 Id, primitive_type PrimitiveType, u
 
 	glGenBuffers(1, &VBO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(vertex), Vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(skinned_vertex), Vertices, GL_STATIC_DRAW);
 
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, Position));
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Position));
 
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, Normal));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Normal));
 
 	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, TextureCoords));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, TextureCoords));
 
 	glEnableVertexAttribArray(3);
-	glVertexAttribIPointer(3, 4, GL_UNSIGNED_INT, sizeof(vertex), (void *)StructOffset(vertex, JointIndices));
+	glVertexAttribIPointer(3, 4, GL_UNSIGNED_INT, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, JointIndices));
 
 	glEnableVertexAttribArray(4);
-	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *)StructOffset(vertex, Weights));
+	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Weights));
 
 	glGenBuffers(1, &EBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -248,10 +245,32 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			}
 
 			{
+				GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, GridVertexShader);
+				GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, GridFragmentShader);
+
+				State->GridShaderProgram = CreateProgram(VertexShader, FragmentShader);
+			}
+
+			{
 				GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, ForwardShadingVertexShader);
 				GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, ForwardShadingFragmentShader);
 				State->ForwardShadingShaderProgram = CreateProgram(VertexShader, FragmentShader);
 			}
+
+			{
+				GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, SkinnedMeshVertexShader);
+				GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, ForwardShadingFragmentShader);
+				State->SkinnedMeshForwardShadingShaderProgram = CreateProgram(VertexShader, FragmentShader);
+			}
+
+			glGenBuffers(1, &State->SkinningTBO);
+			glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
+			// todo: size?
+			glBufferData(GL_TEXTURE_BUFFER, Megabytes(4), 0, GL_STREAM_DRAW);
+
+			glGenTextures(1, &State->SkinningTBOTexture);
+
+			glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
 			glEnable(GL_CULL_FACE);
 			glCullFace(GL_BACK);
@@ -332,6 +351,15 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			}
 			glUseProgram(0);
 
+			glUseProgram(State->SkinnedMeshForwardShadingShaderProgram);
+			{
+				mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
+
+				i32 ProjectionUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_Projection");
+				glUniformMatrix4fv(ProjectionUniformLocation, 1, GL_TRUE, &Projection.Elements[0][0]);
+			}
+			glUseProgram(0);
+
 			BaseAddress += sizeof(*Command);
 			break;
 		}
@@ -366,6 +394,18 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				glUniformMatrix4fv(ViewUniformLocation, 1, GL_TRUE, &View.Elements[0][0]);
 
 				i32 CameraPositionUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_CameraPosition");
+				glUniform3f(CameraPositionUniformLocation, Command->Position.x, Command->Position.y, Command->Position.z);
+			}
+			glUseProgram(0);
+
+			glUseProgram(State->SkinnedMeshForwardShadingShaderProgram);
+			{
+				mat4 View = LookAtLH(Command->Eye, Command->Target, Command->Up);
+
+				i32 ViewUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_View");
+				glUniformMatrix4fv(ViewUniformLocation, 1, GL_TRUE, &View.Elements[0][0]);
+
+				i32 CameraPositionUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_CameraPosition");
 				glUniform3f(CameraPositionUniformLocation, Command->Position.x, Command->Position.y, Command->Position.z);
 			}
 			glUseProgram(0);
@@ -435,7 +475,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 			glUseProgram(State->SimpleShaderProgram);
 
 			{
-				mat4 Model = CalculateModelMatrix(vec3(Command->Position, 0.f), vec3(Command->Size, 0.f), Command->Rotation);
+				mat4 Model = Transform(Command->Transform);
 
 				i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
 				glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
@@ -497,8 +537,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				{
 					glUseProgram(State->ForwardShadingShaderProgram);
 
-					mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
-					//mat4 Model = Command->Model;
+					mat4 Model = Transform(Command->Transform);
 
 					i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
 					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
@@ -573,8 +612,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				{
 					glUseProgram(State->SimpleShaderProgram);
 
-					mat4 Model = CalculateModelMatrix(Command->Position, Command->Scale, Command->Rotation);
-					//mat4 Model = Command->Model;
+					mat4 Model = Transform(Command->Transform);
 
 					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
 					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
@@ -619,6 +657,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 		{
 			render_command_set_directional_light *Command = (render_command_set_directional_light *)Entry;
 
+			// todo: !!!
 			glUseProgram(State->ForwardShadingShaderProgram);
 			{
 				i32 DirectionalLightDirectionUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_DirectionalLight.Direction");
@@ -627,6 +666,157 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 				glUniform3f(DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
 			}
 			glUseProgram(0);
+			glUseProgram(State->SkinnedMeshForwardShadingShaderProgram);
+			{
+				i32 DirectionalLightDirectionUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_DirectionalLight.Direction");
+				i32 DirectionalLightColorUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_DirectionalLight.Color");
+				glUniform3f(DirectionalLightDirectionUniformLocation, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
+				glUniform3f(DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
+			}
+			glUseProgram(0);
+
+			BaseAddress += sizeof(*Command);
+			break;
+		}
+		case RenderCommand_DrawSkinnedMesh:
+		{
+			render_command_draw_skinned_mesh *Command = (render_command_draw_skinned_mesh *)Entry;
+
+			opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->Id);
+
+			Assert(MeshBuffer);
+
+			glBindVertexArray(MeshBuffer->VAO);
+
+			switch (Command->Material.Type)
+			{
+				case MaterialType_Standard:
+				{
+					glUseProgram(State->SkinnedMeshForwardShadingShaderProgram);
+
+					glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
+					glBufferSubData(GL_TEXTURE_BUFFER, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
+					glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+					glActiveTexture(GL_TEXTURE0);
+					glBindTexture(GL_TEXTURE_BUFFER, State->SkinningTBOTexture);
+					glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, State->SkinningTBO);
+
+					i32 SkinningMatricesSamplerUniformLocation = 
+						glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_SkinningMatricesSampler");
+					glUniform1i(SkinningMatricesSamplerUniformLocation, 0);
+
+					// todo: store uniform locations
+					i32 MaterialDiffuseColorUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_Material.DiffuseColor");
+					i32 MaterialAmbientStrengthUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_Material.AmbientStrength");
+					i32 MaterialSpecularStrengthUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_Material.SpecularStrength");
+					i32 MaterialSpecularShininessUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_Material.SpecularShininess");
+					glUniform3f(
+						MaterialDiffuseColorUniformLocation,
+						Command->Material.DiffuseColor.r,
+						Command->Material.DiffuseColor.g,
+						Command->Material.DiffuseColor.b
+					);
+					glUniform1f(MaterialAmbientStrengthUniformLocation, Command->Material.AmbientStrength);
+					glUniform1f(MaterialSpecularStrengthUniformLocation, Command->Material.SpecularStrength);
+					glUniform1f(MaterialSpecularShininessUniformLocation, Command->Material.SpecularShininess);
+
+					// Point Lights
+					{
+						i32 PointLight1PositionUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[0].Position");
+						i32 PointLight1ColorUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[0].Color");
+						i32 PointLight1AttenuationConstantUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Constant");
+						i32 PointLight1AttenuationLinearUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Linear");
+						i32 PointLight1AttenuationQuadraticUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Quadratic");
+
+						glUniform3f(
+							PointLight1PositionUniformLocation,
+							Command->PointLight1.Position.x,
+							Command->PointLight1.Position.y,
+							Command->PointLight1.Position.z
+						);
+						glUniform3f(
+							PointLight1ColorUniformLocation,
+							Command->PointLight1.Color.r,
+							Command->PointLight1.Color.g,
+							Command->PointLight1.Color.b
+						);
+						glUniform1f(PointLight1AttenuationConstantUniformLocation, Command->PointLight1.Attenuation.Constant);
+						glUniform1f(PointLight1AttenuationLinearUniformLocation, Command->PointLight1.Attenuation.Linear);
+						glUniform1f(PointLight1AttenuationQuadraticUniformLocation, Command->PointLight1.Attenuation.Quadratic);
+					}
+
+					{
+						i32 PointLight2PositionUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[1].Position");
+						i32 PointLight2ColorUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[1].Color");
+						i32 PointLight2AttenuationConstantUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Constant");
+						i32 PointLight2AttenuationLinearUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Linear");
+						i32 PointLight2AttenuationQuadraticUniformLocation = glGetUniformLocation(State->SkinnedMeshForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Quadratic");
+
+						glUniform3f(
+							PointLight2PositionUniformLocation,
+							Command->PointLight2.Position.x,
+							Command->PointLight2.Position.y,
+							Command->PointLight2.Position.z
+						);
+						glUniform3f(
+							PointLight2ColorUniformLocation,
+							Command->PointLight2.Color.r,
+							Command->PointLight2.Color.g,
+							Command->PointLight2.Color.b
+						);
+						glUniform1f(PointLight2AttenuationConstantUniformLocation, Command->PointLight2.Attenuation.Constant);
+						glUniform1f(PointLight2AttenuationLinearUniformLocation, Command->PointLight2.Attenuation.Linear);
+						glUniform1f(PointLight2AttenuationQuadraticUniformLocation, Command->PointLight2.Attenuation.Quadratic);
+					}
+
+					break;
+				}
+				case MaterialType_Unlit:
+				{
+					Assert(!"Not Implemented");
+
+	#if 0
+					glUseProgram(State->SimpleShaderProgram);
+
+					mat4 Model = Transform(Command->Position, Command->Scale, Command->Rotation);
+
+					i32 ModelUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Model");
+					glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+
+					i32 ColorUniformLocation = glGetUniformLocation(State->SimpleShaderProgram, "u_Color");
+					glUniform4f(ColorUniformLocation, Command->Material.Color.r, Command->Material.Color.g, Command->Material.Color.b, 1.f);
+	#endif
+
+					break;
+				}
+				default:
+				{
+					Assert(!"Invalid material type");
+					break;
+				}
+			}
+
+			switch (MeshBuffer->PrimitiveType)
+			{
+				case PrimitiveType_Line:
+				{
+					glDrawElements(GL_LINES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+					break;
+				}
+				case PrimitiveType_Triangle:
+				{
+					glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+					break;
+				}
+				default:
+				{
+					Assert(!"Invalid primitive type");
+				}
+			}
+
+			glUseProgram(0);
+			glBindVertexArray(0);
 
 			BaseAddress += sizeof(*Command);
 			break;

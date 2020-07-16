@@ -13,6 +13,7 @@
 #include "handmade_physics.h"
 #include "handmade_assets.h"
 #include "handmade.h"
+//
 
 #include "win32_handmade_opengl.cpp"
 #include "handmade_opengl.cpp"
@@ -758,7 +759,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             ImGui::Begin("Stats");
 
-            ImGui::Text("%.3f ms/frame (%.1f FPS)", (f32)GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
+            ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
             ImGui::Text("Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
             ImGui::Checkbox("FullScreen", (bool *)&PlatformState.IsFullScreen);
             ImGui::Checkbox("VSync", (bool *)&PlatformState.VSync);

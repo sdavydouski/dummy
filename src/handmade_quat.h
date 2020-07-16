@@ -8,6 +8,7 @@ struct quat
     f32 w;
 
     explicit quat() = default;
+    explicit quat(f32 Value) : x(Value), y(Value), z(Value), w(Value) {}
     explicit quat(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
     explicit quat(vec3 v, f32 s) : x(v.x), y(v.y), z(v.z), w(s) {}
 

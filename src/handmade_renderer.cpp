@@ -1,5 +1,3 @@
-#pragma warning(disable: 26812)
-
 inline void
 InitRenderCommandsBuffer(render_commands *Commands, void *Memory, u32 Size)
 {
@@ -40,7 +38,7 @@ AddMesh(
 	u32 Id,
 	primitive_type PrimitiveType,
 	u32 VertexCount,
-	vertex *Vertices,
+	skinned_vertex *Vertices,
 	u32 IndexCount,
 	u32 *Indices
 )
@@ -124,12 +122,10 @@ DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickn
 }
 
 inline void
-DrawRectangle(render_commands *Commands, vec2 Position, vec2 Size, vec4 Color, vec4 Rotation = vec4(0.f))
+DrawRectangle(render_commands *Commands, transform Transform, vec4 Color)
 {
 	render_command_draw_rectangle *Command = PushRenderCommand(Commands, render_command_draw_rectangle, RenderCommand_DrawRectangle);
-	Command->Position = Position;
-	Command->Size = Size;
-	Command->Rotation = Rotation;
+	Command->Transform = Transform;
 	Command->Color = Color;
 }
 
@@ -147,9 +143,7 @@ inline void
 DrawMesh(
 	render_commands *Commands, 
 	u32 Id, 
-	vec3 Position, 
-	vec3 Scale, 
-	vec4 Rotation,
+	transform Transform,
 	material Material,
 	point_light PointLight1,
 	point_light PointLight2
@@ -157,37 +151,40 @@ DrawMesh(
 {
 	render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
 	Command->Id = Id;
-	Command->Position = Position;
-	Command->Scale = Scale;
-	Command->Rotation = Rotation;
+	Command->Transform = Transform;
 	Command->Material = Material;
 	Command->PointLight1 = PointLight1;
 	Command->PointLight2 = PointLight2;
 }
 
-#if 1
 inline void
-DrawMesh(
+DrawSkinnedMesh(
 	render_commands *Commands,
 	u32 Id,
-	mat4 Model,
+	transform Transform,
 	material Material,
 	point_light PointLight1,
-	point_light PointLight2
-	)
+	point_light PointLight2,
+	u32 SkinningMatrixCount,
+	mat4 *SkinningMatrices
+)
 {
-	render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
+	render_command_draw_skinned_mesh *Command = 
+		PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh);
 	Command->Id = Id;
-	Command->Model = Model;
+	Command->Transform = Transform;
 	Command->Material = Material;
 	Command->PointLight1 = PointLight1;
 	Command->PointLight2 = PointLight2;
+	Command->SkinningMatrixCount = SkinningMatrixCount;
+	Command->SkinningMatrices = SkinningMatrices;
 }
-#endif
+
 
 inline void
 SetDirectionalLight(render_commands *Commands, directional_light Light)
 {
-	render_command_set_directional_light *Command = PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight);
+	render_command_set_directional_light *Command = 
+		PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight);
 	Command->Light = Light;
 }

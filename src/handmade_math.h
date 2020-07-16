@@ -20,6 +20,25 @@ inline f32 Sqrt(f32 Value);
 
 // todo: SIMD
 
+struct transform
+{
+	quat Rotation;
+	vec3 Translation;
+	vec3 Scale;
+};
+
+inline transform
+CreateTransform(vec3 Translation, vec3 Scale, quat Rotation)
+{
+	transform Result;
+
+	Result.Translation = Translation;
+	Result.Scale = Scale;
+	Result.Rotation = Rotation;
+
+	return Result;
+}
+
 inline f32
 Square(f32 Value)
 {
@@ -254,22 +273,12 @@ Orthographic(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 inline mat4
 Perspective(f32 FovY, f32 Aspect, f32 Near, f32 Far)
 {
-#if 0
-	mat4 Result = mat4(
-		vec4(1.f / (Aspect * Tan(FovY * 0.5f)), 0.f, 0.f, 0.f),
-		vec4(0.f, 1.f / Tan(FovY / 2), 0.f, 0.f),
-		vec4(0.f, 0.f, (-Near - Far) / (Near - Far), 2.f * (Near * Far) / (Near - Far)),
-		vec4(0.f, 0.f, 1.f, 0.f)
-	);
-#else
 	mat4 Result = mat4(
 		vec4(1.f / (Aspect * Tan(FovY * 0.5f)), 0.f, 0.f, 0.f),
 		vec4(0.f, 1.f / Tan(FovY / 2), 0.f, 0.f),
 		vec4(0.f, 0.f, (-Near - Far) / (Far - Near), 2.f * (Near * Far) / (Near - Far)),
 		vec4(0.f, 0.f, -1.f, 0.f)
 	);
-#endif
-
 
 	return Result;
 }
@@ -291,23 +300,6 @@ LookAtLH(vec3 Eye, vec3 Target, vec3 WorldUp)
 	return Result;
 }
 
-inline mat4
-LookAtRH(vec3 Eye, vec3 Target, vec3 WorldUp)
-{
-	vec3 Forward = Normalize(Eye - Target);
-	vec3 Right = Normalize(Cross(WorldUp, Forward));
-	vec3 Up = Cross(Forward, Right);
-
-	mat4 Result = mat4(
-		vec4(Right, Dot(Right, Eye)),
-		vec4(Up, Dot(Up, Eye)),
-		vec4(Forward, Dot(Forward, Eye)),
-		vec4(0.f, 0.f, 0.f, 1.f)
-		);
-
-	return Result;
-}
-
 inline vec3
 CalculateDirectionFromEulerAngles(f32 Pitch, f32 Yaw)
 {
@@ -322,33 +314,12 @@ CalculateDirectionFromEulerAngles(f32 Pitch, f32 Yaw)
 	return Result;
 }
 
-// todo: use quaternion instead of vec4 for Rotation
 inline mat4
-CalculateModelMatrix(vec3 Position, vec3 Size, vec4 Rotation)
+Transform(transform Transform)
 {
-	mat4 T = Translate(Position);
-	mat4 R = mat4(1.f);
-
-	f32 Angle = Rotation.x;
-	vec3 RotationAxis = Rotation.yzw;
-
-	if (IsXAxis(RotationAxis))
-	{
-		R = RotateX(Angle);
-	}
-	else if (IsYAxis(RotationAxis))
-	{
-		R = RotateY(Angle);
-	}
-	else if (IsZAxis(RotationAxis))
-	{
-		R = RotateZ(Angle);
-	}
-	else
-	{
-		// todo: rotation around arbitrary axis
-	}
-	mat4 S = Scale(Size);
+	mat4 T = Translate(Transform.Translation);
+	mat4 R = GetRotationMatrix(Transform.Rotation);
+	mat4 S = Scale(Transform.Scale);
 
 	mat4 Result = T * R * S;
 
@@ -359,6 +330,21 @@ inline vec3
 GetTranslation(mat4 M)
 {
 	vec3 Result = M.Column(3).xyz;
+
+	return Result;
+}
+
+inline quat
+AxisAngle2Quat(vec4 AxisAngle)
+{
+	quat Result;
+
+	f32 Angle = AxisAngle.w;
+
+	Result.x = AxisAngle.x * Sin(Angle / 2);
+	Result.y = AxisAngle.y * Sin(Angle / 2);
+	Result.z = AxisAngle.z * Sin(Angle / 2);
+	Result.w = Cos(Angle / 2);
 
 	return Result;
 }
