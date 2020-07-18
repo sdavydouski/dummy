@@ -16,6 +16,19 @@ StringEquals(const wchar *Str1, const wchar *Str2) {
     return Result;
 }
 
+inline char *
+GetLastAfterDelimiter(char *String, const char Delimiter) {
+    char *Result = String;
+
+    for (char *Scan = String; *Scan; ++Scan) {
+        if (*Scan == Delimiter) {
+            Result = Scan + 1;
+        }
+    }
+
+    return Result;
+}
+
 inline wchar *
 GetLastAfterDelimiter(wchar *String, const wchar Delimiter) {
     wchar *Result = String;

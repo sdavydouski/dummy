@@ -7,17 +7,16 @@
 
 enum material_property_type
 {
+    MATERIAL_PROPERTY_FLOAT_SHININESS,
+
     MATERIAL_PROPERTY_COLOR_AMBIENT,
     MATERIAL_PROPERTY_COLOR_DIFFUSE,
     MATERIAL_PROPERTY_COLOR_SPECULAR,
 
-    MATERIAL_PROPERTY_FLOAT_SPECULAR_SHININESS,
-
     MATERIAL_PROPERTY_TEXTURE_DIFFUSE,
     MATERIAL_PROPERTY_TEXTURE_SPECULAR,
+    MATERIAL_PROPERTY_TEXTURE_SHININESS,
     MATERIAL_PROPERTY_TEXTURE_NORMALS
-
-    // ...
 };
 
 struct bitmap
@@ -28,7 +27,6 @@ struct bitmap
     void *Pixels;
 };
 
-// todo: import materials separatly from assimp (https://blender.stackexchange.com/questions/57531/fbx-export-why-there-are-no-materials-or-textures)?
 struct material_property
 {
     material_property_type Type;
@@ -40,7 +38,7 @@ struct material_property
     };
 };
 
-struct material_asset
+struct mesh_material
 {
     u32 PropertyCount;
     material_property *Properties;
@@ -91,15 +89,6 @@ struct joint_weight
     f32 Weight;
 };
 
-//struct vertex
-//{
-//    vec3 Position;
-//    vec3 Normal;
-//    vec2 TextureCoords;
-//    i32 JointIndices[4];
-//    vec4 Weights;
-//};
-
 struct mesh
 {
     //skeleton *Skeleton;
@@ -120,9 +109,8 @@ struct model_asset
     u32 MeshCount;
     mesh *Meshes;
 
-    // todo: remove?
     u32 MaterialCount;
-    material_asset *Materials;
+    mesh_material *Materials;
 
     u32 AnimationCount;
     animation_clip *Animations;

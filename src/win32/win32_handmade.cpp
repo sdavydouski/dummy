@@ -766,6 +766,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             ImGui::End();
 
+            f32 Margin = 10.f;
+            ImVec2 ContainerSize = ImVec2(400.f, 350.f);
+            ImGui::SetNextWindowSize(ContainerSize);
+            ImGui::SetNextWindowPos(ImVec2(PlatformState.WindowWidth - ContainerSize.x - Margin, Margin));
+
             ImGui::Begin("Game State");
 
             ImGui::Text("Animations:");

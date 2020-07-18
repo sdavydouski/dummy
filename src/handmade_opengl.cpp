@@ -690,6 +690,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
 			switch (Command->Material.Type)
 			{
+				// todo: organize materials (https://threejs.org/docs/#api/en/materials/MeshPhongMaterial)
 				case MaterialType_Standard:
 				{
 					glUseProgram(State->SkinnedMeshForwardShadingShaderProgram);

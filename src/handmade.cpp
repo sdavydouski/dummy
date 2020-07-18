@@ -93,6 +93,8 @@ struct closest_key_frames_result
 internal closest_key_frames_result
 FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime)
 {
+	Assert(PoseSample->KeyFrameCount > 1);
+
 	closest_key_frames_result Result = {};
 
 	for (u32 KeyFrameIndex = 0; KeyFrameIndex < PoseSample->KeyFrameCount - 1; ++KeyFrameIndex)
@@ -129,7 +131,7 @@ AnimateSkeleton(animation_clip *Animation, f32 CurrentTime, skeleton *Skeleton)
 
 		animation_sample *PoseSample = GetAnimationSampleByJointIndex(Animation, JointIndex);
 
-		if (PoseSample)
+		if (PoseSample && PoseSample->KeyFrameCount > 1)
 		{
 			closest_key_frames_result ClosestKeyFrames = FindClosestKeyFrames(PoseSample, CurrentTime);
 			key_frame *CurrentKeyFrame = ClosestKeyFrames.Current;
@@ -207,10 +209,21 @@ GAME_INIT(GameInit)
 	InitRenderer(RenderCommands, State->GridCount);
 
 	{
-		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\dummy.asset", &State->WorldArena);
+		model_asset ModelAsset = ReadModelAsset(Memory->Platform, (char *)"assets\\mutant.asset", &State->WorldArena);
 		// todo: process all meshes in a model
-		mesh *Mesh = ModelAsset.Meshes + 0;
-		AddMesh(RenderCommands, 1, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+		{
+			mesh *Mesh = ModelAsset.Meshes + 0;
+			AddMesh(RenderCommands, 1, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+		}
+		{
+			mesh *Mesh = ModelAsset.Meshes + 1;
+			//AddMesh(RenderCommands, 4, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+		}
+		{
+			mesh *Mesh = ModelAsset.Meshes + 2;
+			//AddMesh(RenderCommands, 5, PrimitiveType_Triangle, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+		}
+
 
 		State->Skeleton = ModelAsset.Skeleton;
 		State->SkinningMatrices = PushArray(&State->WorldArena, State->Skeleton.JointCount, mat4);
@@ -418,6 +431,10 @@ GAME_RENDER(GameRender)
 				State->CurrentTime = 0.f;
 			}
 
+			f32 Scale = 3.f;
+
+			mat4 Model = Transform(CreateTransform(vec3(0.f, 0.f, 0.f), vec3(Scale), quat(0.f)));
+
 #if 1
 			skeleton *Skeleton = &State->Skeleton;
 			for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
@@ -427,7 +444,7 @@ GAME_RENDER(GameRender)
 				mat4 *SkinningMatrix = State->SkinningMatrices + JointIndex;
 
 				mat4 GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Skeleton);
-				*SkinningMatrix = GlobalJointPose * Joint->InvBindTranform;
+				*SkinningMatrix = Model * GlobalJointPose * Joint->InvBindTranform;
 		}
 #endif
 
@@ -465,16 +482,24 @@ GAME_RENDER(GameRender)
 				PointLight2.Attenuation.Linear = 0.09f;
 				PointLight2.Attenuation.Quadratic = 0.032f;
 
-				DrawMesh(
-					RenderCommands, 3,
-					CreateTransform(vec3(4.f, 1.f, 0.f), vec3(1.f), AxisAngle2Quat(vec4(0.f, 1.f, 0.f, Parameters->Time))),
-					Material, PointLight1, PointLight2
-				);
+#if 0
+				DrawMesh(RenderCommands, 1, CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f)),
+					Material, PointLight1, PointLight2);
+#endif
 
 				// todo: named ids for meshes!!!
 
-				DrawSkinnedMesh(RenderCommands, 1, CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f)),
+#if 1
+				DrawSkinnedMesh(RenderCommands, 1, CreateTransform(vec3(0.f, 0.f, 0.f), vec3(Scale), quat(0.f)),
 					Material, PointLight1, PointLight2, State->Skeleton.JointCount, State->SkinningMatrices);
+
+				//DrawSkinnedMesh(RenderCommands, 4, CreateTransform(vec3(0.f, 0.f, 0.f), vec3(Scale), quat(0.f)),
+				//	Material, PointLight1, PointLight2, State->Skeleton.JointCount, State->SkinningMatrices);
+				//DrawSkinnedMesh(RenderCommands, 5, CreateTransform(vec3(0.f, 0.f, 0.f), vec3(Scale), quat(0.f)),
+				//	Material, PointLight1, PointLight2, State->Skeleton.JointCount, State->SkinningMatrices);
+#endif
+
+				//DrawSkeleton(RenderCommands, &State->Skeleton);
 			}
 			{
 				material Material = {};
@@ -499,7 +524,6 @@ GAME_RENDER(GameRender)
 				//DrawMesh(RenderCommands, 3, CreateTransform(vec3(-4.f, 1.f, 0.f), vec3(1.f), quat(0.f)), Material, {}, {});
 			}
 
-			//DrawSkeleton(RenderCommands, &State->Skeleton);
 #if 0
 			DrawBox(RenderCommands, vec3(4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
 			DrawBox(RenderCommands, vec3(-4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);

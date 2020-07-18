@@ -14,6 +14,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 #include <string>
 #include <vector>
@@ -110,11 +112,30 @@ LoadImage(const char *FilePath, bitmap *Bitmap)
     Bitmap->Pixels = stbi_load(FilePath, &Bitmap->Width, &Bitmap->Height, &Bitmap->Channels, 0);
 }
 
+inline aiTexture *
+FindAssimpTextureByFileName(const aiScene *AssimpScene, aiString TexturePath)
+{
+    aiTexture *Result = 0;
+
+    for (u32 TextureIndex = 0; TextureIndex < AssimpScene->mNumTextures; ++TextureIndex)
+    {
+        aiTexture *AssimpTexture = AssimpScene->mTextures[TextureIndex];
+
+        if (AssimpTexture->mFilename == TexturePath)
+        {
+            Result = AssimpTexture;
+            break;
+        }
+    }
+
+    return Result;
+}
+
 internal void 
 ProcessAssimpTextures(
+    const aiScene *AssimpScene,
     aiMaterial *AssimpMaterial,
     aiTextureType AssimpTextureType,
-    const char *DirectoryPath,
     u32 *TextureCount,
     bitmap **Bitmaps
 )
@@ -129,14 +150,33 @@ ProcessAssimpTextures(
         {
             bitmap *Bitmap = *Bitmaps + TextureIndex;
 
-            string FullPath = string(DirectoryPath) + AssimpString2StdString(TexturePath);
-            LoadImage(FullPath.c_str(), Bitmap);
+            aiTexture *AssimpTexture = FindAssimpTextureByFileName(AssimpScene, TexturePath);
+
+            Assert(AssimpTexture);
+
+            if (AssimpTexture->mHeight == 0)
+            {
+                // Compressed texture data
+                i32 TextureWidth;
+                i32 TextureHeight;
+                i32 TextureChannels;
+                void *Pixels = stbi_load_from_memory((stbi_uc *)AssimpTexture->pcData, AssimpTexture->mWidth, &TextureWidth, &TextureHeight, &TextureChannels, 0);
+
+                Bitmap->Width = TextureWidth;
+                Bitmap->Height = TextureHeight;
+                Bitmap->Channels = TextureChannels;
+                Bitmap->Pixels = Pixels;
+            }
+            else
+            {
+                Assert(!"Not implemented");
+            }
         }
     }
 }
 
 internal void
-ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, material_asset *Material)
+ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, mesh_material *Material)
 {
     Material->Properties = (material_property *)malloc(MAX_MATERIAL_PROPERTY_COUNT * sizeof(material_property));
     u32 MaterialPropertyIndex = 0;
@@ -145,7 +185,7 @@ ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, mat
     if (aiGetMaterialFloat(AssimpMaterial, AI_MATKEY_SHININESS, &SpecularShininess) == AI_SUCCESS)
     {
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_FLOAT_SPECULAR_SHININESS;
+        MaterialProperty->Type = MATERIAL_PROPERTY_FLOAT_SHININESS;
         MaterialProperty->Value = SpecularShininess;
 
         ++MaterialPropertyIndex;
@@ -183,7 +223,7 @@ ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, mat
 
     u32 DiffuseMapCount = 0;
     bitmap *DiffuseMaps = 0;
-    ProcessAssimpTextures(AssimpMaterial, aiTextureType_DIFFUSE, DirectoryPath, &DiffuseMapCount, &DiffuseMaps);
+    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DIFFUSE, &DiffuseMapCount, &DiffuseMaps);
     for (u32 DiffuseMapIndex = 0; DiffuseMapIndex < DiffuseMapCount; ++DiffuseMapIndex)
     {
         bitmap *DiffuseMap = DiffuseMaps + DiffuseMapIndex;
@@ -197,7 +237,7 @@ ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, mat
 
     u32 SpecularMapCount = 0;
     bitmap *SpecularMaps = 0;
-    ProcessAssimpTextures(AssimpMaterial, aiTextureType_SPECULAR, DirectoryPath, &SpecularMapCount, &SpecularMaps);
+    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SPECULAR, &SpecularMapCount, &SpecularMaps);
     for (u32 SpecularMapIndex = 0; SpecularMapIndex < SpecularMapCount; ++SpecularMapIndex)
     {
         bitmap *SpecularMap = SpecularMaps + SpecularMapIndex;
@@ -209,9 +249,23 @@ ProcessAssimpMaterial(aiMaterial *AssimpMaterial, const char *DirectoryPath, mat
         ++MaterialPropertyIndex;
     }
 
+    u32 ShininessMapCount = 0;
+    bitmap *ShininessMaps = 0;
+    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SHININESS, &ShininessMapCount, &ShininessMaps);
+    for (u32 ShininessMapIndex = 0; ShininessMapIndex < ShininessMapCount; ++ShininessMapIndex)
+    {
+        bitmap *ShininessMap = ShininessMaps + ShininessMapIndex;
+
+        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+        MaterialProperty->Type = MATERIAL_PROPERTY_TEXTURE_SHININESS;
+        MaterialProperty->Bitmap = *ShininessMap;
+
+        ++MaterialPropertyIndex;
+    }
+
     u32 NormalsMapCount = 0;
     bitmap *NormalsMaps = 0;
-    ProcessAssimpTextures(AssimpMaterial, aiTextureType_NORMALS, DirectoryPath, &NormalsMapCount, &NormalsMaps);
+    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_NORMALS, &NormalsMapCount, &NormalsMaps);
     for (u32 NormalsMapIndex = 0; NormalsMapIndex < NormalsMapCount; ++NormalsMapIndex)
     {
         bitmap *NormalsMap = NormalsMaps + NormalsMapIndex;
@@ -338,6 +392,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
 
     if (AssimpMesh->HasBones())
     {
+        // todo: multiple meshes issue?
         hashtable<u32, dynamic_array<joint_weight>> JointWeightsTable = {};
 
         for (u32 BoneIndex = 0; BoneIndex < AssimpMesh->mNumBones; ++BoneIndex)
@@ -555,12 +610,11 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
 }
 
 internal void
-ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_asset *Asset)
+ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
 {
     // todo: check if model has skeleton information
     ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
 
-#if 1
     if (AssimpScene->HasMeshes())
     {
         Asset->MeshCount = AssimpScene->mNumMeshes;
@@ -574,25 +628,57 @@ ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_
             ProcessAssimpMesh(AssimpMesh, MeshIndex, AssimpScene->mRootNode, Mesh, &Asset->Skeleton);
         }
     }
-#endif
 
-#if 0
     if (AssimpScene->HasMaterials())
     {
         Asset->MaterialCount = AssimpScene->mNumMaterials;
-        Asset->Materials = (material_asset *)malloc(Asset->MaterialCount * sizeof(material_asset));
+        Asset->Materials = (mesh_material *)malloc(Asset->MaterialCount * sizeof(mesh_material));
 
         for (u32 MaterialIndex = 0; MaterialIndex < Asset->MaterialCount; ++MaterialIndex)
         {
             aiMaterial *AssimpMaterial = AssimpScene->mMaterials[MaterialIndex];
-            material_asset *Material = Asset->Materials + MaterialIndex;
+            mesh_material *Material = Asset->Materials + MaterialIndex;
 
-            ProcessAssimpMaterial(AssimpMaterial, DirectoryPath, Material);
+            ProcessAssimpMaterial(AssimpScene, AssimpMaterial, Material);
+        }
+    }
+
+#if 0
+    if (AssimpScene->HasTextures())
+    {
+        for (u32 TextureIndex = 0; TextureIndex < AssimpScene->mNumTextures; ++TextureIndex)
+        {
+            aiTexture *AssimpTexture = AssimpScene->mTextures[TextureIndex];
+
+            if (AssimpTexture->mHeight == 0)
+            {
+                if (StringEquals(AssimpTexture->achFormatHint, "png"))
+                {
+                    i32 TextureWidth;
+                    i32 TextureHeight;
+                    i32 TextureComp;
+                    void *Pixels = stbi_load_from_memory((stbi_uc *)AssimpTexture->pcData, AssimpTexture->mWidth, &TextureWidth, &TextureHeight, &TextureComp, 0);
+
+                    // http://www.libpng.org/pub/png/spec/1.2/png-1.2.pdf
+                    // https://github.com/assimp/assimp/issues/408
+
+                    char *FileName = GetLastAfterDelimiter(const_cast<char *>(AssimpTexture->mFilename.C_Str()), '/');
+
+                    stbi_write_png(FileName, TextureWidth, TextureHeight, TextureComp, Pixels, TextureWidth * TextureComp);
+                }
+                else
+                {
+                    Assert(!"Not implemented");
+                }
+            }
+            else
+            {
+                Assert(!"Not implemented");
+            }
         }
     }
 #endif
 
-#if 1
     if (AssimpScene->HasAnimations())
     {
         Asset->AnimationCount = AssimpScene->mNumAnimations;
@@ -606,7 +692,6 @@ ProcessAssimpScene(const aiScene *AssimpScene, const char *DirectoryPath, model_
             ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
         }
     }
-#endif
 }
 
 internal void
@@ -618,10 +703,7 @@ LoadModelAsset(char *FilePath, u32 Flags, model_asset *Asset)
     {
         *Asset = {};
 
-        char DirectoryPath[256];
-        GetDirectoryPath(FilePath, DirectoryPath);
-
-        ProcessAssimpScene(AssimpScene, DirectoryPath, Asset);
+        ProcessAssimpScene(AssimpScene, Asset);
 
         aiReleaseImport(AssimpScene);
     }
@@ -705,22 +787,31 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 }
 
 // check https://www.mixamo.com/ for more characters and animations
+// regarding multiple animations from mixamo: https://community.adobe.com/t5/fuse-beta/multiple-animation-export-for-mixamo/td-p/9346492?page=1
 i32 main(i32 ArgCount, char **Args)
 {
-    char *FilePath = (char *)"models\\Animated Human Updated.fbx";
+    //char *FilePath = (char *)"models\\Animated Human Updated.fbx";
+    //char *FilePath = (char *)"models\\Ch05_nonPBR.fbx";
+    //char *FilePath = (char *)"models\\Silly Dancing.fbx";
+    char *FilePath = (char *)"models\\Chicken Dance.fbx";
+    //char *FilePath = (char *)"models\\mutant.fbx";
+    //char *FilePath = (char *)"models\\ybot.fbx";
     //char *FilePath = (char *)"models\\cowboy.dae";
     //char *FilePath = (char *)"models\\Knight_Golden_Male_Updated.fbx";
     //char *FilePath = (char *)"models\\cube.obj";
     //char *FilePath = (char *)"models\\monkey.obj";
     //char *FilePath = (char *)"models\\light.obj";
     // todo: http://assimp.sourceforge.net/lib_html/postprocess_8h.html
-    u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure | aiProcess_GlobalScale;
+    // todo: aiProcess_OptimizeGraph?
+    u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure | 
+        aiProcess_OptimizeMeshes | aiProcess_GlobalScale;
     //u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure;
 
     model_asset Asset;
     LoadModelAsset(FilePath, Flags, &Asset);
 
-    FILE *AssetFile = fopen("assets\\dummy.asset", "wb");
+    FILE *AssetFile = fopen("assets\\mutant.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\char.asset", "wb");
     //FILE *AssetFile = fopen("assets\\cowboy.asset", "wb");
     //FILE *AssetFile = fopen("assets\\knight.asset", "wb");
     //FILE *AssetFile = fopen("assets\\cube.asset", "wb");
@@ -734,6 +825,8 @@ i32 main(i32 ArgCount, char **Args)
     Header.SkeletonHeaderOffset = 0;
     Header.MeshesHeaderOffset = 0;
     Header.AnimationsHeaderOffset = 0;
+
+    // TODO: SAVE MATERIALS
 
     u32 CurrentStreamPosition = 0;
 
@@ -764,6 +857,7 @@ i32 main(i32 ArgCount, char **Args)
 
     fwrite(&MeshesHeader, sizeof(model_asset_meshes_header), 1, AssetFile);
 
+    u32 TotalPrevMeshSize = 0;
     for (u32 MeshIndex = 0; MeshIndex < Asset.MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Asset.Meshes + MeshIndex;
@@ -772,9 +866,11 @@ i32 main(i32 ArgCount, char **Args)
         MeshHeader.PrimitiveType = Mesh->PrimitiveType;
         MeshHeader.VertexCount = Mesh->VertexCount;
         MeshHeader.IndexCount = Mesh->IndexCount;
-        MeshHeader.VerticesOffset = MeshesHeader.MeshesOffset + MeshIndex * (sizeof(model_asset_mesh_header) + 
-            Mesh->VertexCount * sizeof(skinned_vertex) + Mesh->IndexCount * sizeof(u32)) + sizeof(model_asset_mesh_header);
+        MeshHeader.VerticesOffset = MeshesHeader.MeshesOffset + sizeof(model_asset_mesh_header) + TotalPrevMeshSize;
         MeshHeader.IndicesOffset = MeshHeader.VerticesOffset + Mesh->VertexCount * sizeof(skinned_vertex);
+
+        TotalPrevMeshSize += sizeof(model_asset_mesh_header) + 
+            Mesh->VertexCount * sizeof(skinned_vertex) + Mesh->IndexCount * sizeof(u32);
 
         fwrite(&MeshHeader, sizeof(model_asset_mesh_header), 1, AssetFile);
         fwrite(Mesh->Vertices, sizeof(skinned_vertex), Mesh->VertexCount, AssetFile);
@@ -825,8 +921,6 @@ i32 main(i32 ArgCount, char **Args)
         TotalPrevKeyFrameSize += PrevKeyFrameSize;
     }
 
-    // todo: add materials?
-
     fseek(AssetFile, 0, SEEK_SET);
     fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
 
@@ -834,6 +928,6 @@ i32 main(i32 ArgCount, char **Args)
 
 #if 1
     model_asset TestAsset = {};
-    ReadAssetFile("assets\\dummy.asset", &TestAsset, &Asset);
+    ReadAssetFile("assets\\ybot.asset", &TestAsset, &Asset);
 #endif
 }

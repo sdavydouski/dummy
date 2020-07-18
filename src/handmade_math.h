@@ -179,11 +179,12 @@ Max(i32 ArgCount, ...)
 inline mat4
 Scale(f32 Value)
 {
-	mat4 Result = mat4(1.f);
-
-	Result[0][0] = Value;
-	Result[1][1] = Value;
-	Result[2][2] = Value;
+	mat4 Result = mat4(
+		vec4(Value, 0.f, 0.f, 0.f),
+		vec4(0.f, Value, 0.f, 0.f),
+		vec4(0.f, 0.f, Value, 0.f),
+		vec4(0.f, 0.f, 0.f, 1.f)
+	);
 
 	return Result;
 }
@@ -191,11 +192,12 @@ Scale(f32 Value)
 inline mat4
 Scale(vec3 Vector)
 {
-	mat4 Result = mat4(1.f);
-
-	Result[0][0] = Vector.x;
-	Result[1][1] = Vector.y;
-	Result[2][2] = Vector.z;
+	mat4 Result = mat4(
+		vec4(Vector.x, 0.f, 0.f, 0.f),
+		vec4(0.f, Vector.y, 0.f, 0.f),
+		vec4(0.f, 0.f, Vector.z, 0.f),
+		vec4(0.f, 0.f, 0.f, 1.f)
+	);
 
 	return Result;
 }
@@ -203,11 +205,12 @@ Scale(vec3 Vector)
 inline mat4
 Translate(vec3 Value)
 {
-	mat4 Result = mat4(1.f);
-
-	Result[0][3] = Value.x;
-	Result[1][3] = Value.y;
-	Result[2][3] = Value.z;
+	mat4 Result = mat4(
+		vec4(1.f, 0.f, 0.f, Value.x),
+		vec4(0.f, 1.f, 0.f, Value.y),
+		vec4(0.f, 0.f, 1.f, Value.z),
+		vec4(0.f, 0.f, 0.f, 1.f)
+	);
 
 	return Result;
 }
@@ -215,12 +218,12 @@ Translate(vec3 Value)
 inline mat4
 RotateX(f32 Angle)
 {
-	mat4 Result = mat4(1.f);
-
-	Result[1][1] = Cos(Angle);
-	Result[1][2] = -Sin(Angle);
-	Result[2][1] = Sin(Angle);
-	Result[2][2] = Cos(Angle);
+	mat4 Result = mat4(
+		vec4(1.f, 0.f, 0.f, 0.f),
+		vec4(0.f, Cos(Angle), -Sin(Angle), 0.f),
+		vec4(0.f, Sin(Angle), Cos(Angle), 0.f),
+		vec4(0.f, 0.f, 0.f, 1.f)
+	);
 
 	return Result;
 }
@@ -228,12 +231,12 @@ RotateX(f32 Angle)
 inline mat4
 RotateY(f32 Angle)
 {
-	mat4 Result = mat4(1.f);
-
-	Result[0][0] = Cos(Angle);
-	Result[0][2] = Sin(Angle);
-	Result[2][0] = -Sin(Angle);
-	Result[2][2] = Cos(Angle);
+	mat4 Result = mat4(
+		vec4(Cos(Angle), 0.f, Sin(Angle), 0.f),
+		vec4(0.f, 1.f, 0.f, 0.f),
+		vec4(-Sin(Angle), 0.f, Cos(Angle), 0.f),
+		vec4(0.f, 0.f, 0.f, 1.f)
+	);
 
 	return Result;
 }
@@ -241,12 +244,12 @@ RotateY(f32 Angle)
 inline mat4
 RotateZ(f32 Angle)
 {
-	mat4 Result = mat4(1.f);
-
-	Result[0][0] = Cos(Angle);
-	Result[0][1] = -Sin(Angle);
-	Result[1][0] = Sin(Angle);
-	Result[1][1] = Cos(Angle);
+	mat4 Result = mat4(
+		vec4(Cos(Angle), -Sin(Angle), 0.f, 0.f),
+		vec4(Sin(Angle), Cos(Angle), 0.f, 0.f),
+		vec4(0.f, 0.f, 1.f, 0.f),
+		vec4(0.f, 0.f, 0.f, 1.f)
+	);
 
 	return Result;
 }
