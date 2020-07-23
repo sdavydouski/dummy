@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="dummy.h" />
+    <ClInclude Include="dummy_assets.h" />
+    <ClInclude Include="dummy_collision.h" />
+    <ClInclude Include="dummy_defs.h" />
+    <ClInclude Include="dummy_mat4.h" />
+    <ClInclude Include="dummy_math.h" />
+    <ClInclude Include="dummy_memory.h" />
+    <ClInclude Include="dummy_opengl.h" />
+    <ClInclude Include="dummy_opengl_shaders.h" />
+    <ClInclude Include="dummy_physics.h" />
+    <ClInclude Include="dummy_platform.h" />
+    <ClInclude Include="dummy_quat.h" />
+    <ClInclude Include="dummy_renderer.h" />
+    <ClInclude Include="dummy_string.h" />
+    <ClInclude Include="dummy_vec2.h" />
+    <ClInclude Include="dummy_vec3.h" />
+    <ClInclude Include="dummy_vec4.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="dummy_assets.cpp" />
+    <None Include="dummy_debug.cpp" />
+    <None Include="dummy_opengl.cpp" />
+    <None Include="dummy_renderer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dummy.cpp" />
+  </ItemGroup>
+</Project>

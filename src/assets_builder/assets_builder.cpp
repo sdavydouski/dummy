@@ -1,10 +1,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "handmade_defs.h"
-#include "handmade_math.h"
-#include "handmade_string.h"
-#include "handmade_renderer.h"
-#include "handmade_assets.h"
+#include "dummy_defs.h"
+#include "dummy_math.h"
+#include "dummy_string.h"
+#include "dummy_assets.h"
 
 #undef PI
 
@@ -32,6 +31,8 @@
 #define TEXTURE_COORDINATES_SET_INDEX 0
 
 #define MAX_WEIGHT_COUNT 4
+#undef AI_CONFIG_PP_LBW_MAX_WEIGHTS
+#define AI_CONFIG_PP_LBW_MAX_WEIGHTS MAX_WEIGHT_COUNT
 
 using std::string;
 
@@ -104,12 +105,6 @@ AssimpString2StdString(aiString AssimpString)
     string Result = string(AssimpString.C_Str());
 
     return Result;
-}
-
-inline void
-LoadImage(const char *FilePath, bitmap *Bitmap)
-{
-    Bitmap->Pixels = stbi_load(FilePath, &Bitmap->Width, &Bitmap->Height, &Bitmap->Channels, 0);
 }
 
 inline aiTexture *
@@ -185,7 +180,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
     if (aiGetMaterialFloat(AssimpMaterial, AI_MATKEY_SHININESS, &SpecularShininess) == AI_SUCCESS)
     {
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_FLOAT_SHININESS;
+        MaterialProperty->Type = MaterialProperty_Float_Shininess;
         MaterialProperty->Value = SpecularShininess;
 
         ++MaterialPropertyIndex;
@@ -195,7 +190,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
     if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_AMBIENT, &AmbientColor) == AI_SUCCESS)
     {
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_COLOR_AMBIENT;
+        MaterialProperty->Type = MaterialProperty_Color_Ambient;
         MaterialProperty->Color = AssimpColor2Vector(AmbientColor);
 
         ++MaterialPropertyIndex;
@@ -205,7 +200,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
     if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &DiffuseColor) == AI_SUCCESS)
     {
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_COLOR_DIFFUSE;
+        MaterialProperty->Type = MaterialProperty_Color_Diffuse;
         MaterialProperty->Color = AssimpColor2Vector(DiffuseColor);
 
         ++MaterialPropertyIndex;
@@ -215,7 +210,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
     if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_SPECULAR, &SpecularColor) == AI_SUCCESS)
     {
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_COLOR_SPECULAR;
+        MaterialProperty->Type = MaterialProperty_Color_Specular;
         MaterialProperty->Color = AssimpColor2Vector(SpecularColor);
 
         ++MaterialPropertyIndex;
@@ -229,7 +224,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
         bitmap *DiffuseMap = DiffuseMaps + DiffuseMapIndex;
 
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_TEXTURE_DIFFUSE;
+        MaterialProperty->Type = MaterialProperty_Texture_Diffuse;
         MaterialProperty->Bitmap = *DiffuseMap;
 
         ++MaterialPropertyIndex;
@@ -243,7 +238,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
         bitmap *SpecularMap = SpecularMaps + SpecularMapIndex;
 
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_TEXTURE_SPECULAR;
+        MaterialProperty->Type = MaterialProperty_Texture_Specular;
         MaterialProperty->Bitmap = *SpecularMap;
 
         ++MaterialPropertyIndex;
@@ -257,7 +252,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
         bitmap *ShininessMap = ShininessMaps + ShininessMapIndex;
 
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_TEXTURE_SHININESS;
+        MaterialProperty->Type = MaterialProperty_Texture_Shininess;
         MaterialProperty->Bitmap = *ShininessMap;
 
         ++MaterialPropertyIndex;
@@ -271,7 +266,7 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
         bitmap *NormalsMap = NormalsMaps + NormalsMapIndex;
 
         material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MATERIAL_PROPERTY_TEXTURE_NORMALS;
+        MaterialProperty->Type = MaterialProperty_Texture_Normal;
         MaterialProperty->Bitmap = *NormalsMap;
 
         ++MaterialPropertyIndex;
@@ -363,6 +358,8 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
         }
     }
 
+    Mesh->MaterialIndex = AssimpMesh->mMaterialIndex;
+
     Mesh->VertexCount = AssimpMesh->mNumVertices;
     Mesh->Vertices = (skinned_vertex *)malloc(Mesh->VertexCount * sizeof(skinned_vertex));
 
@@ -390,9 +387,9 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
         }
     }
 
+#if 1
     if (AssimpMesh->HasBones())
     {
-        // todo: multiple meshes issue?
         hashtable<u32, dynamic_array<joint_weight>> JointWeightsTable = {};
 
         for (u32 BoneIndex = 0; BoneIndex < AssimpMesh->mNumBones; ++BoneIndex)
@@ -407,7 +404,14 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
                 f32 JointWeight = AssimpVertexWeight->mWeight;
                 u32 JointIndex = FindJointIndexByName(AssimpBone->mName.C_Str(), Skeleton);
 
+                if (JointWeightsTable.find(VertexIndex) == JointWeightsTable.end())
+                {
+                    //JointWeightsTable[VertexIndex].reserve(1000);
+                }
+
                 JointWeightsTable[VertexIndex].push_back({ JointIndex, JointWeight });
+
+                int t = 0;
             }
         }
 
@@ -443,6 +447,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
             }
         }
     }
+#endif
 
     if (AssimpMesh->HasFaces())
     {
@@ -504,6 +509,25 @@ GetBoneRootNode(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes
     }
 
     return 0;
+}
+
+inline aiNode *
+GetAssimpRootNode(const aiScene *AssimpScene)
+{
+    aiNode *RootNode = AssimpScene->mRootNode;
+
+    for (u32 ChildIndex = 0; ChildIndex < RootNode->mNumChildren; ++ChildIndex)
+    {
+        aiNode *ChildNode = RootNode->mChildren[ChildIndex];
+
+        if (ChildNode->mName == aiString("RootNode"))
+        {
+            RootNode = ChildNode;
+            break;
+        }
+    }
+
+    return RootNode;
 }
 
 internal void
@@ -574,7 +598,9 @@ internal void
 ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
 {
     hashtable<string, assimp_node *> SceneNodes;
-    ProcessAssimpNodeHierarchy(AssimpScene->mRootNode, SceneNodes);
+
+    aiNode *RootNode = GetAssimpRootNode(AssimpScene);
+    ProcessAssimpNodeHierarchy(RootNode, SceneNodes);
 
     u32 JointCount = (u32)SceneNodes.size();
 
@@ -597,7 +623,7 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
     Skeleton->LocalJointPoses = (joint_pose *)malloc(sizeof(joint_pose) * JointCount);
     Skeleton->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
 
-    ProcessAssimpBoneHierarchy(AssimpScene->mRootNode, SceneNodes, Skeleton);
+    ProcessAssimpBoneHierarchy(RootNode, SceneNodes, Skeleton);
 
     for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
     {
@@ -642,42 +668,6 @@ ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
             ProcessAssimpMaterial(AssimpScene, AssimpMaterial, Material);
         }
     }
-
-#if 0
-    if (AssimpScene->HasTextures())
-    {
-        for (u32 TextureIndex = 0; TextureIndex < AssimpScene->mNumTextures; ++TextureIndex)
-        {
-            aiTexture *AssimpTexture = AssimpScene->mTextures[TextureIndex];
-
-            if (AssimpTexture->mHeight == 0)
-            {
-                if (StringEquals(AssimpTexture->achFormatHint, "png"))
-                {
-                    i32 TextureWidth;
-                    i32 TextureHeight;
-                    i32 TextureComp;
-                    void *Pixels = stbi_load_from_memory((stbi_uc *)AssimpTexture->pcData, AssimpTexture->mWidth, &TextureWidth, &TextureHeight, &TextureComp, 0);
-
-                    // http://www.libpng.org/pub/png/spec/1.2/png-1.2.pdf
-                    // https://github.com/assimp/assimp/issues/408
-
-                    char *FileName = GetLastAfterDelimiter(const_cast<char *>(AssimpTexture->mFilename.C_Str()), '/');
-
-                    stbi_write_png(FileName, TextureWidth, TextureHeight, TextureComp, Pixels, TextureWidth * TextureComp);
-                }
-                else
-                {
-                    Assert(!"Not implemented");
-                }
-            }
-            else
-            {
-                Assert(!"Not implemented");
-            }
-        }
-    }
-#endif
 
     if (AssimpScene->HasAnimations())
     {
@@ -740,7 +730,9 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
         model_asset_mesh_header *MeshHeader = (model_asset_mesh_header *)((u8 *)Buffer + 
             MeshesHeader->MeshesOffset + NextMeshHeaderOffset);
         mesh Mesh = {};
+
         Mesh.PrimitiveType = MeshHeader->PrimitiveType;
+        Mesh.MaterialIndex = MeshHeader->MaterialIndex;
         Mesh.VertexCount = MeshHeader->VertexCount;
         Mesh.IndexCount = MeshHeader->IndexCount;
         Mesh.Vertices = (skinned_vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
@@ -748,6 +740,77 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
         NextMeshHeaderOffset += sizeof(model_asset_mesh_header) + 
             MeshHeader->VertexCount * sizeof(skinned_vertex) + MeshHeader->IndexCount * sizeof(u32);
+    }
+
+    model_asset_materials_header *MaterialsHeader = (model_asset_materials_header *)((u8 *)Buffer + Header->MaterialsHeaderOffset);
+
+    u64 NextMaterialHeaderOffset = 0;
+    for (u32 MaterialIndex = 0; MaterialIndex < MaterialsHeader->MaterialCount; ++MaterialIndex)
+    {
+        model_asset_material_header *MaterialHeader = (model_asset_material_header *)((u8 *)Buffer +
+            MaterialsHeader->MaterialsOffset + NextMaterialHeaderOffset);
+        mesh_material Material = {};
+        Material.PropertyCount = MaterialHeader->PropertyCount;
+        Material.Properties = (material_property *)((u8 *)Buffer + MaterialHeader->PropertiesOffset);
+
+        u64 NextMaterialPropertyHeaderOffset = 0;
+        for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MaterialHeader->PropertyCount; ++MaterialPropertyIndex)
+        {
+            model_asset_material_property_header *MaterialPropertyHeader = (model_asset_material_property_header *)
+                ((u8 *)Buffer + MaterialHeader->PropertiesOffset + NextMaterialPropertyHeaderOffset);
+
+            material_property *MaterialProperty = Material.Properties + MaterialPropertyIndex;
+
+            MaterialProperty->Type = MaterialPropertyHeader->Type;
+            switch (MaterialProperty->Type)
+            {
+                case MaterialProperty_Float_Shininess:
+                {
+                    MaterialProperty->Value = MaterialPropertyHeader->Value;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header);
+
+                    break;
+                }
+                case MaterialProperty_Color_Ambient:
+                case MaterialProperty_Color_Diffuse:
+                case MaterialProperty_Color_Specular:
+                {
+                    MaterialProperty->Color = MaterialPropertyHeader->Color;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header);
+
+                    break;
+                }
+                case MaterialProperty_Texture_Diffuse:
+                case MaterialProperty_Texture_Specular:
+                case MaterialProperty_Texture_Shininess:
+                case MaterialProperty_Texture_Normal:
+                {
+                    MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
+                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+
+#if 0
+                    char FileName[64];
+                    FormatString(FileName, ArrayCount(FileName), "%d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+
+                    stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
+#endif
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header) + BitmapSize;
+
+                    break;
+                }
+                default:
+                {
+                    Assert(!"Invalid material property");
+                }
+            }
+        }
+
+        NextMaterialHeaderOffset += sizeof(model_asset_material_header) + NextMaterialPropertyHeaderOffset;
     }
 
     model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)((u8 *)Buffer + Header->AnimationsHeaderOffset);
@@ -790,33 +853,38 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 // regarding multiple animations from mixamo: https://community.adobe.com/t5/fuse-beta/multiple-animation-export-for-mixamo/td-p/9346492?page=1
 i32 main(i32 ArgCount, char **Args)
 {
-    //char *FilePath = (char *)"models\\Animated Human Updated.fbx";
+    //char *FilePath = (char *)"models\\mutant_samba_dancing.fbx";
+    char *FilePath = (char *)"models\\zlorp_gangnam_style.fbx";
+    //char *FilePath = (char *)"models\\ybot_gangnam_style.fbx";
+    //char *FilePath = (char *)"models\\zlorp.fbx";
+    //char *FilePath = (char *)"models\\Tut Hip Hop Dance.fbx";
     //char *FilePath = (char *)"models\\Ch05_nonPBR.fbx";
-    //char *FilePath = (char *)"models\\Silly Dancing.fbx";
-    char *FilePath = (char *)"models\\Chicken Dance.fbx";
+    //char *FilePath = (char *)"models\\Breakdance Footwork 1.fbx";
+    //char *FilePath = (char *)"models\\arissa_dancing.fbx";
+    //char *FilePath = (char *)"models\\Chicken Dance.fbx";
     //char *FilePath = (char *)"models\\mutant.fbx";
     //char *FilePath = (char *)"models\\ybot.fbx";
-    //char *FilePath = (char *)"models\\cowboy.dae";
-    //char *FilePath = (char *)"models\\Knight_Golden_Male_Updated.fbx";
     //char *FilePath = (char *)"models\\cube.obj";
-    //char *FilePath = (char *)"models\\monkey.obj";
     //char *FilePath = (char *)"models\\light.obj";
-    // todo: http://assimp.sourceforge.net/lib_html/postprocess_8h.html
-    // todo: aiProcess_OptimizeGraph?
-    u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure | 
-        aiProcess_OptimizeMeshes | aiProcess_GlobalScale;
-    //u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_ValidateDataStructure;
+    
+    u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_JoinIdenticalVertices | 
+        aiProcess_ValidateDataStructure | aiProcess_OptimizeMeshes | aiProcess_LimitBoneWeights | aiProcess_GlobalScale |
+        aiProcess_RemoveRedundantMaterials | aiProcess_FixInfacingNormals | aiProcess_OptimizeGraph;
 
     model_asset Asset;
     LoadModelAsset(FilePath, Flags, &Asset);
 
-    FILE *AssetFile = fopen("assets\\mutant.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\char.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\cowboy.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\knight.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\cube.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\monkey.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\ybot.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\arissa.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\mutant.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\morak.asset", "wb");
+    FILE *AssetFile = fopen("assets\\zlorp_gangnam_style.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\ybot_gangnam_style.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\mutant_samba_dancing.asset", "wb");
     //FILE *AssetFile = fopen("assets\\light.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\cube.asset", "wb");
+
+    // todo: MeshCount assertion
 
     model_asset_header Header = {};
     Header.MagicValue = 0x451;
@@ -824,11 +892,10 @@ i32 main(i32 ArgCount, char **Args)
     // will be filled later
     Header.SkeletonHeaderOffset = 0;
     Header.MeshesHeaderOffset = 0;
+    Header.MaterialsHeaderOffset = 0;
     Header.AnimationsHeaderOffset = 0;
 
-    // TODO: SAVE MATERIALS
-
-    u32 CurrentStreamPosition = 0;
+    u64 CurrentStreamPosition = 0;
 
     fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
 
@@ -863,6 +930,7 @@ i32 main(i32 ArgCount, char **Args)
         mesh *Mesh = Asset.Meshes + MeshIndex;
 
         model_asset_mesh_header MeshHeader = {};
+        MeshHeader.MaterialIndex = Mesh->MaterialIndex;
         MeshHeader.PrimitiveType = Mesh->PrimitiveType;
         MeshHeader.VertexCount = Mesh->VertexCount;
         MeshHeader.IndexCount = Mesh->IndexCount;
@@ -876,6 +944,88 @@ i32 main(i32 ArgCount, char **Args)
         fwrite(Mesh->Vertices, sizeof(skinned_vertex), Mesh->VertexCount, AssetFile);
         fwrite(Mesh->Indices, sizeof(u32), Mesh->IndexCount, AssetFile);
     }
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.MaterialsHeaderOffset = CurrentStreamPosition;
+
+    // Writing materials
+    model_asset_materials_header MaterialsHeader = {};
+    MaterialsHeader.MaterialCount = Asset.MaterialCount;
+    MaterialsHeader.MaterialsOffset = Header.MaterialsHeaderOffset + sizeof(model_asset_materials_header);
+
+    fwrite(&MaterialsHeader, sizeof(model_asset_materials_header), 1, AssetFile);
+
+    u32 TotalPrevPropertiesSize = 0;
+    for (u32 MaterialIndex = 0; MaterialIndex < MaterialsHeader.MaterialCount; ++MaterialIndex)
+    {
+        mesh_material *Material = Asset.Materials + MaterialIndex;
+
+        model_asset_material_header MaterialHeader = {};
+        MaterialHeader.PropertyCount = Material->PropertyCount;
+        MaterialHeader.PropertiesOffset = MaterialsHeader.MaterialsOffset + sizeof(model_asset_material_header) + 
+            MaterialIndex * sizeof(model_asset_material_header) + TotalPrevPropertiesSize;
+
+        fwrite(&MaterialHeader, sizeof(model_asset_material_header), 1, AssetFile);
+
+        u32 PrevPropertiesSize = 0;
+        for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < Material->PropertyCount; ++MaterialPropertyIndex)
+        {
+            material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+
+            model_asset_material_property_header MaterialPropertyHeader = {};
+            MaterialPropertyHeader.Type = MaterialProperty->Type;
+
+            switch (MaterialProperty->Type)
+            {
+                case MaterialProperty_Float_Shininess:
+                {
+                    MaterialPropertyHeader.Value = MaterialProperty->Value;
+
+                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+
+                    PrevPropertiesSize += sizeof(model_asset_material_property_header);
+
+                    break;
+                }
+                case MaterialProperty_Color_Ambient:
+                case MaterialProperty_Color_Diffuse:
+                case MaterialProperty_Color_Specular:
+                {
+                    MaterialPropertyHeader.Color = MaterialProperty->Color;
+
+                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+
+                    PrevPropertiesSize += sizeof(model_asset_material_property_header);
+
+                    break;
+                }
+                case MaterialProperty_Texture_Diffuse:
+                case MaterialProperty_Texture_Specular:
+                case MaterialProperty_Texture_Shininess:
+                case MaterialProperty_Texture_Normal:
+                {
+                    MaterialPropertyHeader.Bitmap = MaterialProperty->Bitmap;
+                    MaterialPropertyHeader.BitmapOffset = MaterialHeader.PropertiesOffset + sizeof(model_asset_material_property_header) + PrevPropertiesSize;
+
+                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+                    fwrite(MaterialPropertyHeader.Bitmap.Pixels, sizeof(u8), BitmapSize, AssetFile);
+
+                    PrevPropertiesSize += sizeof(model_asset_material_property_header) + BitmapSize;
+
+                    break;
+                }
+                default:
+                {
+                    Assert(!"Invalid material property");
+                }
+            }
+        }
+
+        TotalPrevPropertiesSize += PrevPropertiesSize;
+    }
+
 
     CurrentStreamPosition = ftell(AssetFile);
     Header.AnimationsHeaderOffset = CurrentStreamPosition;
@@ -928,6 +1078,6 @@ i32 main(i32 ArgCount, char **Args)
 
 #if 1
     model_asset TestAsset = {};
-    ReadAssetFile("assets\\ybot.asset", &TestAsset, &Asset);
+    ReadAssetFile("assets\\zlorp.asset", &TestAsset, &Asset);
 #endif
 }
