@@ -75,11 +75,14 @@ R"SHADER(
 
 layout(location = 0) in vec3 in_Position;
 layout(location = 1) in vec3 in_Normal;
-layout(location = 2) in vec2 in_TextureCoords;
+layout(location = 2) in vec3 in_Tangent;
+layout(location = 3) in vec3 in_Bitangent;
+layout(location = 4) in vec2 in_TextureCoords;
 
 out vec3 ex_VertexPosition;
 out vec3 ex_Normal;
 out vec2 ex_TextureCoords;
+out mat3 ex_TBN;
 
 uniform mat4 u_Projection;
 uniform mat4 u_View;
@@ -90,6 +93,12 @@ void main()
     ex_VertexPosition = (u_Model * vec4(in_Position, 1.f)).xyz;
     ex_Normal = mat3(transpose(inverse(u_Model))) * in_Normal;
     ex_TextureCoords = in_TextureCoords;
+
+    vec3 T = normalize(vec3(u_Model * vec4(in_Tangent, 0.f)));
+    vec3 B = normalize(vec3(u_Model * vec4(in_Bitangent, 0.f)));
+    vec3 N = normalize(vec3(u_Model * vec4(in_Normal, 0.f)));
+
+    ex_TBN = mat3(T, B, N);
 
     gl_Position = u_Projection * u_View * u_Model * vec4(in_Position, 1.f);
 }
@@ -104,6 +113,7 @@ R"SHADER(
 in vec3 ex_VertexPosition;
 in vec3 ex_Normal;
 in vec2 ex_TextureCoords;
+in mat3 ex_TBN;
 
 out vec4 out_Color;
 
@@ -119,6 +129,11 @@ struct phong_material
     sampler2D SpecularMap;
     sampler2D ShininessMap;
     sampler2D NormalMap;
+    
+    bool HasDiffuseMap;
+    bool HasSpecularMap;
+    bool HasShininessMap;
+    bool HasNormalMap;
 };
 
 struct light_attenuation
@@ -161,23 +176,28 @@ float Square(float Value)
 
 vec3 CalculateDirectionalLight(
     directional_light Light,
-    phong_material Material,
-    vec3 UnitNormal, 
+    vec3 AmbientColor,
+    vec3 DiffuseColor,
+    vec3 SpecularColor,
+    float SpecularShininess,
+    vec3 Normal, 
     vec3 EyeDirection
 )
 {
-    vec3 Ambient = Light.Color * Material.AmbientColor;
+    vec3 LightDirection = normalize(-Light.Direction);  
+    vec3 ReflectedLightDirection = reflect(-LightDirection, Normal);
+    
+    // todo: dump ambient component (separate colors for lights?)
+    vec3 Ambient = Light.Color * AmbientColor * 0.1f;
 
-    vec3 LightDirection = normalize(-Light.Direction);
-    float DiffuseImpact = max(dot(LightDirection, UnitNormal), 0.f);
-    vec3 Diffuse = Light.Color * DiffuseImpact;
+    float DiffuseImpact = max(dot(LightDirection, Normal), 0.f);
+    vec3 Diffuse = Light.Color * DiffuseColor * DiffuseImpact;
 
-    vec3 ReflectedLightDirection = reflect(-LightDirection, UnitNormal);
     float SpecularImpact = pow(
         max(dot(ReflectedLightDirection, EyeDirection), 0.f),
-        Material.SpecularShininess
+        SpecularShininess
     );
-    vec3 Specular =  Light.Color * Material.SpecularColor * SpecularImpact;
+    vec3 Specular =  Light.Color * SpecularColor * SpecularImpact;
 
     vec3 Result = (Ambient + Diffuse + Specular);
 
@@ -186,24 +206,29 @@ vec3 CalculateDirectionalLight(
 
 vec3 CalculatePointLight(
     point_light Light,
-    phong_material Material,
-    vec3 UnitNormal, 
+    vec3 AmbientColor,
+    vec3 DiffuseColor,
+    vec3 SpecularColor,
+    float SpecularShininess,
+    vec3 Normal, 
     vec3 EyeDirection,
     vec3 VertexPosition
 )
 {
-    vec3 Ambient = Light.Color * Material.AmbientColor;
-
     vec3 LightDirection = normalize(Light.Position - ex_VertexPosition);
-    float DiffuseImpact = max(dot(LightDirection, UnitNormal), 0.f);
-    vec3 Diffuse = Light.Color * DiffuseImpact;
+    vec3 ReflectedLightDirection = reflect(-LightDirection, Normal);
+    
+    // todo: dump ambient component (separate colors for lights?)
+    vec3 Ambient = Light.Color * AmbientColor * 0.1f;
 
-    vec3 ReflectedLightDirection = reflect(-LightDirection, UnitNormal);
+    float DiffuseImpact = max(dot(LightDirection, Normal), 0.f);
+    vec3 Diffuse = Light.Color * DiffuseColor * DiffuseImpact;
+
     float SpecularImpact = pow(
         max(dot(ReflectedLightDirection, EyeDirection), 0.f),
-        Material.SpecularShininess
+        SpecularShininess
     );
-    vec3 Specular =  Light.Color * Material.SpecularColor * SpecularImpact;
+    vec3 Specular =  Light.Color * SpecularColor * SpecularImpact;
 
     float LightDistance = length(Light.Position - VertexPosition);
     float LightAttenuation = 1.f / (
@@ -224,25 +249,47 @@ uniform vec3 u_CameraPosition;
 
 void main()
 {
-    vec3 UnitNormal = normalize(ex_Normal);
-    vec3 EyeDirection = normalize(u_CameraPosition - ex_VertexPosition);
+    vec3 AmbientColor = u_Material.AmbientColor;
 
-    vec3 LightImpact = CalculateDirectionalLight(u_DirectionalLight, u_Material, UnitNormal, EyeDirection);
+    vec3 DiffuseColor = u_Material.HasDiffuseMap
+        ? texture(u_Material.DiffuseMap, ex_TextureCoords).rgb
+        : u_Material.DiffuseColor;
+
+    vec3 SpecularColor = u_Material.HasSpecularMap
+        ? texture(u_Material.SpecularMap, ex_TextureCoords).rgb
+        : u_Material.SpecularColor;
+
+    float SpecularShininess = u_Material.HasShininessMap
+        ? u_Material.SpecularShininess * texture(u_Material.ShininessMap, ex_TextureCoords).r
+        : u_Material.SpecularShininess;
+
+    vec3 Normal;
+    if (u_Material.HasNormalMap)
+    {
+        Normal = texture(u_Material.NormalMap, ex_TextureCoords).rgb;
+        Normal = Normal * 2.f - 1.f;
+        // todo: optimize   
+        Normal = ex_TBN * Normal;
+    }
+    else
+    {
+        Normal = ex_Normal;
+    }
+    Normal = normalize(Normal);
+
+    vec3 EyeDirection = normalize(u_CameraPosition - ex_VertexPosition);
+    
+    vec3 LightImpact = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
+
 #if 1
     for (int PointLightIndex = 0; PointLightIndex < MAX_NUMBER_OF_POINT_LIGHTS; ++PointLightIndex)
     {
         point_light PointLight = u_PointLights[PointLightIndex];
-        LightImpact += CalculatePointLight(PointLight, u_Material, UnitNormal, EyeDirection, ex_VertexPosition);
+        LightImpact += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, ex_VertexPosition);
     }
 #endif
     
-    vec4 DiffuseColor = vec4(u_Material.DiffuseColor, 1.f) * texture(u_Material.DiffuseMap, ex_TextureCoords);
-
-#if 1
-    out_Color = vec4(LightImpact, 1.f) * DiffuseColor;
-#else
-    out_Color = DiffuseColor;
-#endif
+    out_Color = vec4(LightImpact, 1.f);
 }
 )SHADER";
 
@@ -254,13 +301,25 @@ R"SHADER(
 
 layout(location = 0) in vec3 in_Position;
 layout(location = 1) in vec3 in_Normal;
-layout(location = 2) in vec2 in_TextureCoords;
-layout(location = 3) in ivec4 in_JointIndices;
-layout(location = 4) in vec4 in_Weights;
+layout(location = 2) in vec3 in_Tangent;
+layout(location = 3) in vec3 in_Bitangent;
+layout(location = 4) in vec2 in_TextureCoords;
+layout(location = 5) in ivec4 in_JointIndices;
+layout(location = 6) in vec4 in_Weights;
+
+// todo:
+#if 0
+out VS_OUT {
+    vec3 FragPos;
+    vec2 TexCoords;
+    mat3 TBN;
+} vs_out;  
+#endif
 
 out vec3 ex_VertexPosition;
 out vec3 ex_Normal;
 out vec2 ex_TextureCoords;
+out mat3 ex_TBN;
 
 uniform mat4 u_View;
 uniform mat4 u_Projection;
@@ -285,10 +344,16 @@ void main()
     }
 
     vec4 WorldPosition = Model * vec4(in_Position, 1.f);
-    
+
     ex_VertexPosition = WorldPosition.xyz;
     ex_Normal = mat3(transpose(inverse(Model))) * in_Normal;
     ex_TextureCoords = in_TextureCoords;
+    
+    vec3 T = normalize(vec3(Model * vec4(in_Tangent, 0.f)));
+    vec3 B = normalize(vec3(Model * vec4(in_Bitangent, 0.f)));
+    vec3 N = normalize(vec3(Model * vec4(in_Normal, 0.f)));
+
+    ex_TBN = mat3(T, B, N);
 
     gl_Position = u_Projection * u_View * WorldPosition;
 }

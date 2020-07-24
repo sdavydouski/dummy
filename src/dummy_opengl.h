@@ -48,6 +48,11 @@ struct opengl_shader
     GLint MaterialShininessMapUniformLocation;
     GLint MaterialNormalMapUniformLocation;
 
+    GLint MaterialHasDiffuseMapUniformLocation;
+    GLint MaterialHasSpecularMapUniformLocation;
+    GLint MaterialHasShininessMapUniformLocation;
+    GLint MaterialHasNormalMapUniformLocation;
+
     GLint DirectionalLightDirectionUniformLocation;
     GLint DirectionalLightColorUniformLocation;
 

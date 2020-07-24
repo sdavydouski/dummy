@@ -5,6 +5,8 @@
 #define Gigabytes(Bytes) (Megabytes(Bytes) * 1024LL)
 #define Terabytes(Bytes) (Gigabytes(Bytes) * 1024LL)
 
+// todo: alignment
+
 struct memory_arena
 {
     umm Size;
@@ -43,6 +45,6 @@ PushSize(memory_arena *Arena, umm Size)
     return Result;
 }
 
-#define PushStruct(Arena, Type) (Type *)PushSize(Arena, sizeof(Type))
+#define PushType(Arena, Type) (Type *)PushSize(Arena, sizeof(Type))
 #define PushArray(Arena, Count, Type) (Type *)PushSize(Arena, Count * sizeof(Type))
 #define PushString(Arena, Count) (char *)PushSize(Arena, Count * sizeof(char))

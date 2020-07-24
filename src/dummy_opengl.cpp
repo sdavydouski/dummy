@@ -220,13 +220,19 @@ OpenGLAddMeshBuffer(opengl_state *State, u32 Id, primitive_type PrimitiveType, u
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Normal));
 
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, TextureCoords));
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Tangent));
 
     glEnableVertexAttribArray(3);
-    glVertexAttribIPointer(3, 4, GL_UNSIGNED_INT, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, JointIndices));
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Bitangent));
 
     glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Weights));
+    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, TextureCoords));
+
+    glEnableVertexAttribArray(5);
+    glVertexAttribIPointer(5, 4, GL_UNSIGNED_INT, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, JointIndices));
+
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Weights));
 
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -323,6 +329,11 @@ OpenGLAddShader(opengl_state *State, u32 Id, char *VertexShaderSource, char *Fra
     Shader->MaterialShininessMapUniformLocation = glGetUniformLocation(Program, "u_Material.ShininessMap");
     Shader->MaterialNormalMapUniformLocation = glGetUniformLocation(Program, "u_Material.NormalMap");
 
+    Shader->MaterialHasDiffuseMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasDiffuseMap");
+    Shader->MaterialHasSpecularMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasSpecularMap");
+    Shader->MaterialHasShininessMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasShininessMap");
+    Shader->MaterialHasNormalMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasNormalMap");
+
     Shader->DirectionalLightDirectionUniformLocation = glGetUniformLocation(Program, "u_DirectionalLight.Direction");
     Shader->DirectionalLightColorUniformLocation = glGetUniformLocation(Program, "u_DirectionalLight.Color");
 
@@ -375,7 +386,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             WhiteTexture.Width = 1;
             WhiteTexture.Height = 1;
             WhiteTexture.Channels = 4;
-            u32 *WhitePixel = PushStruct(&State->Arena, u32);
+            u32 *WhitePixel = PushType(&State->Arena, u32);
             *WhitePixel = 0xFFFFFFFF;
             WhiteTexture.Pixels = WhitePixel;
 
@@ -757,6 +768,11 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                     glUniform1i(Shader->SkinningMatricesSamplerUniformLocation, 0);
 
+                    glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, false);
+                    glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, false);
+                    glUniform1i(Shader->MaterialHasShininessMapUniformLocation, false);
+                    glUniform1i(Shader->MaterialHasNormalMapUniformLocation, false);
+
                     // todo: magic numbers
                     opengl_texture *Texture = OpenGLGetTexture(State, 0);
                     glActiveTexture(GL_TEXTURE0 + 0);
@@ -810,6 +826,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                                 glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                                 glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
+                                glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, true);
                                 glUniform1i(Shader->MaterialDiffuseMapUniformLocation, MaterialPropertyIndex);
                                 break;
                             }
@@ -820,6 +837,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                                 glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                                 glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
+                                glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, true);
                                 glUniform1i(Shader->MaterialSpecularMapUniformLocation, MaterialPropertyIndex);
                                 break;
                             }
@@ -829,7 +847,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                                 glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                                 glBindTexture(GL_TEXTURE_2D, Texture->Handle);
-
+                                
+                                glUniform1i(Shader->MaterialHasShininessMapUniformLocation, true);
                                 glUniform1i(Shader->MaterialShininessMapUniformLocation, MaterialPropertyIndex);
                                 break;
                             }
@@ -839,7 +858,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                                 glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                                 glBindTexture(GL_TEXTURE_2D, Texture->Handle);
-
+                                
+                                glUniform1i(Shader->MaterialHasNormalMapUniformLocation, true);
                                 glUniform1i(Shader->MaterialNormalMapUniformLocation, MaterialPropertyIndex);
                                 break;
                             }

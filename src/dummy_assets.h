@@ -98,6 +98,8 @@ struct skinned_vertex
 {
     vec3 Position;
     vec3 Normal;
+    vec3 Tangent;
+    vec3 Bitangent;
     vec2 TextureCoords;
     i32 JointIndices[4];
     vec4 Weights;

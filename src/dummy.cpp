@@ -188,7 +188,6 @@ AnimateSkeleton(animation_clip *Animation, f32 CurrentTime, skeleton *Skeleton)
             Assert(t >= 0.f && t <= 1.f);
 
             *LocalJointPose = Interpolate(CurrentKeyFrame->Pose, t, NextKeyFrame->Pose);
-            *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Skeleton);
         }
     }
 }
@@ -214,7 +213,7 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, transform Transf
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreateMaterial(MaterialType_Standard, MeshMaterial, true);
+        material Material = CreateMaterial(MaterialType_Standard, MeshMaterial, false);
 
         DrawSkinnedMesh(
             RenderCommands, Mesh->Id, Transform, Material, 
@@ -382,9 +381,10 @@ GAME_INIT(GameInit)
     render_commands *RenderCommands = GetRenderCommandsFromMemory(Memory);
     InitRenderer(RenderCommands, State->GridCount);
 
-    //model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\arissa.asset", &State->WorldArena);
-    //model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\mutant_samba_dancing.asset", &State->WorldArena);
-    model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\ybot_gangnam_style.asset", &State->WorldArena);
+    //model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\arissa_dancing.asset", &State->WorldArena);
+    //model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\morak_dancing.asset", &State->WorldArena);
+    model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\mutant_samba_dancing.asset", &State->WorldArena);
+    //model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\ybot_gangnam_style.asset", &State->WorldArena);
     //model_asset *DummyModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\zlorp_gangnam_style.asset", &State->WorldArena);
     InitModel(DummyModelAsset, &State->DummyModel, &State->WorldArena, RenderCommands);
 
@@ -548,7 +548,7 @@ GAME_RENDER(GameRender)
             DrawGrid(RenderCommands, Bounds, State->GridCount, State->DebugCamera.Position, vec3(0.f, 0.f, 1.f));
 
             directional_light DirectionalLight = {};
-            DirectionalLight.Color = vec3(0.9f);
+            DirectionalLight.Color = vec3(1.f);
             DirectionalLight.Direction = vec3(0.f, -0.5f, -0.3f);
 
             SetDirectionalLight(RenderCommands, DirectionalLight);
@@ -586,15 +586,15 @@ GAME_RENDER(GameRender)
 
                 mat4 GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Skeleton);
                 *SkinningMatrix = Model * GlobalJointPose * Joint->InvBindTranform;
-        }
+            }
 #endif
 
             f32 PointLightRadius = 6.f;
             vec3 PointLight1Position = vec3(Cos(Parameters->Time) * PointLightRadius, 1.f, Sin(Parameters->Time) * PointLightRadius);
-            vec3 PointLight1Color = vec3(1.f, 1.f, 1.f);
+            vec3 PointLight1Color = vec3(1.f, 0.f, 1.f);
 
             vec3 PointLight2Position = vec3(-Cos(Parameters->Time) * PointLightRadius, 4.f, Sin(Parameters->Time) * PointLightRadius);
-            vec3 PointLight2Color = vec3(1.f, 1.f, 1.f);
+            vec3 PointLight2Color = vec3(0.f, 1.f, 1.f);
 
             point_light DummyPointLight = {};
             DummyPointLight.Attenuation.Constant = 1.f;
@@ -637,30 +637,23 @@ GAME_RENDER(GameRender)
                 );
 #endif
 
-                DrawSkeleton(RenderCommands, State->DummyModel.Skeleton, &State->CubeModel);
+                //DrawSkeleton(RenderCommands, State->DummyModel.Skeleton, &State->CubeModel);
             }
 #if 0
             {
                 material Material = {};
                 Material.Type = MaterialType_Unlit;
-                Material.Color = PointLight1Color;
+                // todo: !
+                //Material.Color = PointLight1Color;
 
-                //DrawModel(RenderCommands, &State->LightModel, CreateTransform(PointLight1Position, vec3(0.2f), quat(0.f)), Material, {}, {});
+                DrawModel(RenderCommands, &State->LightModel, CreateTransform(PointLight1Position, vec3(0.2f), quat(0.f)), Material, {}, {});
             }
             {
                 material Material = {};
                 Material.Type = MaterialType_Unlit;
-                Material.Color = PointLight2Color;
+                //Material.Color = PointLight2Color;
 
-                //DrawModel(RenderCommands, &State->LightModel, CreateTransform(PointLight2Position, vec3(0.2f), quat(0.f)), Material, {}, {});
-            }
-
-            {
-                material Material = {};
-                Material.Type = MaterialType_Unlit;
-                Material.Color = vec3(1.f, 1.f, 0.f);
-
-                //DrawMesh(RenderCommands, 3, CreateTransform(vec3(-4.f, 1.f, 0.f), vec3(1.f), quat(0.f)), Material, {}, {});
+                DrawModel(RenderCommands, &State->LightModel, CreateTransform(PointLight2Position, vec3(0.2f), quat(0.f)), Material, {}, {});
             }
 #endif
 

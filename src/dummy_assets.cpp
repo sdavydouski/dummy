@@ -1,7 +1,7 @@
 internal model_asset *
 LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
-    model_asset *Result = PushStruct(Arena, model_asset);
+    model_asset *Result = PushType(Arena, model_asset);
 
     read_file_result AssetFile = Platform->ReadFile(Platform->PlatformHandle, FileName, Arena);
     void *Buffer = AssetFile.Contents;

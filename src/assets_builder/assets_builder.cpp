@@ -379,6 +379,15 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
                 Vertex->Normal = AssimpVector2Vector(AssimpNormal);
             }
 
+            if (AssimpMesh->HasTangentsAndBitangents())
+            {
+                aiVector3D AssimpTangent = AssimpMesh->mTangents[VertexIndex];
+                aiVector3D AssimpBiTangent = AssimpMesh->mBitangents[VertexIndex];
+
+                Vertex->Tangent = AssimpVector2Vector(AssimpTangent);
+                Vertex->Bitangent = AssimpVector2Vector(AssimpBiTangent);
+            }
+
             if (AssimpMesh->HasTextureCoords(TEXTURE_COORDINATES_SET_INDEX))
             {
                 aiVector3D AssimpTextureCoords = AssimpMesh->mTextureCoords[TEXTURE_COORDINATES_SET_INDEX][VertexIndex];
@@ -783,16 +792,67 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
                     break;
                 }
                 case MaterialProperty_Texture_Diffuse:
+                {
+                    MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
+                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+
+#if 1
+                    char FileName[64];
+                    FormatString(FileName, ArrayCount(FileName), "Diffuse - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+
+                    stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
+#endif
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header) + BitmapSize;
+
+                    break;
+                }
                 case MaterialProperty_Texture_Specular:
+                {
+                    MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
+                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+
+#if 1
+                    char FileName[64];
+                    FormatString(FileName, ArrayCount(FileName), "Specular - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+
+                    stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
+#endif
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header) + BitmapSize;
+
+                    break;
+                }
                 case MaterialProperty_Texture_Shininess:
+                {
+                    MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
+                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+
+#if 1
+                    char FileName[64];
+                    FormatString(FileName, ArrayCount(FileName), "Shininess - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+
+                    stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
+#endif
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header) + BitmapSize;
+
+                    break;
+                }
                 case MaterialProperty_Texture_Normal:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
                     MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
 
-#if 0
+#if 1
                     char FileName[64];
-                    FormatString(FileName, ArrayCount(FileName), "%d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+                    FormatString(FileName, ArrayCount(FileName), "Normal - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
 #endif
@@ -854,13 +914,14 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 i32 main(i32 ArgCount, char **Args)
 {
     //char *FilePath = (char *)"models\\mutant_samba_dancing.fbx";
-    char *FilePath = (char *)"models\\zlorp_gangnam_style.fbx";
+    //char *FilePath = (char *)"models\\zlorp_gangnam_style.fbx";
     //char *FilePath = (char *)"models\\ybot_gangnam_style.fbx";
     //char *FilePath = (char *)"models\\zlorp.fbx";
     //char *FilePath = (char *)"models\\Tut Hip Hop Dance.fbx";
     //char *FilePath = (char *)"models\\Ch05_nonPBR.fbx";
     //char *FilePath = (char *)"models\\Breakdance Footwork 1.fbx";
     //char *FilePath = (char *)"models\\arissa_dancing.fbx";
+    char *FilePath = (char *)"models\\morak_dancing.fbx";
     //char *FilePath = (char *)"models\\Chicken Dance.fbx";
     //char *FilePath = (char *)"models\\mutant.fbx";
     //char *FilePath = (char *)"models\\ybot.fbx";
@@ -878,9 +939,11 @@ i32 main(i32 ArgCount, char **Args)
     //FILE *AssetFile = fopen("assets\\arissa.asset", "wb");
     //FILE *AssetFile = fopen("assets\\mutant.asset", "wb");
     //FILE *AssetFile = fopen("assets\\morak.asset", "wb");
-    FILE *AssetFile = fopen("assets\\zlorp_gangnam_style.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\zlorp_gangnam_style.asset", "wb");
     //FILE *AssetFile = fopen("assets\\ybot_gangnam_style.asset", "wb");
     //FILE *AssetFile = fopen("assets\\mutant_samba_dancing.asset", "wb");
+    //FILE *AssetFile = fopen("assets\\arissa_dancing.asset", "wb");
+    FILE *AssetFile = fopen("assets\\morak_dancing.asset", "wb");
     //FILE *AssetFile = fopen("assets\\light.asset", "wb");
     //FILE *AssetFile = fopen("assets\\cube.asset", "wb");
 
@@ -1078,6 +1141,6 @@ i32 main(i32 ArgCount, char **Args)
 
 #if 1
     model_asset TestAsset = {};
-    ReadAssetFile("assets\\zlorp.asset", &TestAsset, &Asset);
+    ReadAssetFile("assets\\morak_dancing.asset", &TestAsset, &Asset);
 #endif
 }
