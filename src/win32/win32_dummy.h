@@ -2,8 +2,8 @@
 
 #define WIN32_FILE_PATH MAX_PATH
 
-#define GET_MOUSE_CURSOR_X(lParam) (i32)((lParam) & 0xFFFF)
-#define GET_MOUSE_CURSOR_Y(lParam) (i32)((lParam) >> 16)
+#define GET_MOUSE_CURSOR_X(lParam) (i32)(i16)((lParam) & 0xFFFF)
+#define GET_MOUSE_CURSOR_Y(lParam) (i32)(i16)((lParam) >> 16)
 
 struct win32_platform_state
 {

@@ -17,6 +17,26 @@ inline f32 Sqrt(f32 Value);
 #define HALF_PI (PI / 2.f)
 
 #define RADIANS(Angle) ((Angle) * PI) / 180.f
+#define DEGREES(Angle) ((Angle) * 180.f) / PI
+
+struct plane
+{
+    vec3 Normal;
+    f32 d;
+};
+
+struct triangle
+{
+    vec2 a;
+    vec2 b;
+    vec2 c;
+};
+
+struct circle
+{
+    vec2 Center;
+    f32 Radius;
+};
 
 // todo: SIMD
 
@@ -56,35 +76,42 @@ Power(f32 Value, f32 Power)
 inline f32
 Sqrt(f32 Value)
 {
-    f32 Result = (f32)sqrt(Value);
+    f32 Result = sqrtf(Value);
     return Result;
 }
 
 inline f32
 Sin(f32 Value)
 {
-    f32 Result = (f32)sin(Value);
+    f32 Result = sinf(Value);
     return Result;
 }
 
 inline f32
 Cos(f32 Value)
 {
-    f32 Result = (f32)cos(Value);
+    f32 Result = cosf(Value);
     return Result;
 }
 
 inline f32
 Tan(f32 Value)
 {
-    f32 Result = (f32)tan(Value);
+    f32 Result = tanf(Value);
     return Result;
 }
 
 inline f32
 Acos(f32 Value)
 {
-    f32 Result = (f32)acos(Value);
+    f32 Result = acosf(Value);
+    return Result;
+}
+
+inline f32
+Atan2(f32 y, f32 x)
+{
+    f32 Result = atan2f(y, x);
     return Result;
 }
 
@@ -423,4 +450,41 @@ Slerp(quat A, f32 t, quat B)
     }
 
     return Result;
+}
+
+inline vec3
+Projection(vec3 Vector, plane Plane)
+{
+    vec3 Result = Vector - Dot(Vector, Plane.Normal) * Plane.Normal;
+
+    return Result;
+}
+
+inline vec3
+Orthogonal(vec3 Vector, plane Plane)
+{
+    vec3 Result = Cross(Vector, Plane.Normal);
+    return Result;
+}
+
+// Compute barycentric coordinates (u, v, w) for
+// point p with respect to triangle (a, b, c)
+inline void
+Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
+{
+    vec2 v0 = b - a;
+    vec2 v1 = c - a;
+    vec2 v2 = p - a;
+
+    f32 d00 = Dot(v0, v0);
+    f32 d01 = Dot(v0, v1);
+    f32 d11 = Dot(v1, v1);
+    f32 d20 = Dot(v2, v0);
+    f32 d21 = Dot(v2, v1);
+    
+    f32 denominator = d00 * d11 - d01 * d01;
+
+    v = (d11 * d20 - d01 * d21) / denominator;
+    w = (d00 * d21 - d01 * d20) / denominator;
+    u = 1.f - v - w;
 }

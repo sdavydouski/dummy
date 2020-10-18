@@ -6,12 +6,6 @@ struct aabb
     vec3 Max;
 };
 
-struct plane
-{
-    vec3 Normal;
-    f32 d;
-};
-
 inline plane
 ComputePlane(vec3 a, vec3 b, vec3 c)
 {

@@ -3,6 +3,8 @@
 #include <stdint.h>
 
 #define internal static
+#define global static
+#define persist static
 
 #define DLLExport __declspec(dllexport)
 

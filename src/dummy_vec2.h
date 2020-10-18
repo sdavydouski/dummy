@@ -101,3 +101,17 @@ Normalize(vec2 Vector)
     vec2 Result = Vector / Magnitude(Vector);
     return Result;
 }
+
+inline vec2
+PerpendicularCW(vec2 Vector)
+{
+    vec2 Result = vec2(Vector.y, -Vector.x);
+    return Result;
+}
+
+inline vec2
+PerpendicularCCW(vec2 Vector)
+{
+    vec2 Result = vec2(-Vector.y, Vector.x);
+    return Result;
+}

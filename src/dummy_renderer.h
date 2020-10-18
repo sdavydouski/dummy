@@ -8,7 +8,7 @@
 
 enum material_type
 {
-    MaterialType_Standard,
+    MaterialType_Phong,
     MaterialType_Unlit
 };
 
@@ -16,6 +16,8 @@ struct material
 {
     material_type Type;
     mesh_material *MeshMaterial;
+
+    vec3 Color;
     b32 IsWireframe;
 };
 

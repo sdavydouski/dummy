@@ -187,8 +187,7 @@ vec3 CalculateDirectionalLight(
     vec3 LightDirection = normalize(-Light.Direction);  
     vec3 ReflectedLightDirection = reflect(-LightDirection, Normal);
     
-    // todo: dump ambient component (separate colors for lights?)
-    vec3 Ambient = Light.Color * AmbientColor * 0.1f;
+    vec3 Ambient = Light.Color * AmbientColor;
 
     float DiffuseImpact = max(dot(LightDirection, Normal), 0.f);
     vec3 Diffuse = Light.Color * DiffuseColor * DiffuseImpact;
@@ -218,8 +217,7 @@ vec3 CalculatePointLight(
     vec3 LightDirection = normalize(Light.Position - ex_VertexPosition);
     vec3 ReflectedLightDirection = reflect(-LightDirection, Normal);
     
-    // todo: dump ambient component (separate colors for lights?)
-    vec3 Ambient = Light.Color * AmbientColor * 0.1f;
+    vec3 Ambient = Light.Color * AmbientColor;
 
     float DiffuseImpact = max(dot(LightDirection, Normal), 0.f);
     vec3 Diffuse = Light.Color * DiffuseColor * DiffuseImpact;
@@ -249,7 +247,8 @@ uniform vec3 u_CameraPosition;
 
 void main()
 {
-    vec3 AmbientColor = u_Material.AmbientColor;
+    // todo: dump ambient component (separate colors for lights?)
+    vec3 AmbientColor = u_Material.AmbientColor * 0.1f;
 
     vec3 DiffuseColor = u_Material.HasDiffuseMap
         ? texture(u_Material.DiffuseMap, ex_TextureCoords).rgb

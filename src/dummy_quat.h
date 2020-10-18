@@ -54,6 +54,18 @@ struct quat
     }
 };
 
+inline quat &operator +=(quat &Dest, quat q)
+{
+    Dest = Dest + q;
+    return Dest;
+}
+
+inline quat &operator -=(quat &Dest, quat q)
+{
+    Dest = Dest - q;
+    return Dest;
+}
+
 inline quat operator *(f32 Value, quat q)
 {
     quat Result = q * Value;

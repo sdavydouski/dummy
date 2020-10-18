@@ -2,20 +2,18 @@
 
 struct rigid_body
 {
-    f32 InverseMass;
-
-    vec3 Position;
-    vec3 Velocity;
-    vec3 Rotation;
     vec3 HalfSize;
+    
+    // todo: ?
+    vec3 PrevPosition;
+    vec3 Position;
 
-    quat Orientation;
-
-    mat4 TransformMatrix;
-
-    // todo: temp?
+    vec3 Velocity;
     vec3 Acceleration;
+
     vec3 ForceAccumulator;
+
+    f32 InverseMass;
     f32 Damping;
 };
 
@@ -63,6 +61,7 @@ Integrate(rigid_body *Body, f32 Duration)
 {
     Assert(Duration > 0.f);
 
+    Body->PrevPosition = Body->Position;
     Body->Position += Body->Velocity * Duration + Body->Acceleration * Square(Duration) * 0.5f;
     Body->Acceleration += Body->ForceAccumulator * Body->InverseMass;
     Body->Velocity += Body->Acceleration * Duration;

@@ -163,24 +163,3 @@ Normalize(vec3 Vector)
     vec3 Result = Vector / Magnitude(Vector);
     return Result;
 }
-
-inline b32
-IsXAxis(vec3 Vector)
-{
-    b32 Result = Vector.x == 1.f && Vector.y == 0.f && Vector.z == 0.f;
-    return Result;
-}
-
-inline b32
-IsYAxis(vec3 Vector)
-{
-    b32 Result = Vector.x == 0.f && Vector.y == 1.f && Vector.z == 0.f;
-    return Result;
-}
-
-inline b32
-IsZAxis(vec3 Vector)
-{
-    b32 Result = Vector.x == 0.f && Vector.y == 0.f && Vector.z == 1.f;
-    return Result;
-}

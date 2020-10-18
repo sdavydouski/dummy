@@ -28,18 +28,57 @@ Win32DeallocateMemory(void *Address)
     VirtualFree(Address, 0, MEM_RELEASE);
 }
 
-inline void
-Win32OutputString(const char *String)
+inline i32
+Win32VDebugPrintString(const char *Format, va_list Args)
 {
-    OutputDebugStringA(String);
+    const u32 MAX_CHARS = 256;
+    char Buffer[MAX_CHARS];
+
+    i32 CharsWritten = vsnprintf(Buffer, MAX_CHARS, Format, Args);
+
+    OutputDebugStringA(Buffer);
+
+    return CharsWritten;
 }
 
-inline void
-Win32OutputString(wchar *String)
+inline i32
+Win32DebugPrintString(const char *Format, ...)
 {
-    OutputDebugStringW(String);
+    va_list Args;
+    va_start(Args, Format);
+
+    i32 CharsWritten = Win32VDebugPrintString(Format, Args);
+
+    va_end(Args);
+
+    return CharsWritten;
 }
 
+inline i32
+Win32VDebugPrintString(const wchar *Format, va_list Args)
+{
+    const u32 MAX_CHARS = 256;
+    wchar Buffer[MAX_CHARS];
+
+    i32 CharsWritten = _vsnwprintf_s(Buffer, MAX_CHARS, Format, Args);
+
+    OutputDebugStringW(Buffer);
+
+    return CharsWritten;
+}
+
+inline i32
+Win32DebugPrintString(const wchar *Format, ...)
+{
+    va_list Args;
+    va_start(Args, Format);
+
+    i32 CharsWritten = Win32VDebugPrintString(Format, Args);
+
+    va_end(Args);
+
+    return CharsWritten;
+}
 
 inline win32_platform_state *
 GetWin32PlatformState(HWND WindowHandle) {
@@ -293,6 +332,19 @@ Win32ProcessXboxControllerStick(SHORT sThumbX, SHORT sThumbY, f32 DeadZone)
     return StickValue;
 }
 
+inline f32
+Win32ProcessXboxControllerTrigger(BYTE Trigger)
+{
+    f32 Result = 0.f;
+
+    if (Trigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD)
+    {
+        Result = (f32)Trigger / 255.f;
+    }
+
+    return Result;
+}
+
 internal void
 Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_input_xbox_controller *XboxControllerInput)
 {
@@ -317,6 +369,9 @@ Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_in
                 CurrentControllerState.Gamepad.sThumbRY, 
                 XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE
             );
+
+            XboxControllerInput->LeftTrigger = Win32ProcessXboxControllerTrigger(CurrentControllerState.Gamepad.bLeftTrigger);
+            XboxControllerInput->RightTrigger = Win32ProcessXboxControllerTrigger(CurrentControllerState.Gamepad.bRightTrigger);
 
             XboxControllerInput->Start.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_START) == XINPUT_GAMEPAD_START;
             XboxControllerInput->Back.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_BACK);
@@ -345,49 +400,56 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
             case VK_UP:
             {
                 KeyboardInput->Up.IsPressed = IsKeyPressed;
+                break;
             }
-            break;
             case 'S':
             case VK_DOWN:
             {
                 KeyboardInput->Down.IsPressed = IsKeyPressed;
+                break;
             }
-            break;
             case 'A':
             case VK_LEFT:
             {
                 KeyboardInput->Left.IsPressed = IsKeyPressed;
+                break;
             }
-            break;
             case 'D':
             case VK_RIGHT:
             {
                 KeyboardInput->Right.IsPressed = IsKeyPressed;
+                break;
             }
-            break;
             case VK_TAB:
             {
                 KeyboardInput->Tab.IsPressed = IsKeyPressed;
+                break;
             }
-            break;
             case VK_CONTROL:
             {
                 KeyboardInput->Ctrl.IsPressed = IsKeyPressed;
+                break;
             }
-            break;
             case VK_SPACE:
             {
                 KeyboardInput->Space.IsPressed = IsKeyPressed;
+                break;
             }
-            break;
+            case VK_RETURN:
+            {
+                KeyboardInput->Enter.IsPressed = IsKeyPressed;
+                break;
+            }
             case VK_ESCAPE:
             {
                 PlatformState->IsGameRunning = false;
+                break;
             }
-            break;
         }
     }
 }
+
+#include "windowsx.h"
 
 inline void
 Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *PlatformState, MSG *WindowMessage)
@@ -431,6 +493,7 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
     // todo:
     SavePrevButtonState(&KeyboardInput->Tab);
     SavePrevButtonState(&KeyboardInput->Space);
+    SavePrevButtonState(&KeyboardInput->Enter);
 
     MSG WindowMessage = {};
     while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
@@ -478,6 +541,15 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                 // pass event to imgui
                 TranslateMessage(&WindowMessage);
                 DispatchMessage(&WindowMessage);
+
+                break;
+            }
+            case WM_MOUSEWHEEL:
+            {
+                if (PlatformState->IsWindowActive)
+                {
+                    MouseInput->WheelDelta = GET_WHEEL_DELTA_WPARAM(WindowMessage.wParam) / WHEEL_DELTA;
+                }
 
                 break;
             }
@@ -560,8 +632,117 @@ PLATFORM_READ_FILE(Win32ReadFile)
     return Result;
 }
 
+//
+#include <intrin.h>
+
+#define WriteBarrier _WriteBarrier(); _mm_sfence();
+#define ReadBarrier _ReadBarrier();
+
+struct win32_thread_proc_parameter
+{
+    u32 ThreadIndex;
+    HANDLE Semaphore;
+};
+
+struct work_queue_entry
+{
+    u32 Data;
+};
+
+#define MAX_ENTRY_COUNT 32
+
+global u32 volatile CompletedEntryIndex;
+global u32 volatile NextEntryIndex;
+global u32 volatile CurrentEntryIndex;
+work_queue_entry Entries[MAX_ENTRY_COUNT];
+
+internal void
+PushEntry(u32 Data, HANDLE Semaphore)
+{
+    Assert(CurrentEntryIndex < MAX_ENTRY_COUNT);
+
+    work_queue_entry *Entry = Entries + CurrentEntryIndex;
+    Entry->Data = Data;
+
+    WriteBarrier;
+
+    ++CurrentEntryIndex;
+
+    ReleaseSemaphore(Semaphore, 1, 0);
+}
+
+DWORD WINAPI ThreadProc(_In_ LPVOID lpParameter)
+{
+    win32_thread_proc_parameter *Parameter = (win32_thread_proc_parameter *)lpParameter;
+
+    while (true)
+    {
+        // todo: InterlockedCompareExchange
+        if (NextEntryIndex < CurrentEntryIndex)
+        {
+            u32 EntryIndex = InterlockedIncrement((LONG volatile *)&NextEntryIndex) - 1;
+
+            ReadBarrier;
+
+            work_queue_entry *Entry = Entries + EntryIndex;
+
+            Win32DebugPrintString("Thread %d: Work #%d\n", Parameter->ThreadIndex, Entry->Data);
+
+            InterlockedIncrement((LONG volatile *)&CompletedEntryIndex);
+        }
+        else
+        {
+            WaitForSingleObject(Parameter->Semaphore, INFINITE);
+        }
+    }
+
+    return 0;
+}
+//
+
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
+    // Multithreading playground 
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+
+    u32 ThreadCount = SystemInfo.dwNumberOfProcessors - 1;
+
+    win32_thread_proc_parameter ThreadParameters[32];
+
+    HANDLE Semaphore = CreateSemaphore(0, 0, ThreadCount, 0);
+
+    for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+    {
+        win32_thread_proc_parameter *ThreadParameter = ThreadParameters + ThreadIndex;
+        ThreadParameter->ThreadIndex = ThreadIndex;
+        ThreadParameter->Semaphore = Semaphore;
+
+        DWORD ThreadId;
+        HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, ThreadParameter, 0, &ThreadId);
+    }
+
+    for (u32 EntryIndex = 0; EntryIndex < 10; ++EntryIndex)
+    {
+        work_queue_entry *Entry = Entries + EntryIndex;
+
+        PushEntry(EntryIndex, Semaphore);
+    }
+
+    //Sleep(1000);
+
+    for (u32 EntryIndex = 0; EntryIndex < 10; ++EntryIndex)
+    {
+        work_queue_entry *Entry = Entries + EntryIndex;
+
+        PushEntry(10 + EntryIndex, Semaphore);
+    }
+
+    while (CurrentEntryIndex != CompletedEntryIndex);
+
+    Win32DebugPrintString("Work has been completed.\n");
+    //
+
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
@@ -587,10 +768,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     GameMemory.RenderCommandsStorageSize = Megabytes(4);
     GameMemory.Platform = &PlatformApi;
 
+    // todo: ?
     void *BaseAddress = (void *)Terabytes(2);
 
     PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize;
-    PlatformState.GameMemoryBlock = Win32AllocateMemory(BaseAddress, PlatformState.GameMemoryBlockSize);
+    PlatformState.GameMemoryBlock = Win32AllocateMemory(0, PlatformState.GameMemoryBlockSize);
 
     GameMemory.PermanentStorage = PlatformState.GameMemoryBlock;
     GameMemory.TransientStorage = (u8 *)PlatformState.GameMemoryBlock + GameMemory.PermanentStorageSize;
@@ -658,8 +840,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         Win32InitImGui(&PlatformState);
 
-        render_commands *RenderCommands = GetRenderCommandsFromMemory(&GameMemory);
-
         game_parameters GameParameters = {};
         game_input GameInput = {};
 
@@ -668,13 +848,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         platform_input_xbox_controller XboxControllerInput = {};
 
         GameCode.Init(&GameMemory);
-        OpenGLProcessRenderCommands(&Win32OpenGLState.OpenGL, RenderCommands);
 
         LARGE_INTEGER LastPerformanceCounter;
         QueryPerformanceCounter(&LastPerformanceCounter);
 
         GameParameters.UpdateRate = 1.f / 30.f;
-        f32 UpdateLag = 0.f;
         u32 UpdateCount = 0;
         u32 MaxUpdateCount = 5;
 
@@ -713,25 +891,32 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                 GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
 
-                UpdateLag += GameParameters.Delta;
+                GameParameters.UpdateLag += GameParameters.Delta;
                 UpdateCount = 0;
 
-                while (UpdateLag >= GameParameters.UpdateRate && UpdateCount < MaxUpdateCount)
+                while (GameParameters.UpdateLag >= GameParameters.UpdateRate && UpdateCount < MaxUpdateCount)
                 {
                     GameCode.Update(&GameMemory, &GameParameters);
 
-                    UpdateLag -= GameParameters.UpdateRate;
+                    GameParameters.UpdateLag -= GameParameters.UpdateRate;
                     UpdateCount++;
                 }
 
-                // todo: pass interpolated normalized update value (UpdateLag / UpdateRage) ?
+                if (GameParameters.UpdateLag > GameParameters.UpdateRate)
+                {
+                    GameParameters.UpdateLag = GameParameters.UpdateRate;
+                }
+
                 GameCode.Render(&GameMemory, &GameParameters);
+
+                render_commands *RenderCommands = GetRenderCommands(&GameMemory);
                 OpenGLProcessRenderCommands(&Win32OpenGLState.OpenGL, RenderCommands);
+                ClearRenderCommands(&GameMemory);
             }
 
             win32_platform_state LastPlatformState = PlatformState;
 #if 1
-            RenderDebugInfo(&PlatformState, &GameMemory, &GameParameters, &MouseInput);
+            RenderDebugInfo(&PlatformState, &GameMemory, &GameParameters);
 #endif
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
             {

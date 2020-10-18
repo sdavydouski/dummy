@@ -539,12 +539,13 @@ GetAssimpRootNode(const aiScene *AssimpScene)
     return RootNode;
 }
 
+// todo:
+global u32 CurrentIndexForward = 0;
+global i32 CurrentIndexParent = -1;
+
 internal void
 ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes, skeleton *Skeleton)
 {
-    static u32 CurrentIndexForward = 0;
-    static i32 CurrentIndexParent = -1;
-
     string Name = AssimpString2StdString(AssimpNode->mName);
     assimp_node *SceneNode = SceneNodes[Name];
 
@@ -633,6 +634,8 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
     Skeleton->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
 
     ProcessAssimpBoneHierarchy(RootNode, SceneNodes, Skeleton);
+    CurrentIndexForward = 0;
+    CurrentIndexParent = -1;
 
     for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
     {
@@ -694,7 +697,7 @@ ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
 }
 
 internal void
-LoadModelAsset(char *FilePath, u32 Flags, model_asset *Asset)
+LoadModelAsset(const char *FilePath, u32 Flags, model_asset *Asset)
 {
     const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
 
@@ -706,6 +709,26 @@ LoadModelAsset(char *FilePath, u32 Flags, model_asset *Asset)
 
         aiReleaseImport(AssimpScene);
     }
+}
+
+internal void
+LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, const char *AnimationName, b32 IsLooping, b32 InPlace, u32 AnimationIndex)
+{
+    const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
+
+    Assert(AssimpScene);
+    Assert(AssimpScene->mNumAnimations == 1);
+
+    aiAnimation *AssimpAnimation = AssimpScene->mAnimations[0];
+    animation_clip *Animation = Asset->Animations + AnimationIndex;
+
+    ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
+
+    CopyString(AnimationName, Animation->Name, MAX_ANIMATION_NAME_LENGTH);
+    Animation->IsLooping = IsLooping;
+    Animation->InPlace = InPlace;
+
+    aiReleaseImport(AssimpScene);
 }
 
 internal void
@@ -884,6 +907,8 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
         animation_clip Animation = {};
         CopyString(AnimationHeader->Name, Animation.Name, MAX_ANIMATION_NAME_LENGTH);
         Animation.Duration = AnimationHeader->Duration;
+        Animation.IsLooping = AnimationHeader->IsLooping;
+        Animation.InPlace = AnimationHeader->InPlace;
         Animation.PoseSampleCount = AnimationHeader->PoseSampleCount;
         Animation.PoseSamples = (animation_sample *)((u8 *)Buffer + AnimationHeader->PoseSamplesOffset);
 
@@ -909,45 +934,10 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
     fclose(AssetFile);
 }
 
-// check https://www.mixamo.com/ for more characters and animations
-// regarding multiple animations from mixamo: https://community.adobe.com/t5/fuse-beta/multiple-animation-export-for-mixamo/td-p/9346492?page=1
-i32 main(i32 ArgCount, char **Args)
+internal void
+WriteAssetFile(const char *FilePath, model_asset *Asset)
 {
-    //char *FilePath = (char *)"models\\mutant_samba_dancing.fbx";
-    //char *FilePath = (char *)"models\\zlorp_gangnam_style.fbx";
-    //char *FilePath = (char *)"models\\ybot_gangnam_style.fbx";
-    //char *FilePath = (char *)"models\\zlorp.fbx";
-    //char *FilePath = (char *)"models\\Tut Hip Hop Dance.fbx";
-    //char *FilePath = (char *)"models\\Ch05_nonPBR.fbx";
-    //char *FilePath = (char *)"models\\Breakdance Footwork 1.fbx";
-    //char *FilePath = (char *)"models\\arissa_dancing.fbx";
-    char *FilePath = (char *)"models\\morak_dancing.fbx";
-    //char *FilePath = (char *)"models\\Chicken Dance.fbx";
-    //char *FilePath = (char *)"models\\mutant.fbx";
-    //char *FilePath = (char *)"models\\ybot.fbx";
-    //char *FilePath = (char *)"models\\cube.obj";
-    //char *FilePath = (char *)"models\\light.obj";
-    
-    u32 Flags = aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_JoinIdenticalVertices | 
-        aiProcess_ValidateDataStructure | aiProcess_OptimizeMeshes | aiProcess_LimitBoneWeights | aiProcess_GlobalScale |
-        aiProcess_RemoveRedundantMaterials | aiProcess_FixInfacingNormals | aiProcess_OptimizeGraph;
-
-    model_asset Asset;
-    LoadModelAsset(FilePath, Flags, &Asset);
-
-    //FILE *AssetFile = fopen("assets\\ybot.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\arissa.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\mutant.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\morak.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\zlorp_gangnam_style.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\ybot_gangnam_style.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\mutant_samba_dancing.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\arissa_dancing.asset", "wb");
-    FILE *AssetFile = fopen("assets\\morak_dancing.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\light.asset", "wb");
-    //FILE *AssetFile = fopen("assets\\cube.asset", "wb");
-
-    // todo: MeshCount assertion
+    FILE *AssetFile = fopen(FilePath, "wb");
 
     model_asset_header Header = {};
     Header.MagicValue = 0x451;
@@ -967,30 +957,31 @@ i32 main(i32 ArgCount, char **Args)
 
     // Writing skeleton
     model_asset_skeleton_header SkeletonHeader = {};
-    SkeletonHeader.JointCount = Asset.Skeleton.JointCount;
+    SkeletonHeader.JointCount = Asset->Skeleton.JointCount;
     SkeletonHeader.JointsOffset = Header.SkeletonHeaderOffset + sizeof(SkeletonHeader);
     SkeletonHeader.LocalJointPosesOffset = SkeletonHeader.JointsOffset + SkeletonHeader.JointCount * sizeof(joint);
     SkeletonHeader.GlobalJointPosesOffset = SkeletonHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(joint_pose);
 
     fwrite(&SkeletonHeader, sizeof(model_asset_skeleton_header), 1, AssetFile);
-    fwrite(Asset.Skeleton.Joints, sizeof(joint), Asset.Skeleton.JointCount, AssetFile);
-    fwrite(Asset.Skeleton.LocalJointPoses, sizeof(joint_pose), Asset.Skeleton.JointCount, AssetFile);
-    fwrite(Asset.Skeleton.GlobalJointPoses, sizeof(mat4), Asset.Skeleton.JointCount, AssetFile);
+    fwrite(Asset->Skeleton.Joints, sizeof(joint), Asset->Skeleton.JointCount, AssetFile);
+    fwrite(Asset->Skeleton.LocalJointPoses, sizeof(joint_pose), Asset->Skeleton.JointCount, AssetFile);
+    fwrite(Asset->Skeleton.GlobalJointPoses, sizeof(mat4), Asset->Skeleton.JointCount, AssetFile);
 
     CurrentStreamPosition = ftell(AssetFile);
     Header.MeshesHeaderOffset = CurrentStreamPosition;
 
     // Writing meshes
     model_asset_meshes_header MeshesHeader = {};
-    MeshesHeader.MeshCount = Asset.MeshCount;
+    // todo: MeshCount assertion
+    MeshesHeader.MeshCount = Asset->MeshCount;
     MeshesHeader.MeshesOffset = Header.MeshesHeaderOffset + sizeof(model_asset_meshes_header);
 
     fwrite(&MeshesHeader, sizeof(model_asset_meshes_header), 1, AssetFile);
 
     u32 TotalPrevMeshSize = 0;
-    for (u32 MeshIndex = 0; MeshIndex < Asset.MeshCount; ++MeshIndex)
+    for (u32 MeshIndex = 0; MeshIndex < Asset->MeshCount; ++MeshIndex)
     {
-        mesh *Mesh = Asset.Meshes + MeshIndex;
+        mesh *Mesh = Asset->Meshes + MeshIndex;
 
         model_asset_mesh_header MeshHeader = {};
         MeshHeader.MaterialIndex = Mesh->MaterialIndex;
@@ -1000,7 +991,7 @@ i32 main(i32 ArgCount, char **Args)
         MeshHeader.VerticesOffset = MeshesHeader.MeshesOffset + sizeof(model_asset_mesh_header) + TotalPrevMeshSize;
         MeshHeader.IndicesOffset = MeshHeader.VerticesOffset + Mesh->VertexCount * sizeof(skinned_vertex);
 
-        TotalPrevMeshSize += sizeof(model_asset_mesh_header) + 
+        TotalPrevMeshSize += sizeof(model_asset_mesh_header) +
             Mesh->VertexCount * sizeof(skinned_vertex) + Mesh->IndexCount * sizeof(u32);
 
         fwrite(&MeshHeader, sizeof(model_asset_mesh_header), 1, AssetFile);
@@ -1013,7 +1004,7 @@ i32 main(i32 ArgCount, char **Args)
 
     // Writing materials
     model_asset_materials_header MaterialsHeader = {};
-    MaterialsHeader.MaterialCount = Asset.MaterialCount;
+    MaterialsHeader.MaterialCount = Asset->MaterialCount;
     MaterialsHeader.MaterialsOffset = Header.MaterialsHeaderOffset + sizeof(model_asset_materials_header);
 
     fwrite(&MaterialsHeader, sizeof(model_asset_materials_header), 1, AssetFile);
@@ -1021,11 +1012,11 @@ i32 main(i32 ArgCount, char **Args)
     u32 TotalPrevPropertiesSize = 0;
     for (u32 MaterialIndex = 0; MaterialIndex < MaterialsHeader.MaterialCount; ++MaterialIndex)
     {
-        mesh_material *Material = Asset.Materials + MaterialIndex;
+        mesh_material *Material = Asset->Materials + MaterialIndex;
 
         model_asset_material_header MaterialHeader = {};
         MaterialHeader.PropertyCount = Material->PropertyCount;
-        MaterialHeader.PropertiesOffset = MaterialsHeader.MaterialsOffset + sizeof(model_asset_material_header) + 
+        MaterialHeader.PropertiesOffset = MaterialsHeader.MaterialsOffset + sizeof(model_asset_material_header) +
             MaterialIndex * sizeof(model_asset_material_header) + TotalPrevPropertiesSize;
 
         fwrite(&MaterialHeader, sizeof(model_asset_material_header), 1, AssetFile);
@@ -1040,49 +1031,49 @@ i32 main(i32 ArgCount, char **Args)
 
             switch (MaterialProperty->Type)
             {
-                case MaterialProperty_Float_Shininess:
-                {
-                    MaterialPropertyHeader.Value = MaterialProperty->Value;
+            case MaterialProperty_Float_Shininess:
+            {
+                MaterialPropertyHeader.Value = MaterialProperty->Value;
 
-                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+                fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
 
-                    PrevPropertiesSize += sizeof(model_asset_material_property_header);
+                PrevPropertiesSize += sizeof(model_asset_material_property_header);
 
-                    break;
-                }
-                case MaterialProperty_Color_Ambient:
-                case MaterialProperty_Color_Diffuse:
-                case MaterialProperty_Color_Specular:
-                {
-                    MaterialPropertyHeader.Color = MaterialProperty->Color;
+                break;
+            }
+            case MaterialProperty_Color_Ambient:
+            case MaterialProperty_Color_Diffuse:
+            case MaterialProperty_Color_Specular:
+            {
+                MaterialPropertyHeader.Color = MaterialProperty->Color;
 
-                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+                fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
 
-                    PrevPropertiesSize += sizeof(model_asset_material_property_header);
+                PrevPropertiesSize += sizeof(model_asset_material_property_header);
 
-                    break;
-                }
-                case MaterialProperty_Texture_Diffuse:
-                case MaterialProperty_Texture_Specular:
-                case MaterialProperty_Texture_Shininess:
-                case MaterialProperty_Texture_Normal:
-                {
-                    MaterialPropertyHeader.Bitmap = MaterialProperty->Bitmap;
-                    MaterialPropertyHeader.BitmapOffset = MaterialHeader.PropertiesOffset + sizeof(model_asset_material_property_header) + PrevPropertiesSize;
+                break;
+            }
+            case MaterialProperty_Texture_Diffuse:
+            case MaterialProperty_Texture_Specular:
+            case MaterialProperty_Texture_Shininess:
+            case MaterialProperty_Texture_Normal:
+            {
+                MaterialPropertyHeader.Bitmap = MaterialProperty->Bitmap;
+                MaterialPropertyHeader.BitmapOffset = MaterialHeader.PropertiesOffset + sizeof(model_asset_material_property_header) + PrevPropertiesSize;
 
-                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+                fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
 
-                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
-                    fwrite(MaterialPropertyHeader.Bitmap.Pixels, sizeof(u8), BitmapSize, AssetFile);
+                u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+                fwrite(MaterialPropertyHeader.Bitmap.Pixels, sizeof(u8), BitmapSize, AssetFile);
 
-                    PrevPropertiesSize += sizeof(model_asset_material_property_header) + BitmapSize;
+                PrevPropertiesSize += sizeof(model_asset_material_property_header) + BitmapSize;
 
-                    break;
-                }
-                default:
-                {
-                    Assert(!"Invalid material property");
-                }
+                break;
+            }
+            default:
+            {
+                Assert(!"Invalid material property");
+            }
             }
         }
 
@@ -1095,19 +1086,21 @@ i32 main(i32 ArgCount, char **Args)
 
     // Writing animation clips
     model_asset_animations_header AnimationsHeader = {};
-    AnimationsHeader.AnimationCount = Asset.AnimationCount;
+    AnimationsHeader.AnimationCount = Asset->AnimationCount;
     AnimationsHeader.AnimationsOffset = Header.AnimationsHeaderOffset + sizeof(model_asset_animations_header);
 
     fwrite(&AnimationsHeader, sizeof(model_asset_animations_header), 1, AssetFile);
 
     u64 TotalPrevKeyFrameSize = 0;
-    for (u32 AnimationIndex = 0; AnimationIndex < Asset.AnimationCount; ++AnimationIndex)
+    for (u32 AnimationIndex = 0; AnimationIndex < Asset->AnimationCount; ++AnimationIndex)
     {
-        animation_clip *Animation = Asset.Animations + AnimationIndex;
+        animation_clip *Animation = Asset->Animations + AnimationIndex;
 
         model_asset_animation_header AnimationHeader = {};
         CopyString(Animation->Name, AnimationHeader.Name, MAX_ANIMATION_NAME_LENGTH);
         AnimationHeader.Duration = Animation->Duration;
+        AnimationHeader.IsLooping = Animation->IsLooping;
+        AnimationHeader.InPlace = Animation->InPlace;
         AnimationHeader.PoseSampleCount = Animation->PoseSampleCount;
         AnimationHeader.PoseSamplesOffset = AnimationsHeader.AnimationsOffset + sizeof(model_asset_animation_header) +
             AnimationIndex * sizeof(model_asset_animation_header) + TotalPrevKeyFrameSize;
@@ -1138,9 +1131,131 @@ i32 main(i32 ArgCount, char **Args)
     fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
 
     fclose(AssetFile);
+}
+
+internal void
+WriteYBotModel(u32 Flags)
+{
+    model_asset Asset;
+    LoadModelAsset("models\\ybot\\ybot.fbx", Flags, &Asset);
+
+    // todo:
+    Asset.AnimationCount = 15;
+    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
+
+    u32 AnimationIndex = 0;
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle_alarmed.fbx", Flags, &Asset, "Idle_Alarmed", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\jump.fbx", Flags, &Asset, "Jump", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\left_strafe_walking.fbx", Flags, &Asset, "Left_Strafe_Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\left_strafe.fbx", Flags, &Asset, "Left_Strafe", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\left_turn_90.fbx", Flags, &Asset, "Left_Turn_90", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\left_turn.fbx", Flags, &Asset, "Left_Turn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\right_strafe_walking.fbx", Flags, &Asset, "Right_Strafe_Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\right_strafe.fbx", Flags, &Asset, "Right_Strafe", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\right_turn_90.fbx", Flags, &Asset, "Right_Turn_90", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\right_turn.fbx", Flags, &Asset, "Right_Turn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\samba_dancing.fbx", Flags, &Asset, "Samba_Dancing", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\wave_hip_hop_dance.fbx", Flags, &Asset, "Wave_Hip_Hop_Dance", true, false, AnimationIndex++);
+
+    WriteAssetFile("assets\\ybot.asset", &Asset);
 
 #if 1
     model_asset TestAsset = {};
-    ReadAssetFile("assets\\morak_dancing.asset", &TestAsset, &Asset);
+    ReadAssetFile("assets\\ybot.asset", &TestAsset, &Asset);
 #endif
+}
+
+internal void
+WriteMutantModel(u32 Flags)
+{
+    model_asset Asset;
+    LoadModelAsset("models\\mutant\\mutant.fbx", Flags, &Asset);
+
+    // todo:
+    Asset.AnimationCount = 15;
+    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
+
+    u32 AnimationIndex = 0;
+    LoadAnimationClipAsset("models\\mutant\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\idle_alarmed.fbx", Flags, &Asset, "Idle_Alarmed", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\jump.fbx", Flags, &Asset, "Jump", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\left_strafe_walking.fbx", Flags, &Asset, "Left_Strafe_Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\left_strafe.fbx", Flags, &Asset, "Left_Strafe", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\left_turn_90.fbx", Flags, &Asset, "Left_Turn_90", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\left_turn.fbx", Flags, &Asset, "Left_Turn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\right_strafe_walking.fbx", Flags, &Asset, "Right_Strafe_Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\right_strafe.fbx", Flags, &Asset, "Right_Strafe", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\right_turn_90.fbx", Flags, &Asset, "Right_Turn_90", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\right_turn.fbx", Flags, &Asset, "Right_Turn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\samba_dancing.fbx", Flags, &Asset, "Samba_Dancing", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\mutant\\animations\\wave_hip_hop_dance.fbx", Flags, &Asset, "Wave_Hip_Hop_Dance", true, false, AnimationIndex++);
+
+    WriteAssetFile("assets\\mutant.asset", &Asset);
+
+#if 0
+    model_asset TestAsset = {};
+    ReadAssetFile("assets\\mutant.asset", &TestAsset, &Asset);
+#endif
+}
+
+internal void
+WriteArissaModel(u32 Flags)
+{
+    model_asset Asset;
+    LoadModelAsset("models\\arissa\\arissa.fbx", Flags, &Asset);
+
+    // todo:
+    Asset.AnimationCount = 15;
+    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
+
+    u32 AnimationIndex = 0;
+    LoadAnimationClipAsset("models\\arissa\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\idle_alarmed.fbx", Flags, &Asset, "Idle_Alarmed", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\jump.fbx", Flags, &Asset, "Jump", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\left_strafe_walking.fbx", Flags, &Asset, "Left_Strafe_Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\left_strafe.fbx", Flags, &Asset, "Left_Strafe", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\left_turn_90.fbx", Flags, &Asset, "Left_Turn_90", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\left_turn.fbx", Flags, &Asset, "Left_Turn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\right_strafe_walking.fbx", Flags, &Asset, "Right_Strafe_Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\right_strafe.fbx", Flags, &Asset, "Right_Strafe", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\right_turn_90.fbx", Flags, &Asset, "Right_Turn_90", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\right_turn.fbx", Flags, &Asset, "Right_Turn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\samba_dancing.fbx", Flags, &Asset, "Samba_Dancing", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\arissa\\animations\\wave_hip_hop_dance.fbx", Flags, &Asset, "Wave_Hip_Hop_Dance", true, false, AnimationIndex++);
+
+    WriteAssetFile("assets\\arissa.asset", &Asset);
+
+#if 0
+    model_asset TestAsset = {};
+    ReadAssetFile("assets\\arissa.asset", &TestAsset, &Asset);
+#endif
+}
+
+// check https://www.mixamo.com/ for more characters and animations
+i32 main(i32 ArgCount, char **Args)
+{
+    u32 Flags = 
+        aiProcess_Triangulate | 
+        aiProcess_FlipUVs | 
+        aiProcess_GenNormals | 
+        aiProcess_CalcTangentSpace | 
+        aiProcess_JoinIdenticalVertices | 
+        aiProcess_ValidateDataStructure | 
+        aiProcess_OptimizeMeshes | 
+        aiProcess_LimitBoneWeights | 
+        aiProcess_GlobalScale |
+        aiProcess_RemoveRedundantMaterials | 
+        aiProcess_FixInfacingNormals | 
+        aiProcess_OptimizeGraph;
+
+    WriteYBotModel(Flags);
+    WriteMutantModel(Flags);
+    WriteArissaModel(Flags);
 }

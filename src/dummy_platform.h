@@ -43,14 +43,19 @@ struct game_memory
 };
 
 inline render_commands *
-GetRenderCommandsFromMemory(game_memory *Memory)
+GetRenderCommands(game_memory *Memory)
+{
+    render_commands *RenderCommands = (render_commands *)Memory->RenderCommandsStorage;
+    return RenderCommands;
+}
+
+inline void
+ClearRenderCommands(game_memory *Memory)
 {
     render_commands *RenderCommands = (render_commands *)Memory->RenderCommandsStorage;
     RenderCommands->MaxRenderCommandsBufferSize = (u32)(Memory->RenderCommandsStorageSize - sizeof(render_commands));
     RenderCommands->RenderCommandsBufferSize = 0;
     RenderCommands->RenderCommandsBuffer = (u8 *)Memory->RenderCommandsStorage + sizeof(render_commands);
-
-    return RenderCommands;
 }
 
 struct platform_button_state
@@ -75,6 +80,8 @@ struct platform_input_keyboard
     platform_button_state Tab;
     platform_button_state Ctrl;
     platform_button_state Space;
+    platform_button_state Esc;
+    platform_button_state Enter;
 };
 
 struct platform_input_mouse
@@ -94,6 +101,8 @@ struct platform_input_mouse
         };
     };
 
+    i32 WheelDelta;
+
     platform_button_state LeftButton;
     platform_button_state RightButton;
 };
@@ -102,6 +111,9 @@ struct platform_input_xbox_controller
 {
     vec2 LeftStick;
     vec2 RightStick;
+
+    f32 LeftTrigger;
+    f32 RightTrigger;
 
     platform_button_state Start;
     platform_button_state Back;
@@ -130,6 +142,9 @@ struct game_input
     game_input_action Advance;
     game_input_state HighlightBackground;
     game_input_state EnableFreeCameraMovement;
+
+    f32 ZoomDelta;
+    game_input_action EditMode;
 };
 
 inline void
@@ -139,6 +154,16 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
     GameInput->Camera.Range = XboxControllerInput->RightStick;
     GameInput->Menu.IsActivated = XboxControllerInput->Start.IsPressed && (XboxControllerInput->Start.IsPressed != XboxControllerInput->Start.WasPressed);
     GameInput->HighlightBackground.IsActive = XboxControllerInput->Back.IsPressed;
+
+    if (XboxControllerInput->LeftTrigger > 0.f)
+    {
+        GameInput->ZoomDelta = -XboxControllerInput->LeftTrigger * 0.1f;
+    }
+
+    if (XboxControllerInput->RightTrigger > 0.f)
+    {
+        GameInput->ZoomDelta = XboxControllerInput->RightTrigger * 0.1f;
+    }
 }
 
 internal void
@@ -179,8 +204,9 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
     }
 
     // todo:
-    GameInput->Menu.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
+    GameInput->Menu.IsActivated = KeyboardInput->Enter.IsPressed && (KeyboardInput->Enter.IsPressed != KeyboardInput->Enter.WasPressed);
     GameInput->Advance.IsActivated = KeyboardInput->Space.IsPressed && (KeyboardInput->Space.IsPressed != KeyboardInput->Space.WasPressed);
+    GameInput->EditMode.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
 
     GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
 }
@@ -188,6 +214,7 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
 inline void
 MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput, f32 Delta)
 {
+    // todo:
     if (Delta > 0.f)
     {
         f32 MouseSensitivity = (1.f / Delta) * 0.0001f;
@@ -196,6 +223,9 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput, f3
         GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
         GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
     }
+
+    GameInput->ZoomDelta = (f32)MouseInput->WheelDelta;
+    MouseInput->WheelDelta = 0;
 }
 
 struct game_parameters
@@ -206,6 +236,7 @@ struct game_parameters
     f32 Time;
     f32 Delta;
     f32 UpdateRate;
+    f32 UpdateLag;
 };
 
 #define GAME_INIT(name) void name(game_memory *Memory)

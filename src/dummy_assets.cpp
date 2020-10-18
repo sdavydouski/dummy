@@ -123,6 +123,8 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
         CopyString(AnimationHeader->Name, Animation->Name, MAX_ANIMATION_NAME_LENGTH);
         Animation->Duration = AnimationHeader->Duration;
+        Animation->IsLooping = AnimationHeader->IsLooping;
+        Animation->InPlace = AnimationHeader->InPlace;
         Animation->PoseSampleCount = AnimationHeader->PoseSampleCount;
         Animation->PoseSamples = PushArray(Arena, Animation->PoseSampleCount, animation_sample);
 

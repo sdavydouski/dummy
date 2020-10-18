@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dummy.h" />
+    <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_assets.h" />
     <ClInclude Include="dummy_collision.h" />
     <ClInclude Include="dummy_defs.h" />
@@ -39,6 +40,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_animation.cpp" />
     <None Include="dummy_opengl.cpp" />
     <None Include="dummy_debug.cpp" />
     <None Include="dummy_assets.cpp" />

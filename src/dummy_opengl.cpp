@@ -589,14 +589,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                     mat4 Model = Transform(Command->Transform);
 
-                    i32 ModelUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Model");
                     glUniformMatrix4fv(ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
 
                     // todo: store uniform locations
-                    i32 MaterialDiffuseColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.DiffuseColor");
-                    i32 MaterialAmbientStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.AmbientStrength");
-                    i32 MaterialSpecularStrengthUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularStrength");
-                    i32 MaterialSpecularShininessUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_Material.SpecularShininess");
                     glUniform3f(
                         MaterialDiffuseColorUniformLocation,
                         Command->Material.DiffuseColor.r,
@@ -609,12 +604,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                     // Point Lights
                     {
-                        i32 PointLight1PositionUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Position");
-                        i32 PointLight1ColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Color");
-                        i32 PointLight1AttenuationConstantUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Constant");
-                        i32 PointLight1AttenuationLinearUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Linear");
-                        i32 PointLight1AttenuationQuadraticUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[0].Attenuation.Quadratic");
-
                         glUniform3f(
                             PointLight1PositionUniformLocation,
                             Command->PointLight1.Position.x,
@@ -633,12 +622,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     }
 
                     {
-                        i32 PointLight2PositionUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Position");
-                        i32 PointLight2ColorUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Color");
-                        i32 PointLight2AttenuationConstantUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Constant");
-                        i32 PointLight2AttenuationLinearUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Linear");
-                        i32 PointLight2AttenuationQuadraticUniformLocation = glGetUniformLocation(State->ForwardShadingShaderProgram, "u_PointLights[1].Attenuation.Quadratic");
-
                         glUniform3f(
                             PointLight2PositionUniformLocation,
                             Command->PointLight2.Position.x,
@@ -666,9 +649,10 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     glUseProgram(Shader->Program);
 
                     mat4 Model = Transform(Command->Transform);
+                    material Material = Command->Material;
 
                     glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
-                    glUniform4f(Shader->ColorUniformLocation, 1.f, 1.f, 0.f, 1.f);
+                    glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, 1.f);
 
                     break;
                 }
@@ -750,7 +734,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             switch (Command->Material.Type)
             {
                 // todo: organize materials (https://threejs.org/docs/#api/en/materials/MeshPhongMaterial)
-                case MaterialType_Standard:
+                case MaterialType_Phong:
                 {
                     mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 

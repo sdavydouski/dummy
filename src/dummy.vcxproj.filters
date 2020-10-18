@@ -18,6 +18,7 @@
     <ClInclude Include="dummy_vec2.h" />
     <ClInclude Include="dummy_vec3.h" />
     <ClInclude Include="dummy_vec4.h" />
+    <ClInclude Include="dummy_animation.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_assets.cpp" />
@@ -27,5 +28,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <ClCompile Include="dummy_animation.cpp" />
   </ItemGroup>
 </Project>
