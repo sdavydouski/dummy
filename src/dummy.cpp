@@ -56,441 +56,17 @@ CreateMaterial(material_type Type, vec3 Color, b32 IsWireframe)
     return Result;
 }
 
-inline joint_pose
-Interpolate(joint_pose *A, f32 t, joint_pose *B)
-{
-    joint_pose Result;
-
-    Result.Translation = Lerp(A->Translation, t, B->Translation);
-    Result.Rotation = Slerp(A->Rotation, t, B->Rotation);
-    // todo: logarithmic interpolation for scale? (https://www.cmu.edu/biolphys/deserno/pdf/log_interpol.pdf)
-    Result.Scale = Lerp(A->Scale, t, B->Scale);
-
-    return Result;
-}
-
-inline joint_pose
-Interpolate(joint_pose *A, joint_pose *B, joint_pose *C, f32 Alpha, f32 Beta, f32 Gamma)
-{
-    joint_pose Result;
-
-    // todo: recheck!
-    Result.Translation = A->Translation * Alpha + B->Translation * Beta + C->Translation * Gamma;
-    Result.Rotation = A->Rotation * Alpha + B->Rotation * Beta + C->Rotation * Gamma;
-    Result.Scale = A->Scale * Alpha + B->Scale * Beta + C->Scale * Gamma;
-
-    return Result;
-}
-
-internal mat4
-CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton *Skeleton)
-{
-    mat4 Result = mat4(1.f);
-
-    while (true)
-    {
-        mat4 Pose = Transform(*CurrentJointPose);
-        Result = Pose * Result;
-
-        if (CurrentJoint->ParentIndex == -1)
-        {
-            break;
-        }
-
-        CurrentJointPose = Skeleton->LocalJointPoses + CurrentJoint->ParentIndex;
-        CurrentJoint = Skeleton->Joints + CurrentJoint->ParentIndex;
-    }
-
-    return Result;
-}
-
-// todo: optimize (caching?)
-inline animation_sample *
-GetAnimationSampleByJointIndex(animation_clip *Animation, u32 JointIndex)
-{
-    animation_sample *Result = 0;
-    
-    for (u32 AnimationSampleIndex = 0; AnimationSampleIndex < Animation->PoseSampleCount; ++AnimationSampleIndex)
-    {
-        animation_sample *AnimationSample = Animation->PoseSamples + AnimationSampleIndex;
-
-        if (AnimationSample->JointIndex == JointIndex)
-        {
-            Result = AnimationSample;
-            break;
-        }
-    }
-
-    return Result;
-}
-
-struct closest_key_frames_result
-{
-    key_frame *Current;
-    key_frame *Next;
-};
-
-internal closest_key_frames_result
-FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime)
-{
-    Assert(PoseSample->KeyFrameCount > 1);
-
-    closest_key_frames_result Result = {};
-
-    for (u32 KeyFrameIndex = 0; KeyFrameIndex < PoseSample->KeyFrameCount - 1; ++KeyFrameIndex)
-    {
-        key_frame *CurrentKeyFrame = PoseSample->KeyFrames + KeyFrameIndex;
-        key_frame *NextKeyFrame = PoseSample->KeyFrames + KeyFrameIndex + 1;
-
-        if (CurrentKeyFrame->Time <= CurrentTime && CurrentTime < NextKeyFrame->Time)
-        {
-            Result.Current = CurrentKeyFrame;
-            Result.Next = NextKeyFrame;
-            break;
-        }
-    }
-
-    if (!Result.Current || !Result.Next)
-    {
-        Result.Current = PoseSample->KeyFrames + (PoseSample->KeyFrameCount - 1);
-        Result.Next = PoseSample->KeyFrames + 0;
-    }
-
-    return Result;
-}
-
-inline joint_pose *
-GetRootLocalJointPose(skeleton *Skeleton)
-{
-    joint_pose *Result = Skeleton->LocalJointPoses + 0;
-    return Result;
-}
-
-inline joint_pose *
-GetRootTranslationLocalJointPose(skeleton_pose *SkeletonPose)
-{
-    joint_pose *Result = SkeletonPose->LocalJointPoses + 1;
-    return Result;
-}
-
-inline joint_pose *
-GetRootTranslationLocalJointPose(skeleton *Skeleton)
-{
-    joint_pose *Result = Skeleton->LocalJointPoses + 1;
-    return Result;
-}
-
-// todo: looping animations has discontinuity between last and first key frames (assimp issue?)
-// todo!!!: something is wrong with animation for some models
-internal void
-AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_clip *Animation, f32 CurrentTime)
-{
-    for (u32 JointIndex = 0; JointIndex < SkeletonPose->Skeleton->JointCount; ++JointIndex)
-    {
-        joint_pose *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
-
-        animation_sample *PoseSample = GetAnimationSampleByJointIndex(Animation, JointIndex);
-
-        if (PoseSample && PoseSample->KeyFrameCount > 1)
-        {
-            closest_key_frames_result ClosestKeyFrames = FindClosestKeyFrames(PoseSample, CurrentTime);
-            key_frame *CurrentKeyFrame = ClosestKeyFrames.Current;
-            key_frame *NextKeyFrame = ClosestKeyFrames.Next;
-
-            f32 t = (CurrentTime - CurrentKeyFrame->Time) / (Abs(NextKeyFrame->Time - CurrentKeyFrame->Time));
-
-            Assert(t >= 0.f && t <= 1.f);
-
-            *LocalJointPose = Interpolate(&CurrentKeyFrame->Pose, t, &NextKeyFrame->Pose);
-        }
-    }
-
-    if (Animation->InPlace)
-    {
-        joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(SkeletonPose);
-        RootTranslationLocalJointPose->Translation = vec3(0.f, RootTranslationLocalJointPose->Translation.y, 0.f);
-    }
-}
-
-// todo: merge these two functions
-internal void
-AnimateSkeleton(skeleton *Skeleton, animation_clip *Animation, f32 CurrentTime)
-{
-    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-    {
-        joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-
-        animation_sample *PoseSample = GetAnimationSampleByJointIndex(Animation, JointIndex);
-
-        if (PoseSample && PoseSample->KeyFrameCount > 1)
-        {
-            closest_key_frames_result ClosestKeyFrames = FindClosestKeyFrames(PoseSample, CurrentTime);
-            key_frame *CurrentKeyFrame = ClosestKeyFrames.Current;
-            key_frame *NextKeyFrame = ClosestKeyFrames.Next;
-
-            f32 t = (CurrentTime - CurrentKeyFrame->Time) / (Abs(NextKeyFrame->Time - CurrentKeyFrame->Time));
-
-            Assert(t >= 0.f && t <= 1.f);
-
-            *LocalJointPose = Interpolate(&CurrentKeyFrame->Pose, t, &NextKeyFrame->Pose);
-        }
-    }
-
-    if (Animation->InPlace)
-    {
-        joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(Skeleton);
-        RootTranslationLocalJointPose->Translation = vec3(0.f, RootTranslationLocalJointPose->Translation.y, 0.f);
-    }
-}
-
-inline b32
-InRange(f32 Min, f32 Max, f32 Value)
-{
-    b32 Result = Value >= Min && Value <= Max;
-    return Result;
-}
-
-internal void
-TriangularLerpBlend(
-    animation_blend_space_2d_triangle *AnimationBlendSpaceTriangle,
-    vec2 Blend, 
-    skeleton *Skeleton, 
-    memory_arena *Arena
-)
-{
-    scoped_memory ScopedMemory(Arena);
-    skeleton_pose *SkeletonPoses = PushArray(ScopedMemory.Arena, 3, skeleton_pose);
-    
-    for (u32 SkeletonPoseIndex = 0; SkeletonPoseIndex < 3; ++SkeletonPoseIndex)
-    {
-        skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex;
-        SkeletonPose->Skeleton = Skeleton;
-        SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, Skeleton->JointCount, joint_pose);
-
-        for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-        {
-            joint_pose *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
-            joint_pose *SkeletonLocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-
-            *LocalJointPose = *SkeletonLocalJointPose;
-        }
-    }
-
-    skeleton_pose *SkeletonPoseA = SkeletonPoses + 0;
-    skeleton_pose *SkeletonPoseB = SkeletonPoses + 1;
-    skeleton_pose *SkeletonPoseC = SkeletonPoses + 2;
-
-    animation_blend_space_value_2d *A = &AnimationBlendSpaceTriangle->Points[0];
-    animation_blend_space_value_2d *B = &AnimationBlendSpaceTriangle->Points[1];
-    animation_blend_space_value_2d *C = &AnimationBlendSpaceTriangle->Points[2];
-
-    AnimateSkeletonPose(SkeletonPoseA, A->AnimationState->Animation, A->AnimationState->Time);
-    AnimateSkeletonPose(SkeletonPoseB, B->AnimationState->Animation, B->AnimationState->Time);
-    AnimateSkeletonPose(SkeletonPoseC, C->AnimationState->Animation, C->AnimationState->Time);
-
-    f32 Alpha, Beta, Gamma;
-    Barycentric(Blend, A->Value, B->Value, C->Value, Alpha, Beta, Gamma);
-
-    Assert(Abs(1.f - (Alpha + Beta + Gamma)) < 0.0001f);
-
-    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-    {
-        joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-
-        joint_pose *LocalJointPoseA = SkeletonPoseA->LocalJointPoses + JointIndex;
-        joint_pose *LocalJointPoseB = SkeletonPoseB->LocalJointPoses + JointIndex;
-        joint_pose *LocalJointPoseC = SkeletonPoseC->LocalJointPoses + JointIndex;
-
-        *LocalJointPose = Interpolate(LocalJointPoseA, LocalJointPoseB, LocalJointPoseC, Alpha, Beta, Gamma);
-    }
-}
-
-internal void
-LinearLerpBlend(animation_blend_space_1d *AnimationBlendSpace, f32 BlendParameter, skeleton *Skeleton, memory_arena *Arena)
-{
-    animation_blend_space_value_1d *AnimationBlendValue1 = 0;
-    animation_blend_space_value_1d *AnimationBlendValue2 = 0;
-
-    for (u32 AnimationBlendValueIndex = 0; AnimationBlendValueIndex < AnimationBlendSpace->AnimationBlendSpaceValueCount - 1; ++AnimationBlendValueIndex)
-    {
-        animation_blend_space_value_1d *CurrentAnimationBlendValue = AnimationBlendSpace->AnimationBlendSpaceValues + AnimationBlendValueIndex;
-        animation_blend_space_value_1d *NextAnimationBlendValue = AnimationBlendSpace->AnimationBlendSpaceValues + AnimationBlendValueIndex + 1;
-
-        if (InRange(CurrentAnimationBlendValue->Value, NextAnimationBlendValue->Value, BlendParameter))
-        {
-            AnimationBlendValue1 = CurrentAnimationBlendValue;
-            AnimationBlendValue2 = NextAnimationBlendValue;
-            break;
-        }
-    }
-
-    Assert(AnimationBlendValue1 && AnimationBlendValue2);
-
-    scoped_memory ScopedMemory(Arena);
-
-    skeleton_pose *SkeletonPoses = PushArray(ScopedMemory.Arena, 2, skeleton_pose);
-
-    skeleton_pose *SkeletonPoseA = SkeletonPoses + 0;
-    SkeletonPoseA->Skeleton = Skeleton;
-    SkeletonPoseA->LocalJointPoses = PushArray(ScopedMemory.Arena, Skeleton->JointCount, joint_pose);
-
-    skeleton_pose *SkeletonPoseB = SkeletonPoses + 1;
-    SkeletonPoseB->Skeleton = Skeleton;
-    SkeletonPoseB->LocalJointPoses = PushArray(ScopedMemory.Arena, Skeleton->JointCount, joint_pose);
-
-    AnimateSkeletonPose(SkeletonPoseA, AnimationBlendValue1->AnimationState->Animation, AnimationBlendValue1->AnimationState->Time);
-    AnimateSkeletonPose(SkeletonPoseB, AnimationBlendValue2->AnimationState->Animation, AnimationBlendValue2->AnimationState->Time);
-
-    f32 BlendFactor = (BlendParameter - AnimationBlendValue1->Value) / (AnimationBlendValue2->Value - AnimationBlendValue1->Value);
-
-    // todo:
-    if (AnimationBlendValue1->AnimationState->IsEnabled && !AnimationBlendValue2->AnimationState->IsEnabled)
-    {
-        BlendFactor = 0.f;
-    }
-    else if (!AnimationBlendValue1->AnimationState->IsEnabled && AnimationBlendValue2->AnimationState->IsEnabled)
-    {
-        BlendFactor = 1.f;
-    }
-
-    Assert(BlendFactor >= 0.f && BlendFactor <= 1.f);
-
-    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-    {
-        joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-
-        joint_pose *LocalJointPoseA = SkeletonPoseA->LocalJointPoses + JointIndex;
-        joint_pose *LocalJointPoseB = SkeletonPoseB->LocalJointPoses + JointIndex;
-
-        *LocalJointPose = Interpolate(LocalJointPoseA, BlendFactor, LocalJointPoseB);
-    }
-}
-
-// todo: do not operate on skeleton directly. Return skeleton_pose?
-internal void
-LerpBlend(animation_clip_state *A, animation_clip_state *B, f32 BlendFactor, skeleton *Skeleton, memory_arena *Arena)
-{
-    scoped_memory ScopedMemory(Arena);
-    skeleton_pose *SkeletonPoses = PushArray(ScopedMemory.Arena, 2, skeleton_pose);
-
-    for (u32 SkeletonPoseIndex = 0; SkeletonPoseIndex < 2; ++SkeletonPoseIndex)
-    {
-        skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex;
-        SkeletonPose->Skeleton = Skeleton;
-        SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, Skeleton->JointCount, joint_pose);
-
-        for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-        {
-            joint_pose *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
-            joint_pose *SkeletonLocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-
-            *LocalJointPose = *SkeletonLocalJointPose;
-        }
-    }
-
-    skeleton_pose *SkeletonPoseA = SkeletonPoses + 0;
-    skeleton_pose *SkeletonPoseB = SkeletonPoses + 1;
-
-    AnimateSkeletonPose(SkeletonPoseA, A->Animation, A->Time);
-    AnimateSkeletonPose(SkeletonPoseB, B->Animation, B->Time);
-
-    Assert(BlendFactor >= 0.f && BlendFactor <= 1.f);
-
-    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-    {
-        joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-
-        joint_pose *LocalJointPoseA = SkeletonPoseA->LocalJointPoses + JointIndex;
-        joint_pose *LocalJointPoseB = SkeletonPoseB->LocalJointPoses + JointIndex;
-
-        *LocalJointPose = Interpolate(LocalJointPoseA, BlendFactor, LocalJointPoseB);
-    }
-}
-
-#if 0
-internal void
-BlendAnimationClips(skeleton *Skeleton, animation_state_set *AnimationStateSet, memory_arena *Arena)
-{
-    scoped_memory ScopedMemory(Arena);
-
-    skeleton_pose *SkeletonPoses = PushArray(ScopedMemory.Arena, AnimationStateSet->AnimationStateCount, skeleton_pose);
-    for (u32 SkeletonPoseIndex = 0; SkeletonPoseIndex < AnimationStateSet->AnimationStateCount; ++SkeletonPoseIndex)
-    {
-        skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex;
-        SkeletonPose->Skeleton = Skeleton;
-        SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, Skeleton->JointCount, joint_pose);
-    }
-
-    u32 SkeletonPoseIndex = 0;
-    for (u32 AnimationStateIndex = 0; AnimationStateIndex < AnimationStateSet->AnimationStateCount; ++AnimationStateIndex)
-    {
-        animation_state *AnimationState = AnimationStateSet->AnimationStates + AnimationStateIndex;
-       
-        if (AnimationState->IsEnabled)
-        {
-            skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex++;
-            // todo: parallel tasks
-            AnimateSkeletonPose(SkeletonPose, AnimationState->Animation, AnimationState->Time);
-        }
-    }
-
-    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-    {
-        joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-
-        vec3 Translation = vec3(0.f);
-        quat Rotation = quat(0.f);
-        vec3 Scale = vec3(0.f);
-        
-        f32 TotalWeight = 0.f;
-        u32 SkeletonPoseIndex = 0;
-        for (u32 AnimationStateIndex = 0; AnimationStateIndex < AnimationStateSet->AnimationStateCount; ++AnimationStateIndex)
-        {
-            animation_state *AnimationState = AnimationStateSet->AnimationStates + AnimationStateIndex;
-
-            if (AnimationState->IsEnabled)
-            {
-                skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex++;
-                joint_pose *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
-
-                Translation += AnimationState->Weight * LocalJointPose->Translation;
-                Rotation += AnimationState->Weight * LocalJointPose->Rotation;
-                Scale += AnimationState->Weight * LocalJointPose->Scale;
-
-                TotalWeight += AnimationState->Weight;
-            }
-        }
-
-        if (TotalWeight > 0.f)
-        {
-            Assert(TotalWeight == 1.f);
-
-            LocalJointPose->Translation = Translation;
-            LocalJointPose->Rotation = Rotation;
-            LocalJointPose->Scale = Scale;
-        }
-    }
-}
-#endif
-
 inline void
-DrawSkinnedModel(render_commands *RenderCommands, model *Model, transform Transform, point_light PointLight1, point_light PointLight2)
+DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose, transform Transform, point_light PointLight1, point_light PointLight2)
 {
     Assert(Model->Skeleton);
-
-    joint_pose *RootLocalJointPose = GetRootLocalJointPose(Model->Skeleton);
-    RootLocalJointPose->Translation = Transform.Translation;
-    RootLocalJointPose->Rotation = Transform.Rotation;
-    RootLocalJointPose->Scale = Transform.Scale;
-
+    
     for (u32 JointIndex = 0; JointIndex < Model->Skeleton->JointCount; ++JointIndex)
     {
         joint *Joint = Model->Skeleton->Joints + JointIndex;
-        joint_pose *LocalJointPose = Model->Skeleton->LocalJointPoses + JointIndex;
-        mat4 *GlobalJointPose = Model->Skeleton->GlobalJointPoses + JointIndex;
+        mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
         mat4 *SkinningMatrix = Model->SkinningMatrices + JointIndex;
 
-        *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Model->Skeleton);
         *SkinningMatrix = *GlobalJointPose * Joint->InvBindTranform;
     }
 
@@ -555,6 +131,21 @@ InitModel(model_asset *Asset, model *Model, memory_arena *Arena, render_commands
     *Model = {};
 
     Model->Skeleton = &Asset->Skeleton;
+    Model->BindPose = &Asset->BindPose;
+    
+    Model->Pose = PushType(Arena, skeleton_pose);
+    Model->Pose->Skeleton = Model->Skeleton;
+    Model->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, joint_pose);
+    Model->Pose->GlobalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, mat4);
+
+    for (u32 JointIndex = 0; JointIndex < Model->BindPose->Skeleton->JointCount; ++JointIndex)
+    {
+        joint_pose *SourceLocalJointPose = Model->BindPose->LocalJointPoses + JointIndex;
+        joint_pose *DestLocalJointPose = Model->Pose->LocalJointPoses + JointIndex;
+
+        *DestLocalJointPose = *SourceLocalJointPose;
+    }
+
     Model->MeshCount = Asset->MeshCount;
     Model->Meshes = Asset->Meshes;
     Model->MaterialCount = Asset->MaterialCount;
@@ -596,23 +187,22 @@ InitModel(model_asset *Asset, model *Model, memory_arena *Arena, render_commands
 }
 
 internal void
-DrawSkeleton(render_commands *RenderCommands, skeleton *Skeleton, model *JointModel)
+DrawSkeleton(render_commands *RenderCommands, skeleton_pose *Pose, model *JointModel)
 {
-    // todo: do not draw root joint?
-    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
+    for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
     {
-        joint *Joint = Skeleton->Joints + JointIndex;
-        joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-        mat4 *GlobalJointPose = Skeleton->GlobalJointPoses + JointIndex;
+        joint *Joint = Pose->Skeleton->Joints + JointIndex;
+        joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
+        mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
-        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), quat(0.f));
+        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(5.f), quat(0.f));
         material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), false);
 
         DrawModel(RenderCommands, JointModel, Transform, Material, {}, {});
 
         if (Joint->ParentIndex > -1)
         {
-            mat4 *ParentGlobalJointPose = Skeleton->GlobalJointPoses + Joint->ParentIndex;
+            mat4 *ParentGlobalJointPose = Pose->GlobalJointPoses + Joint->ParentIndex;
 
             vec3 LineStart = GetTranslation(*ParentGlobalJointPose);
             vec3 LineEnd = GetTranslation(*GlobalJointPose);
@@ -620,26 +210,6 @@ DrawSkeleton(render_commands *RenderCommands, skeleton *Skeleton, model *JointMo
             DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 1.f);
         }
     }
-}
-
-// todo: hashtable
-internal animation_clip_state *
-GetAnimation(animation_state_set *AnimationStateSet, const char *AnimationClipName)
-{
-    animation_clip_state *Result = 0;
-
-    for (u32 AnimationStateIndex = 0; AnimationStateIndex < AnimationStateSet->AnimationStateCount; ++AnimationStateIndex)
-    {
-        animation_clip_state *AnimationState = AnimationStateSet->AnimationStates + AnimationStateIndex;
-
-        if (StringEquals(AnimationState->Animation->Name, AnimationClipName))
-        {
-            Result = AnimationState;
-            break;
-        }
-    }
-
-    return Result;
 }
 
 extern "C" DLLExport
@@ -670,13 +240,16 @@ GAME_INIT(GameInit)
         *Body = {};
         Body->PrevPosition = vec3(0.f, 3.f, 0.f);
         Body->Position = vec3(0.f, 3.f, 0.f);
-        Body->Damping = 0.000001f;
+        Body->Damping = 0.0001f;
         Body->HalfSize = vec3(1.f, 3.f, 1.f);
-        SetRigidBodyMass(Body, 100.f);
+        SetRigidBodyMass(Body, 75.f);
     }
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
-    State->BackgroundColor = NormalizeRGB(vec3(6.f));
+    State->BackgroundColor = vec3(0.f);
+
+    State->ShowModel = true;
+    State->ShowSkeleton = false;
 
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
@@ -691,105 +264,31 @@ GAME_INIT(GameInit)
     model_asset *ArissaModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\arissa.asset", &State->WorldArena);
     InitModel(ArissaModelAsset, &State->ArissaModel, &State->WorldArena, RenderCommands);
 
-    model_asset *LightModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\sphere.asset", &State->WorldArena);
-    InitModel(LightModelAsset, &State->LightModel, &State->WorldArena, RenderCommands);
+    model_asset *SphereModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\sphere.asset", &State->WorldArena);
+    InitModel(SphereModelAsset, &State->SphereModel, &State->WorldArena, RenderCommands);
 
     model_asset *CubeModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\cube.asset", &State->WorldArena);
     InitModel(CubeModelAsset, &State->CubeModel, &State->WorldArena, RenderCommands);
 
+    State->LerperQuat = {};
+    State->Move = vec2(0.f);
+
     State->Player = {};
-    State->Player.Direction = vec3(0.f, 0.f, 1.f);
-    State->Player.State = PlayerState_Idle;
+    State->Player.Orientation = quat(0.f, 0.f, 0.f, 1.f);
     State->Player.Model = &State->YBotModel;
     State->Player.RigidBody = State->RigidBodies + 0;
     State->Player.Offset = vec3(0.f, -3.f, 0.f);
+    State->Player.State = EntityState_Idle;
+    // 
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    State->PlayerAnimationStateSet = {};
-    // todo: ?
-    State->PlayerAnimationStateSet.AnimationStateCount = State->Player.Model->AnimationCount;
-    // todo: push&clear?
-    State->PlayerAnimationStateSet.AnimationStates = PushArray(&State->WorldArena, State->PlayerAnimationStateSet.AnimationStateCount, animation_clip_state);
-
-    for (u32 AnimationStateIndex = 0; AnimationStateIndex < State->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
-    {
-        animation_clip_state *AnimationState = State->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-        AnimationState->Animation = State->Player.Model->Animations + AnimationStateIndex;
-        AnimationState->Time = 0.f;
-        AnimationState->Weight = 0.f;
-        AnimationState->PlaybackRate = 1.f;
-        AnimationState->IsEnabled = false;
-    }
-
-#if 0
-    State->LocomotionBlendSpace = {};
-    State->LocomotionBlendSpace.AnimationBlendSpaceValueCount = 3;
-    State->LocomotionBlendSpace.AnimationBlendSpaceValues = PushArray(&State->WorldArena, State->LocomotionBlendSpace.AnimationBlendSpaceValueCount, animation_blend_space_value_1d);
-
-    {
-        animation_blend_space_value_1d *AnimationBlendValue = State->LocomotionBlendSpace.AnimationBlendSpaceValues + 0;
-        AnimationBlendValue->AnimationState = GetAnimation(&State->PlayerAnimationStateSet, "Left_Turn_90");
-        AnimationBlendValue->Value = -PI / 2.f;
-    }
-
-    {
-        animation_blend_space_value_1d *AnimationBlendValue = State->LocomotionBlendSpace.AnimationBlendSpaceValues + 1;
-        AnimationBlendValue->AnimationState = GetAnimation(&State->PlayerAnimationStateSet, "Walking");
-        AnimationBlendValue->Value = 0.f;
-    }
-
-    {
-        animation_blend_space_value_1d *AnimationBlendValue = State->LocomotionBlendSpace.AnimationBlendSpaceValues + 2;
-        AnimationBlendValue->AnimationState = GetAnimation(&State->PlayerAnimationStateSet, "Right_Turn_90");
-        AnimationBlendValue->Value = PI / 2.f;
-    }
-#endif
-
-#if 0
-    animation_clip_state *IdleAnimation = GetAnimation(&State->PlayerAnimationStateSet, "Idle");
-    animation_clip_state *WalkingAnimation = GetAnimation(&State->PlayerAnimationStateSet, "Walking");
-    animation_clip_state *RightStrafeWalkingAnimation = GetAnimation(&State->PlayerAnimationStateSet, "Right_Strafe_Walking");
-    animation_clip_state *LeftStrafeWalkingAnimation = GetAnimation(&State->PlayerAnimationStateSet, "Left_Strafe_Walking");
-
-    State->LocomotionBlendSpace2D = {};
-    State->LocomotionBlendSpace2D.AnimationBlendSpaceTriangleCount = 2;
-    State->LocomotionBlendSpace2D.AnimationBlendSpaceTriangles = 
-        PushArray(&State->WorldArena, State->LocomotionBlendSpace2D.AnimationBlendSpaceTriangleCount, animation_blend_space_2d_triangle);
-
-    {
-        animation_blend_space_2d_triangle *AnimationBlendTriangle = State->LocomotionBlendSpace2D.AnimationBlendSpaceTriangles + 0;
-
-        AnimationBlendTriangle->Points[0].AnimationState = IdleAnimation;
-        AnimationBlendTriangle->Points[0].Value = vec2(0.f);
-
-        AnimationBlendTriangle->Points[1].AnimationState = WalkingAnimation;
-        AnimationBlendTriangle->Points[1].Value = vec2(0.f, 1.f);
-
-        AnimationBlendTriangle->Points[2].AnimationState = RightStrafeWalkingAnimation;
-        AnimationBlendTriangle->Points[2].Value = vec2(1.f, 0.f);
-    }
-
-    {
-        animation_blend_space_2d_triangle *AnimationBlendTriangle = State->LocomotionBlendSpace2D.AnimationBlendSpaceTriangles + 1;
-
-        AnimationBlendTriangle->Points[0].AnimationState = IdleAnimation;
-        AnimationBlendTriangle->Points[0].Value = vec2(0.f);
-
-        AnimationBlendTriangle->Points[1].AnimationState = WalkingAnimation;
-        AnimationBlendTriangle->Points[1].Value = vec2(0.f, 1.f);
-
-        AnimationBlendTriangle->Points[2].AnimationState = LeftStrafeWalkingAnimation;
-        AnimationBlendTriangle->Points[2].Value = vec2(-1.f, 0.f);
-    }
-
-    State->Blend = vec2(0.f);
-#endif
+    BuildAnimationGraph(&State->AnimationGraph, State->Player.Model, &State->WorldArena);
+    ActivateAnimationNode(&State->AnimationGraph, State->Player.State);
 }
 
 // todo:
-// 1. Merge animations into one asset file.
-// 2. Figure out locomotion-based animation movement.
+// Figure out locomotion-based animation movement.
 
 extern "C" DLLExport
 GAME_PROCESS_INPUT(GameProcessInput)
@@ -806,14 +305,14 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
     vec3 PlayerPosition = Lerp(State->Player.RigidBody->PrevPosition, Lag, State->Player.RigidBody->Position);
 
-    // todo?
     vec2 Move = Input->Move.Range;
+
     if ((Move.x == -1.f || Move.x == 1.f) && (Move.y == -1.f || Move.y == 1.f))
     {
         Move = Normalize(Move);
     }
 
-    if (Input->Menu.IsActivated)
+    /*if (Input->Menu.IsActivated)
     {
         if (State->Mode == GameMode_Menu)
         {
@@ -823,7 +322,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
         {
             State->Mode = GameMode_Menu;
         }
-    }
+    }*/
 
     if (Input->Advance.IsActivated)
     {
@@ -873,6 +372,14 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
             State->PlayerCamera.Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Position);
 
+#if 0
+            State->FreeCamera.Pitch = State->PlayerCamera.Pitch;
+            State->FreeCamera.Yaw = State->PlayerCamera.Yaw;
+            State->FreeCamera.Radius = State->PlayerCamera.Radius;
+            State->FreeCamera.Position = State->PlayerCamera.Position;
+            State->FreeCamera.Direction = State->PlayerCamera.Direction;
+#endif
+
             vec3 yMoveAxis = Normalize(Projection(State->PlayerCamera.Direction, State->Ground));
             vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
 
@@ -881,12 +388,6 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
             f32 xMoveX = Dot(xMoveAxis, xAxis) * Move.x;
             f32 zMoveX = Dot(xMoveAxis, zAxis) * Move.x;
-
-            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * 75.f;
-            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * 75.f;
-            //joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(State->Player.Model->Skeleton);
-            //State->Player.RigidBody->Position.x += RootTranslationLocalJointPose->Translation.x;
-            //State->Player.RigidBody->Position.z += RootTranslationLocalJointPose->Translation.z;
 
             f32 MoveMaginute = Magnitude(Move);
             
@@ -897,73 +398,60 @@ GAME_PROCESS_INPUT(GameProcessInput)
                 their relative angle between their velocity and their current forward vector to feed into a 360 motion locomotion blendspace.
             */
 
-            //vec3 PlayerDirection = xMoveAxis * Move.x + yMoveAxis * Move.y;
-            vec3 PlayerDirection = yMoveAxis;
+            vec3 PlayerDirection = vec3(Dot(vec3(Move.x, 0.f, Move.y), xMoveAxis), 0.f, Dot(vec3(Move.x, 0.f, Move.y), yMoveAxis));
 
-            State->Blend = Move;
+            // todo: why clamping?
+            //State->MoveFactor = Clamp(Magnitude(Move), 0.f, 1.f);
+
+            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * 50.f;
+            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * 50.f;
+
+            f32 CrossFadeDuration = 0.2f;
+
+            quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
+
+            if (MoveMaginute > 0.f)
+            {
+                State->LerperQuat.IsEnabled = true;
+                State->LerperQuat.Time = 0.f;
+                State->LerperQuat.Duration = 0.2f;
+                State->LerperQuat.From = State->Player.Orientation;
+                State->LerperQuat.To = PlayerOrientation;
+                State->LerperQuat.Result = &State->Player.Orientation;
+            }
 
 #if 1
-            // todo: continue
             switch (State->Player.State)
             {
-                case PlayerState_Idle:
+                case EntityState_Idle:
                 {
+                   /* if (Input->Crouch.IsActivated)
+                    {
+                        State->Player.State = EntityState_CrouchIdle;
+                        TransitionToState(&State->AnimationGraph, State->Player.State);
+                    }*/
+                    
                     if (MoveMaginute > 0.f)
                     {
-                        // todo: IdleToWalking state?
-                        // todo: https://docs.unity3d.com/ScriptReference/Animation.CrossFade.html
-                        State->Player.State = PlayerState_Walking;
-
-                        State->Player.Direction = PlayerDirection;
-
-                        // todo: Cross-fade (fade-out IdleAnimation, fade-in WalkingAnimation)
-                        animation_clip_state *IdleAnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Idle");
-                        animation_clip_state *WalkingAnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Walking");
-                        IdleAnimationClipState->Time = 0.f;
-                        IdleAnimationClipState->IsEnabled = false;
-                        WalkingAnimationClipState->Time = 0.f;
-                        WalkingAnimationClipState->IsEnabled = true;
-
-#if 0
-                        {
-                            animation_clip_state *AnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Walking");
-                            AnimationClipState->IsEnabled = true;
-                        }
-
-                        {
-                            animation_clip_state *AnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Left_Turn_90");
-                            AnimationClipState->IsEnabled = true;
-                        }
-
-                        {
-                            animation_clip_state *AnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Right_Turn_90");
-                            AnimationClipState->IsEnabled = true;
-                        }
-#endif
+                        State->Player.State = EntityState_Walking;
+                        TransitionToState(&State->AnimationGraph, State->Player.State);
                     }
 
                     break;
                 }
-                case PlayerState_Walking:
+                case EntityState_Walking:
                 {
-#if 1
-                    if (MoveMaginute < 0.0001f)
+                   /* if (Input->Crouch.IsActivated)
                     {
-                        State->Player.State = PlayerState_Idle;
+                        State->Player.State = EntityState_CrouchWalking;
+                        TransitionToState(&State->AnimationGraph, State->Player.State);
+                    }*/
 
-                        // todo: Cross-fade (fade-in IdleAnimation, fade-out WalkingAnimation)
-                        animation_clip_state *IdleAnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Idle");
-                        animation_clip_state *WalkingAnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Walking");
-                        IdleAnimationClipState->Time = 0.f;
-                        IdleAnimationClipState->IsEnabled = true;
-                        WalkingAnimationClipState->Time = 0.f;
-                        WalkingAnimationClipState->IsEnabled = false;
-                    }
-                    else
+                    if (MoveMaginute == 0.f)
                     {
-                        State->Player.Direction = PlayerDirection;
+                        State->Player.State = EntityState_Idle;
+                        TransitionToState(&State->AnimationGraph, State->Player.State);
                     }
-#endif
 
                     break;
                 }
@@ -1095,14 +583,20 @@ GAME_RENDER(GameRender)
             f32 Bounds = 100.f;
 
             DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 1.f);
-            DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 1.f);
+            //DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 1.f);
             DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 1.f);
 
             DrawGrid(RenderCommands, Bounds, State->GridCount, Camera->Position, vec3(0.f, 0.f, 1.f));
 
+            // Skydome rendering
+            //transform SkydomeTransform = CreateTransform(Camera->Position, vec3(100.f), quat(0.f));
+            //material SkydomeMaterial = CreateMaterial(MaterialType_Unlit, vec3(1.f, 0.f, 1.f), true);
+            //DrawModel(RenderCommands, &State->SphereModel, SkydomeTransform, SkydomeMaterial, {}, {});
+
+
             directional_light DirectionalLight = {};
-            DirectionalLight.Color = vec3(0.75f);
-            DirectionalLight.Direction = vec3(0.f, -0.5f, -0.3f);
+            DirectionalLight.Color = vec3(1.f);
+            DirectionalLight.Direction = Normalize(vec3(0.1f, -0.8f, -0.2f));
 
             SetDirectionalLight(RenderCommands, DirectionalLight);
 
@@ -1133,124 +627,79 @@ GAME_RENDER(GameRender)
                 PointLight2.Attenuation.Linear = 0.09f;
                 PointLight2.Attenuation.Quadratic = 0.032f;
 
-#if 0
-                switch (State->Player.State)
+                // todo: extract
+               if (State->LerperQuat.IsEnabled)
                 {
-                    case PlayerState_Idle:
-                    {
-                        animation_clip_state *AnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Idle");
-                        AnimateSkeleton(State->Player.Model->Skeleton, AnimationClipState->Animation, AnimationClipState->Time);
+                    State->LerperQuat.Time += Parameters->Delta;
 
-                        break;
-                    }
-                    case PlayerState_Walking:
-                    {
-                        //LerpBlend(&State->LocomotionBlendSpace, State->Angle, State->Player.Model->Skeleton, &State->WorldArena);
-                        animation_clip_state *AnimationClipState = GetAnimation(&State->PlayerAnimationStateSet, "Walking");
-                        AnimateSkeleton(State->Player.Model->Skeleton, AnimationClipState->Animation, AnimationClipState->Time);
+                    f32 t = State->LerperQuat.Time / State->LerperQuat.Duration;
 
-                        break;
-                    }
-                    default:
+                    if (t <= 1.f)
                     {
-                        Assert(!"Invalid state");
+                        *State->LerperQuat.Result = Slerp(State->LerperQuat.From, t, State->LerperQuat.To);
+                    }
+                    else
+                    {
+                        State->LerperQuat.IsEnabled = false;
+                        State->LerperQuat.Time = 0.f;
+                        State->LerperQuat.Duration = 0.f;
+                        State->LerperQuat.From = quat(0.f);
+                        State->LerperQuat.To = quat(0.f);
+                        State->LerperQuat.Result = 0;
                     }
                 }
-#endif
 
-                animation_clip_state *EnabledAnimationClipState = 0;
-                for (u32 AnimationClipStateIndex = 0; AnimationClipStateIndex < State->PlayerAnimationStateSet.AnimationStateCount; ++AnimationClipStateIndex)
-                {
-                    animation_clip_state *AnimationClipState = State->PlayerAnimationStateSet.AnimationStates + AnimationClipStateIndex;
+               /*
+                 Pivotal Movement
+                    To implement pivotal movement, we can simply play the forward locomotion
+                    loop while rotating the entire character about its vertical axis to make it turn.
+                    Pivotal movement looks more natural if the character’s body doesn’t remain
+                    bolt upright when it is turning—real humans tend to lean into their turns a
+                    little bit. We could try slightly tilting the vertical axis of the character as a
+                    whole, but that would cause problems with the inner foot sinking into the
+                    ground while the outer foot comes off the ground. A more natural-looking
+                    result can be achieved by animating three variations on the basic forward walk
+                    or run—one going perfectly straight, one making an extreme left turn and one
+                    making an extreme right turn. We can then LERP-blend between the straight
+                    clip and the extreme left turn clip to implement any desired lean angle.
+               */
 
-                    if (AnimationClipState->IsEnabled)
-                    {
-                        EnabledAnimationClipState = AnimationClipState;
-                        break;
-                    }
-                }
-                if (EnabledAnimationClipState)
-                {
-                    AnimateSkeleton(State->Player.Model->Skeleton, EnabledAnimationClipState->Animation, EnabledAnimationClipState->Time);
-                }
+               AnimationGraphPerFrameUpdate(&State->AnimationGraph, Parameters->Delta);
 
-                // todo: animation fade in/fade out
+               skeleton_pose *Pose = State->Player.Model->Pose;
 
-#if 0
-                // todo: check if a point is in triangle
-                animation_blend_space_2d_triangle *AnimationBlendSpaceTriangle = 0;
-
-                if (State->Blend.x > 0.f)
-                {
-                    AnimationBlendSpaceTriangle = State->LocomotionBlendSpace2D.AnimationBlendSpaceTriangles + 0;
-                }
-                else
-                {
-                    AnimationBlendSpaceTriangle = State->LocomotionBlendSpace2D.AnimationBlendSpaceTriangles + 1;
-                }
-
-                animation_clip_state *AnimationState = 0;
-                AnimationState->Weight += Parameters->Delta;
-                if (AnimationState->Weight > 1.f)
-                {
-                    AnimationState->Weight = 1.f;
-                }
-
-                TriangularLerpBlend(
-                    AnimationBlendSpaceTriangle,
-                    State->Blend, 
-                    State->Player.Model->Skeleton, 
-                    &State->WorldArena
-                );
-#endif
-
-                for (u32 AnimationStateIndex = 0; AnimationStateIndex < State->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
-                {
-                    animation_clip_state *AnimationState = State->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-
-                    if (AnimationState->IsEnabled)
-                    {
-                        AnimationState->Time += Parameters->Delta * AnimationState->PlaybackRate;
-
-                        if (AnimationState->Time > AnimationState->Animation->Duration)
-                        {
-                            if (AnimationState->Animation->IsLooping)
-                            {
-                                AnimationState->Time = 0.f;
-                            }
-                            else
-                            {
-                                AnimationState->Time = 0.f;
-                                AnimationState->IsEnabled = false;
-                            }
-                        }
-                    }
-                }
+                CalculateFinalSkeletonPose(&State->AnimationGraph, Pose, &State->WorldArena);
 
                 transform Transform = CreateTransform(
                     PlayerPosition + State->Player.Offset,
                     vec3(3.f),
-                    //quat(0.f)
-                    AxisAngle2Quat(vec4(yAxis, Atan2(State->Player.Direction.x, State->Player.Direction.z)))
+                    State->Player.Orientation
                 );
-                DrawSkinnedModel(RenderCommands, State->Player.Model, Transform, PointLight1, PointLight2);
+                UpdateGlobalJointPoses(Pose, Transform);
 
-                //DrawSkeleton(RenderCommands, State->DummyModel.Skeleton, &State->CubeModel);
+                if (State->ShowModel)
+                {
+                    DrawSkinnedModel(RenderCommands, State->Player.Model, Pose, Transform, PointLight1, PointLight2);
+                }
+
+                if (State->ShowSkeleton)
+                {
+                    DrawSkeleton(RenderCommands, Pose, &State->CubeModel);
+                }
             }
-#if 1
+
             {
                 transform Transform = CreateTransform(PointLight1Position, vec3(20.f), quat(0.f));
                 material Material = CreateMaterial(MaterialType_Unlit, PointLight1Color, true);
 
-                DrawModel(RenderCommands, &State->LightModel, Transform, Material, {}, {});
+                DrawModel(RenderCommands, &State->SphereModel, Transform, Material, {}, {});
             }
             {
                 transform Transform = CreateTransform(PointLight2Position, vec3(20.f), quat(0.f));
                 material Material = CreateMaterial(MaterialType_Unlit, PointLight2Color, true);
 
-                DrawModel(RenderCommands, &State->LightModel, Transform, Material, {}, {});
+                DrawModel(RenderCommands, &State->SphereModel, Transform, Material, {}, {});
             }
-#endif
 
             for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
             {
@@ -1262,23 +711,6 @@ GAME_RENDER(GameRender)
                 //DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
             }
 
-#if 0
-            DrawBox(RenderCommands, vec3(4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(-4.f, 2.f, -13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(0.f, 2.f, -24.f), vec3(4.2f, 2.f, 0.2f), BoxMaterial);
-
-            DrawBox(RenderCommands, vec3(4.f, 2.f, 13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(-4.f, 2.f, 13.8f), vec3(0.2f, 2.f, 10.f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(0.f, 2.f, 24.f), vec3(4.2f, 2.f, 0.2f), BoxMaterial);
-
-            DrawBox(RenderCommands, vec3(-14.2f, 2.f, 4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(-14.2f, 2.f, -4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(-24.f, 2.f, 0.f), vec3(0.2f, 2.f, 3.8f), BoxMaterial);
-
-            DrawBox(RenderCommands, vec3(14.2f, 2.f, 4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(14.2f, 2.f, -4.f), vec3(10.f, 2.f, 0.2f), BoxMaterial);
-            DrawBox(RenderCommands, vec3(24.f, 2.f, 0.f), vec3(0.2f, 2.f, 3.8f), BoxMaterial);
-#endif
             break;
         }
         case GameMode_Menu:

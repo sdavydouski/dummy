@@ -3,6 +3,7 @@
 #include "dummy_defs.h"
 #include "dummy_math.h"
 #include "dummy_string.h"
+#include "dummy_animation.h"
 #include "dummy_assets.h"
 
 #undef PI
@@ -19,6 +20,9 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+
+// todo: some models have weird bone transformations
+// https://github.com/assimp/assimp/issues/1974
 
 // todo: specify per asset
 #undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
@@ -298,7 +302,7 @@ FindJointIndexByName(const char *JointName, skeleton *Skeleton)
     return Result;
 }
 
-// todo: reorder animations to be in the same order as joints in the skeleton
+// todo: reorder animations to be in the same order as joints in the skeleton?
 internal void
 ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, skeleton *Skeleton)
 {
@@ -544,12 +548,12 @@ global u32 CurrentIndexForward = 0;
 global i32 CurrentIndexParent = -1;
 
 internal void
-ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes, skeleton *Skeleton)
+ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes, skeleton_pose *Pose)
 {
     string Name = AssimpString2StdString(AssimpNode->mName);
     assimp_node *SceneNode = SceneNodes[Name];
 
-    joint *Joint = Skeleton->Joints + CurrentIndexForward;
+    joint *Joint = Pose->Skeleton->Joints + CurrentIndexForward;
     Assert(Name.length() < MAX_JOINT_NAME_LENGTH);
     CopyString(Name.c_str(), Joint->Name, MAX_JOINT_NAME_LENGTH);
     Joint->InvBindTranform = SceneNode->Bone 
@@ -563,7 +567,7 @@ ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> 
     aiQuaternion Rotation;
     SceneNode->Node->mTransformation.Decompose(Scale, Rotation, Translation);
 
-    joint_pose *LocalJointPose = Skeleton->LocalJointPoses + CurrentIndexForward;
+    joint_pose *LocalJointPose = Pose->LocalJointPoses + CurrentIndexForward;
     LocalJointPose->Scale = AssimpVector2Vector(Scale);
     LocalJointPose->Translation = AssimpVector2Vector(Translation);
     LocalJointPose->Rotation = AssimpQuaternion2Quaternion(Rotation);
@@ -575,7 +579,7 @@ ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> 
     {
         aiNode *ChildNode = AssimpNode->mChildren[ChildIndex];
 
-        ProcessAssimpBoneHierarchy(ChildNode, SceneNodes, Skeleton);
+        ProcessAssimpBoneHierarchy(ChildNode, SceneNodes, Pose);
     }
 
     CurrentIndexParent = Joint->ParentIndex;
@@ -583,29 +587,29 @@ ProcessAssimpBoneHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> 
 
 // todo: duplicate
 internal mat4
-CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton *Skeleton)
+CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton_pose *Pose)
 {
     mat4 Result = mat4(1.f);
 
     while (true)
     {
-        mat4 Pose = Transform(*CurrentJointPose);
-        Result = Pose * Result;
+        mat4 GlobalPose = Transform(*CurrentJointPose);
+        Result = GlobalPose * Result;
 
         if (CurrentJoint->ParentIndex == -1)
         {
             break;
         }
 
-        CurrentJointPose = Skeleton->LocalJointPoses + CurrentJoint->ParentIndex;
-        CurrentJoint = Skeleton->Joints + CurrentJoint->ParentIndex;
+        CurrentJointPose = Pose->LocalJointPoses + CurrentJoint->ParentIndex;
+        CurrentJoint = Pose->Skeleton->Joints + CurrentJoint->ParentIndex;
     }
     
     return Result;
 }
 
 internal void 
-ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
+ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton, skeleton_pose *Pose)
 {
     hashtable<string, assimp_node *> SceneNodes;
 
@@ -630,20 +634,22 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton)
 
     Skeleton->JointCount = JointCount;
     Skeleton->Joints = (joint *)malloc(sizeof(joint) * JointCount);
-    Skeleton->LocalJointPoses = (joint_pose *)malloc(sizeof(joint_pose) * JointCount);
-    Skeleton->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
 
-    ProcessAssimpBoneHierarchy(RootNode, SceneNodes, Skeleton);
+    Pose->Skeleton = Skeleton;
+    Pose->LocalJointPoses = (joint_pose *)malloc(sizeof(joint_pose) * JointCount);
+    Pose->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
+
+    ProcessAssimpBoneHierarchy(RootNode, SceneNodes, Pose);
     CurrentIndexForward = 0;
     CurrentIndexParent = -1;
 
     for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
     {
         joint *Joint = Skeleton->Joints + JointIndex;
-        joint_pose *LocalJointPose = Skeleton->LocalJointPoses + JointIndex;
-        mat4 *GlobalJointPose = Skeleton->GlobalJointPoses + JointIndex;
+        joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
+        mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
-        *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Skeleton);
+        *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Pose);
     }
 }
 
@@ -651,7 +657,7 @@ internal void
 ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
 {
     // todo: check if model has skeleton information
-    ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton);
+    ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton, &Asset->BindPose);
 
     if (AssimpScene->HasMeshes())
     {
@@ -750,8 +756,11 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
     skeleton Skeleton = {};
     Skeleton.JointCount = SkeletonHeader->JointCount;
     Skeleton.Joints = (joint *)((u8*)Buffer + SkeletonHeader->JointsOffset);
-    Skeleton.LocalJointPoses = (joint_pose *)((u8*)Buffer + SkeletonHeader->LocalJointPosesOffset);
-    Skeleton.GlobalJointPoses = (mat4 *)((u8*)Buffer + SkeletonHeader->GlobalJointPosesOffset);
+
+    model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)((u8 *)Buffer + Header->SkeletonPoseHeaderOffset);
+    skeleton_pose BindPose = {};
+    BindPose.LocalJointPoses = (joint_pose *)((u8*)Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
+    BindPose.GlobalJointPoses = (mat4 *)((u8*)Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
 
     model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)((u8 *)Buffer + Header->MeshesHeaderOffset);
 
@@ -959,20 +968,27 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
     model_asset_skeleton_header SkeletonHeader = {};
     SkeletonHeader.JointCount = Asset->Skeleton.JointCount;
     SkeletonHeader.JointsOffset = Header.SkeletonHeaderOffset + sizeof(SkeletonHeader);
-    SkeletonHeader.LocalJointPosesOffset = SkeletonHeader.JointsOffset + SkeletonHeader.JointCount * sizeof(joint);
-    SkeletonHeader.GlobalJointPosesOffset = SkeletonHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(joint_pose);
 
     fwrite(&SkeletonHeader, sizeof(model_asset_skeleton_header), 1, AssetFile);
     fwrite(Asset->Skeleton.Joints, sizeof(joint), Asset->Skeleton.JointCount, AssetFile);
-    fwrite(Asset->Skeleton.LocalJointPoses, sizeof(joint_pose), Asset->Skeleton.JointCount, AssetFile);
-    fwrite(Asset->Skeleton.GlobalJointPoses, sizeof(mat4), Asset->Skeleton.JointCount, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.SkeletonPoseHeaderOffset = CurrentStreamPosition;
+
+    // Writing skeleton bind pose
+    model_asset_skeleton_pose_header SkeletonPoseHeader = {};
+    SkeletonPoseHeader.LocalJointPosesOffset = Header.SkeletonPoseHeaderOffset + sizeof(model_asset_skeleton_pose_header);
+    SkeletonPoseHeader.GlobalJointPosesOffset = SkeletonPoseHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(joint_pose);
+
+    fwrite(&SkeletonPoseHeader, sizeof(model_asset_skeleton_pose_header), 1, AssetFile);
+    fwrite(Asset->BindPose.LocalJointPoses, sizeof(joint_pose), Asset->Skeleton.JointCount, AssetFile);
+    fwrite(Asset->BindPose.GlobalJointPoses, sizeof(mat4), Asset->Skeleton.JointCount, AssetFile);
 
     CurrentStreamPosition = ftell(AssetFile);
     Header.MeshesHeaderOffset = CurrentStreamPosition;
 
     // Writing meshes
     model_asset_meshes_header MeshesHeader = {};
-    // todo: MeshCount assertion
     MeshesHeader.MeshCount = Asset->MeshCount;
     MeshesHeader.MeshesOffset = Header.MeshesHeaderOffset + sizeof(model_asset_meshes_header);
 
@@ -1144,25 +1160,25 @@ WriteYBotModel(u32 Flags)
     Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
 
     u32 AnimationIndex = 0;
-    LoadAnimationClipAsset("models\\ybot\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\idle_alarmed.fbx", Flags, &Asset, "Idle_Alarmed", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\jump.fbx", Flags, &Asset, "Jump", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\left_strafe_walking.fbx", Flags, &Asset, "Left_Strafe_Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\left_strafe.fbx", Flags, &Asset, "Left_Strafe", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\left_turn_90.fbx", Flags, &Asset, "Left_Turn_90", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\left_turn.fbx", Flags, &Asset, "Left_Turn", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\right_strafe_walking.fbx", Flags, &Asset, "Right_Strafe_Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\right_strafe.fbx", Flags, &Asset, "Right_Strafe", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\right_turn_90.fbx", Flags, &Asset, "Right_Turn_90", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\right_turn.fbx", Flags, &Asset, "Right_Turn", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle.fbx", Flags, &Asset, "Idle", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle (2).fbx", Flags, &Asset, "Idle_2", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle (3).fbx", Flags, &Asset, "Idle_3", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle (4).fbx", Flags, &Asset, "Idle_4", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle (5).fbx", Flags, &Asset, "Idle_5", true, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\samba_dancing.fbx", Flags, &Asset, "Samba_Dancing", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\wave_hip_hop_dance.fbx", Flags, &Asset, "Wave_Hip_Hop_Dance", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\run to stop.fbx", Flags, &Asset, "RunToStop", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\right turn.fbx", Flags, &Asset, "RightTurn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\left turn.fbx", Flags, &Asset, "LeftTurn", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\jumping up.fbx", Flags, &Asset, "JumpingUp", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\falling idle.fbx", Flags, &Asset, "FallingIdle", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\falling to roll.fbx", Flags, &Asset, "FallingToRoll", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\hard landing.fbx", Flags, &Asset, "HardLanding", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\falling to landing.fbx", Flags, &Asset, "FallingToLanding", false, false, AnimationIndex++);
 
     WriteAssetFile("assets\\ybot.asset", &Asset);
 
-#if 1
+#if 0
     model_asset TestAsset = {};
     ReadAssetFile("assets\\ybot.asset", &TestAsset, &Asset);
 #endif
@@ -1238,6 +1254,45 @@ WriteArissaModel(u32 Flags)
 #endif
 }
 
+internal void
+WriteNinjaModel(u32 Flags)
+{
+    model_asset Asset;
+    LoadModelAsset("models\\ninja\\ninja.fbx", Flags, &Asset);
+
+    // todo:
+    Asset.AnimationCount = 3;
+    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
+
+    u32 AnimationIndex = 0;
+    LoadAnimationClipAsset("models\\ninja\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ninja\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ninja\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+
+    WriteAssetFile("assets\\ninja.asset", &Asset);
+
+#if 1
+    model_asset TestAsset = {};
+    ReadAssetFile("assets\\ninja.asset", &TestAsset, &Asset);
+#endif
+}
+
+internal void
+WriteSphereModel(u32 Flags)
+{
+    model_asset Asset;
+    LoadModelAsset("models\\sphere\\sphere.fbx", Flags, &Asset);
+    WriteAssetFile("assets\\sphere.asset", &Asset);
+}
+
+internal void
+WriteCubeModel(u32 Flags)
+{
+    model_asset Asset;
+    LoadModelAsset("models\\cube\\cube.fbx", Flags, &Asset);
+    WriteAssetFile("assets\\cube.asset", &Asset);
+}
+
 // check https://www.mixamo.com/ for more characters and animations
 i32 main(i32 ArgCount, char **Args)
 {
@@ -1255,7 +1310,14 @@ i32 main(i32 ArgCount, char **Args)
         aiProcess_FixInfacingNormals | 
         aiProcess_OptimizeGraph;
 
+    // todo: multithreading (std::thread maybe?)
     WriteYBotModel(Flags);
-    WriteMutantModel(Flags);
+   /* WriteMutantModel(Flags);
     WriteArissaModel(Flags);
+
+    WriteSphereModel(Flags);
+    WriteCubeModel(Flags);*/
+
+    //WriteNinjaModel(Flags);
+
 }

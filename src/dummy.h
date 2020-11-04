@@ -21,23 +21,37 @@ struct game_camera
     f32 Radius;
 };
 
-enum player_state
-{
-    PlayerState_Idle,
-    PlayerState_Walking,
-    // todo: ?
-    PlayerState_IdleToWalking,
-    PlayerState_WalkingToIdle
-};
-
 struct game_player
 {
-    vec3 Direction;
+    quat Orientation;
     vec3 Offset;
-    player_state State;
+    entity_state State;
 
     model *Model;
     rigid_body *RigidBody;
+};
+
+// todo: !!!
+struct lerper_quat
+{
+    b32 IsEnabled;
+    f32 Duration;
+    f32 Time;
+
+    quat From;
+    quat To;
+    quat *Result;
+};
+
+struct lerper_vec2
+{
+    b32 IsEnabled;
+    f32 Duration;
+    f32 Time;
+
+    vec2 From;
+    vec2 To;
+    vec2 *Result;
 };
 
 struct game_state
@@ -57,32 +71,30 @@ struct game_state
     model YBotModel;
     model MutantModel;
     model ArissaModel;
+    //model NinjaModel;
     model CubeModel;
-    model LightModel;
+    model SphereModel;
 
     game_player Player;
-    animation_state_set PlayerAnimationStateSet;
+
+    animation_graph AnimationGraph;
 
     // todo: continue
     animation_blend_space_1d LocomotionBlendSpace;
     animation_blend_space_2d LocomotionBlendSpace2D;
 
     vec2 Blend;
+    f32 MoveFactor;
 
-    f32 IdleToWalkingClock;
-    f32 WalkingToIdleClock;
-    // todo: temp
-    //skeleton_pose PoseA;
-    //skeleton_pose PoseB;
-    //animation_clip *BlendAnimation;
-    //f32 CurrentTimeB;
-    //f32 BlendFactor;
-
-    f32 Angle;
+    lerper_quat LerperQuat;
+    vec2 Move;
 
     vec3 BackgroundColor;
 
     u32 GridCount;
     b32 IsBackgroundHighlighted;
     b32 Advance;
+
+    b32 ShowModel;
+    b32 ShowSkeleton;
 };

@@ -1,5 +1,6 @@
 #include "dummy_collision.h"
 #include "dummy_physics.h"
+#include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy.h"
 
@@ -49,87 +50,104 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 
     ImGui::Begin("Stats");
 
-    ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters->Delta * 1000.f, 1.f / GameParameters->Delta);
+    ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters->Delta * 1000.f / PlatformState->TimeRate, PlatformState->TimeRate / GameParameters->Delta);
     ImGui::Text("Window Size: %d, %d", PlatformState->WindowWidth, PlatformState->WindowHeight);
     ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
     ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
+    ImGui::SliderFloat("Time Rate", &PlatformState->TimeRate, 0.125f, 2.f);
 
     ImGui::End();
 
     ImGui::Begin("Game State");
 
-#if 1
     ImGui::Text("Player:");
 
+    static int e0 = 0;
+    ImGui::RadioButton("Show Model", &e0, 0);
+    ImGui::RadioButton("Show Skeleton", &e0, 1);
+
+    if (e0 == 0)
+    {
+        GameState->ShowModel = true;
+        GameState->ShowSkeleton = false;
+    }
+    else if (e0 == 1)
+    {
+        GameState->ShowModel = false;
+        GameState->ShowSkeleton = true;
+    }
+
     ImGui::Text("Position: x: %.3f, y: %.3f, z: %.3f", GameState->Player.RigidBody->Position.x, GameState->Player.RigidBody->Position.y, GameState->Player.RigidBody->Position.z);
+    ImGui::Text("Orientation: x: %.3f, y: %.3f, z: %.3f, w: %.3f", GameState->Player.Orientation.x, GameState->Player.Orientation.y, GameState->Player.Orientation.z, GameState->Player.Orientation.w);
+
     ImGui::Text("State: %d", GameState->Player.State);
 
-    skeleton *Skeleton = GameState->Player.Model->Skeleton;
-    joint_pose *RootLocalJointPose = Skeleton->LocalJointPoses + 0;
-    joint_pose *RootTranslationLocalJointPose = Skeleton->LocalJointPoses + 1;
-    ImGui::SliderFloat3("Root", (f32 *)&RootLocalJointPose->Translation, -10.f, 10.f);
-    ImGui::SliderFloat3("Root Translation", (f32 *)&RootTranslationLocalJointPose->Translation, -10.f, 10.f);
+    joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(GameState->Player.Model->Pose);
+    ImGui::Text("Root Translation: x: %.3f, y: %.3f, z: %.3f", RootTranslationLocalJointPose->Translation.x, RootTranslationLocalJointPose->Translation.y, RootTranslationLocalJointPose->Translation.z);
 
-    //ImGui::SliderFloat2("Blend", (f32 *)&GameState->Blend, 0.f, 1.f);
+    static int e1 = 0;
+    ImGui::RadioButton("YBot", &e1, 0);
+    ImGui::RadioButton("Mutant", &e1, 1);
+    ImGui::RadioButton("Arissa", &e1, 2);
 
-    static int e = 0;
-    ImGui::RadioButton("YBot", &e, 0);
-    ImGui::RadioButton("Mutant", &e, 1);
-    ImGui::RadioButton("Arissa", &e, 2);
-
-    if (e == 0)
+#if 0
+    if (e1 == 0)
     {
         GameState->Player.Model = &GameState->YBotModel;
 
         for (u32 AnimationStateIndex = 0; AnimationStateIndex < GameState->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
         {
-            animation_clip_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-            AnimationState->Animation = GameState->Player.Model->Animations + AnimationStateIndex;
+            animation_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
+            AnimationState->Clip = GameState->Player.Model->Animations + AnimationStateIndex;
         }
     }
-    else if (e == 1)
+    else if (e1 == 1)
     {
         GameState->Player.Model = &GameState->MutantModel;
 
         for (u32 AnimationStateIndex = 0; AnimationStateIndex < GameState->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
         {
-            animation_clip_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-            AnimationState->Animation = GameState->Player.Model->Animations + AnimationStateIndex;
+            animation_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
+            AnimationState->Clip = GameState->Player.Model->Animations + AnimationStateIndex;
         }
     }
-    else if (e == 2)
+    else if (e1 == 2)
     {
         GameState->Player.Model = &GameState->ArissaModel;
 
         for (u32 AnimationStateIndex = 0; AnimationStateIndex < GameState->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
         {
-            animation_clip_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-            AnimationState->Animation = GameState->Player.Model->Animations + AnimationStateIndex;
+            animation_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
+            AnimationState->Clip = GameState->Player.Model->Animations + AnimationStateIndex;
         }
     }
+#endif
 
     ImGui::Text("--------------");
     ImGui::Text("Animations:");
 
-    for (u32 AnimationStateIndex = 0; AnimationStateIndex < GameState->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
+    ImGui::Text("ActiveNodeIndex: %d", GameState->AnimationGraph.ActiveNodeIndex);
+
+    for (u32 NodeIndex = 0; NodeIndex < GameState->AnimationGraph.NodeCount; ++NodeIndex)
     {
-        animation_clip_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
+        animation_node *Node = GameState->AnimationGraph.Nodes + NodeIndex;
 
-        ImGui::Text("Name: %s", AnimationState->Animation->Name);
-        ImGui::Text("Time: %.3f", AnimationState->Time);
+        if (Node->Weight > 0.f)
+        {
+            ImGui::Text("Name: %s", Node->Animation.Clip->Name);
+            ImGui::Text("Time: %.3f", Node->Animation.Time);
 
-        // todo: replace with radio buttons
-        char CheckboxLabel[256];
-        FormatString(CheckboxLabel, sizeof(CheckboxLabel), "Enabled: #%d", AnimationStateIndex);
-        ImGui::Checkbox(CheckboxLabel, (bool *)&AnimationState->IsEnabled);
+            char WeightLabel[256];
+            FormatString(WeightLabel, sizeof(WeightLabel), "Weight: #%d", NodeIndex);
+            ImGui::SliderFloat(WeightLabel, &Node->Animation.Weight, 0.f, 1.f);
 
-        char PlaybackRateLabel[256];
-        FormatString(PlaybackRateLabel, sizeof(PlaybackRateLabel), "PlaybackRate: #%d", AnimationStateIndex);
-        ImGui::SliderFloat(PlaybackRateLabel, &AnimationState->PlaybackRate, 0.1f, 2.f);
+            /* char PlaybackRateLabel[256];
+             FormatString(PlaybackRateLabel, sizeof(PlaybackRateLabel), "PlaybackRate: #%d", AnimationStateIndex);
+             ImGui::SliderFloat(PlaybackRateLabel, &AnimationState->PlaybackRate, 0.1f, 2.f);*/
 
-        ImGui::Text("--------------");
+            ImGui::Text("--------------");
+        }
     }
-#endif
 
     ImGui::End();
 

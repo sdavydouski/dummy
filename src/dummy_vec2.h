@@ -98,7 +98,12 @@ Magnitude(vec2 Vector)
 inline vec2
 Normalize(vec2 Vector)
 {
-    vec2 Result = Vector / Magnitude(Vector);
+    f32 Length = Magnitude(Vector);
+
+    Assert(Length > 0.f);
+
+    vec2 Result = Vector / Length;
+
     return Result;
 }
 

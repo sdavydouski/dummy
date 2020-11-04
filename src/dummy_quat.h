@@ -89,7 +89,12 @@ Magnitude(quat q)
 inline quat
 Normalize(quat q)
 {
-    quat Result = q / Magnitude(q);
+    f32 Length = Magnitude(q);
+
+    Assert(Length > 0.f);
+
+    quat Result = q / Length;
+
     return Result;
 }
 

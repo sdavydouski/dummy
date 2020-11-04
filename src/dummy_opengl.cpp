@@ -178,6 +178,7 @@ OpenGLGetMeshBuffer(opengl_state *State, u32 Id)
 inline opengl_texture *
 OpenGLGetTexture(opengl_state *State, u32 Id)
 {
+    // todo: why?
     Assert((GL_TEXTURE0 + Id) < GL_TEXTURE15);
 
     opengl_texture *Result = 0;
@@ -400,6 +401,30 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             glEnable(GL_LINE_SMOOTH);
             glEnable(GL_MULTISAMPLE);
+
+            // todo: use GL_ZERO_TO_ONE?
+            glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+
+            glGenFramebuffers(ArrayCount(State->Framebuffers), State->Framebuffers);
+
+            for (u32 FramebufferIndex = 0; FramebufferIndex < ArrayCount(State->Framebuffers); ++FramebufferIndex)
+            {
+                glGenTextures(1, &State->FramebufferTextures[FramebufferIndex]);
+                glBindTexture(GL_TEXTURE_2D, State->FramebufferTextures[FramebufferIndex]);
+
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2560, 1440, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+                glBindTexture(GL_TEXTURE_2D, 0);
+
+                glBindFramebuffer(GL_FRAMEBUFFER, State->Framebuffers[FramebufferIndex]);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, State->FramebufferTextures[FramebufferIndex], 0);
+            }
+
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
             BaseAddress += sizeof(*Command);
             break;

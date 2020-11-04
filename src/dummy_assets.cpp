@@ -12,8 +12,12 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)((u8 *)Buffer + Header->SkeletonHeaderOffset);
     Result->Skeleton.JointCount = SkeletonHeader->JointCount;
     Result->Skeleton.Joints = (joint *)((u8 *)Buffer + SkeletonHeader->JointsOffset);
-    Result->Skeleton.LocalJointPoses = (joint_pose *)((u8 *)Buffer + SkeletonHeader->LocalJointPosesOffset);
-    Result->Skeleton.GlobalJointPoses = (mat4 *)((u8 *)Buffer + SkeletonHeader->GlobalJointPosesOffset);
+
+    // Skeleton Bind Pose
+    model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)((u8 *)Buffer + Header->SkeletonPoseHeaderOffset);
+    Result->BindPose.Skeleton = &Result->Skeleton;
+    Result->BindPose.LocalJointPoses = (joint_pose *)((u8 *)Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
+    Result->BindPose.GlobalJointPoses = (mat4 *)((u8 *)Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
 
     // Meshes
     model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)((u8 *)Buffer + Header->MeshesHeaderOffset);

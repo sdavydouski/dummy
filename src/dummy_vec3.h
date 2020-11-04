@@ -160,6 +160,11 @@ Magnitude(vec3 Vector)
 inline vec3
 Normalize(vec3 Vector)
 {
-    vec3 Result = Vector / Magnitude(Vector);
+    f32 Length = Magnitude(Vector);
+
+    Assert(Length > 0.f);
+
+    vec3 Result = Vector / Length;
+
     return Result;
 }

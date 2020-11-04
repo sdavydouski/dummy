@@ -27,11 +27,10 @@ void Win32GladPostCallback(const char *Name, void *FuncPtr, i32 LenArgs, ...) {
     }
 }
 
+// https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions
 inline void *
 Win32GetOpenGLFuncAddress(char *Name)
 {
-    // https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions
-
     void *Result = (void *)wglGetProcAddress(Name);
     if (Result == 0 || (Result == (void *)0x1) || (Result == (void *)0x2) || (Result == (void *)0x3) || (Result == (void *)-1))
     {

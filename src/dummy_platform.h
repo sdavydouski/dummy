@@ -76,12 +76,17 @@ struct platform_input_keyboard
     platform_button_state Down;
     platform_button_state Left;
     platform_button_state Right;
+    platform_button_state C;
 
     platform_button_state Tab;
     platform_button_state Ctrl;
     platform_button_state Space;
     platform_button_state Esc;
     platform_button_state Enter;
+
+    platform_button_state Plus;
+    platform_button_state Minus;
+
 };
 
 struct platform_input_mouse
@@ -137,14 +142,16 @@ struct game_input_range
 struct game_input
 {
     game_input_range Move;
+    game_input_action Crouch;
+
     game_input_range Camera;
     game_input_action Menu;
     game_input_action Advance;
     game_input_state HighlightBackground;
-    game_input_state EnableFreeCameraMovement;
 
     f32 ZoomDelta;
     game_input_action EditMode;
+    game_input_state EnableFreeCameraMovement;
 };
 
 inline void
@@ -164,6 +171,13 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
     {
         GameInput->ZoomDelta = XboxControllerInput->RightTrigger * 0.1f;
     }
+}
+
+inline b32
+IsButtonActivated(platform_button_state Button)
+{
+    b32 Result = Button.IsPressed && (Button.IsPressed != Button.WasPressed);
+    return Result;
 }
 
 internal void
@@ -203,10 +217,10 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
         GameInput->Move.Range.y = 0.f;
     }
 
-    // todo:
-    GameInput->Menu.IsActivated = KeyboardInput->Enter.IsPressed && (KeyboardInput->Enter.IsPressed != KeyboardInput->Enter.WasPressed);
-    GameInput->Advance.IsActivated = KeyboardInput->Space.IsPressed && (KeyboardInput->Space.IsPressed != KeyboardInput->Space.WasPressed);
-    GameInput->EditMode.IsActivated = KeyboardInput->Tab.IsPressed && (KeyboardInput->Tab.IsPressed != KeyboardInput->Tab.WasPressed);
+    GameInput->Crouch.IsActivated = IsButtonActivated(KeyboardInput->C);
+    GameInput->Menu.IsActivated = IsButtonActivated(KeyboardInput->Enter);
+    GameInput->Advance.IsActivated = IsButtonActivated(KeyboardInput->Space);
+    GameInput->EditMode.IsActivated = IsButtonActivated(KeyboardInput->Tab);
 
     GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
 }

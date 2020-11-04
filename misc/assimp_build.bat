@@ -13,7 +13,6 @@ call :build_assimp Release
 if not exist %libs_dir% mkdir %libs_dir%
 pushd %libs_dir%
 copy ..\assimp\lib\Debug\assimp-vc142-mtd.lib .\
-copy ..\assimp\code\Debug\assimp-vc142-mtd.pdb .\
 copy ..\assimp\lib\Release\assimp-vc142-mt.lib .\
 
 copy ..\assimp\lib\Debug\IrrXMLd.lib .\
@@ -21,6 +20,10 @@ copy ..\assimp\lib\Release\IrrXML.lib .\
 
 copy ..\assimp\lib\Debug\zlibstaticd.lib .\
 copy ..\assimp\lib\Release\zlibstatic.lib .\
+
+copy ..\assimp\code\Debug\assimp-vc142-mtd.pdb .\
+copy ..\assimp\contrib\zlib\zlibstatic.dir\Debug\zlibstatic.pdb .\
+copy ..\assimp\contrib\irrXML\IrrXML.dir\Debug\IrrXML.pdb .\
 popd
 exit /b 0
 

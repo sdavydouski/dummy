@@ -116,6 +116,11 @@ Magnitude(vec4 Vector)
 inline vec4
 Normalize(vec4 Vector)
 {
-    vec4 Result = Vector / Magnitude(Vector);
+    f32 Length = Magnitude(Vector);
+
+    Assert(Length > 0.f);
+
+    vec4 Result = Vector / Length;
+
     return Result;
 }

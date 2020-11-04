@@ -248,7 +248,8 @@ uniform vec3 u_CameraPosition;
 void main()
 {
     // todo: dump ambient component (separate colors for lights?)
-    vec3 AmbientColor = u_Material.AmbientColor * 0.1f;
+    //vec3 AmbientColor = u_Material.AmbientColor * 0.1f;
+    vec3 AmbientColor = u_Material.AmbientColor;
 
     vec3 DiffuseColor = u_Material.HasDiffuseMap
         ? texture(u_Material.DiffuseMap, ex_TextureCoords).rgb

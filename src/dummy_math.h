@@ -138,10 +138,24 @@ Clamp(f32 Value, f32 Min, f32 Max)
     return Value;
 }
 
+inline void
+Clamp(f32 *Value, f32 Min, f32 Max)
+{
+    if (*Value < Min) *Value = Min;
+    if (*Value > Max) *Value = Max;
+}
+
 inline f32
 Mod(f32 x, f32 y)
 {
     f32 Result = fmod(x, y);
+    return Result;
+}
+
+inline b32
+InRange(f32 Value, f32 Min, f32 Max)
+{
+    b32 Result = Value >= Min && Value <= Max;
     return Result;
 }
 
@@ -301,11 +315,13 @@ Orthographic(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 * after the perspective divide occurs.
 */
 inline mat4
-Perspective(f32 FovY, f32 Aspect, f32 Near, f32 Far)
+Perspective(f32 FovY, f32 AspectRatio, f32 Near, f32 Far)
 {
+    f32 FocalLength = 1.f / Tan(FovY * 0.5f);
+
     mat4 Result = mat4(
-        vec4(1.f / (Aspect * Tan(FovY * 0.5f)), 0.f, 0.f, 0.f),
-        vec4(0.f, 1.f / Tan(FovY / 2), 0.f, 0.f),
+        vec4(FocalLength / AspectRatio, 0.f, 0.f, 0.f),
+        vec4(0.f, FocalLength, 0.f, 0.f),
         vec4(0.f, 0.f, (-Near - Far) / (Far - Near), 2.f * (Near * Far) / (Near - Far)),
         vec4(0.f, 0.f, -1.f, 0.f)
     );
@@ -387,6 +403,17 @@ Lerp(f32 A, f32 t, f32 B)
     return Result;
 }
 
+inline vec2
+Lerp(vec2 A, f32 t, vec2 B)
+{
+    vec2 Result;
+
+    Result.x = Lerp(A.x, t, B.x);
+    Result.y = Lerp(A.y, t, B.y);
+
+    return Result;
+}
+
 inline vec3
 Lerp(vec3 A, f32 t, vec3 B)
 {
@@ -456,7 +483,6 @@ inline vec3
 Projection(vec3 Vector, plane Plane)
 {
     vec3 Result = Vector - Dot(Vector, Plane.Normal) * Plane.Normal;
-
     return Result;
 }
 
@@ -467,8 +493,10 @@ Orthogonal(vec3 Vector, plane Plane)
     return Result;
 }
 
-// Compute barycentric coordinates (u, v, w) for
-// point p with respect to triangle (a, b, c)
+/**
+* Computes barycentric coordinates (u, v, w) for
+* point p with respect to triangle (a, b, c)
+*/
 inline void
 Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
 {
@@ -482,9 +510,9 @@ Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
     f32 d20 = Dot(v2, v0);
     f32 d21 = Dot(v2, v1);
     
-    f32 denominator = d00 * d11 - d01 * d01;
+    f32 d = d00 * d11 - d01 * d01;
 
-    v = (d11 * d20 - d01 * d21) / denominator;
-    w = (d00 * d21 - d01 * d20) / denominator;
+    v = (d11 * d20 - d01 * d21) / d;
+    w = (d00 * d21 - d01 * d20) / d;
     u = 1.f - v - w;
 }

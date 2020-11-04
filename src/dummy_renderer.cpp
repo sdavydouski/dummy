@@ -180,7 +180,6 @@ DrawSkinnedMesh(
     Command->SkinningMatrices = SkinningMatrices;
 }
 
-
 inline void
 SetDirectionalLight(render_commands *Commands, directional_light Light)
 {

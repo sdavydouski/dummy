@@ -2,6 +2,7 @@
 
 #include "dummy_defs.h"
 #include "dummy_math.h"
+#include "dummy_animation.h"
 #include "dummy_assets.h"
 
 #define MAX_NUMBER_OF_POINT_LIGHTS_PER_OBJECT 2

@@ -1,11 +1,19 @@
 #pragma once
 
+#include <cstring>
+
 #define Kilobytes(Bytes) (Bytes * 1024LL)
 #define Megabytes(Bytes) (Kilobytes(Bytes) * 1024LL)
 #define Gigabytes(Bytes) (Megabytes(Bytes) * 1024LL)
 #define Terabytes(Bytes) (Gigabytes(Bytes) * 1024LL)
 
 // todo: alignment
+
+inline void
+ClearMemory(void *Memory, umm Size)
+{
+    memset(Memory, 0, Size);
+}
 
 struct memory_arena
 {
@@ -41,6 +49,9 @@ PushSize(memory_arena *Arena, umm Size)
 
     void *Result = (u8 *)Arena->Base + Arena->Used;
     Arena->Used += Size;
+
+    // todo: control flags
+    ClearMemory(Result, Size);
 
     return Result;
 }

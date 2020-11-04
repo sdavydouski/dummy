@@ -78,6 +78,9 @@ struct opengl_state
 
     memory_arena Arena;
 
+    GLuint Framebuffers[4];
+    GLuint FramebufferTextures[4];
+
     GLuint LineVAO;
     GLuint RectangleVAO;
     GLuint GridVAO;

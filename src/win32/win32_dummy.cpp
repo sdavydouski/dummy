@@ -420,6 +420,11 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
                 KeyboardInput->Right.IsPressed = IsKeyPressed;
                 break;
             }
+            case 'C':
+            {
+                KeyboardInput->C.IsPressed = IsKeyPressed;
+                break;
+            }
             case VK_TAB:
             {
                 KeyboardInput->Tab.IsPressed = IsKeyPressed;
@@ -438,6 +443,18 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
             case VK_RETURN:
             {
                 KeyboardInput->Enter.IsPressed = IsKeyPressed;
+                break;
+            }
+            case VK_OEM_PLUS:
+            case VK_ADD:
+            {
+                KeyboardInput->Plus.IsPressed = IsKeyPressed;
+                break;
+            }
+            case VK_OEM_MINUS:
+            case VK_SUBTRACT:
+            {
+                KeyboardInput->Minus.IsPressed = IsKeyPressed;
                 break;
             }
             case VK_ESCAPE:
@@ -490,10 +507,13 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
 internal void
 Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput, platform_input_mouse *MouseInput)
 {
-    // todo:
+    // todo: for game_input_action
+    SavePrevButtonState(&KeyboardInput->C);
     SavePrevButtonState(&KeyboardInput->Tab);
     SavePrevButtonState(&KeyboardInput->Space);
     SavePrevButtonState(&KeyboardInput->Enter);
+    SavePrevButtonState(&KeyboardInput->Plus);
+    SavePrevButtonState(&KeyboardInput->Minus);
 
     MSG WindowMessage = {};
     while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
@@ -752,6 +772,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
     PlatformState.VSync = false;
+    PlatformState.TimeRate = 1.f;
 
     LARGE_INTEGER PerformanceFrequency;
     QueryPerformanceFrequency(&PerformanceFrequency);
@@ -763,8 +784,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformApi.ReadFile = Win32ReadFile;
 
     game_memory GameMemory = {};
-    GameMemory.PermanentStorageSize = Megabytes(512);
-    GameMemory.TransientStorageSize = Megabytes(512);
+    GameMemory.PermanentStorageSize = Megabytes(64);
+    GameMemory.TransientStorageSize = Megabytes(256);
     GameMemory.RenderCommandsStorageSize = Megabytes(4);
     GameMemory.Platform = &PlatformApi;
 
@@ -933,8 +954,21 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
+            if (IsButtonActivated(KeyboardInput.Plus))
+            {
+                PlatformState.TimeRate *= 2.f;
+            }
+            if (IsButtonActivated(KeyboardInput.Minus))
+            {
+                PlatformState.TimeRate *= 0.5f;
+            }
+
+            Clamp(&PlatformState.TimeRate, 0.125f, 2.f);
+
             u64 DeltaPerformanceCounter = CurrentPerformanceCounter.QuadPart - LastPerformanceCounter.QuadPart;
-            GameParameters.Delta = (f32)DeltaPerformanceCounter / (f32)PlatformState.PerformanceFrequency;
+            f32 Delta = (f32)DeltaPerformanceCounter / (f32)PlatformState.PerformanceFrequency;
+
+            GameParameters.Delta = PlatformState.TimeRate * Delta;
             GameParameters.Time += GameParameters.Delta;
 
             LastPerformanceCounter = CurrentPerformanceCounter;
