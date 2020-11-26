@@ -1,5 +1,6 @@
 #include "dummy_defs.h"
 #include "dummy_math.h"
+#include "dummy_random.h"
 #include "dummy_memory.h"
 #include "dummy_string.h"
 #include "dummy_platform.h"
@@ -230,7 +231,7 @@ GAME_INIT(GameInit)
     InitCamera(&State->PlayerCamera, RADIANS(45.f), RADIANS(0.f), RADIANS(45.f), vec3(0.f, 0.f, 0.f));
     State->PlayerCamera.Radius = 16.f;
 
-    State->GridCount = 100;
+    State->GridCount = 500;
 
     State->RigidBodiesCount = 1;
     State->RigidBodies = PushArray(&State->WorldArena, State->RigidBodiesCount, rigid_body);
@@ -247,6 +248,8 @@ GAME_INIT(GameInit)
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f);
+
+    State->RNG = RandomSequence(42);
 
     State->ShowModel = true;
     State->ShowSkeleton = false;
@@ -271,7 +274,8 @@ GAME_INIT(GameInit)
     InitModel(CubeModelAsset, &State->CubeModel, &State->WorldArena, RenderCommands);
 
     State->LerperQuat = {};
-    State->Move = vec2(0.f);
+    State->CurrentMove = vec2(0.f);
+    State->TargetMove = vec2(0.f);
 
     State->Player = {};
     State->Player.Orientation = quat(0.f, 0.f, 0.f, 1.f);
@@ -283,7 +287,7 @@ GAME_INIT(GameInit)
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    BuildAnimationGraph(&State->AnimationGraph, State->Player.Model, &State->WorldArena);
+    BuildAnimationGraph(&State->AnimationGraph, State->Player.Model, &State->WorldArena, &State->RNG);
     ActivateAnimationNode(&State->AnimationGraph, State->Player.State);
 }
 
@@ -312,7 +316,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
         Move = Normalize(Move);
     }
 
-    /*if (Input->Menu.IsActivated)
+    if (Input->Menu.IsActivated)
     {
         if (State->Mode == GameMode_Menu)
         {
@@ -322,7 +326,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
         {
             State->Mode = GameMode_Menu;
         }
-    }*/
+    }
 
     if (Input->Advance.IsActivated)
     {
@@ -389,7 +393,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
             f32 xMoveX = Dot(xMoveAxis, xAxis) * Move.x;
             f32 zMoveX = Dot(xMoveAxis, zAxis) * Move.x;
 
-            f32 MoveMaginute = Magnitude(Move);
+            f32 MoveMaginute = Clamp(Magnitude(Move), 0.f, 1.f);
             
             f32 Clock = 1.f;
 
@@ -400,11 +404,10 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
             vec3 PlayerDirection = vec3(Dot(vec3(Move.x, 0.f, Move.y), xMoveAxis), 0.f, Dot(vec3(Move.x, 0.f, Move.y), yMoveAxis));
 
-            // todo: why clamping?
-            //State->MoveFactor = Clamp(Magnitude(Move), 0.f, 1.f);
+            State->TargetMove = Move;
 
-            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * 50.f;
-            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * 50.f;
+            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * Magnitude(State->CurrentMove) * 80.f;
+            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * Magnitude(State->CurrentMove) * 80.f;
 
             f32 CrossFadeDuration = 0.2f;
 
@@ -433,13 +436,13 @@ GAME_PROCESS_INPUT(GameProcessInput)
                     
                     if (MoveMaginute > 0.f)
                     {
-                        State->Player.State = EntityState_Walking;
+                        State->Player.State = EntityState_Moving;
                         TransitionToState(&State->AnimationGraph, State->Player.State);
                     }
 
                     break;
                 }
-                case EntityState_Walking:
+                case EntityState_Moving:
                 {
                    /* if (Input->Crouch.IsActivated)
                     {
@@ -502,8 +505,6 @@ GAME_PROCESS_INPUT(GameProcessInput)
             Assert(!"GameMode is not supported");
         }
     }
-    
-    Input->ZoomDelta = 0.f;
 }
 
 extern "C" DLLExport
@@ -543,6 +544,10 @@ GAME_RENDER(GameRender)
     game_state *State = (game_state *)Memory->PermanentStorage;
     render_commands *RenderCommands = GetRenderCommands(Memory);
 
+    RenderCommands->WindowWidth = Parameters->WindowWidth;
+    RenderCommands->WindowHeight = Parameters->WindowHeight;
+    RenderCommands->Time = Parameters->Time * 10.f;
+
     f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
     vec3 PlayerPosition = Lerp(State->Player.RigidBody->PrevPosition, Lag, State->Player.RigidBody->Position);
@@ -580,11 +585,11 @@ GAME_RENDER(GameRender)
             SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up, Camera->Position);
             
             // todo: SetTransform render command?
-            f32 Bounds = 100.f;
+            f32 Bounds = 500.f;
 
-            DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 1.f);
-            //DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 1.f);
-            DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 1.f);
+            DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
+            //DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 4.f);
+            DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
 
             DrawGrid(RenderCommands, Bounds, State->GridCount, Camera->Position, vec3(0.f, 0.f, 1.f));
 
@@ -600,11 +605,11 @@ GAME_RENDER(GameRender)
 
             SetDirectionalLight(RenderCommands, DirectionalLight);
 
-            f32 PointLightRadius = 6.f;
-            vec3 PointLight1Position = vec3(Cos(Parameters->Time) * PointLightRadius, 1.f, Sin(Parameters->Time) * PointLightRadius);
+            f32 PointLightRadius = 4.f;
+            vec3 PointLight1Position = PlayerPosition + vec3(Cos(Parameters->Time * 2.f) * PointLightRadius, 1.f, Sin(Parameters->Time * 2.f) * PointLightRadius);
             vec3 PointLight1Color = vec3(1.f, 1.f, 0.f);
 
-            vec3 PointLight2Position = vec3(-Cos(Parameters->Time) * PointLightRadius, 4.f, Sin(Parameters->Time) * PointLightRadius);
+            vec3 PointLight2Position = PlayerPosition + vec3(Cos(Parameters->Time * 2.f - PI) * PointLightRadius, -1.f, Sin(Parameters->Time * 2.f - PI) * PointLightRadius);
             vec3 PointLight2Color = vec3(1.f, 0.f, 1.f);
 
             point_light DummyPointLight = {};
@@ -664,7 +669,12 @@ GAME_RENDER(GameRender)
                     clip and the extreme left turn clip to implement any desired lean angle.
                */
 
-               AnimationGraphPerFrameUpdate(&State->AnimationGraph, Parameters->Delta);
+               // todo: naming
+               f32 InterpolationTime = 0.2f;
+               vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
+               State->CurrentMove += dMove * Parameters->Delta;
+
+               AnimationGraphPerFrameUpdate(&State->AnimationGraph, Parameters->Delta, Clamp(Magnitude(State->CurrentMove), 0.f, 1.f));
 
                skeleton_pose *Pose = State->Player.Model->Pose;
 
@@ -687,6 +697,8 @@ GAME_RENDER(GameRender)
                     DrawSkeleton(RenderCommands, Pose, &State->CubeModel);
                 }
             }
+
+            //DrawModel(RenderCommands, &State->CubeModel, CreateTransform(vec3(0.f), vec3(400.f), AxisAngle2Quat(vec4(zAxis, PI / 4.f))), CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), false), {}, {});
 
             {
                 transform Transform = CreateTransform(PointLight1Position, vec3(20.f), quat(0.f));

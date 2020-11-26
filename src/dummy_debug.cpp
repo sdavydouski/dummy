@@ -1,3 +1,4 @@
+#include "dummy_random.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_animation.h"
@@ -48,6 +49,35 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
+    ImGui::Begin("Menu", 0, ImGuiWindowFlags_MenuBar);
+
+    if (ImGui::BeginMenuBar())
+    {
+        if (ImGui::BeginMenu("Game"))
+        {
+            if (ImGui::MenuItem("Close"))
+            { 
+                PlatformState->IsGameRunning = false;
+            }
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Animation"))
+        {
+            if (ImGui::MenuItem("Viewer"))
+            {
+
+            }
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenuBar();
+    }
+
+    ImGui::End();
+
     ImGui::Begin("Stats");
 
     ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters->Delta * 1000.f / PlatformState->TimeRate, PlatformState->TimeRate / GameParameters->Delta);
@@ -77,13 +107,14 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
         GameState->ShowSkeleton = true;
     }
 
-    ImGui::Text("Position: x: %.3f, y: %.3f, z: %.3f", GameState->Player.RigidBody->Position.x, GameState->Player.RigidBody->Position.y, GameState->Player.RigidBody->Position.z);
-    ImGui::Text("Orientation: x: %.3f, y: %.3f, z: %.3f, w: %.3f", GameState->Player.Orientation.x, GameState->Player.Orientation.y, GameState->Player.Orientation.z, GameState->Player.Orientation.w);
+    ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player.RigidBody->Position.x, GameState->Player.RigidBody->Position.y, GameState->Player.RigidBody->Position.z);
+    ImGui::Text("CurrentMove: x: %.1f, y: %.1f", GameState->CurrentMove.x, GameState->CurrentMove.y);
+    //ImGui::Text("Orientation: x: %.1f, y: %.1f, z: %.1f, w: %.1f", GameState->Player.Orientation.x, GameState->Player.Orientation.y, GameState->Player.Orientation.z, GameState->Player.Orientation.w);
 
     ImGui::Text("State: %d", GameState->Player.State);
 
-    joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(GameState->Player.Model->Pose);
-    ImGui::Text("Root Translation: x: %.3f, y: %.3f, z: %.3f", RootTranslationLocalJointPose->Translation.x, RootTranslationLocalJointPose->Translation.y, RootTranslationLocalJointPose->Translation.z);
+    //joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(GameState->Player.Model->Pose);
+    //ImGui::Text("Root Translation: x: %.3f, y: %.3f, z: %.3f", RootTranslationLocalJointPose->Translation.x, RootTranslationLocalJointPose->Translation.y, RootTranslationLocalJointPose->Translation.z);
 
     static int e1 = 0;
     ImGui::RadioButton("YBot", &e1, 0);
@@ -134,18 +165,63 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 
         if (Node->Weight > 0.f)
         {
-            ImGui::Text("Name: %s", Node->Animation.Clip->Name);
-            ImGui::Text("Time: %.3f", Node->Animation.Time);
+            switch (Node->Type)
+            {
+                case AnimationNodeType_SingleMotion:
+                {
+                    ImGui::Text("Name: %s", Node->Animation.Clip->Name);
+                    ImGui::Text("Time: %.3f", Node->Animation.Time);
+                    ImGui::Text("Weight: %.3f", Node->Animation.Weight);
 
-            char WeightLabel[256];
-            FormatString(WeightLabel, sizeof(WeightLabel), "Weight: #%d", NodeIndex);
-            ImGui::SliderFloat(WeightLabel, &Node->Animation.Weight, 0.f, 1.f);
+                    ImGui::Text("--------------");
+
+                    break;
+                }
+                case AnimationNodeType_BlendSpace:
+                {
+                    for (u32 Index = 0; Index < Node->BlendSpace->AnimationBlendSpaceValueCount; ++Index)
+                    {
+                        animation_blend_space_1d_value *Value = Node->BlendSpace->AnimationBlendSpaceValues + Index;
+
+                        if (Value->AnimationState.Weight > 0.f)
+                        {
+                            ImGui::Text("Name: %s", Value->AnimationState.Clip->Name);
+                            ImGui::Text("Time: %.3f", Value->AnimationState.Time);
+                            ImGui::Text("Weight: %.3f", Value->AnimationState.Weight);
+
+                            ImGui::Text("--------------");
+                        }
+                    }
+
+                    break;
+                }
+                case AnimationNodeType_Graph:
+                {
+                    for (u32 NodeIndex = 0; NodeIndex < Node->Graph->NodeCount; ++NodeIndex)
+                    {
+                        animation_node *SubNode = Node->Graph->Nodes + NodeIndex;
+
+                        if (SubNode->Animation.Weight > 0.f)
+                        {
+                            ImGui::Text("Name: %s", SubNode->Animation.Clip->Name);
+                            ImGui::Text("Time: %.3f", SubNode->Animation.Time);
+                            ImGui::Text("Weight: %.3f", SubNode->Animation.Weight);
+
+                            ImGui::Text("--------------");
+                        }
+                    }
+
+                    break;
+                }
+            }
+
+            
 
             /* char PlaybackRateLabel[256];
              FormatString(PlaybackRateLabel, sizeof(PlaybackRateLabel), "PlaybackRate: #%d", AnimationStateIndex);
              ImGui::SliderFloat(PlaybackRateLabel, &AnimationState->PlaybackRate, 0.1f, 2.f);*/
 
-            ImGui::Text("--------------");
+            
         }
     }
 

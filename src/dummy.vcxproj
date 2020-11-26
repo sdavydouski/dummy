@@ -32,6 +32,7 @@
     <ClInclude Include="dummy_physics.h" />
     <ClInclude Include="dummy_platform.h" />
     <ClInclude Include="dummy_quat.h" />
+    <ClInclude Include="dummy_random.h" />
     <ClInclude Include="dummy_renderer.h" />
     <ClInclude Include="dummy_string.h" />
     <ClInclude Include="dummy_vec2.h" />

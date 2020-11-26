@@ -81,6 +81,7 @@ enum render_command_type
 struct render_command_header
 {
     render_command_type Type;
+    u32 RenderTarget;
     u32 Size;
 };
 
@@ -223,4 +224,8 @@ struct render_commands
     u32 MaxRenderCommandsBufferSize;
     u32 RenderCommandsBufferSize;
     void *RenderCommandsBuffer;
+
+    i32 WindowWidth;
+    i32 WindowHeight;
+    f32 Time;
 };

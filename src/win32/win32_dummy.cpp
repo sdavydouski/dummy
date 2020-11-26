@@ -355,8 +355,6 @@ Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_in
 
     if (XInputGetState(0, &CurrentControllerState) == ERROR_SUCCESS)
     {
-        PlatformState->HasXboxController = true;
-
         if (PrevControllerState.dwPacketNumber != CurrentControllerState.dwPacketNumber)
         {
             XboxControllerInput->LeftStick = Win32ProcessXboxControllerStick(
@@ -378,10 +376,6 @@ Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_in
 
             PrevControllerState = CurrentControllerState;
         }
-    }
-    else
-    {
-        PlatformState->HasXboxController = false;
     }
 }
 
@@ -766,8 +760,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 2560;
-    PlatformState.WindowHeight = 1440;
+    PlatformState.WindowWidth = 3200;
+    PlatformState.WindowHeight = 1800;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
@@ -782,9 +776,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformApi.PlatformHandle = (void *)&PlatformState;
     PlatformApi.SetMouseMode = Win32SetMouseMode;
     PlatformApi.ReadFile = Win32ReadFile;
+    PlatformApi.DebugPrintString = Win32DebugPrintString;
 
     game_memory GameMemory = {};
-    GameMemory.PermanentStorageSize = Megabytes(64);
+    GameMemory.PermanentStorageSize = Megabytes(256);
     GameMemory.TransientStorageSize = Megabytes(256);
     GameMemory.RenderCommandsStorageSize = Megabytes(4);
     GameMemory.Platform = &PlatformApi;
@@ -900,18 +895,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameParameters.WindowWidth = PlatformState.WindowWidth;
                 GameParameters.WindowHeight = PlatformState.WindowHeight;
 
-                if (PlatformState.HasXboxController)
-                {
-                    XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
-                }
-                else
-                {
-                    KeyboardInput2GameInput(&KeyboardInput, &GameInput);
-                    MouseInput2GameInput(&MouseInput, &GameInput, GameParameters.Delta);
-                }
+                // Input
+                GameInput = {};
+
+                XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
+                KeyboardInput2GameInput(&KeyboardInput, &GameInput);
+                MouseInput2GameInput(&MouseInput, &GameInput, GameParameters.Delta);
 
                 GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
 
+                // Fixed Update
                 GameParameters.UpdateLag += GameParameters.Delta;
                 UpdateCount = 0;
 
@@ -923,11 +916,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                     UpdateCount++;
                 }
 
-                if (GameParameters.UpdateLag > GameParameters.UpdateRate)
-                {
-                    GameParameters.UpdateLag = GameParameters.UpdateRate;
-                }
+                GameParameters.UpdateLag = Min(GameParameters.UpdateLag, GameParameters.UpdateRate);
 
+                // Render
                 GameCode.Render(&GameMemory, &GameParameters);
 
                 render_commands *RenderCommands = GetRenderCommands(&GameMemory);

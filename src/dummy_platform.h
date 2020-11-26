@@ -21,11 +21,15 @@ typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
 #define PLATFORM_READ_FILE(name) read_file_result name(void *PlatformHandle, char *FileName, memory_arena *Arena)
 typedef PLATFORM_READ_FILE(platform_read_file);
 
+#define PLATFORM_DEBUG_PRINT_STRING(name) i32 name(const char *String, ...)
+typedef PLATFORM_DEBUG_PRINT_STRING(platform_debug_print_string);
+
 struct platform_api
 {
     void *PlatformHandle;
     platform_set_mouse_mode *SetMouseMode;
     platform_read_file *ReadFile;
+    platform_debug_print_string *DebugPrintString;
 };
 
 struct game_memory
@@ -157,19 +161,37 @@ struct game_input
 inline void
 XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInput, game_input *GameInput)
 {
-    GameInput->Move.Range = XboxControllerInput->LeftStick;
-    GameInput->Camera.Range = XboxControllerInput->RightStick;
-    GameInput->Menu.IsActivated = XboxControllerInput->Start.IsPressed && (XboxControllerInput->Start.IsPressed != XboxControllerInput->Start.WasPressed);
-    GameInput->HighlightBackground.IsActive = XboxControllerInput->Back.IsPressed;
-
-    if (XboxControllerInput->LeftTrigger > 0.f)
+    if (Magnitude(GameInput->Move.Range) == 0.f)
     {
-        GameInput->ZoomDelta = -XboxControllerInput->LeftTrigger * 0.1f;
+        GameInput->Move.Range = XboxControllerInput->LeftStick;
     }
 
-    if (XboxControllerInput->RightTrigger > 0.f)
+    if (Magnitude(GameInput->Camera.Range) == 0.f)
     {
-        GameInput->ZoomDelta = XboxControllerInput->RightTrigger * 0.1f;
+        GameInput->Camera.Range = XboxControllerInput->RightStick;
+    }
+
+    if (!GameInput->Menu.IsActivated)
+    {
+        GameInput->Menu.IsActivated = XboxControllerInput->Start.IsPressed && (XboxControllerInput->Start.IsPressed != XboxControllerInput->Start.WasPressed);
+    }
+
+    if (!GameInput->HighlightBackground.IsActive)
+    {
+        GameInput->HighlightBackground.IsActive = XboxControllerInput->Back.IsPressed;
+    }
+
+    if (GameInput->ZoomDelta == 0.f)
+    {
+        if (XboxControllerInput->LeftTrigger > 0.f)
+        {
+            GameInput->ZoomDelta = -XboxControllerInput->LeftTrigger * 0.1f;
+        }
+
+        if (XboxControllerInput->RightTrigger > 0.f)
+        {
+            GameInput->ZoomDelta = XboxControllerInput->RightTrigger * 0.1f;
+        }
     }
 }
 
@@ -183,62 +205,85 @@ IsButtonActivated(platform_button_state Button)
 internal void
 KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *GameInput)
 {
-    if (KeyboardInput->Left.IsPressed && KeyboardInput->Right.IsPressed)
+    if (Magnitude(GameInput->Move.Range) == 0.f)
     {
-        GameInput->Move.Range.x = 0.f;
-    }
-    else if (KeyboardInput->Left.IsPressed)
-    {
-        GameInput->Move.Range.x = -1.f;
-    }
-    else if (KeyboardInput->Right.IsPressed)
-    {
-        GameInput->Move.Range.x = 1.f;
-    }
-    else
-    {
-        GameInput->Move.Range.x = 0.f;
+        if (KeyboardInput->Left.IsPressed && KeyboardInput->Right.IsPressed)
+        {
+            GameInput->Move.Range.x = 0.f;
+        }
+        else if (KeyboardInput->Left.IsPressed)
+        {
+            GameInput->Move.Range.x = -1.f;
+        }
+        else if (KeyboardInput->Right.IsPressed)
+        {
+            GameInput->Move.Range.x = 1.f;
+        }
+        else
+        {
+            GameInput->Move.Range.x = 0.f;
+        }
+
+        if (KeyboardInput->Up.IsPressed && KeyboardInput->Down.IsPressed)
+        {
+            GameInput->Move.Range.y = 0.f;
+        }
+        else if (KeyboardInput->Up.IsPressed)
+        {
+            GameInput->Move.Range.y = 1.f;
+        }
+        else if (KeyboardInput->Down.IsPressed)
+        {
+            GameInput->Move.Range.y = -1.f;
+        }
+        else
+        {
+            GameInput->Move.Range.y = 0.f;
+        }
     }
 
-    if (KeyboardInput->Up.IsPressed && KeyboardInput->Down.IsPressed)
+    if (!GameInput->Menu.IsActivated)
     {
-        GameInput->Move.Range.y = 0.f;
-    }
-    else if (KeyboardInput->Up.IsPressed)
-    {
-        GameInput->Move.Range.y = 1.f;
-    }
-    else if (KeyboardInput->Down.IsPressed)
-    {
-        GameInput->Move.Range.y = -1.f;
-    }
-    else
-    {
-        GameInput->Move.Range.y = 0.f;
+        GameInput->Menu.IsActivated = IsButtonActivated(KeyboardInput->Enter);
     }
 
-    GameInput->Crouch.IsActivated = IsButtonActivated(KeyboardInput->C);
-    GameInput->Menu.IsActivated = IsButtonActivated(KeyboardInput->Enter);
-    GameInput->Advance.IsActivated = IsButtonActivated(KeyboardInput->Space);
-    GameInput->EditMode.IsActivated = IsButtonActivated(KeyboardInput->Tab);
+    if (!GameInput->Advance.IsActivated)
+    {
+        GameInput->Advance.IsActivated = IsButtonActivated(KeyboardInput->Space);
+    }
 
-    GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
+    if (!GameInput->EditMode.IsActivated)
+    {
+        GameInput->EditMode.IsActivated = IsButtonActivated(KeyboardInput->Tab);
+    }
+
+    if (!GameInput->HighlightBackground.IsActive)
+    {
+        GameInput->HighlightBackground.IsActive = KeyboardInput->Ctrl.IsPressed;
+    }
 }
 
 inline void
 MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput, f32 Delta)
 {
-    // todo:
-    if (Delta > 0.f)
+    if (Magnitude(GameInput->Camera.Range) == 0.f)
     {
-        f32 MouseSensitivity = (1.f / Delta) * 0.0001f;
-        vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy) * MouseSensitivity;
+        // todo:
+        if (Delta > 0.f)
+        {
+            f32 MouseSensitivity = (1.f / Delta) * 0.0001f;
+            vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy) * MouseSensitivity;
 
-        GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
-        GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
+            GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
+            GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
+        }
     }
 
-    GameInput->ZoomDelta = (f32)MouseInput->WheelDelta;
+    if (GameInput->ZoomDelta == 0.f)
+    {
+        GameInput->ZoomDelta = (f32)MouseInput->WheelDelta;
+    }
+
     MouseInput->WheelDelta = 0;
 }
 

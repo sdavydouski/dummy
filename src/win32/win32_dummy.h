@@ -34,8 +34,6 @@ struct win32_platform_state
     b32 IsGameRunning;
     f32 TimeRate;
 
-    b32 HasXboxController;
-
     mouse_mode MouseMode;
 };
 

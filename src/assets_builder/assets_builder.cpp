@@ -1162,7 +1162,7 @@ WriteYBotModel(u32 Flags)
     u32 AnimationIndex = 0;
     LoadAnimationClipAsset("models\\ybot\\animations\\idle.fbx", Flags, &Asset, "Idle", false, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\idle (2).fbx", Flags, &Asset, "Idle_2", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ybot\\animations\\idle (3).fbx", Flags, &Asset, "Idle_3", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle (3).fbx", Flags, &Asset, "Idle_3", false, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\idle (4).fbx", Flags, &Asset, "Idle_4", true, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\idle (5).fbx", Flags, &Asset, "Idle_5", true, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
@@ -1261,17 +1261,15 @@ WriteNinjaModel(u32 Flags)
     LoadModelAsset("models\\ninja\\ninja.fbx", Flags, &Asset);
 
     // todo:
-    Asset.AnimationCount = 3;
+    Asset.AnimationCount = 1;
     Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
 
     u32 AnimationIndex = 0;
     LoadAnimationClipAsset("models\\ninja\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ninja\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\ninja\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
 
     WriteAssetFile("assets\\ninja.asset", &Asset);
 
-#if 1
+#if 0
     model_asset TestAsset = {};
     ReadAssetFile("assets\\ninja.asset", &TestAsset, &Asset);
 #endif

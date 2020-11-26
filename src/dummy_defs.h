@@ -31,3 +31,5 @@
 #define umm uintptr_t
 
 #define wchar wchar_t
+
+#define U32_MAX UINT32_MAX;

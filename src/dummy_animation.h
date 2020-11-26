@@ -60,16 +60,46 @@ struct animation_state
 {
     f32 Time;
     f32 Weight;
+    f32 WeightCoefficient;
     f32 PlaybackRate;
 
     animation_clip *Clip;
+};
+
+struct animation_blend_space_1d_value
+{
+    animation_state AnimationState;
+    f32 Value;
+};
+
+struct animation_blend_space_1d
+{
+    u32 AnimationBlendSpaceValueCount;
+    animation_blend_space_1d_value *AnimationBlendSpaceValues;
+};
+
+struct animation_blend_space_2d_value
+{
+    animation_state *AnimationState;
+    vec2 Value;
+};
+
+struct animation_blend_space_2d_triangle
+{
+    animation_blend_space_2d_value Points[3];
+};
+
+struct animation_blend_space_2d
+{
+    u32 AnimationBlendSpaceTriangleCount;
+    animation_blend_space_2d_triangle *AnimationBlendSpaceTriangles;
 };
 
 enum entity_state
 {
     EntityState_None,
     EntityState_Idle,
-    EntityState_Walking
+    EntityState_Moving
 };
 
 enum animation_transition_type
@@ -91,13 +121,29 @@ struct animation_transition
 
 };
 
+enum animation_node_type
+{
+    AnimationNodeType_SingleMotion,
+    AnimationNodeType_BlendSpace,
+    AnimationNodeType_Graph
+};
+
+struct animation_node_params
+{
+    f32 Time;
+    f32 MaxTime;
+    struct random_sequence *RNG;
+};
+
 struct animation_node
 {
     entity_state State;
-    
+
+    animation_node_type Type;
     union
     {
         animation_state Animation;
+        animation_blend_space_1d *BlendSpace;
         struct animation_graph *Graph;
     };
 
@@ -106,12 +152,15 @@ struct animation_node
 
     u32 Index;
     f32 Weight;
+    f32 Time;
+
+    animation_node_params *Params;
+    char Name[64];
 };
 
 struct animation_mixer
 {
-    b32 IsEnabled;
-    f32 CurrentTime;
+    f32 Time;
     f32 Duration;
     f32 StartWeight;
 
@@ -127,41 +176,6 @@ struct animation_graph
     u32 ActiveNodeIndex;
 
     animation_mixer Mixer;
-};
-
-struct animation_blend_space_value_1d
-{
-    animation_state *AnimationState;
-    f32 Value;
-};
-
-struct animation_blend_space_1d
-{
-    u32 AnimationBlendSpaceValueCount;
-    animation_blend_space_value_1d *AnimationBlendSpaceValues;
-};
-
-struct animation_blend_space_value_2d
-{
-    animation_state *AnimationState;
-    vec2 Value;
-};
-
-struct animation_blend_space_2d_triangle
-{
-    animation_blend_space_value_2d Points[3];
-};
-
-struct animation_blend_space_2d
-{
-    u32 AnimationBlendSpaceTriangleCount;
-    animation_blend_space_2d_triangle *AnimationBlendSpaceTriangles;
-};
-
-struct animation_state_set
-{
-    u32 AnimationStateCount;
-    animation_state *AnimationStates;
 };
 
 inline joint_pose *

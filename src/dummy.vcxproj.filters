@@ -19,15 +19,16 @@
     <ClInclude Include="dummy_vec3.h" />
     <ClInclude Include="dummy_vec4.h" />
     <ClInclude Include="dummy_animation.h" />
+    <ClInclude Include="dummy_random.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_assets.cpp" />
     <None Include="dummy_debug.cpp" />
     <None Include="dummy_opengl.cpp" />
     <None Include="dummy_renderer.cpp" />
+    <None Include="dummy_animation.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
-    <ClCompile Include="dummy_animation.cpp" />
   </ItemGroup>
 </Project>

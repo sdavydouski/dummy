@@ -8,6 +8,7 @@
 #define OPENGL_GRID_SHADER_ID 1
 #define OPENGL_PHONG_SHADING_SHADER_ID 2
 #define OPENGL_SKINNED_PHONG_SHADING_SHADER_ID 3
+#define OPENGL_FRAMEBUFFER_SHADER_ID 4
 
 struct opengl_mesh_buffer
 {
@@ -67,6 +68,9 @@ struct opengl_shader
     GLint PointLight2AttenuationConstantUniformLocation;
     GLint PointLight2AttenuationLinearUniformLocation;
     GLint PointLight2AttenuationQuadraticUniformLocation;
+
+    GLint ScreenTextureUniformLocation;
+    GLint TimeUniformLocation;
 };
 
 struct opengl_state
@@ -80,6 +84,8 @@ struct opengl_state
 
     GLuint Framebuffers[4];
     GLuint FramebufferTextures[4];
+    GLuint FramebufferColorRBOs[4];
+    GLuint FramebufferDepthRBOs[4];
 
     GLuint LineVAO;
     GLuint RectangleVAO;

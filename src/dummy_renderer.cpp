@@ -9,25 +9,27 @@ InitRenderCommandsBuffer(render_commands *Commands, void *Memory, u32 Size)
 }
 
 inline render_command_header *
-PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type)
+PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type, u32 RenderTarget)
 {
     Assert(Commands->RenderCommandsBufferSize + Size < Commands->MaxRenderCommandsBufferSize);
 
     render_command_header *Result = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + Commands->RenderCommandsBufferSize);
     Result->Type = Type;
+    // todo: why do I neend size?
     Result->Size = Size;
+    Result->RenderTarget = RenderTarget;
 
     Commands->RenderCommandsBufferSize += Size;
 
     return Result;
 }
 
-#define PushRenderCommand(Buffer, Struct, Type) (Struct *)PushRenderCommand_(Buffer, sizeof(Struct), Type)
+#define PushRenderCommand(Buffer, Struct, Type, RenderTarget) (Struct *)PushRenderCommand_(Buffer, sizeof(Struct), Type, RenderTarget)
 
 inline void
 InitRenderer(render_commands *Commands, u32 GridCount)
 {
-    render_command_init_renderer *Command = PushRenderCommand(Commands, render_command_init_renderer, RenderCommand_InitRenderer);
+    render_command_init_renderer *Command = PushRenderCommand(Commands, render_command_init_renderer, RenderCommand_InitRenderer, 0);
     Command->GridCount = GridCount;
 }
 
@@ -42,7 +44,7 @@ AddMesh(
     u32 *Indices
 )
 {
-    render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh);
+    render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh, 0);
     Command->Id = Id;
     Command->PrimitiveType = PrimitiveType;
     Command->VertexCount = VertexCount;
@@ -54,15 +56,15 @@ AddMesh(
 inline void
 AddTexture(render_commands *Commands, u32 Id, bitmap *Bitmap)
 {
-    render_command_add_texture *Command = PushRenderCommand(Commands, render_command_add_texture, RenderCommand_AddTexture);
+    render_command_add_texture *Command = PushRenderCommand(Commands, render_command_add_texture, RenderCommand_AddTexture, 0);
     Command->Id = Id;
     Command->Bitmap = Bitmap;
 }
 
 inline void
-SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height)
+SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height, u32 RenderTarget = 0)
 {
-    render_command_set_viewport *Command = PushRenderCommand(Commands, render_command_set_viewport, RenderCommand_SetViewport);
+    render_command_set_viewport *Command = PushRenderCommand(Commands, render_command_set_viewport, RenderCommand_SetViewport, RenderTarget);
     Command->x = x;
     Command->y = y;
     Command->Width = Width;
@@ -70,10 +72,10 @@ SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height)
 }
 
 inline void
-SetOrthographicProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
+SetOrthographicProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far, u32 RenderTarget = 0)
 {
     render_command_set_orthographic_projection *Command = 
-        PushRenderCommand(Commands, render_command_set_orthographic_projection, RenderCommand_SetOrthographicProjection);
+        PushRenderCommand(Commands, render_command_set_orthographic_projection, RenderCommand_SetOrthographicProjection, RenderTarget);
     Command->Left = Left;
     Command->Right = Right;
     Command->Bottom = Bottom;
@@ -83,10 +85,10 @@ SetOrthographicProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bo
 }
 
 inline void
-SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far)
+SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far, u32 RenderTarget = 0)
 {
     render_command_set_perspective_projection *Command =
-        PushRenderCommand(Commands, render_command_set_perspective_projection, RenderCommand_SetPerspectiveProjection);
+        PushRenderCommand(Commands, render_command_set_perspective_projection, RenderCommand_SetPerspectiveProjection, RenderTarget);
     Command->FovY = FovY;
     Command->Aspect = Aspect;
     Command->Near = Near;
@@ -94,10 +96,10 @@ SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Ne
 }
 
 inline void
-SetCamera(render_commands *Commands, vec3 Eye, vec3 Target, vec3 Up, vec3 Position)
+SetCamera(render_commands *Commands, vec3 Eye, vec3 Target, vec3 Up, vec3 Position, u32 RenderTarget = 0)
 {
     render_command_set_camera *Command =
-        PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera);
+        PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera, RenderTarget);
     Command->Eye = Eye;
     Command->Target = Target;
     Command->Up = Up;
@@ -105,16 +107,16 @@ SetCamera(render_commands *Commands, vec3 Eye, vec3 Target, vec3 Up, vec3 Positi
 }
 
 inline void
-Clear(render_commands *Commands, vec4 Color)
+Clear(render_commands *Commands, vec4 Color, u32 RenderTarget = 0)
 {
-    render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear);
+    render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear, RenderTarget);
     Command->Color = Color;
 }
 
 inline void
-DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness)
+DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness, u32 RenderTarget = 0)
 {
-    render_command_draw_line *Command = PushRenderCommand(Commands, render_command_draw_line, RenderCommand_DrawLine);
+    render_command_draw_line *Command = PushRenderCommand(Commands, render_command_draw_line, RenderCommand_DrawLine, RenderTarget);
     Command->Start = Start;
     Command->End = End;
     Command->Color = Color;
@@ -122,17 +124,17 @@ DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickn
 }
 
 inline void
-DrawRectangle(render_commands *Commands, transform Transform, vec4 Color)
+DrawRectangle(render_commands *Commands, transform Transform, vec4 Color, u32 RenderTarget = 0)
 {
-    render_command_draw_rectangle *Command = PushRenderCommand(Commands, render_command_draw_rectangle, RenderCommand_DrawRectangle);
+    render_command_draw_rectangle *Command = PushRenderCommand(Commands, render_command_draw_rectangle, RenderCommand_DrawRectangle, RenderTarget);
     Command->Transform = Transform;
     Command->Color = Color;
 }
 
 inline void
-DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, vec3 Color)
+DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, vec3 Color, u32 RenderTarget = 0)
 {
-    render_command_draw_grid *Command = PushRenderCommand(Commands, render_command_draw_grid, RenderCommand_DrawGrid);
+    render_command_draw_grid *Command = PushRenderCommand(Commands, render_command_draw_grid, RenderCommand_DrawGrid, RenderTarget);
     Command->Size = Size;
     Command->Count = Count;
     Command->CameraPosition = CameraPosition;
@@ -146,10 +148,11 @@ DrawMesh(
     transform Transform,
     material Material,
     point_light PointLight1,
-    point_light PointLight2
+    point_light PointLight2,
+    u32 RenderTarget = 0
 )
 {
-    render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
+    render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh, RenderTarget);
     Command->Id = Id;
     Command->Transform = Transform;
     Command->Material = Material;
@@ -166,11 +169,12 @@ DrawSkinnedMesh(
     point_light PointLight1,
     point_light PointLight2,
     u32 SkinningMatrixCount,
-    mat4 *SkinningMatrices
+    mat4 *SkinningMatrices,
+    u32 RenderTarget = 0
 )
 {
     render_command_draw_skinned_mesh *Command = 
-        PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh);
+        PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh, RenderTarget);
     Command->Id = Id;
     Command->Transform = Transform;
     Command->Material = Material;
@@ -181,9 +185,9 @@ DrawSkinnedMesh(
 }
 
 inline void
-SetDirectionalLight(render_commands *Commands, directional_light Light)
+SetDirectionalLight(render_commands *Commands, directional_light Light, u32 RenderTarget = 0)
 {
     render_command_set_directional_light *Command = 
-        PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight);
+        PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight, RenderTarget);
     Command->Light = Light;
 }

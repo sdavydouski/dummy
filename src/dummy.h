@@ -83,11 +83,12 @@ struct game_state
     animation_blend_space_1d LocomotionBlendSpace;
     animation_blend_space_2d LocomotionBlendSpace2D;
 
-    vec2 Blend;
-    f32 MoveFactor;
-
     lerper_quat LerperQuat;
-    vec2 Move;
+
+    vec2 CurrentMove;
+    vec2 TargetMove;
+
+    random_sequence RNG;
 
     vec3 BackgroundColor;
 

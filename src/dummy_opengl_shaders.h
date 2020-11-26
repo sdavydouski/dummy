@@ -63,7 +63,7 @@ uniform vec3 u_Color;
 void main()
 {
     float DistanceFromCamera = length(u_CameraPosition - ex_VertexPosition);
-    float Opacity = clamp(DistanceFromCamera * 0.01f, 0.f, 1.f);
+    float Opacity = clamp(DistanceFromCamera * 0.005f, 0.f, 1.f);
 
     out_Color = vec4(u_Color, 1.f - Opacity);
 }
@@ -356,5 +356,43 @@ void main()
     ex_TBN = mat3(T, B, N);
 
     gl_Position = u_Projection * u_View * WorldPosition;
+}
+)SHADER";
+
+char *FramebufferVertexShader = (char *)
+R"SHADER(
+#version 450
+
+layout(location = 0) in vec3 in_Position;
+layout(location = 1) in vec2 in_TextureCoords;
+
+out vec2 ex_TextureCoords;
+
+void main()
+{
+    ex_TextureCoords = in_TextureCoords;
+    gl_Position = vec4(in_Position, 1.f);
+}
+)SHADER";
+
+char *FramebufferFragmentShader = (char *)
+R"SHADER(
+#version 450
+
+in vec2 ex_TextureCoords;
+
+out vec4 out_Color;
+
+uniform sampler2D u_ScreenTexture;
+uniform float u_Time;
+
+void main()
+{
+#if 1
+    vec4 TexelColor = texture(u_ScreenTexture, ex_TextureCoords + 0.0005*vec2( sin(u_Time+2560.0*ex_TextureCoords.x),cos(u_Time+1440.0*ex_TextureCoords.y)));
+    out_Color = vec4(TexelColor.rgb, 1.f);
+#else
+    out_Color = vec4(1.f, 1.f, 0.f, 1.f);
+#endif
 }
 )SHADER";
