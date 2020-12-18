@@ -23,8 +23,9 @@
 
 // todo: some models have weird bone transformations
 // https://github.com/assimp/assimp/issues/1974
+// probably related:
+// https://github.com/assimp/assimp/pull/2815
 
-// todo: specify per asset
 #undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
 #define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 1.f
 
@@ -302,7 +303,6 @@ FindJointIndexByName(const char *JointName, skeleton *Skeleton)
     return Result;
 }
 
-// todo: reorder animations to be in the same order as joints in the skeleton?
 internal void
 ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, skeleton *Skeleton)
 {
@@ -345,23 +345,6 @@ ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, 
 internal void
 ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNode, mesh *Mesh, skeleton *Skeleton)
 {
-    switch (AssimpMesh->mPrimitiveTypes)
-    {
-        case aiPrimitiveType_LINE:
-        {
-            Mesh->PrimitiveType = PrimitiveType_Line;
-            break;
-        }
-        case aiPrimitiveType_TRIANGLE:
-        {
-            Mesh->PrimitiveType = PrimitiveType_Triangle;
-            break;
-        }
-        default: {
-            Assert(!"Invalid primitive type");
-        }
-    }
-
     Mesh->MaterialIndex = AssimpMesh->mMaterialIndex;
 
     Mesh->VertexCount = AssimpMesh->mNumVertices;
@@ -400,7 +383,6 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
         }
     }
 
-#if 1
     if (AssimpMesh->HasBones())
     {
         hashtable<u32, dynamic_array<joint_weight>> JointWeightsTable = {};
@@ -458,9 +440,12 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
                 Vertex->JointIndices[JointWeightIndex] = JointWeight.JointIndex;
                 Vertex->Weights[JointWeightIndex] = JointWeight.Weight;
             }
+
+            Vertex->Weights[3] = 1.f - (Vertex->Weights[0] + Vertex->Weights[1] + Vertex->Weights[2]);
+
+            Assert(Vertex->Weights[0] + Vertex->Weights[1] + Vertex->Weights[2] + Vertex->Weights[3] == 1.f);
         }
     }
-#endif
 
     if (AssimpMesh->HasFaces())
     {
@@ -703,7 +688,7 @@ ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
 }
 
 internal void
-LoadModelAsset(const char *FilePath, u32 Flags, model_asset *Asset)
+LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
 {
     const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
 
@@ -772,7 +757,6 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
             MeshesHeader->MeshesOffset + NextMeshHeaderOffset);
         mesh Mesh = {};
 
-        Mesh.PrimitiveType = MeshHeader->PrimitiveType;
         Mesh.MaterialIndex = MeshHeader->MaterialIndex;
         Mesh.VertexCount = MeshHeader->VertexCount;
         Mesh.IndexCount = MeshHeader->IndexCount;
@@ -1001,7 +985,6 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 
         model_asset_mesh_header MeshHeader = {};
         MeshHeader.MaterialIndex = Mesh->MaterialIndex;
-        MeshHeader.PrimitiveType = Mesh->PrimitiveType;
         MeshHeader.VertexCount = Mesh->VertexCount;
         MeshHeader.IndexCount = Mesh->IndexCount;
         MeshHeader.VerticesOffset = MeshesHeader.MeshesOffset + sizeof(model_asset_mesh_header) + TotalPrevMeshSize;
@@ -1150,13 +1133,27 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 }
 
 internal void
-WriteYBotModel(u32 Flags)
+ProcessYBotModel()
 {
-    model_asset Asset;
-    LoadModelAsset("models\\ybot\\ybot.fbx", Flags, &Asset);
+    u32 Flags =
+        aiProcess_Triangulate |
+        aiProcess_FlipUVs |
+        aiProcess_GenNormals |
+        aiProcess_CalcTangentSpace |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_ValidateDataStructure |
+        aiProcess_OptimizeMeshes |
+        aiProcess_LimitBoneWeights |
+        aiProcess_GlobalScale |
+        aiProcess_RemoveRedundantMaterials |
+        aiProcess_FixInfacingNormals |
+        aiProcess_OptimizeGraph;
 
-    // todo:
-    Asset.AnimationCount = 15;
+    model_asset Asset;
+    LoadModelAsset("models\\ybot\\ybot.fbx", &Asset, Flags);
+
+    // todo: create config file
+    Asset.AnimationCount = 18;
     Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
 
     u32 AnimationIndex = 0;
@@ -1165,9 +1162,12 @@ WriteYBotModel(u32 Flags)
     LoadAnimationClipAsset("models\\ybot\\animations\\idle (3).fbx", Flags, &Asset, "Idle_3", false, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\idle (4).fbx", Flags, &Asset, "Idle_4", true, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\idle (5).fbx", Flags, &Asset, "Idle_5", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle (6).fbx", Flags, &Asset, "Idle_6", true, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\sprint.fbx", Flags, &Asset, "Sprint", true, true, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\run to stop.fbx", Flags, &Asset, "RunToStop", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\ybot\\animations\\idle to sprint.fbx", Flags, &Asset, "IdleToSprint", false, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\right turn.fbx", Flags, &Asset, "RightTurn", false, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\left turn.fbx", Flags, &Asset, "LeftTurn", false, false, AnimationIndex++);
     LoadAnimationClipAsset("models\\ybot\\animations\\jumping up.fbx", Flags, &Asset, "JumpingUp", false, false, AnimationIndex++);
@@ -1185,137 +1185,76 @@ WriteYBotModel(u32 Flags)
 }
 
 internal void
-WriteMutantModel(u32 Flags)
+ProcessPelegriniModel()
 {
-    model_asset Asset;
-    LoadModelAsset("models\\mutant\\mutant.fbx", Flags, &Asset);
-
-    // todo:
-    Asset.AnimationCount = 15;
-    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
-
-    u32 AnimationIndex = 0;
-    LoadAnimationClipAsset("models\\mutant\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\idle_alarmed.fbx", Flags, &Asset, "Idle_Alarmed", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\jump.fbx", Flags, &Asset, "Jump", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\left_strafe_walking.fbx", Flags, &Asset, "Left_Strafe_Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\left_strafe.fbx", Flags, &Asset, "Left_Strafe", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\left_turn_90.fbx", Flags, &Asset, "Left_Turn_90", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\left_turn.fbx", Flags, &Asset, "Left_Turn", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\right_strafe_walking.fbx", Flags, &Asset, "Right_Strafe_Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\right_strafe.fbx", Flags, &Asset, "Right_Strafe", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\right_turn_90.fbx", Flags, &Asset, "Right_Turn_90", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\right_turn.fbx", Flags, &Asset, "Right_Turn", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\samba_dancing.fbx", Flags, &Asset, "Samba_Dancing", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\mutant\\animations\\wave_hip_hop_dance.fbx", Flags, &Asset, "Wave_Hip_Hop_Dance", true, false, AnimationIndex++);
-
-    WriteAssetFile("assets\\mutant.asset", &Asset);
-
-#if 0
-    model_asset TestAsset = {};
-    ReadAssetFile("assets\\mutant.asset", &TestAsset, &Asset);
-#endif
-}
-
-internal void
-WriteArissaModel(u32 Flags)
-{
-    model_asset Asset;
-    LoadModelAsset("models\\arissa\\arissa.fbx", Flags, &Asset);
-
-    // todo:
-    Asset.AnimationCount = 15;
-    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
-
-    u32 AnimationIndex = 0;
-    LoadAnimationClipAsset("models\\arissa\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\idle_alarmed.fbx", Flags, &Asset, "Idle_Alarmed", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\jump.fbx", Flags, &Asset, "Jump", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\left_strafe_walking.fbx", Flags, &Asset, "Left_Strafe_Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\left_strafe.fbx", Flags, &Asset, "Left_Strafe", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\left_turn_90.fbx", Flags, &Asset, "Left_Turn_90", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\left_turn.fbx", Flags, &Asset, "Left_Turn", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\right_strafe_walking.fbx", Flags, &Asset, "Right_Strafe_Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\right_strafe.fbx", Flags, &Asset, "Right_Strafe", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\right_turn_90.fbx", Flags, &Asset, "Right_Turn_90", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\right_turn.fbx", Flags, &Asset, "Right_Turn", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\samba_dancing.fbx", Flags, &Asset, "Samba_Dancing", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\arissa\\animations\\wave_hip_hop_dance.fbx", Flags, &Asset, "Wave_Hip_Hop_Dance", true, false, AnimationIndex++);
-
-    WriteAssetFile("assets\\arissa.asset", &Asset);
-
-#if 0
-    model_asset TestAsset = {};
-    ReadAssetFile("assets\\arissa.asset", &TestAsset, &Asset);
-#endif
-}
-
-internal void
-WriteNinjaModel(u32 Flags)
-{
-    model_asset Asset;
-    LoadModelAsset("models\\ninja\\ninja.fbx", Flags, &Asset);
-
-    // todo:
-    Asset.AnimationCount = 1;
-    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
-
-    u32 AnimationIndex = 0;
-    LoadAnimationClipAsset("models\\ninja\\animations\\idle.fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
-
-    WriteAssetFile("assets\\ninja.asset", &Asset);
-
-#if 0
-    model_asset TestAsset = {};
-    ReadAssetFile("assets\\ninja.asset", &TestAsset, &Asset);
-#endif
-}
-
-internal void
-WriteSphereModel(u32 Flags)
-{
-    model_asset Asset;
-    LoadModelAsset("models\\sphere\\sphere.fbx", Flags, &Asset);
-    WriteAssetFile("assets\\sphere.asset", &Asset);
-}
-
-internal void
-WriteCubeModel(u32 Flags)
-{
-    model_asset Asset;
-    LoadModelAsset("models\\cube\\cube.fbx", Flags, &Asset);
-    WriteAssetFile("assets\\cube.asset", &Asset);
-}
-
-// check https://www.mixamo.com/ for more characters and animations
-i32 main(i32 ArgCount, char **Args)
-{
-    u32 Flags = 
-        aiProcess_Triangulate | 
-        aiProcess_FlipUVs | 
-        aiProcess_GenNormals | 
-        aiProcess_CalcTangentSpace | 
-        aiProcess_JoinIdenticalVertices | 
-        aiProcess_ValidateDataStructure | 
-        aiProcess_OptimizeMeshes | 
-        aiProcess_LimitBoneWeights | 
+    u32 Flags =
+        aiProcess_Triangulate |
+        aiProcess_FlipUVs |
+        aiProcess_GenNormals |
+        aiProcess_CalcTangentSpace |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_ValidateDataStructure |
+        aiProcess_OptimizeMeshes |
+        aiProcess_LimitBoneWeights |
         aiProcess_GlobalScale |
-        aiProcess_RemoveRedundantMaterials | 
-        aiProcess_FixInfacingNormals | 
+        aiProcess_RemoveRedundantMaterials |
+        aiProcess_FixInfacingNormals |
+        aiProcess_OptimizeGraph;
+        aiProcess_OptimizeMeshes;
+
+    model_asset Asset;
+    LoadModelAsset("models\\pelegrini\\pelegrini.fbx", &Asset, Flags);
+
+    // todo: create config file
+    Asset.AnimationCount = 7;
+    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
+
+    u32 AnimationIndex = 0;
+    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (1).fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (2).fbx", Flags, &Asset, "Idle_2", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (3).fbx", Flags, &Asset, "Idle_3", false, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (4).fbx", Flags, &Asset, "Idle_4", true, false, AnimationIndex++);
+    LoadAnimationClipAsset("models\\pelegrini\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\pelegrini\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
+    LoadAnimationClipAsset("models\\pelegrini\\animations\\samba.fbx", Flags, &Asset, "Samba", true, false, AnimationIndex++);
+
+    WriteAssetFile("assets\\pelegrini.asset", &Asset);
+
+#if 1
+    model_asset TestAsset = {};
+    ReadAssetFile("assets\\pelegrini.asset", &TestAsset, &Asset);
+#endif
+}
+
+internal void
+ProcessAsset(const char *FilePath, const char *OutputPath)
+{
+    u32 Flags =
+        aiProcess_Triangulate |
+        aiProcess_FlipUVs |
+        aiProcess_GenNormals |
+        aiProcess_CalcTangentSpace |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_ValidateDataStructure |
+        aiProcess_OptimizeMeshes |
+        aiProcess_LimitBoneWeights |
+        aiProcess_GlobalScale |
+        aiProcess_RemoveRedundantMaterials |
+        aiProcess_FixInfacingNormals |
         aiProcess_OptimizeGraph;
 
+    model_asset Asset;
+    LoadModelAsset(FilePath, &Asset, Flags);
+    // todo: check if has animations and process them as well
+    WriteAssetFile(OutputPath, &Asset);
+}
+
+i32 main(i32 ArgCount, char **Args)
+{
     // todo: multithreading (std::thread maybe?)
-    WriteYBotModel(Flags);
-   /* WriteMutantModel(Flags);
-    WriteArissaModel(Flags);
-
-    WriteSphereModel(Flags);
-    WriteCubeModel(Flags);*/
-
-    //WriteNinjaModel(Flags);
-
+    ProcessAsset("models\\floor\\floor.fbx", "assets\\floor.asset");
+    ProcessAsset("models\\cube\\cube.fbx", "assets\\cube.asset");
+    ProcessAsset("models\\sphere\\sphere.fbx", "assets\\sphere.asset");
+    ProcessYBotModel();
+    ProcessPelegriniModel();
 }

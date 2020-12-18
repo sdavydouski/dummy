@@ -4,17 +4,16 @@
 #define OPENGL_MAX_TEXTURE_COUNT 64
 #define OPENGL_MAX_SHADER_COUNT 64
 
-#define OPENGL_SIMPLE_SHADER_ID 0
-#define OPENGL_GRID_SHADER_ID 1
-#define OPENGL_PHONG_SHADING_SHADER_ID 2
-#define OPENGL_SKINNED_PHONG_SHADING_SHADER_ID 3
-#define OPENGL_FRAMEBUFFER_SHADER_ID 4
+#define OPENGL_SIMPLE_SHADER_ID 0x1
+#define OPENGL_PHONG_SHADING_SHADER_ID 0x2
+#define OPENGL_SKINNED_PHONG_SHADING_SHADER_ID 0x3
+#define OPENGL_FRAMEBUFFER_SHADER_ID 0x4
+#define OPENGL_GROUND_SHADER_ID 0x5
 
 struct opengl_mesh_buffer
 {
     u32 Id;
     u32 IndexCount;
-    primitive_type PrimitiveType;
 
     GLuint VAO;
     GLuint VBO;
@@ -89,7 +88,6 @@ struct opengl_state
 
     GLuint LineVAO;
     GLuint RectangleVAO;
-    GLuint GridVAO;
 
     GLuint SkinningTBO;
     GLuint SkinningTBOTexture;

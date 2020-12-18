@@ -70,8 +70,7 @@ enum render_command_type
     
     RenderCommand_DrawLine,
     RenderCommand_DrawRectangle,
-    // todo: get rid of DrawGrid (he-he) and replace if with DrawMesh. (remove usage of a memory_arena inside the renderer)
-    RenderCommand_DrawGrid,
+    RenderCommand_DrawGround,
     RenderCommand_DrawMesh,
     RenderCommand_DrawSkinnedMesh,
 
@@ -88,7 +87,6 @@ struct render_command_header
 struct render_command_init_renderer
 {
     render_command_header Header;
-    u32 GridCount;
 };
 
 struct render_command_add_mesh
@@ -96,7 +94,6 @@ struct render_command_add_mesh
     render_command_header Header;
 
     u32 Id;
-    primitive_type PrimitiveType;
 
     u32 VertexCount;
     skinned_vertex *Vertices;
@@ -173,13 +170,11 @@ struct render_command_draw_rectangle
     vec4 Color;
 };
 
-struct render_command_draw_grid
+struct render_command_draw_ground
 {
     render_command_header Header;
-    f32 Size;
-    u32 Count;
+    // todo: put CameraPosition in the Header?
     vec3 CameraPosition;
-    vec3 Color;
 };
 
 struct render_command_draw_mesh

@@ -40,12 +40,6 @@ struct mesh_material
     material_property *Properties;
 };
 
-enum primitive_type
-{
-    PrimitiveType_Line,
-    PrimitiveType_Triangle
-};
-
 struct skinned_vertex
 {
     vec3 Position;
@@ -62,7 +56,6 @@ struct mesh
 {
     u32 Id;
     u32 MaterialIndex;
-    primitive_type PrimitiveType;
 
     u32 VertexCount;
     skinned_vertex *Vertices;
@@ -138,7 +131,6 @@ struct model_asset_meshes_header
 
 struct model_asset_mesh_header
 {
-    primitive_type PrimitiveType;
     u32 MaterialIndex;
     u32 VertexCount;
     u32 IndexCount;

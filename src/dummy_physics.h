@@ -11,6 +11,8 @@ struct rigid_body
     vec3 Velocity;
     vec3 Acceleration;
 
+    quat Orientation;
+
     vec3 ForceAccumulator;
 
     f32 InverseMass;

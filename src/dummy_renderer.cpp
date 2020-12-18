@@ -15,7 +15,6 @@ PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type
 
     render_command_header *Result = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + Commands->RenderCommandsBufferSize);
     Result->Type = Type;
-    // todo: why do I neend size?
     Result->Size = Size;
     Result->RenderTarget = RenderTarget;
 
@@ -27,17 +26,15 @@ PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type
 #define PushRenderCommand(Buffer, Struct, Type, RenderTarget) (Struct *)PushRenderCommand_(Buffer, sizeof(Struct), Type, RenderTarget)
 
 inline void
-InitRenderer(render_commands *Commands, u32 GridCount)
+InitRenderer(render_commands *Commands)
 {
     render_command_init_renderer *Command = PushRenderCommand(Commands, render_command_init_renderer, RenderCommand_InitRenderer, 0);
-    Command->GridCount = GridCount;
 }
 
 inline void
 AddMesh(
     render_commands *Commands,
     u32 Id,
-    primitive_type PrimitiveType,
     u32 VertexCount,
     skinned_vertex *Vertices,
     u32 IndexCount,
@@ -46,7 +43,6 @@ AddMesh(
 {
     render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh, 0);
     Command->Id = Id;
-    Command->PrimitiveType = PrimitiveType;
     Command->VertexCount = VertexCount;
     Command->Vertices = Vertices;
     Command->IndexCount = IndexCount;
@@ -132,13 +128,10 @@ DrawRectangle(render_commands *Commands, transform Transform, vec4 Color, u32 Re
 }
 
 inline void
-DrawGrid(render_commands *Commands, f32 Size, u32 Count, vec3 CameraPosition, vec3 Color, u32 RenderTarget = 0)
+DrawGround(render_commands *Commands, vec3 CameraPosition, u32 RenderTarget = 0)
 {
-    render_command_draw_grid *Command = PushRenderCommand(Commands, render_command_draw_grid, RenderCommand_DrawGrid, RenderTarget);
-    Command->Size = Size;
-    Command->Count = Count;
+    render_command_draw_ground *Command = PushRenderCommand(Commands, render_command_draw_ground, RenderCommand_DrawGround, RenderTarget);
     Command->CameraPosition = CameraPosition;
-    Command->Color = Color;
 }
 
 inline void

@@ -419,6 +419,11 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
                 KeyboardInput->C.IsPressed = IsKeyPressed;
                 break;
             }
+            case 'Z':
+            {
+                KeyboardInput->Z.IsPressed = IsKeyPressed;
+                break;
+            }
             case VK_TAB:
             {
                 KeyboardInput->Tab.IsPressed = IsKeyPressed;
@@ -460,8 +465,6 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
     }
 }
 
-#include "windowsx.h"
-
 inline void
 Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *PlatformState, MSG *WindowMessage)
 {
@@ -501,13 +504,7 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
 internal void
 Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput, platform_input_mouse *MouseInput)
 {
-    // todo: for game_input_action
-    SavePrevButtonState(&KeyboardInput->C);
-    SavePrevButtonState(&KeyboardInput->Tab);
-    SavePrevButtonState(&KeyboardInput->Space);
-    SavePrevButtonState(&KeyboardInput->Enter);
-    SavePrevButtonState(&KeyboardInput->Plus);
-    SavePrevButtonState(&KeyboardInput->Minus);
+    BeginProcessKeyboardInput(KeyboardInput);
 
     MSG WindowMessage = {};
     while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
@@ -575,6 +572,8 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
             }
         }
     }
+
+    EndProcessKeyboardInput(KeyboardInput);
 }
 
 PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
@@ -945,11 +944,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
-            if (IsButtonActivated(KeyboardInput.Plus))
+            if (IsButtonActivated(&KeyboardInput.Plus))
             {
                 PlatformState.TimeRate *= 2.f;
             }
-            if (IsButtonActivated(KeyboardInput.Minus))
+            if (IsButtonActivated(&KeyboardInput.Minus))
             {
                 PlatformState.TimeRate *= 0.5f;
             }

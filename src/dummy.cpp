@@ -121,7 +121,7 @@ GenerateMeshId()
 inline u32
 GenerateTextureId()
 {
-    persist u32 TextureId = 0;
+    persist u32 TextureId = 10;
 
     return TextureId++;
 }
@@ -164,7 +164,7 @@ InitModel(model_asset *Asset, model *Model, memory_arena *Arena, render_commands
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         Mesh->Id = GenerateMeshId();
-        AddMesh(RenderCommands, Mesh->Id, Mesh->PrimitiveType, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+        AddMesh(RenderCommands, Mesh->Id, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
 
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
 
@@ -196,7 +196,7 @@ DrawSkeleton(render_commands *RenderCommands, skeleton_pose *Pose, model *JointM
         joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
-        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(5.f), quat(0.f));
+        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), quat(0.f));
         material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), false);
 
         DrawModel(RenderCommands, JointModel, Transform, Material, {}, {});
@@ -228,10 +228,8 @@ GAME_INIT(GameInit)
     State->Mode = GameMode_World;
     
     InitCamera(&State->FreeCamera, RADIANS(0.f), RADIANS(-90.f), RADIANS(45.f), vec3(0.f, 4.f, 16.f));
-    InitCamera(&State->PlayerCamera, RADIANS(45.f), RADIANS(0.f), RADIANS(45.f), vec3(0.f, 0.f, 0.f));
+    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), vec3(0.f, 0.f, 0.f));
     State->PlayerCamera.Radius = 16.f;
-
-    State->GridCount = 500;
 
     State->RigidBodiesCount = 1;
     State->RigidBodies = PushArray(&State->WorldArena, State->RigidBodiesCount, rigid_body);
@@ -241,13 +239,15 @@ GAME_INIT(GameInit)
         *Body = {};
         Body->PrevPosition = vec3(0.f, 3.f, 0.f);
         Body->Position = vec3(0.f, 3.f, 0.f);
+        Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
         Body->Damping = 0.0001f;
         Body->HalfSize = vec3(1.f, 3.f, 1.f);
         SetRigidBodyMass(Body, 75.f);
     }
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
-    State->BackgroundColor = vec3(0.f);
+    State->BackgroundColor = vec3(0.f, 0.f, 0.f);
+    State->DirectionalColor = vec3(0.2f);
 
     State->RNG = RandomSequence(42);
 
@@ -256,16 +256,10 @@ GAME_INIT(GameInit)
 
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
-    InitRenderer(RenderCommands, State->GridCount);
+    InitRenderer(RenderCommands);
 
-    model_asset *YBotModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\ybot.asset", &State->WorldArena);
+    model_asset *YBotModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\pelegrini.asset", &State->WorldArena);
     InitModel(YBotModelAsset, &State->YBotModel, &State->WorldArena, RenderCommands);
-
-    model_asset *MutantModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\mutant.asset", &State->WorldArena);
-    InitModel(MutantModelAsset, &State->MutantModel, &State->WorldArena, RenderCommands);
-
-    model_asset *ArissaModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\arissa.asset", &State->WorldArena);
-    InitModel(ArissaModelAsset, &State->ArissaModel, &State->WorldArena, RenderCommands);
 
     model_asset *SphereModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\sphere.asset", &State->WorldArena);
     InitModel(SphereModelAsset, &State->SphereModel, &State->WorldArena, RenderCommands);
@@ -273,12 +267,14 @@ GAME_INIT(GameInit)
     model_asset *CubeModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\cube.asset", &State->WorldArena);
     InitModel(CubeModelAsset, &State->CubeModel, &State->WorldArena, RenderCommands);
 
+    model_asset *FloorModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\floor.asset", &State->WorldArena);
+    InitModel(FloorModelAsset, &State->FloorModel, &State->WorldArena, RenderCommands);
+
     State->LerperQuat = {};
     State->CurrentMove = vec2(0.f);
     State->TargetMove = vec2(0.f);
 
     State->Player = {};
-    State->Player.Orientation = quat(0.f, 0.f, 0.f, 1.f);
     State->Player.Model = &State->YBotModel;
     State->Player.RigidBody = State->RigidBodies + 0;
     State->Player.Offset = vec3(0.f, -3.f, 0.f);
@@ -290,9 +286,6 @@ GAME_INIT(GameInit)
     BuildAnimationGraph(&State->AnimationGraph, State->Player.Model, &State->WorldArena, &State->RNG);
     ActivateAnimationNode(&State->AnimationGraph, State->Player.State);
 }
-
-// todo:
-// Figure out locomotion-based animation movement.
 
 extern "C" DLLExport
 GAME_PROCESS_INPUT(GameProcessInput)
@@ -356,7 +349,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
             f32 PlayerCameraSensitivity = 2.f;
 
             State->PlayerCamera.Pitch -= Input->Camera.Range.y * PlayerCameraSensitivity * Parameters->Delta;
-            State->PlayerCamera.Pitch = Clamp(State->PlayerCamera.Pitch, RADIANS(-89.f), RADIANS(89.f));
+            State->PlayerCamera.Pitch = Clamp(State->PlayerCamera.Pitch, RADIANS(0.f), RADIANS(89.f));
 
             State->PlayerCamera.Yaw += Input->Camera.Range.x * PlayerCameraSensitivity * Parameters->Delta;
             State->PlayerCamera.Yaw = Mod(State->PlayerCamera.Yaw, 2 * PI);
@@ -375,14 +368,6 @@ GAME_PROCESS_INPUT(GameProcessInput)
             vec3 CameraLookAtPoint = PlayerPosition; //+ vec3(0.f, 4.f, 0.f);
 
             State->PlayerCamera.Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Position);
-
-#if 0
-            State->FreeCamera.Pitch = State->PlayerCamera.Pitch;
-            State->FreeCamera.Yaw = State->PlayerCamera.Yaw;
-            State->FreeCamera.Radius = State->PlayerCamera.Radius;
-            State->FreeCamera.Position = State->PlayerCamera.Position;
-            State->FreeCamera.Direction = State->PlayerCamera.Direction;
-#endif
 
             vec3 yMoveAxis = Normalize(Projection(State->PlayerCamera.Direction, State->Ground));
             vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
@@ -406,8 +391,8 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
             State->TargetMove = Move;
 
-            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * Magnitude(State->CurrentMove) * 80.f;
-            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * Magnitude(State->CurrentMove) * 80.f;
+            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * 110.f;
+            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * 110.f;
 
             f32 CrossFadeDuration = 0.2f;
 
@@ -418,9 +403,9 @@ GAME_PROCESS_INPUT(GameProcessInput)
                 State->LerperQuat.IsEnabled = true;
                 State->LerperQuat.Time = 0.f;
                 State->LerperQuat.Duration = 0.2f;
-                State->LerperQuat.From = State->Player.Orientation;
+                State->LerperQuat.From = State->Player.RigidBody->Orientation;
                 State->LerperQuat.To = PlayerOrientation;
-                State->LerperQuat.Result = &State->Player.Orientation;
+                State->LerperQuat.Result = &State->Player.RigidBody->Orientation;
             }
 
 #if 1
@@ -428,11 +413,11 @@ GAME_PROCESS_INPUT(GameProcessInput)
             {
                 case EntityState_Idle:
                 {
-                   /* if (Input->Crouch.IsActivated)
+                    if (Input->Crouch.IsActivated)
                     {
-                        State->Player.State = EntityState_CrouchIdle;
+                        State->Player.State = EntityState_Dance;
                         TransitionToState(&State->AnimationGraph, State->Player.State);
-                    }*/
+                    }
                     
                     if (MoveMaginute > 0.f)
                     {
@@ -444,13 +429,17 @@ GAME_PROCESS_INPUT(GameProcessInput)
                 }
                 case EntityState_Moving:
                 {
-                   /* if (Input->Crouch.IsActivated)
-                    {
-                        State->Player.State = EntityState_CrouchWalking;
-                        TransitionToState(&State->AnimationGraph, State->Player.State);
-                    }*/
-
                     if (MoveMaginute == 0.f)
+                    {
+                        State->Player.State = EntityState_Idle;
+                        TransitionToState(&State->AnimationGraph, State->Player.State);
+                    }
+
+                    break;
+                }
+                case EntityState_Dance:
+                {
+                    if (Input->Crouch.IsActivated)
                     {
                         State->Player.State = EntityState_Idle;
                         TransitionToState(&State->AnimationGraph, State->Player.State);
@@ -587,20 +576,31 @@ GAME_RENDER(GameRender)
             // todo: SetTransform render command?
             f32 Bounds = 500.f;
 
-            DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
+            // Axis
+            //DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
             //DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 4.f);
-            DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
-
-            DrawGrid(RenderCommands, Bounds, State->GridCount, Camera->Position, vec3(0.f, 0.f, 1.f));
+            //DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
+            
+            // todo: pretty expensive
+            //DrawGround(RenderCommands, Camera->Position);
 
             // Skydome rendering
             //transform SkydomeTransform = CreateTransform(Camera->Position, vec3(100.f), quat(0.f));
             //material SkydomeMaterial = CreateMaterial(MaterialType_Unlit, vec3(1.f, 0.f, 1.f), true);
             //DrawModel(RenderCommands, &State->SphereModel, SkydomeTransform, SkydomeMaterial, {}, {});
 
+            if (State->Player.State == EntityState_Dance)
+            {
+                f32 Time = Parameters->Time * 11.f;
+                State->DirectionalColor = vec3(Sin(Time), Cos(Time), Sin(Time)) * 0.1f;
+            }
+            else
+            {
+                //State->DirectionalColor = vec3(0.f);
+            }
 
             directional_light DirectionalLight = {};
-            DirectionalLight.Color = vec3(1.f);
+            DirectionalLight.Color = State->DirectionalColor;
             DirectionalLight.Direction = Normalize(vec3(0.1f, -0.8f, -0.2f));
 
             SetDirectionalLight(RenderCommands, DirectionalLight);
@@ -683,7 +683,7 @@ GAME_RENDER(GameRender)
                 transform Transform = CreateTransform(
                     PlayerPosition + State->Player.Offset,
                     vec3(3.f),
-                    State->Player.Orientation
+                    State->Player.RigidBody->Orientation
                 );
                 UpdateGlobalJointPoses(Pose, Transform);
 
@@ -696,18 +696,30 @@ GAME_RENDER(GameRender)
                 {
                     DrawSkeleton(RenderCommands, Pose, &State->CubeModel);
                 }
+
+                // todo: instanced rendering!
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(0.f, 0.01f, 0.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(10.f, 0.01f, 0.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(-10.f, 0.01f, 0.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(0.f, 0.01f, 10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(0.f, 0.01f, -10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(10.f, 0.01f, 10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(-10.f, 0.01f, 10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(10.f, 0.01f, -10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
+                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(-10.f, 0.01f, -10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
             }
+
 
             //DrawModel(RenderCommands, &State->CubeModel, CreateTransform(vec3(0.f), vec3(400.f), AxisAngle2Quat(vec4(zAxis, PI / 4.f))), CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), false), {}, {});
 
             {
-                transform Transform = CreateTransform(PointLight1Position, vec3(20.f), quat(0.f));
+                transform Transform = CreateTransform(PointLight1Position, vec3(0.2f), quat(0.f));
                 material Material = CreateMaterial(MaterialType_Unlit, PointLight1Color, true);
 
                 DrawModel(RenderCommands, &State->SphereModel, Transform, Material, {}, {});
             }
             {
-                transform Transform = CreateTransform(PointLight2Position, vec3(20.f), quat(0.f));
+                transform Transform = CreateTransform(PointLight2Position, vec3(0.2f), quat(0.f));
                 material Material = CreateMaterial(MaterialType_Unlit, PointLight2Color, true);
 
                 DrawModel(RenderCommands, &State->SphereModel, Transform, Material, {}, {});
@@ -718,7 +730,7 @@ GAME_RENDER(GameRender)
                 rigid_body *Body = State->RigidBodies + RigidBodyIndex;
 
                 vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
-                transform Transform = CreateTransform(Position, Body->HalfSize, quat(0.f));
+                transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
                 material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), true);
                 //DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
             }

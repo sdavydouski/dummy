@@ -32,7 +32,6 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
         
         mesh *Mesh = Result->Meshes + MeshIndex;
 
-        Mesh->PrimitiveType = MeshHeader->PrimitiveType;
         Mesh->MaterialIndex = MeshHeader->MaterialIndex;
         Mesh->VertexCount = MeshHeader->VertexCount;
         Mesh->IndexCount = MeshHeader->IndexCount;

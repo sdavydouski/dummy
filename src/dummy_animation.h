@@ -60,46 +60,49 @@ struct animation_state
 {
     f32 Time;
     f32 Weight;
-    f32 WeightCoefficient;
     f32 PlaybackRate;
 
     animation_clip *Clip;
 };
 
-struct animation_blend_space_1d_value
+struct blend_space_1d_value
 {
     animation_state AnimationState;
     f32 Value;
+    f32 Weight;
 };
 
-struct animation_blend_space_1d
+struct blend_space_1d
 {
-    u32 AnimationBlendSpaceValueCount;
-    animation_blend_space_1d_value *AnimationBlendSpaceValues;
+    f32 NormalizedTime;
+    u32 BlendSpaceValueCount;
+    blend_space_1d_value *BlendSpaceValues;
 };
 
-struct animation_blend_space_2d_value
+struct blend_space_2d_value
 {
     animation_state *AnimationState;
     vec2 Value;
+    f32 Weight;
 };
 
-struct animation_blend_space_2d_triangle
+struct blend_space_2d_triangle
 {
-    animation_blend_space_2d_value Points[3];
+    blend_space_2d_value Points[3];
 };
 
-struct animation_blend_space_2d
+struct blend_space_2d
 {
-    u32 AnimationBlendSpaceTriangleCount;
-    animation_blend_space_2d_triangle *AnimationBlendSpaceTriangles;
+    u32 BlendSpaceTriangleCount;
+    blend_space_2d_triangle *BlendSpaceTriangles;
 };
 
 enum entity_state
 {
     EntityState_None,
     EntityState_Idle,
-    EntityState_Moving
+    EntityState_Moving,
+    EntityState_Dance
 };
 
 enum animation_transition_type
@@ -143,7 +146,7 @@ struct animation_node
     union
     {
         animation_state Animation;
-        animation_blend_space_1d *BlendSpace;
+        blend_space_1d *BlendSpace;
         struct animation_graph *Graph;
     };
 
@@ -152,7 +155,6 @@ struct animation_node
 
     u32 Index;
     f32 Weight;
-    f32 Time;
 
     animation_node_params *Params;
     char Name[64];
@@ -172,6 +174,7 @@ struct animation_graph
 {
     u32 NodeCount;
     animation_node *Nodes;
+    animation_node *Entry;
 
     u32 ActiveNodeIndex;
 

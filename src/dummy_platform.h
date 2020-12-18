@@ -66,12 +66,29 @@ struct platform_button_state
 {
     b32 IsPressed;
     b32 WasPressed;
+    b32 Toggle;
 };
+
+inline b32
+IsButtonActivated(platform_button_state *Button)
+{
+    b32 Result = Button->IsPressed && (Button->IsPressed != Button->WasPressed);
+    return Result;
+}
 
 inline void
 SavePrevButtonState(platform_button_state *Button)
 {
     Button->WasPressed = Button->IsPressed;
+}
+
+inline void
+UpdateToggleButtonState(platform_button_state *Button)
+{
+    if (IsButtonActivated(Button))
+    {
+        Button->Toggle = !Button->Toggle;
+    }
 }
 
 struct platform_input_keyboard
@@ -80,6 +97,8 @@ struct platform_input_keyboard
     platform_button_state Down;
     platform_button_state Left;
     platform_button_state Right;
+
+    platform_button_state Z;
     platform_button_state C;
 
     platform_button_state Tab;
@@ -195,16 +214,35 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
     }
 }
 
-inline b32
-IsButtonActivated(platform_button_state Button)
+inline void
+BeginProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
 {
-    b32 Result = Button.IsPressed && (Button.IsPressed != Button.WasPressed);
-    return Result;
+    SavePrevButtonState(&KeyboardInput->C);
+    SavePrevButtonState(&KeyboardInput->Z);
+    SavePrevButtonState(&KeyboardInput->Tab);
+    SavePrevButtonState(&KeyboardInput->Space);
+    SavePrevButtonState(&KeyboardInput->Enter);
+    SavePrevButtonState(&KeyboardInput->Plus);
+    SavePrevButtonState(&KeyboardInput->Minus);
+}
+
+inline void
+EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
+{
+    UpdateToggleButtonState(&KeyboardInput->C);
+    UpdateToggleButtonState(&KeyboardInput->Z);
+    UpdateToggleButtonState(&KeyboardInput->Tab);
+    UpdateToggleButtonState(&KeyboardInput->Space);
+    UpdateToggleButtonState(&KeyboardInput->Enter);
+    UpdateToggleButtonState(&KeyboardInput->Plus);
+    UpdateToggleButtonState(&KeyboardInput->Minus);
 }
 
 internal void
 KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *GameInput)
 {
+    f32 Move = KeyboardInput->Z.Toggle ? 1.f : 0.5f;
+
     if (Magnitude(GameInput->Move.Range) == 0.f)
     {
         if (KeyboardInput->Left.IsPressed && KeyboardInput->Right.IsPressed)
@@ -213,11 +251,11 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
         }
         else if (KeyboardInput->Left.IsPressed)
         {
-            GameInput->Move.Range.x = -1.f;
+            GameInput->Move.Range.x = -Move;
         }
         else if (KeyboardInput->Right.IsPressed)
         {
-            GameInput->Move.Range.x = 1.f;
+            GameInput->Move.Range.x = Move;
         }
         else
         {
@@ -230,11 +268,11 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
         }
         else if (KeyboardInput->Up.IsPressed)
         {
-            GameInput->Move.Range.y = 1.f;
+            GameInput->Move.Range.y = Move;
         }
         else if (KeyboardInput->Down.IsPressed)
         {
-            GameInput->Move.Range.y = -1.f;
+            GameInput->Move.Range.y = -Move;
         }
         else
         {
@@ -242,19 +280,24 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
         }
     }
 
+    if (!GameInput->Crouch.IsActivated)
+    {
+        GameInput->Crouch.IsActivated = IsButtonActivated(&KeyboardInput->C);
+    }
+
     if (!GameInput->Menu.IsActivated)
     {
-        GameInput->Menu.IsActivated = IsButtonActivated(KeyboardInput->Enter);
+        GameInput->Menu.IsActivated = IsButtonActivated(&KeyboardInput->Enter);
     }
 
     if (!GameInput->Advance.IsActivated)
     {
-        GameInput->Advance.IsActivated = IsButtonActivated(KeyboardInput->Space);
+        GameInput->Advance.IsActivated = IsButtonActivated(&KeyboardInput->Space);
     }
 
     if (!GameInput->EditMode.IsActivated)
     {
-        GameInput->EditMode.IsActivated = IsButtonActivated(KeyboardInput->Tab);
+        GameInput->EditMode.IsActivated = IsButtonActivated(&KeyboardInput->Tab);
     }
 
     if (!GameInput->HighlightBackground.IsActive)

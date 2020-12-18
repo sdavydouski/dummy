@@ -32,6 +32,7 @@ inline void *
 Win32GetOpenGLFuncAddress(char *Name)
 {
     void *Result = (void *)wglGetProcAddress(Name);
+
     if (Result == 0 || (Result == (void *)0x1) || (Result == (void *)0x2) || (Result == (void *)0x3) || (Result == (void *)-1))
     {
         HMODULE OpenGLModule = LoadLibraryA("opengl32.dll");
@@ -104,7 +105,7 @@ Win32InitOpenGL(win32_opengl_state *State, HINSTANCE hInstance, HWND WindowHandl
                     WGL_DEPTH_BITS_ARB, 24,
                     WGL_STENCIL_BITS_ARB, 8,
                     WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
-                    WGL_SAMPLES_ARB, 4,
+                    WGL_SAMPLES_ARB, 16,
                     0
                 };
 

@@ -30,45 +30,6 @@ void main()
 }
 )SHADER";
 
-char *GridVertexShader = (char *)
-R"SHADER(
-#version 450
-
-layout(location = 0) in vec3 in_Position;
-
-out vec3 ex_VertexPosition; 
-
-uniform mat4 u_Projection;
-uniform mat4 u_View;
-uniform mat4 u_Model;
-
-void main()
-{
-    ex_VertexPosition = (u_Model * vec4(in_Position, 1.f)).xyz;
-    gl_Position = u_Projection * u_View * u_Model * vec4(in_Position, 1.f);
-}
-)SHADER";
-
-char *GridFragmentShader = (char *)
-R"SHADER(
-#version 450
-
-in vec3 ex_VertexPosition;
-
-out vec4 out_Color;
-
-uniform vec3 u_CameraPosition;
-uniform vec3 u_Color;
-
-void main()
-{
-    float DistanceFromCamera = length(u_CameraPosition - ex_VertexPosition);
-    float Opacity = clamp(DistanceFromCamera * 0.005f, 0.f, 1.f);
-
-    out_Color = vec4(u_Color, 1.f - Opacity);
-}
-)SHADER";
-
 char *ForwardShadingVertexShader = (char *)
 R"SHADER(
 #version 450
@@ -174,6 +135,47 @@ float Square(float Value)
     return Value * Value;
 }
 
+float Saturate(float Value)
+{
+    return clamp(Value, 0.f, 1.f);
+}
+
+vec3 CalculateDiffuseReflection(
+    vec3 Normal, 
+    vec3 LightDirection, 
+    vec3 LightColor, 
+    vec3 AmbientColor, 
+    vec3 DiffuseColor
+)
+{
+    vec3 DirectColor = LightColor * Saturate(dot(Normal, LightDirection));
+    return ((AmbientColor + DirectColor) * DiffuseColor);
+}
+
+vec3 CalculateSpecularReflection(
+    vec3 Normal,
+    vec3 HalfwayDirection,
+    vec3 LightDirection,
+    vec3 LightColor,
+    vec3 SpecularColor,
+    float SpecularShininess
+)
+{
+    float Highlight = pow(Saturate(dot(Normal, HalfwayDirection)), SpecularShininess);// * float(dot(Normal, LightDirection) > 0.f);
+    return (LightColor * SpecularColor * Highlight);
+}
+
+float CalculateInverseSquareAttenuation(vec3 LightPosition, vec3 VertexPosition, light_attenuation LightAttenuation)
+{
+    float LightDistance = length(LightPosition - VertexPosition);
+
+    return 1.f / (
+        LightAttenuation.Constant + 
+        LightAttenuation.Linear * LightDistance + 
+        LightAttenuation.Quadratic * Square(LightDistance)
+    );
+}
+
 vec3 CalculateDirectionalLight(
     directional_light Light,
     vec3 AmbientColor,
@@ -185,22 +187,12 @@ vec3 CalculateDirectionalLight(
 )
 {
     vec3 LightDirection = normalize(-Light.Direction);  
-    vec3 ReflectedLightDirection = reflect(-LightDirection, Normal);
+    vec3 HalfwayDirection = normalize(LightDirection + EyeDirection);
     
-    vec3 Ambient = Light.Color * AmbientColor;
+    vec3 Diffuse = CalculateDiffuseReflection(Normal, LightDirection, Light.Color, AmbientColor, DiffuseColor);
+    vec3 Specular = CalculateSpecularReflection(Normal, HalfwayDirection, LightDirection, Light.Color, SpecularColor, SpecularShininess);
 
-    float DiffuseImpact = max(dot(LightDirection, Normal), 0.f);
-    vec3 Diffuse = Light.Color * DiffuseColor * DiffuseImpact;
-
-    float SpecularImpact = pow(
-        max(dot(ReflectedLightDirection, EyeDirection), 0.f),
-        SpecularShininess
-    );
-    vec3 Specular =  Light.Color * SpecularColor * SpecularImpact;
-
-    vec3 Result = (Ambient + Diffuse + Specular);
-
-    return Result;
+    return (Diffuse + Specular);
 }
 
 vec3 CalculatePointLight(
@@ -215,29 +207,14 @@ vec3 CalculatePointLight(
 )
 {
     vec3 LightDirection = normalize(Light.Position - ex_VertexPosition);
-    vec3 ReflectedLightDirection = reflect(-LightDirection, Normal);
+    vec3 HalfwayDirection = normalize(LightDirection + EyeDirection);
     
-    vec3 Ambient = Light.Color * AmbientColor;
+    vec3 Diffuse = CalculateDiffuseReflection(Normal, LightDirection, Light.Color, AmbientColor, DiffuseColor);
+    vec3 Specular = CalculateSpecularReflection(Normal, HalfwayDirection, LightDirection, Light.Color, SpecularColor, SpecularShininess);    
 
-    float DiffuseImpact = max(dot(LightDirection, Normal), 0.f);
-    vec3 Diffuse = Light.Color * DiffuseColor * DiffuseImpact;
+    float LightAttenuation = CalculateInverseSquareAttenuation(Light.Position, VertexPosition, Light.Attenuation);
 
-    float SpecularImpact = pow(
-        max(dot(ReflectedLightDirection, EyeDirection), 0.f),
-        SpecularShininess
-    );
-    vec3 Specular =  Light.Color * SpecularColor * SpecularImpact;
-
-    float LightDistance = length(Light.Position - VertexPosition);
-    float LightAttenuation = 1.f / (
-        Light.Attenuation.Constant + 
-        Light.Attenuation.Linear * LightDistance + 
-        Light.Attenuation.Quadratic * Square(LightDistance)
-    );
-
-    vec3 Result = (Ambient + Diffuse + Specular) * LightAttenuation;
-
-    return Result;
+    return (Diffuse + Specular) * LightAttenuation;
 }
 
 uniform phong_material u_Material;
@@ -247,8 +224,6 @@ uniform vec3 u_CameraPosition;
 
 void main()
 {
-    // todo: dump ambient component (separate colors for lights?)
-    //vec3 AmbientColor = u_Material.AmbientColor * 0.1f;
     vec3 AmbientColor = u_Material.AmbientColor;
 
     vec3 DiffuseColor = u_Material.HasDiffuseMap
@@ -279,17 +254,17 @@ void main()
 
     vec3 EyeDirection = normalize(u_CameraPosition - ex_VertexPosition);
     
-    vec3 LightImpact = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
+    vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
 
 #if 1
     for (int PointLightIndex = 0; PointLightIndex < MAX_NUMBER_OF_POINT_LIGHTS; ++PointLightIndex)
     {
         point_light PointLight = u_PointLights[PointLightIndex];
-        LightImpact += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, ex_VertexPosition);
+        Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, ex_VertexPosition);
     }
 #endif
     
-    out_Color = vec4(LightImpact, 1.f);
+    out_Color = vec4(Result, 1.f);
 }
 )SHADER";
 
@@ -390,9 +365,106 @@ void main()
 {
 #if 1
     vec4 TexelColor = texture(u_ScreenTexture, ex_TextureCoords + 0.0005*vec2( sin(u_Time+2560.0*ex_TextureCoords.x),cos(u_Time+1440.0*ex_TextureCoords.y)));
+    //vec4 TexelColor = texture(u_ScreenTexture, ex_TextureCoords);
     out_Color = vec4(TexelColor.rgb, 1.f);
 #else
     out_Color = vec4(1.f, 1.f, 0.f, 1.f);
 #endif
+}
+)SHADER";
+
+char *GroundVertexShader = (char *)
+R"SHADER(
+#version 450
+
+layout(location = 0) in vec3 in_Position;
+
+out vec3 ex_VertexPosition;
+out vec3 ex_NearPlanePosition;
+out vec3 ex_FarPlanePosition;
+
+uniform mat4 u_Projection;
+uniform mat4 u_View;
+
+vec3 UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
+{
+    mat4 ViewInv = inverse(View);
+    mat4 ProjectionInv = inverse(Projection);
+    vec4 UnprojectedPoint = ViewInv * ProjectionInv * vec4(p, 1.f);
+    vec3 Result = UnprojectedPoint.xyz / UnprojectedPoint.w;
+    
+    return Result;
+}
+
+void main()
+{
+    ex_VertexPosition = in_Position;
+    ex_NearPlanePosition = UnprojectPoint(vec3(in_Position.xy, -1.f), u_View, u_Projection);
+    ex_FarPlanePosition = UnprojectPoint(vec3(in_Position.xy, 1.f), u_View, u_Projection);
+
+    gl_Position = vec4(in_Position, 1.f);
+}
+)SHADER";
+
+char *GroundFragmentShader = (char *)
+R"SHADER(
+#version 450
+
+in vec3 ex_VertexPosition;
+in vec3 ex_NearPlanePosition;
+in vec3 ex_FarPlanePosition;
+
+out vec4 out_Color;
+
+uniform mat4 u_Projection;
+uniform mat4 u_View;
+uniform vec3 u_CameraPosition;
+
+float Checkerboard(vec2 R, float Scale) {
+	float Result = float((
+        int(floor(R.x / Scale)) +
+		int(floor(R.y / Scale))
+	) % 2);
+    
+    return Result;
+}
+
+// computes Z-buffer depth value, and converts the range.
+float ComputeDepth(vec3 p, mat4 View, mat4 Projection) {
+	// get the clip-space coordinates
+	vec4 ClipSpacePosition = Projection * View * vec4(p.xyz, 1.f);
+
+	// get the depth value in normalized device coordinates
+	float ClipSpaceDepth = ClipSpacePosition.z / ClipSpacePosition.w;
+
+	// and compute the range based on gl_DepthRange settings (not necessary with default settings, but left for completeness)
+	float Far = gl_DepthRange.far;
+	float Near = gl_DepthRange.near;
+
+	float Depth = (((Far - Near) * ClipSpaceDepth) + Near + Far) / 2.f;
+
+	// and return the result
+	return Depth;
+}
+
+void main()
+{
+    float t = -ex_NearPlanePosition.y / (ex_FarPlanePosition.y - ex_NearPlanePosition.y);
+    vec3 R = ex_NearPlanePosition + t * (ex_FarPlanePosition - ex_NearPlanePosition);
+
+    gl_FragDepth = ComputeDepth(R, u_View, u_Projection);
+
+    float Color =
+		Checkerboard(R.xz, 5.f) * 0.6f +
+		Checkerboard(R.xz, 10.f) * 0.2f +
+		Checkerboard(R.xz, 0.5f) * 0.1f +
+		0.1f;
+
+    Color *= float(t > 0);
+
+    float DistanceFromCamera = length(u_CameraPosition - R);
+    float Opacity = clamp(DistanceFromCamera * 0.005f, 0.f, 1.f);
+
+	out_Color = vec4(Color * vec3(0.4f, 0.4f, 0.8f), 1.f - Opacity);
 }
 )SHADER";

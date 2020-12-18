@@ -23,7 +23,6 @@ struct game_camera
 
 struct game_player
 {
-    quat Orientation;
     vec3 Offset;
     entity_state State;
 
@@ -74,14 +73,15 @@ struct game_state
     //model NinjaModel;
     model CubeModel;
     model SphereModel;
+    model FloorModel;
 
     game_player Player;
 
     animation_graph AnimationGraph;
 
     // todo: continue
-    animation_blend_space_1d LocomotionBlendSpace;
-    animation_blend_space_2d LocomotionBlendSpace2D;
+    blend_space_1d LocomotionBlendSpace;
+    blend_space_2d LocomotionBlendSpace2D;
 
     lerper_quat LerperQuat;
 
@@ -90,9 +90,9 @@ struct game_state
 
     random_sequence RNG;
 
+    vec3 DirectionalColor;
     vec3 BackgroundColor;
 
-    u32 GridCount;
     b32 IsBackgroundHighlighted;
     b32 Advance;
 

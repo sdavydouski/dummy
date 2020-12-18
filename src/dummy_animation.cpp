@@ -1,27 +1,45 @@
 inline joint_pose
-Interpolate(joint_pose *A, f32 t, joint_pose *B)
+Lerp(joint_pose *From, f32 t, joint_pose *To)
 {
     joint_pose Result;
 
-    Result.Translation = Lerp(A->Translation, t, B->Translation);
-    Result.Rotation = Slerp(A->Rotation, t, B->Rotation);
+    Result.Translation = Lerp(From->Translation, t, To->Translation);
+    Result.Rotation = Slerp(From->Rotation, t, To->Rotation);
     // todo: logarithmic interpolation for scale? (https://www.cmu.edu/biolphys/deserno/pdf/log_interpol.pdf)
-    Result.Scale = Lerp(A->Scale, t, B->Scale);
+    Result.Scale = Lerp(From->Scale, t, To->Scale);
 
     return Result;
 }
 
 inline joint_pose
-Interpolate(joint_pose *A, joint_pose *B, joint_pose *C, f32 Alpha, f32 Beta, f32 Gamma)
+Lerp(joint_pose *A, joint_pose *B, joint_pose *C, f32 Alpha, f32 Beta, f32 Gamma)
 {
     joint_pose Result;
 
-    // todo: recheck!
     Result.Translation = A->Translation * Alpha + B->Translation * Beta + C->Translation * Gamma;
+    // todo: probably wrong. Use slerp instead
     Result.Rotation = A->Rotation * Alpha + B->Rotation * Beta + C->Rotation * Gamma;
     Result.Scale = A->Scale * Alpha + B->Scale * Beta + C->Scale * Gamma;
 
     return Result;
+}
+
+internal void
+Lerp(skeleton_pose *From, f32 t, skeleton_pose *To, skeleton_pose *Dest)
+{
+    u32 JointCount = From->Skeleton->JointCount;
+
+    Assert(To->Skeleton->JointCount == JointCount);
+    Assert(Dest->Skeleton->JointCount == JointCount);
+
+    for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
+    {
+        joint_pose *FromPose = From->LocalJointPoses + JointIndex;
+        joint_pose *ToPose = To->LocalJointPoses + JointIndex;
+        joint_pose *DestPose = Dest->LocalJointPoses + JointIndex;
+
+        *DestPose = Lerp(FromPose, t, ToPose);
+    }
 }
 
 internal mat4
@@ -122,7 +140,7 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_clip *Animation, f32 
 
             Assert(t >= 0.f && t <= 1.f);
 
-            *LocalJointPose = Interpolate(&CurrentKeyFrame->Pose, t, &NextKeyFrame->Pose);
+            *LocalJointPose = Lerp(&CurrentKeyFrame->Pose, t, &NextKeyFrame->Pose);
             //*LocalJointPose = NextKeyFrame->Pose;
         }
     }
@@ -142,6 +160,86 @@ GetActiveNode(animation_graph *Graph)
     return Result;
 }
 
+inline void
+ResetAnimationState(animation_state *Animation)
+{
+    Animation->Time = 0.f;
+    Animation->PlaybackRate = 1.f;
+}
+
+// todo: similar functions (enable/disable?)
+inline void
+EnableAnimationNode(animation_node *Node)
+{
+    Node->Weight = 1.f;
+
+    switch (Node->Type)
+    {
+        case AnimationNodeType_SingleMotion:
+        {
+            ResetAnimationState(&Node->Animation);
+
+            break;
+        }
+        case AnimationNodeType_BlendSpace:
+        {
+            for (u32 ValueIndex = 0; ValueIndex < Node->BlendSpace->BlendSpaceValueCount; ++ValueIndex)
+            {
+                blend_space_1d_value *Value = Node->BlendSpace->BlendSpaceValues;
+
+                ResetAnimationState(&Value->AnimationState);
+            }
+
+            break;
+        }
+        case AnimationNodeType_Graph:
+        {
+            Node->Graph->ActiveNodeIndex = Node->Graph->Entry->Index;
+            EnableAnimationNode(Node->Graph->Entry);
+
+            break;
+        }
+    }
+}
+
+internal void
+DisableAnimationNode(animation_node *Node)
+{
+    Node->Weight = 0.f;
+
+    switch (Node->Type)
+    {
+        case AnimationNodeType_SingleMotion:
+        {
+            ResetAnimationState(&Node->Animation);
+
+            break;
+        }
+        case AnimationNodeType_BlendSpace:
+        {
+            for (u32 ValueIndex = 0; ValueIndex < Node->BlendSpace->BlendSpaceValueCount; ++ValueIndex)
+            {
+                blend_space_1d_value *Value = Node->BlendSpace->BlendSpaceValues;
+                ResetAnimationState(&Value->AnimationState);
+            }
+
+            break;
+        }
+        case AnimationNodeType_Graph:
+        {
+            Node->Graph->ActiveNodeIndex = Node->Graph->Entry->Index;
+
+            for (u32 SubNodeIndex = 0; SubNodeIndex < Node->Graph->NodeCount; ++SubNodeIndex)
+            {
+                animation_node *SubNode = Node->Graph->Nodes + SubNodeIndex;
+                DisableAnimationNode(SubNode);
+            }
+
+            break;
+        }
+    }
+}
+
 internal void
 CrossFade(animation_mixer *Mixer, animation_node *From, animation_node *To, f32 Duration)
 {
@@ -154,52 +252,6 @@ CrossFade(animation_mixer *Mixer, animation_node *From, animation_node *To, f32 
     // todo: ?
     //FadeIn(Mixer, To, Duration);
     //FadeOut(Mixer, From, Duration);
-}
-
-inline void
-AdjustAnimationNodeWeight(animation_node *Node, f32 Weight)
-{
-    Assert(Weight >= 0.f && Weight <= 1.f);
-
-    Node->Weight = Weight;
-
-    switch (Node->Type)
-    {
-        case AnimationNodeType_SingleMotion:
-        {
-            Node->Animation.Weight = Node->Weight;
-            Node->Animation.WeightCoefficient = 1.f;
-            Node->Animation.PlaybackRate = Node->Weight;
-
-            break;
-        }
-        case AnimationNodeType_BlendSpace:
-        {
-            for (u32 ValueIndex = 0; ValueIndex < Node->BlendSpace->AnimationBlendSpaceValueCount; ++ValueIndex)
-            {
-                animation_blend_space_1d_value *Value = Node->BlendSpace->AnimationBlendSpaceValues + ValueIndex;
-
-                // todo: weights are overriden inside LinearLerpBlend!
-                //Value->AnimationState.Weight *= Node->Weight;
-                //Value->AnimationState.PlaybackRate *= Node->Weight;
-
-                Value->AnimationState.WeightCoefficient = Node->Weight;
-            }
-
-            break;
-        }
-        case AnimationNodeType_Graph:
-        {
-            animation_node *SubNode = GetActiveNode(Node->Graph);
-            AdjustAnimationNodeWeight(SubNode, Weight);
-
-            break;
-        }
-        default:
-        {
-            Assert(!"Invalid animation node type");
-        }
-    }
 }
 
 internal void
@@ -217,32 +269,26 @@ AnimationMixerPerFrameUpdate(animation_mixer *Mixer, f32 Delta)
         // todo: ease-in/ease-out
         f32 Value = Mixer->Time / Mixer->Duration;
 
-        f32 FromWeight = (1.f - Mixer->StartWeight) - Value;
-        AdjustAnimationNodeWeight(Mixer->From, FromWeight);
+        f32 FromWeight = Max(0.f, (1.f - Mixer->StartWeight) - Value);
 
-        f32 ToWeight = Mixer->StartWeight + Value;
-        AdjustAnimationNodeWeight(Mixer->To, ToWeight);
+        Assert(FromWeight >= 0.f && FromWeight <= 1.f);
+
+        Mixer->From->Weight = FromWeight;
+
+        f32 ToWeight = Min(1.f, Mixer->StartWeight + Value);
+
+        Assert(ToWeight >= 0.f && ToWeight <= 1.f);
+
+        Mixer->To->Weight = ToWeight;
 
         if (Mixer->Time == Mixer->Duration)
         {
-#if 0
-            Mixer->From->Weight = 0.f;
-            Mixer->From->Animation.Weight = 0.f;
-            Mixer->From->Animation.PlaybackRate = 1.f;
-            Mixer->From->Animation.Time = 0.f;
-
-            Mixer->To->Weight = 1.f;
-            Mixer->To->Animation.Weight = 1.f;
-            Mixer->To->Animation.PlaybackRate = 1.f;
-#endif
-            // ?
-            Mixer->From->Weight = 0.f;
-            Mixer->To->Weight = 1.f;
+            // todo: !!!
+            //DisableAnimationNode(Mixer->From);
+            //EnableAnimationNode(Mixer->To);
 
             Mixer->From = 0;
             Mixer->To = 0;
-            Mixer->Duration = 0.f;
-            Mixer->Time = 0.f;
         }
     }
 }
@@ -268,7 +314,7 @@ UpdateGlobalJointPoses(skeleton_pose *Pose, transform Transform)
 
 internal void
 TriangularLerpBlend(
-    animation_blend_space_2d_triangle *AnimationBlendSpaceTriangle,
+    blend_space_2d_triangle *AnimationBlendSpaceTriangle,
     vec2 Blend,
     skeleton_pose *Pose,
     memory_arena *Arena
@@ -296,9 +342,9 @@ TriangularLerpBlend(
     skeleton_pose *SkeletonPoseB = SkeletonPoses + 1;
     skeleton_pose *SkeletonPoseC = SkeletonPoses + 2;
 
-    animation_blend_space_2d_value *A = &AnimationBlendSpaceTriangle->Points[0];
-    animation_blend_space_2d_value *B = &AnimationBlendSpaceTriangle->Points[1];
-    animation_blend_space_2d_value *C = &AnimationBlendSpaceTriangle->Points[2];
+    blend_space_2d_value *A = &AnimationBlendSpaceTriangle->Points[0];
+    blend_space_2d_value *B = &AnimationBlendSpaceTriangle->Points[1];
+    blend_space_2d_value *C = &AnimationBlendSpaceTriangle->Points[2];
 
     AnimateSkeletonPose(SkeletonPoseA, A->AnimationState->Clip, A->AnimationState->Time);
     AnimateSkeletonPose(SkeletonPoseB, B->AnimationState->Clip, B->AnimationState->Time);
@@ -317,48 +363,8 @@ TriangularLerpBlend(
         joint_pose *LocalJointPoseB = SkeletonPoseB->LocalJointPoses + JointIndex;
         joint_pose *LocalJointPoseC = SkeletonPoseC->LocalJointPoses + JointIndex;
 
-        *LocalJointPose = Interpolate(LocalJointPoseA, LocalJointPoseB, LocalJointPoseC, Alpha, Beta, Gamma);
+        *LocalJointPose = Lerp(LocalJointPoseA, LocalJointPoseB, LocalJointPoseC, Alpha, Beta, Gamma);
     }
-}
-
-internal void
-LinearLerpBlend(animation_blend_space_1d *AnimationBlendSpace, f32 BlendParameter)
-{
-    animation_blend_space_1d_value *AnimationBlendValueFrom = 0;
-    animation_blend_space_1d_value *AnimationBlendValueTo = 0;
-
-    for (u32 AnimationBlendValueIndex = 0; AnimationBlendValueIndex < AnimationBlendSpace->AnimationBlendSpaceValueCount - 1; ++AnimationBlendValueIndex)
-    {
-        animation_blend_space_1d_value *CurrentAnimationBlendValue = AnimationBlendSpace->AnimationBlendSpaceValues + AnimationBlendValueIndex;
-        animation_blend_space_1d_value *NextAnimationBlendValue = AnimationBlendSpace->AnimationBlendSpaceValues + AnimationBlendValueIndex + 1;
-
-        if (InRange(BlendParameter, CurrentAnimationBlendValue->Value, NextAnimationBlendValue->Value))
-        {
-            AnimationBlendValueFrom = CurrentAnimationBlendValue;
-            AnimationBlendValueTo = NextAnimationBlendValue;
-            break;
-        }
-    }
-
-    // todo: ?
-#if 1
-    for (u32 AnimationBlendValueIndex = 0; AnimationBlendValueIndex < AnimationBlendSpace->AnimationBlendSpaceValueCount; ++AnimationBlendValueIndex)
-    {
-        animation_blend_space_1d_value *AnimationBlendValue = AnimationBlendSpace->AnimationBlendSpaceValues + AnimationBlendValueIndex;
-        AnimationBlendValue->AnimationState.Weight = 0.f;
-    }
-#endif
-
-    Assert(AnimationBlendValueFrom && AnimationBlendValueTo);
-
-    f32 t = (BlendParameter - AnimationBlendValueFrom->Value) / (AnimationBlendValueTo->Value - AnimationBlendValueFrom->Value);
-
-    Assert(t >= 0.f && t <= 1.f);
-
-    AnimationBlendValueFrom->AnimationState.Weight = 1.f - t;
-    //AnimationBlendValueFrom->AnimationState.PlaybackRate = 1.f - t;
-    AnimationBlendValueTo->AnimationState.Weight = t;
-    //AnimationBlendValueTo->AnimationState.PlaybackRate = t;
 }
 
 inline joint_pose
@@ -371,97 +377,6 @@ WeightedJointPose(joint_pose Pose, f32 Weight)
     Result.Translation = Pose.Translation * Weight;
 
     return Result;
-}
-
-inline void
-ResetAnimationState(animation_state *Animation)
-{
-    Animation->Time = 0.f;
-    Animation->Weight = 0.f;
-    Animation->WeightCoefficient = 1.f;
-    Animation->PlaybackRate = 1.f;
-}
-
-// todo: symmetric?
-inline void
-EnableAnimationNode(animation_node *Node)
-{
-    Node->Weight = 1.f;
-    Node->Time = 0.f;
-
-    switch (Node->Type)
-    {
-        case AnimationNodeType_SingleMotion:
-        {
-            Node->Animation.Time = 0.f;
-            Node->Animation.Weight = 1.f;
-            Node->Animation.WeightCoefficient = 1.f;
-            Node->Animation.PlaybackRate = 1.f;
-
-            break;
-        }
-        case AnimationNodeType_BlendSpace:
-        {
-            for (u32 ValueIndex = 0; ValueIndex < Node->BlendSpace->AnimationBlendSpaceValueCount; ++ValueIndex)
-            {
-                animation_blend_space_1d_value *Value = Node->BlendSpace->AnimationBlendSpaceValues;
-
-                // todo: ?
-            }
-
-            break;
-        }
-        case AnimationNodeType_Graph:
-        {
-            for (u32 SubNodeIndex = 0; SubNodeIndex < Node->Graph->NodeCount; ++SubNodeIndex)
-            {
-                animation_node *SubNode = Node->Graph->Nodes + SubNodeIndex;
-
-                // enable first subnode
-                EnableAnimationNode(SubNode);
-                break;
-            }
-
-            break;
-        }
-    }
-}
-
-internal void
-DisableAnimationNode(animation_node *Node)
-{
-    Node->Weight = 0.f;
-    Node->Time = 0.f;
-
-    switch (Node->Type)
-    {
-        case AnimationNodeType_SingleMotion:
-        {
-            ResetAnimationState(&Node->Animation);
-
-            break;
-        }
-        case AnimationNodeType_BlendSpace:
-        {
-            for (u32 ValueIndex = 0; ValueIndex < Node->BlendSpace->AnimationBlendSpaceValueCount; ++ValueIndex)
-            {
-                animation_blend_space_1d_value *Value = Node->BlendSpace->AnimationBlendSpaceValues;
-                ResetAnimationState(&Value->AnimationState);
-            }
-
-            break;
-        }
-        case AnimationNodeType_Graph:
-        {
-            for (u32 SubNodeIndex = 0; SubNodeIndex < Node->Graph->NodeCount; ++SubNodeIndex)
-            {
-                animation_node *SubNode = Node->Graph->Nodes + SubNodeIndex;
-                DisableAnimationNode(SubNode);
-            }
-
-            break;
-        }
-    }
 }
 
 internal void
@@ -577,8 +492,6 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
 internal void
 AnimationStatePerFrameUpdate(animation_state *AnimationState, f32 Delta)
 {
-    Assert(AnimationState->Weight > 0.f);
-
     AnimationState->Time += Delta * AnimationState->PlaybackRate;
 
     if (AnimationState->Time > AnimationState->Clip->Duration)
@@ -589,26 +502,74 @@ AnimationStatePerFrameUpdate(animation_state *AnimationState, f32 Delta)
         }
         else
         {
-            AnimationState->Time = 0.f;
-            AnimationState->Weight = 0.f;
+            // todo: ?
+            //AnimationState->Time = 0.f;
         }
     }
 }
 
 internal void
-AnimationBlendSpacePerFrameUpdate(animation_blend_space_1d *BlendSpace, f32 BlendParameter, f32 Time01)
+LinearLerpBlend(blend_space_1d *BlendSpace, f32 BlendParameter)
+{
+    blend_space_1d_value *BlendValueFrom = 0;
+    blend_space_1d_value *BlendValueTo = 0;
+
+    for (u32 AnimationBlendValueIndex = 0; AnimationBlendValueIndex < BlendSpace->BlendSpaceValueCount - 1; ++AnimationBlendValueIndex)
+    {
+        blend_space_1d_value *CurrentAnimationBlendValue = BlendSpace->BlendSpaceValues + AnimationBlendValueIndex;
+        blend_space_1d_value *NextAnimationBlendValue = BlendSpace->BlendSpaceValues + AnimationBlendValueIndex + 1;
+
+        if (InRange(BlendParameter, CurrentAnimationBlendValue->Value, NextAnimationBlendValue->Value))
+        {
+            BlendValueFrom = CurrentAnimationBlendValue;
+            BlendValueTo = NextAnimationBlendValue;
+            break;
+        }
+    }
+
+    // todo: ?
+#if 1
+    for (u32 AnimationBlendValueIndex = 0; AnimationBlendValueIndex < BlendSpace->BlendSpaceValueCount; ++AnimationBlendValueIndex)
+    {
+        blend_space_1d_value *AnimationBlendValue = BlendSpace->BlendSpaceValues + AnimationBlendValueIndex;
+        AnimationBlendValue->Weight = 0.f;
+    }
+#endif
+
+    Assert(BlendValueFrom && BlendValueTo);
+
+    f32 t = (BlendParameter - BlendValueFrom->Value) / (BlendValueTo->Value - BlendValueFrom->Value);
+
+    Assert(t >= 0.f && t <= 1.f);
+
+    BlendValueFrom->Weight = 1.f - t;
+    //BlendValueFrom->AnimationState.PlaybackRate = 1.f - t;
+    BlendValueTo->Weight = t;
+    //BlendValueTo->AnimationState.PlaybackRate = t;
+}
+
+// TODO: FIX NORMALIZED TIME!
+internal void
+AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 BlendParameter, f32 Delta)
 {
     LinearLerpBlend(BlendSpace, BlendParameter);
 
-    for (u32 AnimationIndex = 0; AnimationIndex < BlendSpace->AnimationBlendSpaceValueCount; ++AnimationIndex)
-    {
-        animation_blend_space_1d_value *Value = BlendSpace->AnimationBlendSpaceValues + AnimationIndex;
+    BlendSpace->NormalizedTime += Delta;
 
-        if (Value->AnimationState.Weight > 0.f)
+    if (BlendSpace->NormalizedTime > 1.f)
+    {
+        BlendSpace->NormalizedTime = 0.f;
+    }
+
+    for (u32 AnimationIndex = 0; AnimationIndex < BlendSpace->BlendSpaceValueCount; ++AnimationIndex)
+    {
+        blend_space_1d_value *Value = BlendSpace->BlendSpaceValues + AnimationIndex;
+
+        if (Value->Weight > 0.f)
         {
             animation_state *AnimationState = &Value->AnimationState;
 
-            AnimationState->Time = Time01 * AnimationState->Clip->Duration * AnimationState->PlaybackRate;
+            AnimationState->Time = BlendSpace->NormalizedTime * AnimationState->Clip->Duration * AnimationState->PlaybackRate;
 
             // todo: do I need this?
             if (AnimationState->Time > AnimationState->Clip->Duration)
@@ -620,7 +581,7 @@ AnimationBlendSpacePerFrameUpdate(animation_blend_space_1d *BlendSpace, f32 Blen
                 else
                 {
                     AnimationState->Time = 0.f;
-                    AnimationState->Weight = 0.f;
+                    //AnimationState->Weight = 0.f;
                 }
             }
         }
@@ -635,23 +596,20 @@ AnimationNodePerFrameUpdate(animation_graph *Graph, animation_node *Node, f32 De
 {
     Assert(Node->Weight > 0.f);
 
-    Node->Time += Delta;
-
-    if (Node->Time > 1.f)
-    {
-        Node->Time = 0.f;
-    }
+    // todo: move out to separate function? (e.g. node method?)
+#if 1
+    animation_node *ActiveNode = GetActiveNode(Graph);
 
     if (Node->Params)
     {
-        if (StringEquals(Node->Name, "Idle_Node"))
+        if (StringEquals(ActiveNode->Name, "Idle_Node"))
         {
-            Node->Params->Time += Delta;
+            // update function for Idle_Node
+            ActiveNode->Params->Time += Delta;
 
-            if (Node->Params->Time > Node->Params->MaxTime)
+            if (ActiveNode->Params->Time > ActiveNode->Params->MaxTime)
             {
-                Node->Params->Time = 0.f;
-                Node->Params->MaxTime = RandomBetween(Node->Params->RNG, 7.f, 15.f);
+                ActiveNode->Params->Time = 0.f;
 
                 if (Random01(Node->Params->RNG) > 0.5f)
                 {
@@ -665,30 +623,28 @@ AnimationNodePerFrameUpdate(animation_graph *Graph, animation_node *Node, f32 De
         }
     }
 
+    if (StringEquals(ActiveNode->Name, "Long_Idle_Node") || StringEquals(ActiveNode->Name, "Long_Idle_2_Node"))
+    {
+        // update function for Long_Idle_Node and Long_Idle_2_Node
+        if (ActiveNode->Animation.Time > ActiveNode->Animation.Clip->Duration)
+        {
+            ActiveNode->Animation.Time = 0.f;
+            TransitionToNode(Graph, "Idle_Node");
+        }
+    }
+#endif
+
     switch (Node->Type)
     {
         case AnimationNodeType_SingleMotion:
         {
             AnimationStatePerFrameUpdate(&Node->Animation, Delta);
 
-            // todo: ?
-#if 1
-            if (StringEquals(Node->Name, "Long_Idle_Node") || StringEquals(Node->Name, "Long_Idle_2_Node"))
-            {
-                if (Node->Animation.Weight == 0.f)
-                {
-                    Node->Weight = 0.f;
-                    TransitionToNode(Graph, "Idle_Node");
-                }
-            }
-#endif
-            
-
             break;
         }
         case AnimationNodeType_BlendSpace:
         {
-            AnimationBlendSpacePerFrameUpdate(Node->BlendSpace, BlendParameter, Node->Time);
+            AnimationBlendSpacePerFrameUpdate(Node->BlendSpace, BlendParameter, Delta);
             break;
         }
         case AnimationNodeType_Graph:
@@ -707,7 +663,6 @@ internal void
 AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta, f32 BlendParameter)
 {
     AnimationMixerPerFrameUpdate(&Graph->Mixer, Delta);
-    //AnimationMixerPerFrameUpdatePre(&Graph->Mixer, Delta);
 
     for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
     {
@@ -718,8 +673,6 @@ AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta, f32 BlendParamet
             AnimationNodePerFrameUpdate(Graph, Node, Delta, BlendParameter);
         }
     }
-
-    //AnimationMixerPerFrameUpdatePost(&Graph->Mixer, Delta);
 }
 
 internal animation_clip *
@@ -750,8 +703,6 @@ CreateAnimationState(animation_clip *Clip)
 
     Result.Clip = Clip;
     Result.Time = 0.f;
-    Result.Weight = 0.f;
-    Result.WeightCoefficient = 1.f;
     Result.PlaybackRate = 1.f;
 
     return Result;
@@ -770,7 +721,7 @@ BuildAnimationNode(animation_node *Node, entity_state State, const char *Name, u
 }
 
 inline void
-BuildAnimationNode(animation_node *Node, entity_state State, const char *Name, u32 Index, animation_blend_space_1d *BlendSpace)
+BuildAnimationNode(animation_node *Node, entity_state State, const char *Name, u32 Index, blend_space_1d *BlendSpace)
 {
     Node->Type = AnimationNodeType_BlendSpace;
     Node->State = State;
@@ -836,7 +787,7 @@ ActivateAnimationNode(animation_graph *Graph, entity_state State)
     animation_node *Node= GetAnimationNode(Graph, State);
 
     Graph->ActiveNodeIndex = Node->Index;
-    Node->Weight = 1.f;
+    EnableAnimationNode(Node);
 }
 
 internal void
@@ -845,7 +796,7 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
     *Graph = {};
 
     Graph->Mixer = {};
-    Graph->NodeCount = 2;
+    Graph->NodeCount = 3;
     Graph->Nodes = PushArray(Arena, Graph->NodeCount, animation_node);
 
     u32 NodeIndex = 0;
@@ -863,18 +814,19 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
 
     {
         animation_node *IdleEntry = IdleGraph->Nodes + 0;
-        BuildAnimationNode(IdleEntry, EntityState_None, "Idle_Node", 0, GetAnimationClip(Model, "Idle_2"));
+        BuildAnimationNode(IdleEntry, EntityState_None, "Idle_Node", 0, GetAnimationClip(Model, "Idle"));
         // 
         IdleEntry->Params = PushType(Arena, animation_node_params);
         IdleEntry->Params->Time = 0.f;
-        IdleEntry->Params->MaxTime = RandomBetween(RNG, 7.f, 15.f);
+        IdleEntry->Params->MaxTime = RandomBetween(RNG, 10.f, 15.f);
+        //IdleEntry->Params->MaxTime = 5.f;
         IdleEntry->Params->RNG = RNG;
 
         animation_node *LongIdleEntry = IdleGraph->Nodes + 1;
-        BuildAnimationNode(LongIdleEntry, EntityState_None, "Long_Idle_Node", 1, GetAnimationClip(Model, "Idle"));
+        BuildAnimationNode(LongIdleEntry, EntityState_None, "Long_Idle_Node", 1, GetAnimationClip(Model, "Idle_2"));
 
         animation_node *LongIdle2Entry = IdleGraph->Nodes + 2;
-        BuildAnimationNode(LongIdle2Entry, EntityState_None, "Long_Idle_2_Node", 1, GetAnimationClip(Model, "Idle_3"));
+        BuildAnimationNode(LongIdle2Entry, EntityState_None, "Long_Idle_2_Node", 2, GetAnimationClip(Model, "Idle_3"));
 
         // Transitions
 
@@ -903,47 +855,53 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
         BuildAnimationTransition(LongIdle2ToIdleTransition, LongIdle2Entry, IdleEntry, AnimationTransitionType_Crossfade, 0.2f);
 
         //
-        IdleGraph->ActiveNodeIndex = 0;
+        IdleGraph->Entry = IdleEntry;
+        IdleGraph->ActiveNodeIndex = IdleGraph->Entry->Index;
         IdleEntry->Weight = 1.f;
-        IdleEntry->Animation.Weight = 1.f;
-        IdleEntry->Animation.WeightCoefficient = 1.f;
     }
 
     // Moving
     animation_node *NodeWalking = Graph->Nodes + NodeIndex;
 
-    animation_blend_space_1d *BlendSpace = PushType(Arena, animation_blend_space_1d);
-    BlendSpace->AnimationBlendSpaceValueCount = 3;
-    BlendSpace->AnimationBlendSpaceValues = PushArray(Arena, BlendSpace->AnimationBlendSpaceValueCount, animation_blend_space_1d_value);
+    blend_space_1d *BlendSpace = PushType(Arena, blend_space_1d);
+    BlendSpace->BlendSpaceValueCount = 3;
+    BlendSpace->BlendSpaceValues = PushArray(Arena, BlendSpace->BlendSpaceValueCount, blend_space_1d_value);
 
     {
-        animation_blend_space_1d_value *Value = BlendSpace->AnimationBlendSpaceValues + 0;
+        blend_space_1d_value *Value = BlendSpace->BlendSpaceValues + 0;
         Value->Value = 0.f;
-        Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, "Idle_2"));
+        Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, "Idle_4"));
     }
 
     {
-        animation_blend_space_1d_value *Value = BlendSpace->AnimationBlendSpaceValues + 1;
-        Value->Value = 0.75f;
+        blend_space_1d_value *Value = BlendSpace->BlendSpaceValues + 1;
+        Value->Value = 0.5f;
         Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, "Walking"));
     }
 
     {
-        animation_blend_space_1d_value *Value = BlendSpace->AnimationBlendSpaceValues + 2;
+        blend_space_1d_value *Value = BlendSpace->BlendSpaceValues + 2;
         Value->Value = 1.f;
         Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, "Running"));
     }
 
     BuildAnimationNode(NodeWalking, EntityState_Moving, "Moving_Node", NodeIndex++, BlendSpace);
 
+    // Dancing
+    animation_node *NodeDancing = Graph->Nodes + NodeIndex;
+    BuildAnimationNode(NodeDancing, EntityState_Dance, "Dance_Node", NodeIndex++, GetAnimationClip(Model, "Samba"));
+
     // Create Transitions
 
     // Idle Node
-    NodeIdle->TransitionCount = 1;
+    NodeIdle->TransitionCount = 2;
     NodeIdle->Transitions = PushArray(Arena, NodeIdle->TransitionCount, animation_transition);
 
     animation_transition *IdleToWalkingTransition = NodeIdle->Transitions + 0;
     BuildAnimationTransition(IdleToWalkingTransition, NodeIdle, NodeWalking, AnimationTransitionType_Crossfade, 0.2f);
+
+    animation_transition *IdleToDancingTransition = NodeIdle->Transitions + 1;
+    BuildAnimationTransition(IdleToDancingTransition, NodeIdle, NodeDancing, AnimationTransitionType_Crossfade, 0.2f);
 
     // Walking Node
     NodeWalking->TransitionCount = 1;
@@ -952,26 +910,72 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
     animation_transition *WalkingToIdleTransition = NodeWalking->Transitions + 0;
     BuildAnimationTransition(WalkingToIdleTransition, NodeWalking, NodeIdle, AnimationTransitionType_Crossfade, 0.2f);
 
-    int t = 0;
+    // Dance Node
+    NodeDancing->TransitionCount = 1;
+    NodeDancing->Transitions = PushArray(Arena, NodeDancing->TransitionCount, animation_transition);
+
+    animation_transition *DanceToIdleTransition = NodeDancing->Transitions + 0;
+    BuildAnimationTransition(DanceToIdleTransition, NodeDancing, NodeIdle, AnimationTransitionType_Crossfade, 0.2f);
+
+    Graph->Entry = NodeIdle;
+    Graph->ActiveNodeIndex = NodeIdle->Index;
 }
 
-internal void
-CalculateFinalSkeletonPose(animation_graph *AnimationGraph, skeleton_pose *Pose, memory_arena *Arena)
+internal u32
+GetActiveAnimationCount(animation_graph *Graph)
 {
-    // todo: wrong?
-    //u32 AnimationCount = AnimationGraph->NodeCount;
-    u32 AnimationCount = 4;
+    u32 Result = 0;
 
-    scoped_memory ScopedMemory(Arena);
-    skeleton_pose *SkeletonPoses = PushArray(ScopedMemory.Arena, AnimationCount, skeleton_pose);
-
-    animation_state **ActiveAnimations = PushArray(ScopedMemory.Arena, AnimationCount, animation_state *);
-
-    u32 ActiveAnimationIndex = 0;
-    u32 ActiveAnimationCount = 0;
-    for (u32 NodeIndex = 0; NodeIndex < AnimationGraph->NodeCount; ++NodeIndex)
+    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
     {
-        animation_node *Node = AnimationGraph->Nodes + NodeIndex;
+        animation_node *Node = Graph->Nodes + NodeIndex;
+
+        if (Node->Weight > 0.f)
+        {
+            switch (Node->Type)
+            {
+                case AnimationNodeType_SingleMotion:
+                {
+                    ++Result;
+
+                    break;
+                }
+                case AnimationNodeType_BlendSpace:
+                {
+                    for (u32 Index = 0; Index < Node->BlendSpace->BlendSpaceValueCount; ++Index)
+                    {
+                        blend_space_1d_value *Value = Node->BlendSpace->BlendSpaceValues + Index;
+
+                        if (Value->Weight > 0.f)
+                        {
+                            ++Result;
+                        }
+                    }
+
+                    break;
+                }
+                case AnimationNodeType_Graph:
+                {
+                    Result += GetActiveAnimationCount(Node->Graph);
+
+                    break;
+                }
+            }
+        }
+    }
+
+    return Result;
+}
+
+// todo:
+global u32 ActiveAnimationIndex = 0;
+
+internal void
+GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, f32 GraphWeight)
+{
+    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
+    {
+        animation_node *Node = Graph->Nodes + NodeIndex;
 
         if (Node->Weight > 0.f)
         {
@@ -980,24 +984,23 @@ CalculateFinalSkeletonPose(animation_graph *AnimationGraph, skeleton_pose *Pose,
                 case AnimationNodeType_SingleMotion:
                 {
                     animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
+                    
                     *ActiveAnimationState = &Node->Animation;
-
-                    ++ActiveAnimationCount;
+                    (*ActiveAnimationState)->Weight = GraphWeight * Node->Weight;
 
                     break;
                 }
                 case AnimationNodeType_BlendSpace:
                 {
-                    for (u32 Index = 0; Index < Node->BlendSpace->AnimationBlendSpaceValueCount; ++Index)
+                    for (u32 Index = 0; Index < Node->BlendSpace->BlendSpaceValueCount; ++Index)
                     {
-                        animation_blend_space_1d_value *Value = Node->BlendSpace->AnimationBlendSpaceValues + Index;
+                        blend_space_1d_value *Value = Node->BlendSpace->BlendSpaceValues + Index;
 
-                        if (Value->AnimationState.Weight > 0.f)
+                        if (Value->Weight > 0.f)
                         {
                             animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
                             *ActiveAnimationState = &Value->AnimationState;
-
-                            ++ActiveAnimationCount;
+                            (*ActiveAnimationState)->Weight = GraphWeight * Node->Weight * Value->Weight;
                         }
                     }
 
@@ -1005,61 +1008,68 @@ CalculateFinalSkeletonPose(animation_graph *AnimationGraph, skeleton_pose *Pose,
                 }
                 case AnimationNodeType_Graph:
                 {
-                    for (u32 NodeIndex = 0; NodeIndex < Node->Graph->NodeCount; ++NodeIndex)
-                    {
-                        animation_node *SubNode = Node->Graph->Nodes + NodeIndex;
-
-                        // todo: recursive?
-                        if (SubNode->Animation.Weight > 0.f)
-                        {
-                            animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
-                            *ActiveAnimationState = &SubNode->Animation;
-
-                            ++ActiveAnimationCount;
-                        }
-                    }
+                    GetActiveAnimations(Node->Graph, ActiveAnimations, Node->Weight);
 
                     break;
                 }
             }
-
-            
         }
     }
+}
+
+internal void
+CalculateFinalSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_arena *Arena)
+{
+    u32 ActiveAnimationCount = GetActiveAnimationCount(Graph);
 
     if (ActiveAnimationCount > 0)
     {
+        scoped_memory ScopedMemory(Arena);
+        skeleton_pose *SkeletonPoses = PushArray(ScopedMemory.Arena, ActiveAnimationCount, skeleton_pose);
+
+        animation_state **ActiveAnimations = PushArray(ScopedMemory.Arena, ActiveAnimationCount, animation_state *);
+
+        GetActiveAnimations(Graph, ActiveAnimations, 1.f);
+        // todo:
+        ActiveAnimationIndex = 0;
+
         f32 TotalWeight = 0.f;
         for (u32 ActiveAnimationIndex = 0; ActiveAnimationIndex < ActiveAnimationCount; ++ActiveAnimationIndex)
         {
             animation_state *Animation = ActiveAnimations[ActiveAnimationIndex];
 
-            // 
-            Animation->Weight *= Animation->WeightCoefficient;
-            //Animation->WeightCoefficient = 1.f;
-
             TotalWeight += Animation->Weight;
         }
         Assert(Abs(1.f - TotalWeight) < 0.001f);
+        
+#if 1
+        // For debugging
+        if (!(Abs(1.f - TotalWeight) < 0.001f))
+        {
+            GetActiveAnimationCount(Graph);
+            GetActiveAnimations(Graph, ActiveAnimations, 1.f);
+        }
+#endif
 
         // Creating skeleton pose for each input clip
         for (u32 SkeletonPoseIndex = 0; SkeletonPoseIndex < ActiveAnimationCount; ++SkeletonPoseIndex)
         {
             skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex;
-            SkeletonPose->Skeleton = Pose->Skeleton;
-            SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, Pose->Skeleton->JointCount, joint_pose);
+            SkeletonPose->Skeleton = DestPose->Skeleton;
+            SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, DestPose->Skeleton->JointCount, joint_pose);
 
             // todo: ?
-            for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
+            for (u32 JointIndex = 0; JointIndex < DestPose->Skeleton->JointCount; ++JointIndex)
             {
                 joint_pose *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
-                joint_pose *SkeletonLocalJointPose = Pose->LocalJointPoses + JointIndex;
+                joint_pose *SkeletonLocalJointPose = DestPose->LocalJointPoses + JointIndex;
 
                 *LocalJointPose = *SkeletonLocalJointPose;
             }
         }
 
         // Extracting skeleton pose from each input clip
+        // todo: multithreading?
         for (u32 AnimationIndex = 0; AnimationIndex < ActiveAnimationCount; ++AnimationIndex)
         {
             animation_state *AnimationState = ActiveAnimations[AnimationIndex];
@@ -1068,25 +1078,32 @@ CalculateFinalSkeletonPose(animation_graph *AnimationGraph, skeleton_pose *Pose,
             AnimateSkeletonPose(SkeletonPose, AnimationState->Clip, AnimationState->Time);
         }
 
-        for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
+        // Lerping between all skeleton poses
+        u32 CurrentPoseIndex = 0;
+
+        skeleton_pose *Pose = SkeletonPoses + CurrentPoseIndex;
+        animation_state *Animation = ActiveAnimations[CurrentPoseIndex];
+        CurrentPoseIndex++;
+
+        f32 AccumulatedWeight = Animation->Weight;
+
+        Lerp(Pose, 0.f, Pose, DestPose);
+
+        while (CurrentPoseIndex < ActiveAnimationCount)
         {
-            joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
-            joint_pose OutputLocalJointPose = {};
+            skeleton_pose *NextPose = SkeletonPoses + CurrentPoseIndex;
+            animation_state *NextAnimation = ActiveAnimations[CurrentPoseIndex];
+            CurrentPoseIndex++;
 
-            for (u32 AnimationIndex = 0; AnimationIndex < ActiveAnimationCount; ++AnimationIndex)
-            {
-                animation_state *AnimationState = ActiveAnimations[AnimationIndex];
-                skeleton_pose *SkeletonPose = SkeletonPoses + AnimationIndex;
+            f32 NextWeight = NextAnimation->Weight;
 
-                joint_pose *AnimatedLocalJoint = SkeletonPose->LocalJointPoses + JointIndex;
-                joint_pose WeightedLocalJoint = WeightedJointPose(*AnimatedLocalJoint, AnimationState->Weight);
+            f32 t = NextWeight / (AccumulatedWeight + NextWeight);
 
-                OutputLocalJointPose.Scale += WeightedLocalJoint.Scale;
-                OutputLocalJointPose.Rotation += WeightedLocalJoint.Rotation;
-                OutputLocalJointPose.Translation += WeightedLocalJoint.Translation;
-            }
+            Lerp(Pose, t, NextPose, DestPose);
 
-            *LocalJointPose = OutputLocalJointPose;
+            Pose = DestPose;
+            Animation = NextAnimation;
+            AccumulatedWeight += NextWeight;
         }
     }
 }
