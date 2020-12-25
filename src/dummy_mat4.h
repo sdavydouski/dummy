@@ -122,6 +122,19 @@ Inverse(mat4 M)
     return Result;
 }
 
+inline mat4
+Transpose(mat4 M)
+{
+    mat4 Result = mat4(
+        M.Column(0),
+        M.Column(1),
+        M.Column(2),
+        M.Column(3)
+    );
+
+    return Result;
+}
+
 // todo: implement
 inline void
 Decompose(mat4 M, vec3 *Scale, quat *Rotation, vec3 *Translation)

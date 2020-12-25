@@ -15,6 +15,7 @@ struct win32_opengl_state
 };
 
 void Win32GladPostCallback(const char *Name, void *FuncPtr, i32 LenArgs, ...) {
+#if 1
     GLenum ErrorCode;
     ErrorCode = glad_glGetError();
 
@@ -25,6 +26,7 @@ void Win32GladPostCallback(const char *Name, void *FuncPtr, i32 LenArgs, ...) {
 
         Assert(!OpenGLError);
     }
+#endif
 }
 
 // https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions

@@ -9,7 +9,7 @@
 
 enum material_type
 {
-    MaterialType_Phong,
+    MaterialType_BlinnPhong,
     MaterialType_Unlit
 };
 
@@ -55,6 +55,11 @@ struct spot_light
     light_attenuation Attenuation;
 };
 
+struct render_instance
+{
+    mat4 Model;
+};
+
 enum render_command_type
 {
     RenderCommand_InitRenderer,
@@ -65,6 +70,7 @@ enum render_command_type
     RenderCommand_SetOrthographicProjection,
     RenderCommand_SetPerspectiveProjection,
     RenderCommand_SetCamera,
+    RenderCommand_SetDirectionalLight,
 
     RenderCommand_Clear,
     
@@ -73,8 +79,7 @@ enum render_command_type
     RenderCommand_DrawGround,
     RenderCommand_DrawMesh,
     RenderCommand_DrawSkinnedMesh,
-
-    RenderCommand_SetDirectionalLight
+    RenderCommand_DrawMeshInstanced
 };
 
 struct render_command_header
@@ -93,12 +98,15 @@ struct render_command_add_mesh
 {
     render_command_header Header;
 
-    u32 Id;
+    u32 MeshId;
 
     u32 VertexCount;
     skinned_vertex *Vertices;
+
     u32 IndexCount;
     u32 *Indices;
+
+    u32 MaxInstanceCount;
 };
 
 struct render_command_add_texture
@@ -148,6 +156,12 @@ struct render_command_set_camera
     vec3 Position;
 };
 
+struct render_command_set_directional_light
+{
+    render_command_header Header;
+    directional_light Light;
+};
+
 struct render_command_clear
 {
     render_command_header Header;
@@ -181,7 +195,7 @@ struct render_command_draw_mesh
 {
     render_command_header Header;
 
-    u32 Id;
+    u32 MeshId;
 
     transform Transform;
 
@@ -195,7 +209,7 @@ struct render_command_draw_skinned_mesh
 {
     render_command_header Header;
 
-    u32 Id;
+    u32 MeshId;
 
     transform Transform;
 
@@ -208,10 +222,19 @@ struct render_command_draw_skinned_mesh
     mat4 *SkinningMatrices;
 };
 
-struct render_command_set_directional_light
+struct render_command_draw_mesh_instanced
 {
     render_command_header Header;
-    directional_light Light;
+
+    u32 MeshId;
+
+    u32 InstanceCount;
+    render_instance *Instances;
+
+    material Material;
+
+    point_light PointLight1;
+    point_light PointLight2;
 };
 
 struct render_commands

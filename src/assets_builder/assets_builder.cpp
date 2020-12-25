@@ -1252,9 +1252,11 @@ ProcessAsset(const char *FilePath, const char *OutputPath)
 i32 main(i32 ArgCount, char **Args)
 {
     // todo: multithreading (std::thread maybe?)
-    ProcessAsset("models\\floor\\floor.fbx", "assets\\floor.asset");
+    ProcessAsset("models\\skull\\skull.fbx", "assets\\skull.asset");
+    //ProcessAsset("models\\floor\\floor.fbx", "assets\\floor.asset");
+  /*  ProcessAsset("models\\wall\\wall.fbx", "assets\\wall.asset");
     ProcessAsset("models\\cube\\cube.fbx", "assets\\cube.asset");
     ProcessAsset("models\\sphere\\sphere.fbx", "assets\\sphere.asset");
     ProcessYBotModel();
-    ProcessPelegriniModel();
+    ProcessPelegriniModel();*/
 }

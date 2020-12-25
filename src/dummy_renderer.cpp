@@ -34,19 +34,21 @@ InitRenderer(render_commands *Commands)
 inline void
 AddMesh(
     render_commands *Commands,
-    u32 Id,
+    u32 MeshId,
     u32 VertexCount,
     skinned_vertex *Vertices,
     u32 IndexCount,
-    u32 *Indices
+    u32 *Indices,
+    u32 MaxInstanceCount
 )
 {
     render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh, 0);
-    Command->Id = Id;
+    Command->MeshId = MeshId;
     Command->VertexCount = VertexCount;
     Command->Vertices = Vertices;
     Command->IndexCount = IndexCount;
     Command->Indices = Indices;
+    Command->MaxInstanceCount = MaxInstanceCount;
 }
 
 inline void
@@ -137,7 +139,7 @@ DrawGround(render_commands *Commands, vec3 CameraPosition, u32 RenderTarget = 0)
 inline void
 DrawMesh(
     render_commands *Commands, 
-    u32 Id, 
+    u32 MeshId,
     transform Transform,
     material Material,
     point_light PointLight1,
@@ -146,7 +148,7 @@ DrawMesh(
 )
 {
     render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh, RenderTarget);
-    Command->Id = Id;
+    Command->MeshId = MeshId;
     Command->Transform = Transform;
     Command->Material = Material;
     Command->PointLight1 = PointLight1;
@@ -156,7 +158,7 @@ DrawMesh(
 inline void
 DrawSkinnedMesh(
     render_commands *Commands,
-    u32 Id,
+    u32 MeshId,
     transform Transform,
     material Material,
     point_light PointLight1,
@@ -168,13 +170,35 @@ DrawSkinnedMesh(
 {
     render_command_draw_skinned_mesh *Command = 
         PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh, RenderTarget);
-    Command->Id = Id;
+    Command->MeshId = MeshId;
     Command->Transform = Transform;
     Command->Material = Material;
     Command->PointLight1 = PointLight1;
     Command->PointLight2 = PointLight2;
     Command->SkinningMatrixCount = SkinningMatrixCount;
     Command->SkinningMatrices = SkinningMatrices;
+}
+
+inline void
+DrawMeshInstanced(
+    render_commands *Commands,
+    u32 MeshId,
+    u32 InstanceCount,
+    render_instance *Instances,
+    material Material,
+    point_light PointLight1,
+    point_light PointLight2,
+    u32 RenderTarget = 0
+)
+{
+    render_command_draw_mesh_instanced *Command = 
+        PushRenderCommand(Commands, render_command_draw_mesh_instanced, RenderCommand_DrawMeshInstanced, RenderTarget);
+    Command->MeshId = MeshId;
+    Command->InstanceCount = InstanceCount;
+    Command->Instances = Instances;
+    Command->Material = Material;
+    Command->PointLight1 = PointLight1;
+    Command->PointLight2 = PointLight2;
 }
 
 inline void

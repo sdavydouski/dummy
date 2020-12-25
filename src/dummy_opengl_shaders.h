@@ -65,6 +65,47 @@ void main()
 }
 )SHADER";
 
+char *InstancedForwardShadingVertexShader = (char *)
+R"SHADER(
+#version 450
+
+layout(location = 0) in vec3 in_Position;
+layout(location = 1) in vec3 in_Normal;
+layout(location = 2) in vec3 in_Tangent;
+layout(location = 3) in vec3 in_Bitangent;
+layout(location = 4) in vec2 in_TextureCoords;
+// -- ?
+layout(location = 5) in ivec4 in_JointIndices;
+layout(location = 6) in vec4 in_Weights;
+// --
+layout(location = 7) in mat4 in_InstanceModel;
+
+out vec3 ex_VertexPosition;
+out vec3 ex_Normal;
+out vec2 ex_TextureCoords;
+out mat3 ex_TBN;
+
+uniform mat4 u_Projection;
+uniform mat4 u_View;
+
+void main()
+{
+    mat4 InstanceModel = transpose(in_InstanceModel);
+
+    ex_VertexPosition = (InstanceModel * vec4(in_Position, 1.f)).xyz;
+    ex_Normal = mat3(transpose(inverse(InstanceModel))) * in_Normal;
+    ex_TextureCoords = in_TextureCoords;
+
+    vec3 T = normalize(vec3(InstanceModel * vec4(in_Tangent, 0.f)));
+    vec3 B = normalize(vec3(InstanceModel * vec4(in_Bitangent, 0.f)));
+    vec3 N = normalize(vec3(InstanceModel * vec4(in_Normal, 0.f)));
+
+    ex_TBN = mat3(T, B, N);
+
+    gl_Position = u_Projection * u_View * InstanceModel * vec4(in_Position, 1.f);
+}
+)SHADER";
+
 char *ForwardShadingFragmentShader = (char *)
 R"SHADER(
 #version 450
@@ -224,6 +265,7 @@ uniform vec3 u_CameraPosition;
 
 void main()
 {
+#if 1
     vec3 AmbientColor = u_Material.AmbientColor;
 
     vec3 DiffuseColor = u_Material.HasDiffuseMap
@@ -254,17 +296,22 @@ void main()
 
     vec3 EyeDirection = normalize(u_CameraPosition - ex_VertexPosition);
     
+    // todo: very expensive
+#if 1
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
 
-#if 1
     for (int PointLightIndex = 0; PointLightIndex < MAX_NUMBER_OF_POINT_LIGHTS; ++PointLightIndex)
     {
         point_light PointLight = u_PointLights[PointLightIndex];
         Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, ex_VertexPosition);
     }
+#else
+    vec3 Result = DiffuseColor;
 #endif
-    
     out_Color = vec4(Result, 1.f);
+#else
+    out_Color = vec4(vec3(1.f, 0.f, 0.f), 1.f);
+#endif
 }
 )SHADER";
 

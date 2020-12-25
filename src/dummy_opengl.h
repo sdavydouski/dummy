@@ -9,10 +9,12 @@
 #define OPENGL_SKINNED_PHONG_SHADING_SHADER_ID 0x3
 #define OPENGL_FRAMEBUFFER_SHADER_ID 0x4
 #define OPENGL_GROUND_SHADER_ID 0x5
+#define OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID 0x6
 
 struct opengl_mesh_buffer
 {
     u32 Id;
+    u32 VertexCount;
     u32 IndexCount;
 
     GLuint VAO;

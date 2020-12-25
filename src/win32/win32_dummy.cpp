@@ -715,6 +715,7 @@ DWORD WINAPI ThreadProc(_In_ LPVOID lpParameter)
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
+#if 0
     // Multithreading playground 
     SYSTEM_INFO SystemInfo;
     GetSystemInfo(&SystemInfo);
@@ -755,7 +756,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     Win32DebugPrintString("Work has been completed.\n");
     //
-
+#endif
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};

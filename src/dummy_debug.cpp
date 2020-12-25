@@ -40,59 +40,61 @@ Win32InitImGui(win32_platform_state *PlatformState)
 }
 
 internal void
-RenderAnimationGraphInfo(animation_graph *Graph)
+RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 {
-    ImGui::Text("AnimationGraph:");
-    ImGui::Text("---------");
+    char Prefix[8];
 
-    ImGui::Text("ActiveNodeIndex: %d", Graph->ActiveNodeIndex);
+    for (u32 DepthLevel = 0; DepthLevel < Depth; ++DepthLevel)
+    {
+        Prefix[DepthLevel] = '\t';
+    }
+
+    Prefix[Depth] = 0;
+
+    ImGui::Text("%sActiveNodeIndex: %d", Prefix, Graph->ActiveNodeIndex);
+
+    ImGui::NewLine();
 
     for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
     {
         animation_node *Node = Graph->Nodes + NodeIndex;
 
-        if (Node->Weight > 0.f)
+        ImGui::Text("%sNode Type: %d\n", Prefix, Node->Type);
+        ImGui::Text("%sNode Weight: %.3f\n", Prefix, Node->Weight);
+
+        switch (Node->Type)
         {
-            ImGui::Text("Node Weight: %.3f\n", Node->Weight);
-
-            switch (Node->Type)
+            case AnimationNodeType_SingleMotion:
             {
-                case AnimationNodeType_SingleMotion:
+                ImGui::Text("%s\tName: %s", Prefix, Node->Animation.Clip->Name);
+                ImGui::Text("%s\tTime: %.3f", Prefix, Node->Animation.Time);
+
+                break;
+            }
+            case AnimationNodeType_BlendSpace:
+            {
+                for (u32 Index = 0; Index < Node->BlendSpace->BlendSpaceValueCount; ++Index)
                 {
-                    ImGui::Text("--Name: %s", Node->Animation.Clip->Name);
-                    ImGui::Text("--Time: %.3f", Node->Animation.Time);
-                    ImGui::Text("--Weight: %.3f", Node->Animation.Weight);
+                    blend_space_1d_value *Value = Node->BlendSpace->BlendSpaceValues + Index;
 
-                    ImGui::Text("----");
+                    ImGui::Text("%s\tName: %s", Prefix, Value->AnimationState.Clip->Name);
+                    ImGui::Text("%s\tTime: %.3f", Prefix, Value->AnimationState.Time);
+                    ImGui::Text("%s\tWeight: %.3f", Prefix, Value->Weight);
 
-                    break;
+                    ImGui::NewLine();
                 }
-                case AnimationNodeType_BlendSpace:
-                {
-                    for (u32 Index = 0; Index < Node->BlendSpace->BlendSpaceValueCount; ++Index)
-                    {
-                        blend_space_1d_value *Value = Node->BlendSpace->BlendSpaceValues + Index;
 
-                        if (Value->Weight > 0.f)
-                        {
-                            ImGui::Text("--Name: %s", Value->AnimationState.Clip->Name);
-                            ImGui::Text("--Time: %.3f", Value->AnimationState.Time);
-                            ImGui::Text("--Weight: %.3f", Value->AnimationState.Weight);
+                break;
+            }
+            case AnimationNodeType_Graph:
+            {
+                RenderAnimationGraphInfo(Node->Graph, Depth + 1);
 
-                            ImGui::Text("----");
-                        }
-                    }
-
-                    break;
-                }
-                case AnimationNodeType_Graph:
-                {
-                    RenderAnimationGraphInfo(Node->Graph);
-
-                    break;
-                }
+                break;
             }
         }
+
+        ImGui::NewLine();
     }
 }
 
@@ -165,58 +167,14 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
     }
 
     ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player.RigidBody->Position.x, GameState->Player.RigidBody->Position.y, GameState->Player.RigidBody->Position.z);
-    ImGui::Text("CurrentMove: x: %.1f, y: %.1f", GameState->CurrentMove.x, GameState->CurrentMove.y);
     //ImGui::Text("Orientation: x: %.1f, y: %.1f, z: %.1f, w: %.1f", GameState->Player.Orientation.x, GameState->Player.Orientation.y, GameState->Player.Orientation.z, GameState->Player.Orientation.w);
 
     ImGui::ColorEdit3("Directional Light Color", (f32 *)&GameState->DirectionalColor);
 
-    ImGui::Text("State: %d", GameState->Player.State);
+    ImGui::End();
 
-    //joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(GameState->Player.Model->Pose);
-    //ImGui::Text("Root Translation: x: %.3f, y: %.3f, z: %.3f", RootTranslationLocalJointPose->Translation.x, RootTranslationLocalJointPose->Translation.y, RootTranslationLocalJointPose->Translation.z);
-
-#if 0
-    static int e1 = 0;
-    ImGui::RadioButton("YBot", &e1, 0);
-    ImGui::RadioButton("Mutant", &e1, 1);
-    ImGui::RadioButton("Arissa", &e1, 2);
-
-    if (e1 == 0)
-    {
-        GameState->Player.Model = &GameState->YBotModel;
-
-        for (u32 AnimationStateIndex = 0; AnimationStateIndex < GameState->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
-        {
-            animation_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-            AnimationState->Clip = GameState->Player.Model->Animations + AnimationStateIndex;
-        }
-    }
-    else if (e1 == 1)
-    {
-        GameState->Player.Model = &GameState->MutantModel;
-
-        for (u32 AnimationStateIndex = 0; AnimationStateIndex < GameState->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
-        {
-            animation_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-            AnimationState->Clip = GameState->Player.Model->Animations + AnimationStateIndex;
-        }
-    }
-    else if (e1 == 2)
-    {
-        GameState->Player.Model = &GameState->ArissaModel;
-
-        for (u32 AnimationStateIndex = 0; AnimationStateIndex < GameState->PlayerAnimationStateSet.AnimationStateCount; ++AnimationStateIndex)
-        {
-            animation_state *AnimationState = GameState->PlayerAnimationStateSet.AnimationStates + AnimationStateIndex;
-            AnimationState->Clip = GameState->Player.Model->Animations + AnimationStateIndex;
-        }
-    }
-#endif
-
-    ImGui::Text("--------------");
-
-    RenderAnimationGraphInfo(&GameState->AnimationGraph);
-
+    ImGui::Begin("Animation Graph");
+    RenderAnimationGraphInfo(&GameState->Player.AnimationGraph);
     ImGui::End();
 
     // Rendering

@@ -13,6 +13,7 @@ inline f32 Sqrt(f32 Value);
 #include "dummy_mat4.h"
 #include "dummy_quat.h"
 
+#define EPSILON 0.0001f
 #define PI 3.14159265359f
 #define HALF_PI (PI / 2.f)
 

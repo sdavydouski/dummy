@@ -75,7 +75,7 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreateMaterial(MaterialType_Phong, MeshMaterial, false);
+        material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial, false);
 
         DrawSkinnedMesh(
             RenderCommands, Mesh->Id, {}, Material,
@@ -91,7 +91,7 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform, po
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreateMaterial(MaterialType_Phong, MeshMaterial, false);
+        material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial, false);
 
         DrawMesh(RenderCommands, Mesh->Id, Transform, Material, PointLight1, PointLight2);
     }
@@ -105,6 +105,19 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform, ma
         mesh *Mesh = Model->Meshes + MeshIndex;
 
         DrawMesh(RenderCommands, Mesh->Id, Transform, Material, PointLight1, PointLight2);
+    }
+}
+
+inline void
+DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCount, render_instance *Instances, point_light PointLight1, point_light PointLight2)
+{
+    for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
+    {
+        mesh *Mesh = Model->Meshes + MeshIndex;
+        mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
+        material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial, false);
+
+        DrawMeshInstanced(RenderCommands, Mesh->Id, InstanceCount, Instances, Material, PointLight1, PointLight2);
     }
 }
 
@@ -127,7 +140,7 @@ GenerateTextureId()
 }
 
 inline void
-InitModel(model_asset *Asset, model *Model, memory_arena *Arena, render_commands *RenderCommands)
+InitModel(model_asset *Asset, model *Model, memory_arena *Arena, render_commands *RenderCommands, u32 MaxInstanceCount = 0)
 {
     *Model = {};
 
@@ -164,7 +177,7 @@ InitModel(model_asset *Asset, model *Model, memory_arena *Arena, render_commands
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         Mesh->Id = GenerateMeshId();
-        AddMesh(RenderCommands, Mesh->Id, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices);
+        AddMesh(RenderCommands, Mesh->Id, Mesh->VertexCount, Mesh->Vertices, Mesh->IndexCount, Mesh->Indices, MaxInstanceCount);
 
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
 
@@ -226,7 +239,7 @@ GAME_INIT(GameInit)
     );
 
     State->Mode = GameMode_World;
-    
+
     InitCamera(&State->FreeCamera, RADIANS(0.f), RADIANS(-90.f), RADIANS(45.f), vec3(0.f, 4.f, 16.f));
     InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), vec3(0.f, 0.f, 0.f));
     State->PlayerCamera.Radius = 16.f;
@@ -245,9 +258,20 @@ GAME_INIT(GameInit)
         SetRigidBodyMass(Body, 75.f);
     }
 
+    {
+        rigid_body *Body = State->RigidBodies + 1;
+        *Body = {};
+        Body->PrevPosition = vec3(5.f, 10.f, 0.f);
+        Body->Position = vec3(5.f, 10.f, 0.f);
+        Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+        Body->Damping = 0.0001f;
+        Body->HalfSize = vec3(1.f);
+        SetRigidBodyMass(Body, 10.f);
+    }
+
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
-    State->DirectionalColor = vec3(0.2f);
+    State->DirectionalColor = vec3(1.f);
 
     State->RNG = RandomSequence(42);
 
@@ -261,14 +285,24 @@ GAME_INIT(GameInit)
     model_asset *YBotModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\pelegrini.asset", &State->WorldArena);
     InitModel(YBotModelAsset, &State->YBotModel, &State->WorldArena, RenderCommands);
 
+    model_asset *SkullModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\skull.asset", &State->WorldArena);
+    InitModel(SkullModelAsset, &State->SkullModel, &State->WorldArena, RenderCommands);
+
     model_asset *SphereModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\sphere.asset", &State->WorldArena);
     InitModel(SphereModelAsset, &State->SphereModel, &State->WorldArena, RenderCommands);
 
     model_asset *CubeModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\cube.asset", &State->WorldArena);
     InitModel(CubeModelAsset, &State->CubeModel, &State->WorldArena, RenderCommands);
 
+    model_asset *WallModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\wall.asset", &State->WorldArena);
+    InitModel(WallModelAsset, &State->WallModel, &State->WorldArena, RenderCommands);
+
+    State->FloorDim = vec2(10.f, 10.f);
+    State->InstanceCount = (u32)(State->FloorDim.x * State->FloorDim.y);
+    State->Instances = PushArray(&State->WorldArena, State->InstanceCount, render_instance);
+
     model_asset *FloorModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\floor.asset", &State->WorldArena);
-    InitModel(FloorModelAsset, &State->FloorModel, &State->WorldArena, RenderCommands);
+    InitModel(FloorModelAsset, &State->FloorModel, &State->WorldArena, RenderCommands, State->InstanceCount);
 
     State->LerperQuat = {};
     State->CurrentMove = vec2(0.f);
@@ -283,8 +317,8 @@ GAME_INIT(GameInit)
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    BuildAnimationGraph(&State->AnimationGraph, State->Player.Model, &State->WorldArena, &State->RNG);
-    ActivateAnimationNode(&State->AnimationGraph, State->Player.State);
+    BuildAnimationGraph(&State->Player.AnimationGraph, State->Player.Model, &State->WorldArena, &State->RNG);
+    ActivateAnimationNode(&State->Player.AnimationGraph, "Idle_Node");
 }
 
 extern "C" DLLExport
@@ -416,13 +450,13 @@ GAME_PROCESS_INPUT(GameProcessInput)
                     if (Input->Crouch.IsActivated)
                     {
                         State->Player.State = EntityState_Dance;
-                        TransitionToState(&State->AnimationGraph, State->Player.State);
+                        TransitionToNode(&State->Player.AnimationGraph, "Dance_Node");
                     }
                     
                     if (MoveMaginute > 0.f)
                     {
                         State->Player.State = EntityState_Moving;
-                        TransitionToState(&State->AnimationGraph, State->Player.State);
+                        TransitionToNode(&State->Player.AnimationGraph, "Move_Node");
                     }
 
                     break;
@@ -432,7 +466,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
                     if (MoveMaginute == 0.f)
                     {
                         State->Player.State = EntityState_Idle;
-                        TransitionToState(&State->AnimationGraph, State->Player.State);
+                        TransitionToNode(&State->Player.AnimationGraph, "Idle_Node");
                     }
 
                     break;
@@ -442,7 +476,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
                     if (Input->Crouch.IsActivated)
                     {
                         State->Player.State = EntityState_Idle;
-                        TransitionToState(&State->AnimationGraph, State->Player.State);
+                        TransitionToNode(&State->Player.AnimationGraph, "Idle_Node");
                     }
 
                     break;
@@ -504,6 +538,7 @@ GAME_UPDATE(GameUpdate)
     //if (State->Advance)
     {
         State->Advance = false;
+        State->BackgroundColor = vec3(0.f);
 
         for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
         {
@@ -522,6 +557,18 @@ GAME_UPDATE(GameUpdate)
                 f32 Overlap = GetAABBPlaneMinDistance(BodyAABB, State->Ground);
                 ResolveIntepenetration(Body, &State->Ground, Overlap);
                 Body->Acceleration = vec3(0.f);
+            }
+
+            for (u32 OtherRigidBodyIndex = RigidBodyIndex + 1; OtherRigidBodyIndex < State->RigidBodiesCount; ++OtherRigidBodyIndex)
+            {
+                rigid_body *OtherBody = State->RigidBodies + OtherRigidBodyIndex;
+
+                aabb OtherBodyAABB = GetRigidBodyAABB(OtherBody);
+
+                if (TestAABBAABB(BodyAABB, OtherBodyAABB))
+                {
+                    State->BackgroundColor = vec3(1.f, 0.f, 0.f);
+                }
             }
         }
     }
@@ -592,7 +639,7 @@ GAME_RENDER(GameRender)
             if (State->Player.State == EntityState_Dance)
             {
                 f32 Time = Parameters->Time * 11.f;
-                State->DirectionalColor = vec3(Sin(Time), Cos(Time), Sin(Time)) * 0.1f;
+                State->DirectionalColor = vec3(Sin(Time), Cos(Time), Sin(Time)) * 0.8f;
             }
             else
             {
@@ -601,7 +648,7 @@ GAME_RENDER(GameRender)
 
             directional_light DirectionalLight = {};
             DirectionalLight.Color = State->DirectionalColor;
-            DirectionalLight.Direction = Normalize(vec3(0.1f, -0.8f, -0.2f));
+            DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
 
             SetDirectionalLight(RenderCommands, DirectionalLight);
 
@@ -617,112 +664,117 @@ GAME_RENDER(GameRender)
             DummyPointLight.Attenuation.Linear = 1.f;
             DummyPointLight.Attenuation.Quadratic = 1.f;
 
+            point_light PointLight1 = {};
+            PointLight1.Position = PointLight1Position;
+            PointLight1.Color = PointLight1Color;
+            PointLight1.Attenuation.Constant = 1.f;
+            PointLight1.Attenuation.Linear = 0.09f;
+            PointLight1.Attenuation.Quadratic = 0.032f;
+
+            point_light PointLight2 = {};
+            PointLight2.Position = PointLight2Position;
+            PointLight2.Color = PointLight2Color;
+            PointLight2.Attenuation.Constant = 1.f;
+            PointLight2.Attenuation.Linear = 0.09f;
+            PointLight2.Attenuation.Quadratic = 0.032f;
+
+            // todo: extract
+            if (State->LerperQuat.IsEnabled)
             {
-                point_light PointLight1 = {};
-                PointLight1.Position = PointLight1Position;
-                PointLight1.Color = PointLight1Color;
-                PointLight1.Attenuation.Constant = 1.f;
-                PointLight1.Attenuation.Linear = 0.09f;
-                PointLight1.Attenuation.Quadratic = 0.032f;
+                State->LerperQuat.Time += Parameters->Delta;
 
-                point_light PointLight2 = {};
-                PointLight2.Position = PointLight2Position;
-                PointLight2.Color = PointLight2Color;
-                PointLight2.Attenuation.Constant = 1.f;
-                PointLight2.Attenuation.Linear = 0.09f;
-                PointLight2.Attenuation.Quadratic = 0.032f;
+                f32 t = State->LerperQuat.Time / State->LerperQuat.Duration;
 
-                // todo: extract
-               if (State->LerperQuat.IsEnabled)
+                if (t <= 1.f)
                 {
-                    State->LerperQuat.Time += Parameters->Delta;
-
-                    f32 t = State->LerperQuat.Time / State->LerperQuat.Duration;
-
-                    if (t <= 1.f)
-                    {
-                        *State->LerperQuat.Result = Slerp(State->LerperQuat.From, t, State->LerperQuat.To);
-                    }
-                    else
-                    {
-                        State->LerperQuat.IsEnabled = false;
-                        State->LerperQuat.Time = 0.f;
-                        State->LerperQuat.Duration = 0.f;
-                        State->LerperQuat.From = quat(0.f);
-                        State->LerperQuat.To = quat(0.f);
-                        State->LerperQuat.Result = 0;
-                    }
+                    *State->LerperQuat.Result = Slerp(State->LerperQuat.From, t, State->LerperQuat.To);
                 }
-
-               /*
-                 Pivotal Movement
-                    To implement pivotal movement, we can simply play the forward locomotion
-                    loop while rotating the entire character about its vertical axis to make it turn.
-                    Pivotal movement looks more natural if the character’s body doesn’t remain
-                    bolt upright when it is turning—real humans tend to lean into their turns a
-                    little bit. We could try slightly tilting the vertical axis of the character as a
-                    whole, but that would cause problems with the inner foot sinking into the
-                    ground while the outer foot comes off the ground. A more natural-looking
-                    result can be achieved by animating three variations on the basic forward walk
-                    or run—one going perfectly straight, one making an extreme left turn and one
-                    making an extreme right turn. We can then LERP-blend between the straight
-                    clip and the extreme left turn clip to implement any desired lean angle.
-               */
-
-               // todo: naming
-               f32 InterpolationTime = 0.2f;
-               vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
-               State->CurrentMove += dMove * Parameters->Delta;
-
-               AnimationGraphPerFrameUpdate(&State->AnimationGraph, Parameters->Delta, Clamp(Magnitude(State->CurrentMove), 0.f, 1.f));
-
-               skeleton_pose *Pose = State->Player.Model->Pose;
-
-                CalculateFinalSkeletonPose(&State->AnimationGraph, Pose, &State->WorldArena);
-
-                transform Transform = CreateTransform(
-                    PlayerPosition + State->Player.Offset,
-                    vec3(3.f),
-                    State->Player.RigidBody->Orientation
-                );
-                UpdateGlobalJointPoses(Pose, Transform);
-
-                if (State->ShowModel)
+                else
                 {
-                    DrawSkinnedModel(RenderCommands, State->Player.Model, Pose, Transform, PointLight1, PointLight2);
+                    State->LerperQuat.IsEnabled = false;
+                    State->LerperQuat.Time = 0.f;
+                    State->LerperQuat.Duration = 0.f;
+                    State->LerperQuat.From = quat(0.f);
+                    State->LerperQuat.To = quat(0.f);
+                    State->LerperQuat.Result = 0;
                 }
-
-                if (State->ShowSkeleton)
-                {
-                    DrawSkeleton(RenderCommands, Pose, &State->CubeModel);
-                }
-
-                // todo: instanced rendering!
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(0.f, 0.01f, 0.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(10.f, 0.01f, 0.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(-10.f, 0.01f, 0.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(0.f, 0.01f, 10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(0.f, 0.01f, -10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(10.f, 0.01f, 10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(-10.f, 0.01f, 10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(10.f, 0.01f, -10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
-                DrawModel(RenderCommands, &State->FloorModel, CreateTransform(vec3(-10.f, 0.01f, -10.f), vec3(5.f), quat(0.f)), PointLight1, PointLight2);
             }
 
+            /*
+                Pivotal Movement
+                To implement pivotal movement, we can simply play the forward locomotion
+                loop while rotating the entire character about its vertical axis to make it turn.
+                Pivotal movement looks more natural if the character’s body doesn’t remain
+                bolt upright when it is turning—real humans tend to lean into their turns a
+                little bit. We could try slightly tilting the vertical axis of the character as a
+                whole, but that would cause problems with the inner foot sinking into the
+                ground while the outer foot comes off the ground. A more natural-looking
+                result can be achieved by animating three variations on the basic forward walk
+                or run—one going perfectly straight, one making an extreme left turn and one
+                making an extreme right turn. We can then LERP-blend between the straight
+                clip and the extreme left turn clip to implement any desired lean angle.
+            */
 
-            //DrawModel(RenderCommands, &State->CubeModel, CreateTransform(vec3(0.f), vec3(400.f), AxisAngle2Quat(vec4(zAxis, PI / 4.f))), CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), false), {}, {});
+            // todo: naming
+            f32 InterpolationTime = 0.2f;
+            vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
+            State->CurrentMove += dMove * Parameters->Delta;
+
+            AnimationGraphPerFrameUpdate(&State->Player.AnimationGraph, Parameters->Delta, Clamp(Magnitude(State->CurrentMove), 0.f, 1.f));
+
+            skeleton_pose *Pose = State->Player.Model->Pose;
+
+            CalculateFinalSkeletonPose(&State->Player.AnimationGraph, Pose, &State->WorldArena);
+
+            transform PlayerTransform = CreateTransform(
+                PlayerPosition + State->Player.Offset,
+                vec3(3.f),
+                State->Player.RigidBody->Orientation
+            );
+            UpdateGlobalJointPoses(Pose, PlayerTransform);
+
+            if (State->ShowModel)
+            {
+                DrawSkinnedModel(RenderCommands, State->Player.Model, Pose, PlayerTransform, PointLight1, PointLight2);
+            }
+
+            if (State->ShowSkeleton)
+            {
+                DrawSkeleton(RenderCommands, Pose, &State->CubeModel);
+            }
+
+#if 1
+            vec2 HalfDim = State->FloorDim / 2.f;
+            u32 InstanceIndex = 0;
+
+            for (f32 i = -HalfDim.x; i < HalfDim.x; ++i)
+            {
+                f32 x = i * 4.f + 2.f;
+
+                for (f32 j = -HalfDim.y; j < HalfDim.y; ++j)
+                {
+                    render_instance *Instance = State->Instances + InstanceIndex++;
+
+                    f32 z = j * 4.f + 1.f;
+
+                    Instance->Model = Transform(CreateTransform(vec3(x, -0.3f, z), vec3(2.f), quat(0.f)));
+                }
+            }
+
+            DrawModelInstanced(RenderCommands, &State->FloorModel, State->InstanceCount, State->Instances, PointLight1, PointLight2);
+#endif
 
             {
-                transform Transform = CreateTransform(PointLight1Position, vec3(0.2f), quat(0.f));
+                transform Transform = CreateTransform(PointLight1Position, vec3(1.f), State->Player.RigidBody->Orientation);
                 material Material = CreateMaterial(MaterialType_Unlit, PointLight1Color, true);
 
-                DrawModel(RenderCommands, &State->SphereModel, Transform, Material, {}, {});
+                DrawModel(RenderCommands, &State->SkullModel, Transform, PointLight1, PointLight2);
             }
             {
-                transform Transform = CreateTransform(PointLight2Position, vec3(0.2f), quat(0.f));
+                transform Transform = CreateTransform(PointLight2Position, vec3(1.f), State->Player.RigidBody->Orientation);
                 material Material = CreateMaterial(MaterialType_Unlit, PointLight2Color, true);
 
-                DrawModel(RenderCommands, &State->SphereModel, Transform, Material, {}, {});
+                DrawModel(RenderCommands, &State->SkullModel, Transform, PointLight1, PointLight2);
             }
 
             for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
@@ -732,7 +784,7 @@ GAME_RENDER(GameRender)
                 vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
                 transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
                 material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), true);
-                //DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
+                DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
             }
 
             break;

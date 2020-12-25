@@ -21,6 +21,21 @@ struct game_camera
     f32 Radius;
 };
 
+enum entity_state
+{
+    EntityState_None,
+    EntityState_Idle,
+    EntityState_Moving,
+    EntityState_Dance
+};
+
+struct entity
+{
+    model *Model;
+    rigid_body *Body;
+    animation_graph *Animation;
+};
+
 struct game_player
 {
     vec3 Offset;
@@ -28,6 +43,8 @@ struct game_player
 
     model *Model;
     rigid_body *RigidBody;
+
+    animation_graph AnimationGraph;
 };
 
 // todo: !!!
@@ -68,20 +85,13 @@ struct game_state
     plane Ground;
     
     model YBotModel;
-    model MutantModel;
-    model ArissaModel;
-    //model NinjaModel;
+    model SkullModel;
     model CubeModel;
     model SphereModel;
     model FloorModel;
+    model WallModel;
 
     game_player Player;
-
-    animation_graph AnimationGraph;
-
-    // todo: continue
-    blend_space_1d LocomotionBlendSpace;
-    blend_space_2d LocomotionBlendSpace2D;
 
     lerper_quat LerperQuat;
 
@@ -98,4 +108,8 @@ struct game_state
 
     b32 ShowModel;
     b32 ShowSkeleton;
+
+    vec2 FloorDim;
+    u32 InstanceCount;
+    render_instance *Instances;
 };

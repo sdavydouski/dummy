@@ -55,12 +55,10 @@ struct animation_clip
     animation_sample *PoseSamples;
 };
 
-// todo: play in reverse
 struct animation_state
 {
     f32 Time;
     f32 Weight;
-    f32 PlaybackRate;
 
     animation_clip *Clip;
 };
@@ -97,14 +95,6 @@ struct blend_space_2d
     blend_space_2d_triangle *BlendSpaceTriangles;
 };
 
-enum entity_state
-{
-    EntityState_None,
-    EntityState_Idle,
-    EntityState_Moving,
-    EntityState_Dance
-};
-
 enum animation_transition_type
 {
     AnimationTransitionType_Immediate,
@@ -121,7 +111,6 @@ struct animation_transition
 
     struct animation_node *From;
     struct animation_node *To;
-
 };
 
 enum animation_node_type
@@ -140,7 +129,7 @@ struct animation_node_params
 
 struct animation_node
 {
-    entity_state State;
+    char Name[64];
 
     animation_node_type Type;
     union
@@ -157,17 +146,23 @@ struct animation_node
     f32 Weight;
 
     animation_node_params *Params;
-    char Name[64];
 };
 
 struct animation_mixer
 {
+    animation_node *From;
+    animation_node *To;
+
     f32 Time;
     f32 Duration;
     f32 StartWeight;
 
-    animation_node *From;
-    animation_node *To;
+    // ?
+    u32 FadeInCount;
+    animation_node *FadeIn;
+
+    u32 FadeOutCount;
+    animation_node *FadeOut;
 };
 
 struct animation_graph

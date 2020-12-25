@@ -171,7 +171,7 @@ OpenGLGetShader(opengl_state *State, u32 Id)
 }
 
 internal void
-OpenGLAddMeshBuffer(opengl_state *State, u32 Id, u32 VertexCount, skinned_vertex *Vertices, u32 IndexCount, u32 *Indices)
+OpenGLAddMeshBuffer(opengl_state *State, u32 MeshId, u32 VertexCount, skinned_vertex *Vertices, u32 IndexCount, u32 *Indices)
 {
     Assert(State->CurrentMeshBufferCount < OPENGL_MAX_MESH_BUFFER_COUNT);
 
@@ -214,7 +214,89 @@ OpenGLAddMeshBuffer(opengl_state *State, u32 Id, u32 VertexCount, skinned_vertex
     glBindVertexArray(0);
 
     opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + State->CurrentMeshBufferCount++;
-    MeshBuffer->Id = Id;
+    MeshBuffer->Id = MeshId;
+    MeshBuffer->VertexCount = VertexCount;
+    MeshBuffer->IndexCount = IndexCount;
+    MeshBuffer->VAO = VAO;
+    MeshBuffer->VBO = VBO;
+    MeshBuffer->EBO = EBO;
+}
+
+internal void
+OpenGLAddMeshBufferInstanced(
+    opengl_state *State, 
+    u32 MeshId, 
+    u32 VertexCount, 
+    skinned_vertex *Vertices, 
+    u32 IndexCount, 
+    u32 *Indices, 
+    u32 MaxInstanceCount
+)
+{
+    Assert(State->CurrentMeshBufferCount < OPENGL_MAX_MESH_BUFFER_COUNT);
+
+    GLuint VAO;
+    GLuint VBO;
+    GLuint EBO;
+
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(skinned_vertex) + MaxInstanceCount * sizeof(render_instance), 0, GL_STREAM_DRAW);
+
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertexCount * sizeof(skinned_vertex), Vertices);
+    glBufferSubData(GL_ARRAY_BUFFER, VertexCount * sizeof(skinned_vertex), MaxInstanceCount * sizeof(render_instance), 0);
+
+    // per-vertex attributes
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Position));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Normal));
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Tangent));
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Bitangent));
+
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, TextureCoords));
+
+    glEnableVertexAttribArray(5);
+    glVertexAttribIPointer(5, 4, GL_UNSIGNED_INT, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, JointIndices));
+
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Weights));
+
+    // per-instance attributes
+    glEnableVertexAttribArray(7);
+    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + 0));
+    glVertexAttribDivisor(7, 1);
+
+    glEnableVertexAttribArray(8);
+    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + sizeof(vec4)));
+    glVertexAttribDivisor(8, 1);
+
+    glEnableVertexAttribArray(9);
+    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
+    glVertexAttribDivisor(9, 1);
+
+    glEnableVertexAttribArray(10);
+    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
+    glVertexAttribDivisor(10, 1);
+
+    glGenBuffers(1, &EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u32), Indices, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+
+    opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + State->CurrentMeshBufferCount++;
+    MeshBuffer->Id = MeshId;
+    MeshBuffer->VertexCount = VertexCount;
     MeshBuffer->IndexCount = IndexCount;
     MeshBuffer->VAO = VAO;
     MeshBuffer->VBO = VBO;
@@ -458,6 +540,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_shader *Shader, mesh_materia
     }
 }
 
+// todo: reloadable shaders?
 // todo: fix antialiasing?
 internal void
 OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
@@ -483,6 +566,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 OpenGLAddShader(State, OPENGL_SKINNED_PHONG_SHADING_SHADER_ID, SkinnedMeshVertexShader, ForwardShadingFragmentShader);
                 OpenGLAddShader(State, OPENGL_FRAMEBUFFER_SHADER_ID, FramebufferVertexShader, FramebufferFragmentShader);
                 OpenGLAddShader(State, OPENGL_GROUND_SHADER_ID, GroundVertexShader, GroundFragmentShader);
+                OpenGLAddShader(State, OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID, InstancedForwardShadingVertexShader, ForwardShadingFragmentShader);
 
                 glGenBuffers(1, &State->SkinningTBO);
                 glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
@@ -520,7 +604,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 glGenRenderbuffers(ArrayCount(State->FramebufferColorRBOs) - 1, State->FramebufferColorRBOs);
                 glGenRenderbuffers(ArrayCount(State->FramebufferDepthRBOs) - 1, State->FramebufferDepthRBOs);
 
-                GLint MSAA = 4;
+                GLint MSAA = 16;
 
                 // todo: handle resizing
                 for (u32 FramebufferIndex = 0; FramebufferIndex < ArrayCount(State->Framebuffers) - 1; ++FramebufferIndex)
@@ -590,7 +674,15 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_add_mesh *Command = (render_command_add_mesh *)Entry;
 
-                OpenGLAddMeshBuffer(State, Command->Id, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices);
+                if (Command->MaxInstanceCount > 0)
+                {
+                    OpenGLAddMeshBufferInstanced(State, Command->MeshId, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices, Command->MaxInstanceCount);
+                }
+                else
+                {
+                    OpenGLAddMeshBuffer(State, Command->MeshId, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices);
+                }
+
                 
                 break;
             }
@@ -746,25 +838,13 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_set_directional_light *Command = (render_command_set_directional_light *)Entry;
 
+                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
                 {
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SHADING_SHADER_ID);
+                    opengl_shader *Shader = State->Shaders + ShaderIndex;
 
                     glUseProgram(Shader->Program);
-
                     glUniform3f(Shader->DirectionalLightDirectionUniformLocation, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
                     glUniform3f(Shader->DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
-
-                    glUseProgram(0);
-                }
-
-                {
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKINNED_PHONG_SHADING_SHADER_ID);
-
-                    glUseProgram(Shader->Program);
-
-                    glUniform3f(Shader->DirectionalLightDirectionUniformLocation, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
-                    glUniform3f(Shader->DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
-
                     glUseProgram(0);
                 }
 
@@ -774,13 +854,13 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_draw_mesh *Command = (render_command_draw_mesh *)Entry;
 
-                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->Id);
+                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
 
                 glBindVertexArray(MeshBuffer->VAO);
 
                 switch (Command->Material.Type)
                 {
-                    case MaterialType_Phong:
+                    case MaterialType_BlinnPhong:
                     {
                         mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
@@ -819,6 +899,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 GLint PrevPolygonMode[2];
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
                 glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
+                //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
 
@@ -833,14 +914,14 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_draw_skinned_mesh *Command = (render_command_draw_skinned_mesh *)Entry;
 
-                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->Id);
+                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
 
                 glBindVertexArray(MeshBuffer->VAO);
 
                 switch (Command->Material.Type)
                 {
                     // todo: organize materials (https://threejs.org/docs/#api/en/materials/MeshPhongMaterial)
-                    case MaterialType_Phong:
+                    case MaterialType_BlinnPhong:
                     {
                         mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
@@ -878,8 +959,70 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 GLint PrevPolygonMode[2];
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
                 glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
+                //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+
+                glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
+
+                glUseProgram(0);
+                glBindVertexArray(0);
+
+                break;
+            }
+            case RenderCommand_DrawMeshInstanced:
+            {
+                render_command_draw_mesh_instanced *Command = (render_command_draw_mesh_instanced *)Entry;
+
+                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
+
+                glBindVertexArray(MeshBuffer->VAO);
+                glBufferSubData(GL_ARRAY_BUFFER, MeshBuffer->VertexCount * sizeof(skinned_vertex), Command->InstanceCount * sizeof(render_instance), Command->Instances);
+
+                switch (Command->Material.Type)
+                {
+                    case MaterialType_BlinnPhong:
+                    {
+                        mesh_material *MeshMaterial = Command->Material.MeshMaterial;
+
+                        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID);
+
+                        glUseProgram(Shader->Program);
+
+                        OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial, &Command->PointLight1, &Command->PointLight2);
+
+                        break;
+                    }
+                    case MaterialType_Unlit:
+                    {
+                        Assert(!"Not Implemented");
+#if 0
+                        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+
+                        glUseProgram(Shader->Program);
+
+                        mat4 Model = Transform(Command->Transform);
+                        material Material = Command->Material;
+
+                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
+                        glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, 1.f);
+#endif
+
+                        break;
+                    }
+                    default:
+                    {
+                        Assert(!"Invalid material type");
+                        break;
+                    }
+                }
+
+                GLint PrevPolygonMode[2];
+                glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
+                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
+                //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+                glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
 
                 glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
 
