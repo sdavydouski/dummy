@@ -36,7 +36,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 18);
 }
 
 internal void
@@ -148,6 +148,9 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
     ImGui::End();
 
     ImGui::Begin("Game State");
+
+    ImGui::Text("Ray Direction: x: %.3f, y: %.3f, z: %.3f", GameState->Ray.Direction.x, GameState->Ray.Direction.y, GameState->Ray.Direction.z);
+
 
     ImGui::Text("Player:");
 

@@ -742,7 +742,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_set_camera *Command = (render_command_set_camera *)Entry;
 
-                mat4 View = LookAtLH(Command->Eye, Command->Target, Command->Up);
+                mat4 View = LookAt(Command->Eye, Command->Target, Command->Up);
 
                 for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
                 {
@@ -899,7 +899,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 GLint PrevPolygonMode[2];
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
                 glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
-                //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
 
@@ -959,7 +958,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 GLint PrevPolygonMode[2];
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
                 glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
-                //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
 
@@ -1017,10 +1015,10 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     }
                 }
 
+                // todo: make polygon mode that operates globally and not on per-command basis
                 GLint PrevPolygonMode[2];
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
                 glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
-                //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
                 glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
 

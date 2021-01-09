@@ -23,7 +23,6 @@ struct game_camera
 
 enum entity_state
 {
-    EntityState_None,
     EntityState_Idle,
     EntityState_Moving,
     EntityState_Dance
@@ -34,6 +33,14 @@ struct entity
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
+};
+
+struct entity_batch
+{
+    u32 EntityCount;
+    u32 MaxEntityCount;
+    entity *Entities;
+    render_instance *Instances;
 };
 
 struct game_player
@@ -92,6 +99,7 @@ struct game_state
     model WallModel;
 
     game_player Player;
+    entity_batch Batch;
 
     lerper_quat LerperQuat;
 
@@ -112,4 +120,6 @@ struct game_state
     vec2 FloorDim;
     u32 InstanceCount;
     render_instance *Instances;
+
+    ray Ray;
 };

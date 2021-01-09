@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <float.h>
 
 #define internal static
 #define global static
@@ -33,3 +34,4 @@
 #define wchar wchar_t
 
 #define U32_MAX UINT32_MAX;
+#define F32_MAX FLT_MAX

@@ -301,8 +301,47 @@ GAME_INIT(GameInit)
     State->InstanceCount = (u32)(State->FloorDim.x * State->FloorDim.y);
     State->Instances = PushArray(&State->WorldArena, State->InstanceCount, render_instance);
 
+#if 1
+    State->Batch.EntityCount = 0;
+    State->Batch.MaxEntityCount = 256;
+    State->Batch.Entities = PushArray(&State->WorldArena, State->Batch.MaxEntityCount, entity);
+    State->Batch.Instances = PushArray(&State->WorldArena, State->Batch.MaxEntityCount, render_instance);
+
+    vec2 HalfDim = State->FloorDim / 2.f;
+
+    for (f32 i = -HalfDim.x; i < HalfDim.x; ++i)
+    {
+        f32 x = i * 4.f + 2.f;
+
+        for (f32 j = -HalfDim.y; j < HalfDim.y; ++j)
+        {
+            render_instance *Instance = State->Batch.Instances + State->Batch.EntityCount;
+
+            f32 z = j * 4.f + 1.f;
+
+            vec3 Position = vec3(x, 0.f, z);
+            vec3 HalfSize = vec3(2.f);
+            quat Orientation = quat(0.f);
+            Instance->Model = Transform(CreateTransform(Position, HalfSize, Orientation));
+
+            Assert(State->Batch.EntityCount < State->Batch.MaxEntityCount);
+
+            entity *Entity = State->Batch.Entities + State->Batch.EntityCount;
+            Entity->Model = &State->FloorModel;
+            Entity->Body = PushType(&State->WorldArena, rigid_body);
+            Entity->Body->PrevPosition = Position;
+            Entity->Body->Position = Position;
+            Entity->Body->HalfSize = HalfSize;
+            Entity->Body->Orientation = Orientation;
+            Entity->Body->InverseMass = 1.f / 10.f;
+
+            ++State->Batch.EntityCount;
+        }
+    }
+#endif
+
     model_asset *FloorModelAsset = LoadModelAsset(Memory->Platform, (char *)"assets\\floor.asset", &State->WorldArena);
-    InitModel(FloorModelAsset, &State->FloorModel, &State->WorldArena, RenderCommands, State->InstanceCount);
+    InitModel(FloorModelAsset, &State->FloorModel, &State->WorldArena, RenderCommands, State->Batch.MaxEntityCount);
 
     State->LerperQuat = {};
     State->CurrentMove = vec2(0.f);
@@ -358,6 +397,69 @@ GAME_PROCESS_INPUT(GameProcessInput)
     if (Input->Advance.IsActivated)
     {
         State->Advance = true;
+    }
+
+    // -- move inside if
+    vec4 ClipRay = vec4(
+        2.f * Input->MouseCoords.x / Parameters->WindowWidth - 1.f,
+        1.f - 2.f * Input->MouseCoords.y / Parameters->WindowHeight,
+        -1.f, 1.f
+    );
+
+    // todo: pass view and projection matrices to the renderer
+    {
+        game_camera *Camera = &State->FreeCamera;
+        f32 FrustrumWidthInUnits = 20.f;
+        f32 PixelsPerUnit = (f32)Parameters->WindowWidth / FrustrumWidthInUnits;
+        f32 FrustrumHeightInUnits = (f32)Parameters->WindowHeight / PixelsPerUnit;
+
+        mat4 View = LookAt(Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
+        mat4 Projection = Perspective(Camera->FovY, FrustrumWidthInUnits / FrustrumHeightInUnits, 0.1f, 1000.f);
+        //
+
+        vec4 CameraRay = Inverse(Projection) * ClipRay;
+        CameraRay = vec4(CameraRay.xy, -1.f, 0.f);
+
+        vec3 WorldRay = (Inverse(View) * CameraRay).xyz;
+
+#if 1
+        ray Ray = {};
+        Ray.Origin = Camera->Position;
+        Ray.Direction = Normalize(WorldRay);
+
+        State->Ray = Ray;
+#else
+        ray Ray = {};
+        Ray.Origin = Camera->Position;
+        Ray.Direction = vec3(0.f, -1.f, 0.f);
+#endif
+
+        if (Input->LeftClick.IsActivated)
+        {
+            for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
+            {
+                entity *Entity = State->Batch.Entities + EntityIndex;
+                aabb EntityBox = GetRigidBodyAABB(Entity->Body);
+
+                f32 tMin;
+                vec3 IntersectionPoint;
+                if (IntersectRayAABB(Ray, EntityBox, &tMin, &IntersectionPoint))
+                {
+                    render_instance *Instance = State->Batch.Instances + EntityIndex;
+
+                    Entity->Body->PrevPosition += vec3(0.f, 1.f, 0.f);
+                    Entity->Body->Position += vec3(0.f, 1.f, 0.f);
+
+                    // todo: highlight selected entity
+                    mat4 T = Translate(vec3(0.f, 1.f, 0.f));
+                    Instance->Model = T * Instance->Model;
+
+                    //break;
+                }
+            }
+
+            //Platform->DebugPrintString("%.3f, %.3f, %.3f\n", WorldRay.x, WorldRay.y, WorldRay.z);
+        }
     }
 
     if (Input->EditMode.IsActivated)
@@ -492,8 +594,8 @@ GAME_PROCESS_INPUT(GameProcessInput)
         }
         case GameMode_Edit:
         {
-            f32 FreeCameraSpeed = 10.f;
-            f32 FreeCameraSensitivity = 1.f;
+            f32 FreeCameraSpeed = 40.f;
+            f32 FreeCameraSensitivity = 2.f;
 
             if (Input->EnableFreeCameraMovement.IsActive)
             {
@@ -620,16 +722,13 @@ GAME_RENDER(GameRender)
             
             SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up, Camera->Position);
             
-            // todo: SetTransform render command?
-            f32 Bounds = 500.f;
-
             // Axis
             //DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
             //DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 4.f);
             //DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
             
             // todo: pretty expensive
-            //DrawGround(RenderCommands, Camera->Position);
+            DrawGround(RenderCommands, Camera->Position);
 
             // Skydome rendering
             //transform SkydomeTransform = CreateTransform(Camera->Position, vec3(100.f), quat(0.f));
@@ -743,26 +842,7 @@ GAME_RENDER(GameRender)
                 DrawSkeleton(RenderCommands, Pose, &State->CubeModel);
             }
 
-#if 1
-            vec2 HalfDim = State->FloorDim / 2.f;
-            u32 InstanceIndex = 0;
-
-            for (f32 i = -HalfDim.x; i < HalfDim.x; ++i)
-            {
-                f32 x = i * 4.f + 2.f;
-
-                for (f32 j = -HalfDim.y; j < HalfDim.y; ++j)
-                {
-                    render_instance *Instance = State->Instances + InstanceIndex++;
-
-                    f32 z = j * 4.f + 1.f;
-
-                    Instance->Model = Transform(CreateTransform(vec3(x, -0.3f, z), vec3(2.f), quat(0.f)));
-                }
-            }
-
-            DrawModelInstanced(RenderCommands, &State->FloorModel, State->InstanceCount, State->Instances, PointLight1, PointLight2);
-#endif
+            DrawModelInstanced(RenderCommands, (State->Batch.Entities + 0)->Model, State->Batch.EntityCount, State->Batch.Instances, PointLight1, PointLight2);
 
             {
                 transform Transform = CreateTransform(PointLight1Position, vec3(1.f), State->Player.RigidBody->Orientation);
@@ -780,6 +860,17 @@ GAME_RENDER(GameRender)
             for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
             {
                 rigid_body *Body = State->RigidBodies + RigidBodyIndex;
+
+                vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
+                transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
+                material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), true);
+                DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
+            }
+
+            for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
+            {
+                entity *Entity = State->Batch.Entities + EntityIndex;
+                rigid_body *Body = Entity->Body;
 
                 vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
                 transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);

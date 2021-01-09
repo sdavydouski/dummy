@@ -34,6 +34,13 @@ struct vec4
 
         struct
         {
+            vec2 xy;
+            f32 z;
+            f32 w;
+        };
+
+        struct
+        {
             f32 Elements[4];
         };
     };
@@ -43,6 +50,7 @@ struct vec4
     explicit vec4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
     explicit vec4(f32 Value, vec3 Vector) : x(Value), y(Vector.x), z(Vector.y), w(Vector.z) {}
     explicit vec4(vec3 Vector, f32 Value) : x(Vector.x), y(Vector.y), z(Vector.z), w(Value) {}
+    explicit vec4(vec2 xy, f32 z, f32 w) : x(xy.x), y(xy.y), z(z), w(w) {}
 
     inline f32 &operator [](u32 Index)
     {

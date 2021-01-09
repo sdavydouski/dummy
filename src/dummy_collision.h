@@ -31,9 +31,18 @@ inline b32
 TestAABBAABB(aabb a, aabb b)
 {
     // Exit with no intersection if separated along an axis
-    if (a.Max.x < b.Min.x || a.Min.x > b.Max.x) return false;
-    if (a.Max.y < b.Min.y || a.Min.y > b.Max.y) return false;
-    if (a.Max.z < b.Min.z || a.Min.z > b.Max.z) return false;
+    if (a.Max.x < b.Min.x || a.Min.x > b.Max.x)
+    {
+        return false;
+    }
+    if (a.Max.y < b.Min.y || a.Min.y > b.Max.y)
+    {
+        return false;
+    }
+    if (a.Max.z < b.Min.z || a.Min.z > b.Max.z)
+    {
+        return false;
+    }
 
     // Overlapping on all axes means AABBs are intersecting
     return true;
@@ -54,6 +63,72 @@ TestAABBPlane(aabb Box, plane Plane)
     b32 Result = Abs(Distance) <= Radius;
     
     return Result;
+}
+
+inline void
+Swap(f32 &a, f32 &b)
+{
+    f32 Temp = a;
+    a = b;
+    b = Temp;
+}
+
+internal b32
+IntersectRayAABB(ray Ray, aabb Box, f32 *tMin, vec3 *IntersectionPoint)
+{
+    *tMin = 0.f;
+    f32 tMax = F32_MAX;
+
+    vec3 p = Ray.Origin;
+    vec3 d = Ray.Direction;
+
+    // For all three slabs
+    for (u32 i = 0; i < 3; ++i)
+    {
+        if (Abs(d[i]) < EPSILON)
+        {
+            // Ray is parallel to slab. No hit if origin not within slab
+            if (p[i] < Box.Min[i] || p[i] > Box.Max[i])
+            {
+                return false;
+            }
+        } 
+        else
+        {
+            // Compute intersection t value of ray with near and far plane of slab
+            f32 ood = 1.f / d[i];
+            f32 t1 = (Box.Min[i] - p[i]) * ood;
+            f32 t2 = (Box.Max[i] - p[i]) * ood;
+
+            // Make t1 be intersection with near plane, t2 with far plane
+            if (t1 > t2)
+            {
+                Swap(t1, t2);
+            }
+
+            // Compute the intersection of slab intersection intervals
+            if (t1 > *tMin)
+            {
+                *tMin = t1;
+            }
+
+            if (t2 > tMax)
+            {
+                tMax = t2;
+            }
+
+            // Exit with no collision as soon as slab intersection becomes empty
+            if (*tMin > tMax)
+            {
+                return false;
+            }
+        }
+    }
+
+    // Ray intersects all 3 slabs. Return point and intersection t value
+    *IntersectionPoint = p + d * (*tMin);
+
+    return true;
 }
 
 internal f32

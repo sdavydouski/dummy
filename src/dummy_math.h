@@ -1,17 +1,14 @@
 #pragma once
 
+// todo: SIMD
+
 #include <cmath>
 #include <cstdarg>
 
 struct quat;
 inline f32 Square(f32 Value);
 inline f32 Sqrt(f32 Value);
-
-#include "dummy_vec2.h"
-#include "dummy_vec3.h"
-#include "dummy_vec4.h"
-#include "dummy_mat4.h"
-#include "dummy_quat.h"
+inline f32 Abs(f32 Value);
 
 #define EPSILON 0.0001f
 #define PI 3.14159265359f
@@ -19,6 +16,12 @@ inline f32 Sqrt(f32 Value);
 
 #define RADIANS(Angle) ((Angle) * PI) / 180.f
 #define DEGREES(Angle) ((Angle) * 180.f) / PI
+
+#include "dummy_vec2.h"
+#include "dummy_vec3.h"
+#include "dummy_vec4.h"
+#include "dummy_mat4.h"
+#include "dummy_quat.h"
 
 struct plane
 {
@@ -39,7 +42,11 @@ struct circle
     f32 Radius;
 };
 
-// todo: SIMD
+struct ray
+{
+    vec3 Origin;
+    vec3 Direction;
+};
 
 struct transform
 {
@@ -222,23 +229,23 @@ inline mat4
 Scale(f32 Value)
 {
     mat4 Result = mat4(
-        vec4(Value, 0.f, 0.f, 0.f),
-        vec4(0.f, Value, 0.f, 0.f),
-        vec4(0.f, 0.f, Value, 0.f),
-        vec4(0.f, 0.f, 0.f, 1.f)
+        Value, 0.f, 0.f, 0.f,
+        0.f, Value, 0.f, 0.f,
+        0.f, 0.f, Value, 0.f,
+        0.f, 0.f, 0.f, 1.f
     );
 
     return Result;
 }
 
 inline mat4
-Scale(vec3 Vector)
+Scale(vec3 Value)
 {
     mat4 Result = mat4(
-        vec4(Vector.x, 0.f, 0.f, 0.f),
-        vec4(0.f, Vector.y, 0.f, 0.f),
-        vec4(0.f, 0.f, Vector.z, 0.f),
-        vec4(0.f, 0.f, 0.f, 1.f)
+        Value.x, 0.f, 0.f, 0.f,
+        0.f, Value.y, 0.f, 0.f,
+        0.f, 0.f, Value.z, 0.f,
+        0.f, 0.f, 0.f, 1.f
     );
 
     return Result;
@@ -248,10 +255,10 @@ inline mat4
 Translate(vec3 Value)
 {
     mat4 Result = mat4(
-        vec4(1.f, 0.f, 0.f, Value.x),
-        vec4(0.f, 1.f, 0.f, Value.y),
-        vec4(0.f, 0.f, 1.f, Value.z),
-        vec4(0.f, 0.f, 0.f, 1.f)
+        1.f, 0.f, 0.f, Value.x,
+        0.f, 1.f, 0.f, Value.y,
+        0.f, 0.f, 1.f, Value.z,
+        0.f, 0.f, 0.f, 1.f
     );
 
     return Result;
@@ -261,10 +268,10 @@ inline mat4
 RotateX(f32 Angle)
 {
     mat4 Result = mat4(
-        vec4(1.f, 0.f, 0.f, 0.f),
-        vec4(0.f, Cos(Angle), -Sin(Angle), 0.f),
-        vec4(0.f, Sin(Angle), Cos(Angle), 0.f),
-        vec4(0.f, 0.f, 0.f, 1.f)
+        1.f, 0.f, 0.f, 0.f,
+        0.f, Cos(Angle), -Sin(Angle), 0.f,
+        0.f, Sin(Angle), Cos(Angle), 0.f,
+        0.f, 0.f, 0.f, 1.f
     );
 
     return Result;
@@ -274,10 +281,10 @@ inline mat4
 RotateY(f32 Angle)
 {
     mat4 Result = mat4(
-        vec4(Cos(Angle), 0.f, Sin(Angle), 0.f),
-        vec4(0.f, 1.f, 0.f, 0.f),
-        vec4(-Sin(Angle), 0.f, Cos(Angle), 0.f),
-        vec4(0.f, 0.f, 0.f, 1.f)
+        Cos(Angle), 0.f, Sin(Angle), 0.f,
+        0.f, 1.f, 0.f, 0.f,
+        -Sin(Angle), 0.f, Cos(Angle), 0.f,
+        0.f, 0.f, 0.f, 1.f
     );
 
     return Result;
@@ -287,10 +294,10 @@ inline mat4
 RotateZ(f32 Angle)
 {
     mat4 Result = mat4(
-        vec4(Cos(Angle), -Sin(Angle), 0.f, 0.f),
-        vec4(Sin(Angle), Cos(Angle), 0.f, 0.f),
-        vec4(0.f, 0.f, 1.f, 0.f),
-        vec4(0.f, 0.f, 0.f, 1.f)
+        Cos(Angle), -Sin(Angle), 0.f, 0.f,
+        Sin(Angle), Cos(Angle), 0.f, 0.f,
+        0.f, 0.f, 1.f, 0.f,
+        0.f, 0.f, 0.f, 1.f
     );
 
     return Result;
@@ -300,10 +307,10 @@ inline mat4
 Orthographic(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 {
     mat4 Result = mat4(
-        vec4(2.f / (Right - Left), 0.f, 0.f, -(Right + Left) / (Right - Left)),
-        vec4(0.f, 2.f / (Top - Bottom), 0.f, -(Top + Bottom) / (Top - Bottom)),
-        vec4(0.f, 0.f, -2.f / (Far - Near), -(Far + Near) / (Far - Near)),
-        vec4(0.f, 0.f, 0.f, 1.f)
+        2.f / (Right - Left), 0.f, 0.f, -(Right + Left) / (Right - Left),
+        0.f, 2.f / (Top - Bottom), 0.f, -(Top + Bottom) / (Top - Bottom),
+        0.f, 0.f, -2.f / (Far - Near), -(Far + Near) / (Far - Near),
+        0.f, 0.f, 0.f, 1.f
     );
 
     return Result;
@@ -321,26 +328,26 @@ Perspective(f32 FovY, f32 AspectRatio, f32 Near, f32 Far)
     f32 FocalLength = 1.f / Tan(FovY * 0.5f);
 
     mat4 Result = mat4(
-        vec4(FocalLength / AspectRatio, 0.f, 0.f, 0.f),
-        vec4(0.f, FocalLength, 0.f, 0.f),
-        vec4(0.f, 0.f, (-Near - Far) / (Far - Near), 2.f * (Near * Far) / (Near - Far)),
-        vec4(0.f, 0.f, -1.f, 0.f)
+        FocalLength / AspectRatio, 0.f, 0.f, 0.f,
+        0.f, FocalLength, 0.f, 0.f,
+        0.f, 0.f, (-Near - Far) / (Far - Near), 2.f * (Near * Far) / (Near - Far),
+        0.f, 0.f, -1.f, 0.f
     );
 
     return Result;
 }
 
 inline mat4
-LookAtLH(vec3 Eye, vec3 Target, vec3 WorldUp)
+LookAt(vec3 CameraPosition, vec3 Target, vec3 WorldUp)
 {
-    vec3 Forward = Normalize(Eye - Target);
-    vec3 Right = Normalize(Cross(WorldUp, Forward));
-    vec3 Up = Cross(Forward, Right);
+    vec3 zAxis = Normalize(CameraPosition - Target);
+    vec3 xAxis = Normalize(Cross(WorldUp, zAxis));
+    vec3 yAxis = Normalize(Cross(zAxis, xAxis));
 
     mat4 Result = mat4(
-        vec4(Right, -Dot(Right, Eye)),
-        vec4(Up, -Dot(Up, Eye)),
-        vec4(Forward, -Dot(Forward, Eye)),
+        vec4(xAxis, -Dot(xAxis, CameraPosition)),
+        vec4(yAxis, -Dot(yAxis, CameraPosition)),
+        vec4(zAxis, -Dot(zAxis, CameraPosition)),
         vec4(0.f, 0.f, 0.f, 1.f)
     );
 
@@ -516,4 +523,17 @@ Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
     v = (d11 * d20 - d01 * d21) / d;
     w = (d00 * d21 - d01 * d20) / d;
     u = 1.f - v - w;
+}
+
+inline vec3
+UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
+{
+    mat4 InvView = Inverse(View);
+    mat4 InvProjection = Inverse(Projection);
+    vec4 Point = vec4(p, 1.f);
+
+    vec4 UnprojectedPoint = InvView * InvProjection * Point;
+    vec3 Result = UnprojectedPoint.xyz / UnprojectedPoint.w;
+
+    return Result;
 }

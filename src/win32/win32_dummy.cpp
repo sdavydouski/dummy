@@ -505,6 +505,7 @@ internal void
 Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput, platform_input_mouse *MouseInput)
 {
     BeginProcessKeyboardInput(KeyboardInput);
+    BeginProcessMouseInput(MouseInput);
 
     MSG WindowMessage = {};
     while (PeekMessage(&WindowMessage, 0, 0, 0, PM_REMOVE))
@@ -573,6 +574,7 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
         }
     }
 
+    EndProcessMouseInput(MouseInput);
     EndProcessKeyboardInput(KeyboardInput);
 }
 
@@ -760,12 +762,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 3200;
-    PlatformState.WindowHeight = 1800;
+    PlatformState.WindowWidth = 1600;
+    PlatformState.WindowHeight = 900;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.VSync = false;
+    PlatformState.VSync = true;
     PlatformState.TimeRate = 1.f;
 
     LARGE_INTEGER PerformanceFrequency;
@@ -813,7 +815,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     WindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     WindowClass.lpfnWndProc = WindowProc;
     WindowClass.hInstance = hInstance;
-    WindowClass.lpszClassName = L"dummy Window Class";
+    WindowClass.lpszClassName = L"Dummy Window Class";
     WindowClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
 
     RegisterClass(&WindowClass);

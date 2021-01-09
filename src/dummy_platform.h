@@ -114,20 +114,11 @@ struct platform_input_keyboard
 
 struct platform_input_mouse
 {
-    union
-    {
-        struct
-        {
-            i32 x;
-            i32 y;
-        };
+    i32 x;
+    i32 y;
 
-        struct
-        {
-            i32 dx;
-            i32 dy;
-        };
-    };
+    i32 dx;
+    i32 dy;
 
     i32 WheelDelta;
 
@@ -173,6 +164,8 @@ struct game_input
     game_input_state HighlightBackground;
 
     f32 ZoomDelta;
+    vec2 MouseCoords;
+    game_input_action LeftClick;
     game_input_action EditMode;
     game_input_state EnableFreeCameraMovement;
 };
@@ -236,6 +229,18 @@ EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
     UpdateToggleButtonState(&KeyboardInput->Enter);
     UpdateToggleButtonState(&KeyboardInput->Plus);
     UpdateToggleButtonState(&KeyboardInput->Minus);
+}
+
+inline void
+BeginProcessMouseInput(platform_input_mouse *MouseInput)
+{
+    SavePrevButtonState(&MouseInput->LeftButton);
+}
+
+inline void
+EndProcessMouseInput(platform_input_mouse *MouseInput)
+{
+
 }
 
 internal void
@@ -326,6 +331,9 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput, f3
     {
         GameInput->ZoomDelta = (f32)MouseInput->WheelDelta;
     }
+
+    GameInput->LeftClick.IsActivated = IsButtonActivated(&MouseInput->LeftButton);
+    GameInput->MouseCoords = vec2((f32)MouseInput->x, (f32)MouseInput->y);
 
     MouseInput->WheelDelta = 0;
 }
