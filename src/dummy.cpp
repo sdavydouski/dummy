@@ -4,7 +4,6 @@
 #include "dummy_memory.h"
 #include "dummy_string.h"
 #include "dummy_platform.h"
-#include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_renderer.h"
 #include "dummy_animation.h"
@@ -12,6 +11,8 @@
 #include "dummy.h"
 
 #include "dummy_assets.cpp"
+#include "dummy_collision.cpp"
+#include "dummy_physics.cpp"
 #include "dummy_renderer.cpp"
 #include "dummy_animation.cpp"
 
@@ -23,11 +24,13 @@ NormalizeRGB(vec3 RGB)
 }
 
 inline void
-InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FovY, vec3 Position, vec3 Up = vec3(0.f, 1.f, 0.f))
+InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FovY, f32 NearClipPlane, f32 FarClipPlane, vec3 Position, vec3 Up = vec3(0.f, 1.f, 0.f))
 {
     Camera->Pitch = Pitch;
     Camera->Yaw = Yaw;
     Camera->FovY = FovY;
+    Camera->NearClipPlane = NearClipPlane;
+    Camera->FarClipPlane = FarClipPlane;
     Camera->Position = Position;
     Camera->Up = Up;
     Camera->Direction = CalculateDirectionFromEulerAngles(Camera->Pitch, Camera->Yaw);
@@ -226,6 +229,33 @@ DrawSkeleton(render_commands *RenderCommands, skeleton_pose *Pose, model *JointM
     }
 }
 
+inline ray
+ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
+{
+    vec4 ClipRay = vec4(
+        2.f * ScreenPoint.x / ScreenSize.x - 1.f,
+        1.f - 2.f * ScreenPoint.y / ScreenSize.y,
+        -1.f, 1.f
+    );
+
+    // todo: pass view and projection matrices to the renderer?
+    mat4 View = LookAt(Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
+
+    f32 Aspect = (f32)ScreenSize.x / (f32)ScreenSize.y;
+    mat4 Projection = Perspective(Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
+
+    vec4 CameraRay = Inverse(Projection) * ClipRay;
+    CameraRay = vec4(CameraRay.xy, -1.f, 0.f);
+
+    vec3 WorldRay = (Inverse(View) * CameraRay).xyz;
+
+    ray Result = {};
+    Result.Origin = Camera->Position;
+    Result.Direction = Normalize(WorldRay);
+
+    return Result;
+}
+
 extern "C" DLLExport
 GAME_INIT(GameInit)
 {
@@ -240,8 +270,9 @@ GAME_INIT(GameInit)
 
     State->Mode = GameMode_World;
 
-    InitCamera(&State->FreeCamera, RADIANS(0.f), RADIANS(-90.f), RADIANS(45.f), vec3(0.f, 4.f, 16.f));
-    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), vec3(0.f, 0.f, 0.f));
+    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
+    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 0.f, 0.f));
+    // todo:
     State->PlayerCamera.Radius = 16.f;
 
     State->RigidBodiesCount = 1;
@@ -320,9 +351,9 @@ GAME_INIT(GameInit)
             f32 z = j * 4.f + 1.f;
 
             vec3 Position = vec3(x, 0.f, z);
-            vec3 HalfSize = vec3(2.f);
+            vec3 HalfSize = vec3(2.f, 0.2f, 2.f);
             quat Orientation = quat(0.f);
-            Instance->Model = Transform(CreateTransform(Position, HalfSize, Orientation));
+            Instance->Model = Transform(CreateTransform(Position, vec3(HalfSize.x, 2.f, HalfSize.z), Orientation));
 
             Assert(State->Batch.EntityCount < State->Batch.MaxEntityCount);
 
@@ -356,8 +387,8 @@ GAME_INIT(GameInit)
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    BuildAnimationGraph(&State->Player.AnimationGraph, State->Player.Model, &State->WorldArena, &State->RNG);
-    ActivateAnimationNode(&State->Player.AnimationGraph, "Idle_Node");
+    BuildAnimationGraph(&State->Player.Animation, State->Player.Model, &State->WorldArena, &State->RNG);
+    ActivateAnimationNode(&State->Player.Animation, "Idle_Node");
 }
 
 extern "C" DLLExport
@@ -399,66 +430,28 @@ GAME_PROCESS_INPUT(GameProcessInput)
         State->Advance = true;
     }
 
-    // -- move inside if
-    vec4 ClipRay = vec4(
-        2.f * Input->MouseCoords.x / Parameters->WindowWidth - 1.f,
-        1.f - 2.f * Input->MouseCoords.y / Parameters->WindowHeight,
-        -1.f, 1.f
-    );
-
-    // todo: pass view and projection matrices to the renderer
+    if (Input->LeftClick.IsActivated)
     {
-        game_camera *Camera = &State->FreeCamera;
-        f32 FrustrumWidthInUnits = 20.f;
-        f32 PixelsPerUnit = (f32)Parameters->WindowWidth / FrustrumWidthInUnits;
-        f32 FrustrumHeightInUnits = (f32)Parameters->WindowHeight / PixelsPerUnit;
+        State->Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32)Parameters->WindowWidth, (f32)Parameters->WindowHeight), &State->FreeCamera);
 
-        mat4 View = LookAt(Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
-        mat4 Projection = Perspective(Camera->FovY, FrustrumWidthInUnits / FrustrumHeightInUnits, 0.1f, 1000.f);
-        //
-
-        vec4 CameraRay = Inverse(Projection) * ClipRay;
-        CameraRay = vec4(CameraRay.xy, -1.f, 0.f);
-
-        vec3 WorldRay = (Inverse(View) * CameraRay).xyz;
-
-#if 1
-        ray Ray = {};
-        Ray.Origin = Camera->Position;
-        Ray.Direction = Normalize(WorldRay);
-
-        State->Ray = Ray;
-#else
-        ray Ray = {};
-        Ray.Origin = Camera->Position;
-        Ray.Direction = vec3(0.f, -1.f, 0.f);
-#endif
-
-        if (Input->LeftClick.IsActivated)
+        for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
         {
-            for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
+            entity *Entity = State->Batch.Entities + EntityIndex;
+            aabb EntityBox = GetRigidBodyAABB(Entity->Body);
+
+            Entity->IsSelected = false;
+
+            vec3 IntersectionPoint;
+            //if (IntersectRayAABB(State->Ray, EntityBox, &IntersectionPoint))
+            if (HitBoundingBox(State->Ray, EntityBox, IntersectionPoint))
             {
-                entity *Entity = State->Batch.Entities + EntityIndex;
-                aabb EntityBox = GetRigidBodyAABB(Entity->Body);
+                render_instance *Instance = State->Batch.Instances + EntityIndex;
 
-                f32 tMin;
-                vec3 IntersectionPoint;
-                if (IntersectRayAABB(Ray, EntityBox, &tMin, &IntersectionPoint))
-                {
-                    render_instance *Instance = State->Batch.Instances + EntityIndex;
+                Entity->IsSelected = true;
 
-                    Entity->Body->PrevPosition += vec3(0.f, 1.f, 0.f);
-                    Entity->Body->Position += vec3(0.f, 1.f, 0.f);
-
-                    // todo: highlight selected entity
-                    mat4 T = Translate(vec3(0.f, 1.f, 0.f));
-                    Instance->Model = T * Instance->Model;
-
-                    //break;
-                }
+                // todo: peak closest?
+                //break;
             }
-
-            //Platform->DebugPrintString("%.3f, %.3f, %.3f\n", WorldRay.x, WorldRay.y, WorldRay.z);
         }
     }
 
@@ -527,8 +520,8 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
             State->TargetMove = Move;
 
-            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * 110.f;
-            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * 110.f;
+            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * 120.f;
+            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * 120.f;
 
             f32 CrossFadeDuration = 0.2f;
 
@@ -552,23 +545,23 @@ GAME_PROCESS_INPUT(GameProcessInput)
                     if (Input->Crouch.IsActivated)
                     {
                         State->Player.State = EntityState_Dance;
-                        TransitionToNode(&State->Player.AnimationGraph, "Dance_Node");
+                        TransitionToNode(&State->Player.Animation, "Dance_Node");
                     }
                     
                     if (MoveMaginute > 0.f)
                     {
                         State->Player.State = EntityState_Moving;
-                        TransitionToNode(&State->Player.AnimationGraph, "Move_Node");
+                        TransitionToNode(&State->Player.Animation, "Move_Node");
                     }
 
                     break;
                 }
                 case EntityState_Moving:
                 {
-                    if (MoveMaginute == 0.f)
+                    if (MoveMaginute < EPSILON)
                     {
                         State->Player.State = EntityState_Idle;
-                        TransitionToNode(&State->Player.AnimationGraph, "Idle_Node");
+                        TransitionToNode(&State->Player.Animation, "Idle_Node");
                     }
 
                     break;
@@ -578,7 +571,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
                     if (Input->Crouch.IsActivated)
                     {
                         State->Player.State = EntityState_Idle;
-                        TransitionToNode(&State->Player.AnimationGraph, "Idle_Node");
+                        TransitionToNode(&State->Player.Animation, "Idle_Node");
                     }
 
                     break;
@@ -692,10 +685,6 @@ GAME_RENDER(GameRender)
 
     SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
     
-    f32 FrustrumWidthInUnits = 20.f;
-    f32 PixelsPerUnit = (f32)Parameters->WindowWidth / FrustrumWidthInUnits;
-    f32 FrustrumHeightInUnits = (f32)Parameters->WindowHeight / PixelsPerUnit;
-
     switch (State->Mode)
     {
         case GameMode_World:
@@ -718,14 +707,22 @@ GAME_RENDER(GameRender)
                 Clear(RenderCommands, vec4(State->BackgroundColor, 1.f));
             }
 
-            SetPerspectiveProjection(RenderCommands, Camera->FovY, FrustrumWidthInUnits / FrustrumHeightInUnits, 0.1f, 1000.f);
+            f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
+            SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
             
-            SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up, Camera->Position);
+            SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
             
             // Axis
+            f32 Bounds = 100.f;
+
             //DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
             //DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 4.f);
             //DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
+
+            ray Ray = State->Ray;
+
+
+            //DrawLine(RenderCommands, Ray.Origin, Ray.Origin + Ray.Direction * 100.f, vec4(1.f, 0.f, 1.f, 1.f), 4.f);
             
             // todo: pretty expensive
             DrawGround(RenderCommands, Camera->Position);
@@ -742,7 +739,7 @@ GAME_RENDER(GameRender)
             }
             else
             {
-                //State->DirectionalColor = vec3(0.f);
+                //State->DirectionalColor = vec3(1.f);
             }
 
             directional_light DirectionalLight = {};
@@ -819,11 +816,13 @@ GAME_RENDER(GameRender)
             vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
             State->CurrentMove += dMove * Parameters->Delta;
 
-            AnimationGraphPerFrameUpdate(&State->Player.AnimationGraph, Parameters->Delta, Clamp(Magnitude(State->CurrentMove), 0.f, 1.f));
+            State->Player.Animation.Params.MoveBlend = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+
+            AnimationGraphPerFrameUpdate(&State->Player.Animation, Parameters->Delta);
 
             skeleton_pose *Pose = State->Player.Model->Pose;
 
-            CalculateFinalSkeletonPose(&State->Player.AnimationGraph, Pose, &State->WorldArena);
+            CalculateFinalSkeletonPose(&State->Player.Animation, Pose, &State->WorldArena);
 
             transform PlayerTransform = CreateTransform(
                 PlayerPosition + State->Player.Offset,
@@ -863,8 +862,10 @@ GAME_RENDER(GameRender)
 
                 vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
                 transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
-                material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), true);
-                DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
+
+                vec3 Color = vec3(1.f, 1.f, 0.f);
+                material Material = CreateMaterial(MaterialType_Unlit, Color, true);
+                //DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
             }
 
             for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
@@ -874,7 +875,15 @@ GAME_RENDER(GameRender)
 
                 vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
                 transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
-                material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), true);
+
+                vec3 Color = vec3(1.f, 1.f, 0.f);
+
+                if (Entity->IsSelected)
+                {
+                    Color = vec3(1.f, 0.f, 0.f);
+                }
+
+                material Material = CreateMaterial(MaterialType_Unlit, Color, true);
                 DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
             }
 
@@ -883,6 +892,10 @@ GAME_RENDER(GameRender)
         case GameMode_Menu:
         {
             Clear(RenderCommands, vec4(1.f, 1.f, 1.f, 1.f));
+
+            f32 FrustrumWidthInUnits = 20.f;
+            f32 PixelsPerUnit = (f32)Parameters->WindowWidth / FrustrumWidthInUnits;
+            f32 FrustrumHeightInUnits = (f32)Parameters->WindowHeight / PixelsPerUnit;
 
             SetOrthographicProjection(RenderCommands,
                 -FrustrumWidthInUnits / 2.f, FrustrumWidthInUnits / 2.f,

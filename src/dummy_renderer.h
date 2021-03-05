@@ -130,30 +130,41 @@ struct render_command_set_viewport
 struct render_command_set_orthographic_projection
 {
     render_command_header Header;
+#if 1
     f32 Left;
     f32 Right;
     f32 Bottom;
     f32 Top;
     f32 Near;
     f32 Far;
+#else
+    mat4 Projection;
+#endif
 };
 
 struct render_command_set_perspective_projection
 {
     render_command_header Header;
+#if 1
     f32 FovY;
     f32 Aspect;
     f32 Near;
     f32 Far;
+#else
+    mat4 Projection;
+#endif
 };
 
 struct render_command_set_camera
 {
     render_command_header Header;
-    vec3 Eye;
+#if 1
+    vec3 Position;
     vec3 Target;
     vec3 Up;
-    vec3 Position;
+#else
+    mat4 View;
+#endif
 };
 
 struct render_command_set_directional_light

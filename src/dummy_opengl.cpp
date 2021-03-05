@@ -742,7 +742,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_set_camera *Command = (render_command_set_camera *)Entry;
 
-                mat4 View = LookAt(Command->Eye, Command->Target, Command->Up);
+                mat4 View = LookAt(Command->Position, Command->Target, Command->Up);
 
                 for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
                 {

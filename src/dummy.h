@@ -19,6 +19,8 @@ struct game_camera
     f32 FovY;
 
     f32 Radius;
+    f32 NearClipPlane;
+    f32 FarClipPlane;
 };
 
 enum entity_state
@@ -30,6 +32,7 @@ enum entity_state
 
 struct entity
 {
+    b32 IsSelected;
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
@@ -48,10 +51,10 @@ struct game_player
     vec3 Offset;
     entity_state State;
 
+    // todo: entity
     model *Model;
     rigid_body *RigidBody;
-
-    animation_graph AnimationGraph;
+    animation_graph Animation;
 };
 
 // todo: !!!
@@ -83,6 +86,8 @@ struct game_state
 
     game_mode Mode;
 
+    vec2 ViewFrustrumSize;
+
     game_camera FreeCamera;
     game_camera PlayerCamera;
 
@@ -90,6 +95,9 @@ struct game_state
     rigid_body *RigidBodies;
 
     plane Ground;
+
+    ray Ray;
+    vec3 IntersectionPoint;
     
     model YBotModel;
     model SkullModel;
@@ -120,6 +128,4 @@ struct game_state
     vec2 FloorDim;
     u32 InstanceCount;
     render_instance *Instances;
-
-    ray Ray;
 };

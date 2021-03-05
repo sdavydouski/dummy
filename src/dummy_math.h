@@ -48,6 +48,12 @@ struct ray
     vec3 Direction;
 };
 
+struct aabb
+{
+    vec3 Min;
+    vec3 Max;
+};
+
 struct transform
 {
     quat Rotation;
@@ -536,4 +542,12 @@ UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
     vec3 Result = UnprojectedPoint.xyz / UnprojectedPoint.w;
 
     return Result;
+}
+
+inline void
+Swap(f32 &a, f32 &b)
+{
+    f32 Temp = a;
+    a = b;
+    b = Temp;
 }

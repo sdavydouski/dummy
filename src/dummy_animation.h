@@ -58,6 +58,8 @@ struct animation_clip
 struct animation_state
 {
     f32 Time;
+    // todo: This weight is used to store computed values during final pose computing. 
+    // This of a better name or place it somewhere else?
     f32 Weight;
 
     animation_clip *Clip;
@@ -73,26 +75,9 @@ struct blend_space_1d_value
 struct blend_space_1d
 {
     f32 NormalizedTime;
-    u32 BlendSpaceValueCount;
-    blend_space_1d_value *BlendSpaceValues;
-};
 
-struct blend_space_2d_value
-{
-    animation_state *AnimationState;
-    vec2 Value;
-    f32 Weight;
-};
-
-struct blend_space_2d_triangle
-{
-    blend_space_2d_value Points[3];
-};
-
-struct blend_space_2d
-{
-    u32 BlendSpaceTriangleCount;
-    blend_space_2d_triangle *BlendSpaceTriangles;
+    u32 ValueCount;
+    blend_space_1d_value *Values;
 };
 
 enum animation_transition_type
@@ -106,11 +91,11 @@ struct animation_transition
 {
     animation_transition_type Type;
 
-    f32 Duration;
-    struct animation_node *TransitionNode;
-
     struct animation_node *From;
     struct animation_node *To;
+
+    f32 Duration;
+    struct animation_node *TransitionNode;
 };
 
 enum animation_node_type
@@ -120,6 +105,7 @@ enum animation_node_type
     AnimationNodeType_Graph
 };
 
+// todo:
 struct animation_node_params
 {
     f32 Time;
@@ -130,6 +116,7 @@ struct animation_node_params
 struct animation_node
 {
     char Name[64];
+    f32 Weight;
 
     animation_node_type Type;
     union
@@ -142,9 +129,7 @@ struct animation_node
     u32 TransitionCount;
     animation_transition *Transitions;
 
-    u32 Index;
-    f32 Weight;
-
+    // todo:
     animation_node_params *Params;
 };
 
@@ -157,7 +142,7 @@ struct animation_mixer
     f32 Duration;
     f32 StartWeight;
 
-    // ?
+    // todo: ?
     u32 FadeInCount;
     animation_node *FadeIn;
 
@@ -165,27 +150,19 @@ struct animation_mixer
     animation_node *FadeOut;
 };
 
+struct animation_graph_params
+{
+    f32 MoveBlend;
+};
+
 struct animation_graph
 {
     u32 NodeCount;
     animation_node *Nodes;
-    animation_node *Entry;
 
-    u32 ActiveNodeIndex;
+    animation_node *Entry;
+    animation_node *Active;
 
     animation_mixer Mixer;
+    animation_graph_params Params;
 };
-
-inline joint_pose *
-GetRootLocalJointPose(skeleton_pose *Pose)
-{
-    joint_pose *Result = Pose->LocalJointPoses + 0;
-    return Result;
-}
-
-inline joint_pose *
-GetRootTranslationLocalJointPose(skeleton_pose *SkeletonPose)
-{
-    joint_pose *Result = SkeletonPose->LocalJointPoses + 1;
-    return Result;
-}

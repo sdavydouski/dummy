@@ -1,5 +1,4 @@
 #include "dummy_random.h"
-#include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
@@ -36,7 +35,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 18);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 }
 
 internal void
@@ -51,7 +50,7 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 
     Prefix[Depth] = 0;
 
-    ImGui::Text("%sActiveNodeIndex: %d", Prefix, Graph->ActiveNodeIndex);
+    ImGui::Text("%sActive Node: %s", Prefix, Graph->Active->Name);
 
     ImGui::NewLine();
 
@@ -73,9 +72,9 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
             }
             case AnimationNodeType_BlendSpace:
             {
-                for (u32 Index = 0; Index < Node->BlendSpace->BlendSpaceValueCount; ++Index)
+                for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
                 {
-                    blend_space_1d_value *Value = Node->BlendSpace->BlendSpaceValues + Index;
+                    blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
 
                     ImGui::Text("%s\tName: %s", Prefix, Value->AnimationState.Clip->Name);
                     ImGui::Text("%s\tTime: %.3f", Prefix, Value->AnimationState.Time);
@@ -177,7 +176,24 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
     ImGui::End();
 
     ImGui::Begin("Animation Graph");
-    RenderAnimationGraphInfo(&GameState->Player.AnimationGraph);
+    RenderAnimationGraphInfo(&GameState->Player.Animation);
+    ImGui::End();
+
+    ImGui::Begin("Debug");
+
+    for (u32 EntityIndex = 0; EntityIndex < GameState->Batch.EntityCount; ++EntityIndex)
+    {
+        entity *Entity = GameState->Batch.Entities + EntityIndex;
+
+        if (Entity->IsSelected)
+        {
+            ImGui::Text("Selected Entity:");
+            ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", Entity->Body->Position.x, Entity->Body->Position.y, Entity->Body->Position.z);
+            ImGui::Text("Size: x: %.1f, y: %.1f, z: %.1f", 2.f * Entity->Body->HalfSize.x, 2.f * Entity->Body->HalfSize.y, 2.f * Entity->Body->HalfSize.z);
+            ImGui::Text("\n");
+        }
+    }
+
     ImGui::End();
 
     // Rendering

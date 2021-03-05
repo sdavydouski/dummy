@@ -1,11 +1,3 @@
-#pragma once
-
-struct aabb
-{
-    vec3 Min;
-    vec3 Max;
-};
-
 inline plane
 ComputePlane(vec3 a, vec3 b, vec3 c)
 {
@@ -65,18 +57,114 @@ TestAABBPlane(aabb Box, plane Plane)
     return Result;
 }
 
-inline void
-Swap(f32 &a, f32 &b)
+/*
+Fast Ray-Box Intersection
+by Andrew Woo
+from "Graphics Gems", Academic Press, 1990
+*/
+
+#define NUMDIM	3
+#define RIGHT	0
+#define LEFT	1
+#define MIDDLE	2
+
+b32 HitBoundingBox(ray Ray, aabb Box, vec3 &Coord)
 {
-    f32 Temp = a;
-    a = b;
-    b = Temp;
+    vec3 origin = Ray.Origin;
+    vec3 dir = Ray.Direction;
+    vec3 minB = Box.Min;
+    vec3 maxB = Box.Max;
+
+    b32 inside = 1;
+    i32 whichPlane;
+    f32 maxT[NUMDIM];
+    f32 candidatePlane[NUMDIM];
+    char quadrant[NUMDIM];
+
+    /* Find candidate planes; this loop can be avoided if
+    rays cast all from the eye(assume perpsective view) */
+    for (u32 i = 0; i < NUMDIM; i++)
+    {
+        if (origin[i] < minB[i])
+        {
+            quadrant[i] = LEFT;
+            candidatePlane[i] = minB[i];
+            inside = 0;
+        }
+        else if (origin[i] > maxB[i])
+        {
+            quadrant[i] = RIGHT;
+            candidatePlane[i] = maxB[i];
+            inside = 0;
+        }
+        else
+        {
+            quadrant[i] = MIDDLE;
+        }
+    }
+
+    /* Ray origin inside bounding box */
+    if (inside)
+    {
+        Coord = origin;
+        return (1);
+    }
+
+
+    /* Calculate T distances to candidate planes */
+    for (u32 i = 0; i < NUMDIM; i++)
+    {
+        if (quadrant[i] != MIDDLE && dir[i] != 0.)
+        {
+            maxT[i] = (candidatePlane[i] - origin[i]) / dir[i];
+        }
+        else
+        {
+            maxT[i] = -1.;
+        }
+    }
+
+    /* Get largest of the maxT's for final choice of intersection */
+    whichPlane = 0;
+    for (u32 i = 1; i < NUMDIM; i++)
+    {
+        if (maxT[whichPlane] < maxT[i])
+        {
+            whichPlane = i;
+        }
+    }
+
+    /* Check final candidate actually inside box */
+    if (maxT[whichPlane] < 0.)
+    {
+        return (0);
+    }
+
+    for (u32 i = 0; i < NUMDIM; i++)
+    {
+        if (whichPlane != i) 
+        {
+            Coord[i] = origin[i] + maxT[whichPlane] * dir[i];
+
+            if (Coord[i] < minB[i] || Coord[i] > maxB[i])
+            {
+                return (0);
+            }
+        }
+        else 
+        {
+            Coord[i] = candidatePlane[i];
+        }
+    }
+
+    return (1);				/* ray hits box */
 }
 
+// todo: wrong!
 internal b32
-IntersectRayAABB(ray Ray, aabb Box, f32 *tMin, vec3 *IntersectionPoint)
+IntersectRayAABB(ray Ray, aabb Box, vec3 *IntersectionPoint)
 {
-    *tMin = 0.f;
+    f32 tMin = 0.f;
     f32 tMax = F32_MAX;
 
     vec3 p = Ray.Origin;
@@ -107,9 +195,9 @@ IntersectRayAABB(ray Ray, aabb Box, f32 *tMin, vec3 *IntersectionPoint)
             }
 
             // Compute the intersection of slab intersection intervals
-            if (t1 > *tMin)
+            if (t1 > tMin)
             {
-                *tMin = t1;
+                tMin = t1;
             }
 
             if (t2 > tMax)
@@ -118,15 +206,15 @@ IntersectRayAABB(ray Ray, aabb Box, f32 *tMin, vec3 *IntersectionPoint)
             }
 
             // Exit with no collision as soon as slab intersection becomes empty
-            if (*tMin > tMax)
+            if (tMin > tMax)
             {
                 return false;
             }
         }
     }
 
-    // Ray intersects all 3 slabs. Return point and intersection t value
-    *IntersectionPoint = p + d * (*tMin);
+    // Ray intersects all 3 slabs
+    *IntersectionPoint = p + d * tMin;
 
     return true;
 }

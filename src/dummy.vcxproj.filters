@@ -3,7 +3,6 @@
   <ItemGroup>
     <ClInclude Include="dummy.h" />
     <ClInclude Include="dummy_assets.h" />
-    <ClInclude Include="dummy_collision.h" />
     <ClInclude Include="dummy_defs.h" />
     <ClInclude Include="dummy_mat4.h" />
     <ClInclude Include="dummy_math.h" />
@@ -20,6 +19,7 @@
     <ClInclude Include="dummy_vec4.h" />
     <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_random.h" />
+    <ClInclude Include="dummy_collision.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_assets.cpp" />
@@ -30,5 +30,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <ClCompile Include="dummy_physics.cpp" />
   </ItemGroup>
 </Project>

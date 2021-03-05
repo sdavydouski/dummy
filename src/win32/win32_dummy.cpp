@@ -762,8 +762,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 1600;
-    PlatformState.WindowHeight = 900;
+    PlatformState.WindowWidth = 3200;
+    PlatformState.WindowHeight = 1800;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
