@@ -727,11 +727,6 @@ GAME_RENDER(GameRender)
             // todo: pretty expensive
             DrawGround(RenderCommands, Camera->Position);
 
-            // Skydome rendering
-            //transform SkydomeTransform = CreateTransform(Camera->Position, vec3(100.f), quat(0.f));
-            //material SkydomeMaterial = CreateMaterial(MaterialType_Unlit, vec3(1.f, 0.f, 1.f), true);
-            //DrawModel(RenderCommands, &State->SphereModel, SkydomeTransform, SkydomeMaterial, {}, {});
-
             if (State->Player.State == EntityState_Dance)
             {
                 f32 Time = Parameters->Time * 11.f;
@@ -816,13 +811,13 @@ GAME_RENDER(GameRender)
             vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
             State->CurrentMove += dMove * Parameters->Delta;
 
-            State->Player.Animation.Params.MoveBlend = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+            skeleton_pose *Pose = State->Player.Model->Pose;
+            
+            // todo: ?
+            (State->Player.Animation.Nodes + 1)->Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
 
             AnimationGraphPerFrameUpdate(&State->Player.Animation, Parameters->Delta);
-
-            skeleton_pose *Pose = State->Player.Model->Pose;
-
-            CalculateFinalSkeletonPose(&State->Player.Animation, Pose, &State->WorldArena);
+            GetSkeletonPose(&State->Player.Animation, Pose, &State->WorldArena);
 
             transform PlayerTransform = CreateTransform(
                 PlayerPosition + State->Player.Offset,

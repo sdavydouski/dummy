@@ -230,6 +230,7 @@ DisableAnimationNode(animation_node *Node)
                 DisableAnimationNode(SubNode);
             }
 
+            Node->Graph->Mixer = {};
             Node->Graph->Entry->Weight = 1.f;
             Node->Graph->Active = Node->Graph->Entry;
 
@@ -238,54 +239,71 @@ DisableAnimationNode(animation_node *Node)
     }
 }
 
-internal void
+inline void
+FadeIn(animation_mixer* Mixer, animation_node *Node, f32 Duration, f32 FadeInWeight)
+{
+    Mixer->Time = 0.f;
+    Mixer->Duration = Duration;
+    Mixer->FadeIn = Node;
+    Mixer->FadeInWeight = FadeInWeight;
+}
+
+inline void
+FadeOut(animation_mixer* Mixer, animation_node *Node, f32 Duration, f32 FadeOutWeight)
+{
+    Mixer->Time = 0.f;
+    Mixer->Duration = Duration;
+    Mixer->FadeOut = Node;
+    Mixer->FadeOutWeight = FadeOutWeight;
+}
+
+inline void
 CrossFade(animation_mixer *Mixer, animation_node *From, animation_node *To, f32 Duration)
 {
-    Mixer->From = From;
-    Mixer->To = To;
-    Mixer->Duration = Duration;
-    Mixer->Time = 0.f;
-    Mixer->StartWeight = To->Weight;
-
-    // todo: ?
-    //FadeIn(Mixer, To, Duration);
-    //FadeOut(Mixer, From, Duration);
+    FadeIn(Mixer, To, Duration, To->Weight);
+    FadeOut(Mixer, From, Duration, From->Weight);
 }
 
 internal void
 AnimationMixerPerFrameUpdate(animation_mixer *Mixer, f32 Delta)
 {
-    if (Mixer->From && Mixer->To)
+    Mixer->Time += Delta;
+
+    if (Mixer->Time > Mixer->Duration)
     {
-        Mixer->Time += Delta;
+        Mixer->Time = Mixer->Duration;
+    }
 
-        if (Mixer->Time > Mixer->Duration)
-        {
-            Mixer->Time = Mixer->Duration;
-        }
+    f32 Value = Mixer->Time / Mixer->Duration;
 
-        f32 Value = Mixer->Time / Mixer->Duration;
+    if (Mixer->FadeIn)
+    {
+        f32 FadeInWeight = Min(1.f, Mixer->FadeInWeight + Value);
+        Assert(FadeInWeight >= 0.f && FadeInWeight <= 1.f);
 
-        f32 FromWeight = Max(0.f, (1.f - Mixer->StartWeight) - Value);
-        Assert(FromWeight >= 0.f && FromWeight <= 1.f);
-        Mixer->From->Weight = FromWeight;
-
-        f32 ToWeight = Min(1.f, Mixer->StartWeight + Value);
-        Assert(ToWeight >= 0.f && ToWeight <= 1.f);
-        Mixer->To->Weight = ToWeight;
+        Mixer->FadeIn->Weight = FadeInWeight;
 
         if (Mixer->Time == Mixer->Duration)
         {
-            Assert(Mixer->From->Weight == 0.f);
-            Assert(Mixer->To->Weight == 1.f);
+            Assert(Mixer->FadeIn->Weight == 1.f);
 
-            DisableAnimationNode(Mixer->From);
+            // todo: don't need to do this? 
+            //EnableAnimationNode(Mixer->FadeIn);
+        }
+    }
 
-            // don't need to do this 
-            //EnableAnimationNode(Mixer->To);
+    if (Mixer->FadeOut)
+    {
+        f32 FadeOutWeight = Max(0.f, (Mixer->FadeOutWeight - Value));
+        Assert(FadeOutWeight >= 0.f && FadeOutWeight <= 1.f);
 
-            Mixer->From = 0;
-            Mixer->To = 0;
+        Mixer->FadeOut->Weight = FadeOutWeight;
+
+        if (Mixer->Time == Mixer->Duration)
+        {
+            Assert(Mixer->FadeOut->Weight == 0.f);
+
+            DisableAnimationNode(Mixer->FadeOut);
         }
     }
 }
@@ -335,8 +353,8 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
         {
             Graph->Active = ToNode;
 
-            DisableAnimationNode(FromNode);
             EnableAnimationNode(ToNode);
+            DisableAnimationNode(FromNode);
 
             break;
         }
@@ -360,6 +378,12 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
         {
             Assert(!"Invalid Transition Type");
         }
+    }
+
+    // todo: check if node is graph and reset it?
+    if (ToNode->Type == AnimationNodeType_Graph)
+    {
+        DisableAnimationNode(ToNode);
     }
 }
 
@@ -455,47 +479,14 @@ AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 BlendParameter
 internal void AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta);
 
 internal void
-AnimationNodePerFrameUpdate(animation_graph *Graph, animation_node *Node, f32 Delta)
+AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
 {
     Assert(Node->Weight > 0.f);
 
-    // todo: move out to separate function? (e.g. node method?)
-#if 1
-    animation_node *ActiveNode = Graph->Active;
-
-    if (Node->Params)
+    if (Node->Update)
     {
-        if (StringEquals(ActiveNode->Name, "Idle_Node#Node_0"))
-        {
-            // update function for Idle_Node#Node_0
-            ActiveNode->Params->Time += Delta;
-
-            if (ActiveNode->Params->Time > ActiveNode->Params->MaxTime)
-            {
-                ActiveNode->Params->Time = 0.f;
-
-                if (Random01(Node->Params->RNG) > 0.5f)
-                {
-                    TransitionToNode(Graph, "Idle_Node#Node_1");
-                }
-                else
-                {
-                    TransitionToNode(Graph, "Idle_Node#Node_2");
-                }
-            }
-        }
+        Node->Update(Node->State, Node->Params, Delta);
     }
-
-    if (StringEquals(ActiveNode->Name, "Idle_Node#Node_1") || StringEquals(ActiveNode->Name, "Idle_Node#Node_2"))
-    {
-        // update function for Idle_Node#Node_1 and Idle_Node#Node_2
-        if (ActiveNode->Animation.Time > ActiveNode->Animation.Clip->Duration)
-        {
-            //ActiveNode->Animation.Time = 0.f;
-            TransitionToNode(Graph, "Idle_Node#Node_0");
-        }
-    }
-#endif
 
     switch (Node->Type)
     {
@@ -506,7 +497,9 @@ AnimationNodePerFrameUpdate(animation_graph *Graph, animation_node *Node, f32 De
         }
         case AnimationNodeType_BlendSpace:
         {
-            AnimationBlendSpacePerFrameUpdate(Node->BlendSpace, Graph->Params.MoveBlend, Delta);
+            Assert(Node->Params);
+
+            AnimationBlendSpacePerFrameUpdate(Node->BlendSpace, Node->Params->Move, Delta);
             break;
         }
         case AnimationNodeType_Graph:
@@ -521,7 +514,6 @@ AnimationNodePerFrameUpdate(animation_graph *Graph, animation_node *Node, f32 De
     }
 }
 
-// todo: do smth with BlendParameter
 internal void
 AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta)
 {
@@ -533,7 +525,7 @@ AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta)
 
         if (Node->Weight > 0.f)
         {
-            AnimationNodePerFrameUpdate(Graph, Node, Delta);
+            AnimationNodePerFrameUpdate(Node, Delta);
         }
     }
 }
@@ -563,9 +555,7 @@ inline animation_state
 CreateAnimationState(animation_clip *Clip)
 {
     animation_state Result = {};
-
     Result.Clip = Clip;
-    Result.Time = 0.f;
 
     return Result;
 }
@@ -573,31 +563,28 @@ CreateAnimationState(animation_clip *Clip)
 inline void
 BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip)
 {
+    *Node = {};
     Node->Type = AnimationNodeType_SingleMotion;
     CopyString(Name, Node->Name, ArrayCount(Node->Name));
-    Node->Weight = 0.f;
     Node->Animation = CreateAnimationState(Clip);
-    Node->Params = 0;
 }
 
 inline void
 BuildAnimationNode(animation_node *Node, const char *Name, blend_space_1d *BlendSpace)
 {
+    *Node = {};
     Node->Type = AnimationNodeType_BlendSpace;
     CopyString(Name, Node->Name, ArrayCount(Node->Name));
-    Node->Weight = 0.f;
     Node->BlendSpace = BlendSpace;
-    Node->Params = 0;
 }
 
 inline void
 BuildAnimationNode(animation_node *Node, const char *Name, animation_graph *Graph)
 {
+    *Node = {};
     Node->Type = AnimationNodeType_Graph;
     CopyString(Name, Node->Name, ArrayCount(Node->Name));
-    Node->Weight = 0.f;
     Node->Graph = Graph;
-    Node->Params = 0;
 }
 
 inline void
@@ -610,6 +597,7 @@ BuildAnimationTransition(
     animation_node *TransitionNode = 0
 )
 {
+    *Transition = {};
     Transition->From = From;
     Transition->To = To;
     Transition->Type = Type;
@@ -646,8 +634,35 @@ ActivateAnimationNode(animation_graph *Graph, const char *NodeName)
     EnableAnimationNode(Node);
 }
 
+ANIMATION_NODE_UPDATE(IdleEntryNodeUpdate)
+{
+    State->Time += Delta;
+
+    if (State->Time > State->MaxTime)
+    {
+        State->Time = 0.f;
+
+        if (Random01(State->Entropy) > 0.5f)
+        {
+            TransitionToNode(State->Graph, "Idle_Node#Node_1");
+        }
+        else
+        {
+            TransitionToNode(State->Graph, "Idle_Node#Node_2");
+        }
+    }
+}
+
+ANIMATION_NODE_UPDATE(LongIdleNodeUpdate)
+{
+    if (State->Graph->Active->Animation.Time > State->Graph->Active->Animation.Clip->Duration)
+    {
+        TransitionToNode(State->Graph, "Idle_Node#Node_0");
+    }
+}
+
 internal void
-BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, random_sequence *RNG)
+BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, random_sequence *Entropy)
 {
     *Graph = {};
 
@@ -657,32 +672,42 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
 
     u32 NodeIndex = 0;
 
-    // Create Nodes
+    // Nodes
 
     // Idle
     animation_node *NodeIdle = Graph->Nodes + NodeIndex++;
 
     animation_graph *IdleGraph = PushType(Arena, animation_graph);
+
     IdleGraph->Mixer = {};
     IdleGraph->NodeCount = 3;
     IdleGraph->Nodes = PushArray(Arena, IdleGraph->NodeCount, animation_node);
+
     BuildAnimationNode(NodeIdle, "Idle_Node", IdleGraph);
 
     {
+        // Nodes
+
         animation_node *IdleEntry = IdleGraph->Nodes + 0;
         BuildAnimationNode(IdleEntry, "Idle_Node#Node_0", GetAnimationClip(Model, "Idle"));
-        // 
-        IdleEntry->Params = PushType(Arena, animation_node_params);
-        IdleEntry->Params->Time = 0.f;
-        //IdleEntry->Params->MaxTime = RandomBetween(RNG, 10.f, 15.f);
-        IdleEntry->Params->MaxTime = 5.f;
-        IdleEntry->Params->RNG = RNG;
+        IdleEntry->State = PushType(Arena, animation_node_state);
+        IdleEntry->State->Time = 0.f;
+        IdleEntry->State->MaxTime = 5.f;
+        IdleEntry->State->Entropy = Entropy;
+        IdleEntry->State->Graph = IdleGraph;
+        IdleEntry->Update = IdleEntryNodeUpdate;
 
         animation_node *LongIdleEntry = IdleGraph->Nodes + 1;
         BuildAnimationNode(LongIdleEntry, "Idle_Node#Node_1", GetAnimationClip(Model, "Idle_2"));
+        LongIdleEntry->State = PushType(Arena, animation_node_state);
+        LongIdleEntry->State->Graph = IdleGraph;
+        LongIdleEntry->Update = LongIdleNodeUpdate;
 
         animation_node *LongIdle2Entry = IdleGraph->Nodes + 2;
         BuildAnimationNode(LongIdle2Entry, "Idle_Node#Node_2", GetAnimationClip(Model, "Idle_3"));
+        LongIdle2Entry->State = PushType(Arena, animation_node_state);
+        LongIdle2Entry->State->Graph = IdleGraph;
+        LongIdle2Entry->Update = LongIdleNodeUpdate;
 
         // Transitions
 
@@ -742,12 +767,14 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
     }
 
     BuildAnimationNode(NodeWalking, "Move_Node", BlendSpace);
+    NodeWalking->Params = PushType(Arena, animation_node_params);
+    NodeWalking->Params->Move = 0.f;
 
     // Dancing
     animation_node *NodeDancing = Graph->Nodes + NodeIndex++;
     BuildAnimationNode(NodeDancing, "Dance_Node", GetAnimationClip(Model, "Samba"));
 
-    // Create Transitions
+    // Transitions
 
     // Idle Node
     NodeIdle->TransitionCount = 2;
@@ -773,6 +800,7 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
     animation_transition *DanceToIdleTransition = NodeDancing->Transitions + 0;
     BuildAnimationTransition(DanceToIdleTransition, NodeDancing, NodeIdle, AnimationTransitionType_Crossfade, 0.2f);
 
+    //
     Graph->Entry = NodeIdle;
     Graph->Active = NodeIdle;
 }
@@ -821,11 +849,8 @@ GetActiveAnimationCount(animation_graph *Graph)
     return Result;
 }
 
-// todo:
-global u32 ActiveAnimationIndex = 0;
-
 internal void
-GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, f32 GraphWeight)
+GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight)
 {
     for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
     {
@@ -862,7 +887,7 @@ GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, 
                 }
                 case AnimationNodeType_Graph:
                 {
-                    GetActiveAnimations(Node->Graph, ActiveAnimations, Node->Weight);
+                    GetActiveAnimations(Node->Graph, ActiveAnimations, ActiveAnimationIndex, Node->Weight);
 
                     break;
                 }
@@ -872,39 +897,30 @@ GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, 
 }
 
 internal void
-CalculateFinalSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_arena *Arena)
+GetSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_arena *Arena)
 {
     u32 ActiveAnimationCount = GetActiveAnimationCount(Graph);
 
     if (ActiveAnimationCount > 0)
     {
         scoped_memory ScopedMemory(Arena);
+
         skeleton_pose *SkeletonPoses = PushArray(ScopedMemory.Arena, ActiveAnimationCount, skeleton_pose);
-
         animation_state **ActiveAnimations = PushArray(ScopedMemory.Arena, ActiveAnimationCount, animation_state *);
-
-        GetActiveAnimations(Graph, ActiveAnimations, 1.f);
-        // todo:
-        ActiveAnimationIndex = 0;
-
+        
+        u32 ActiveAnimationIndex = 0;
+        GetActiveAnimations(Graph, ActiveAnimations, ActiveAnimationIndex, 1.f);
+        
+        // Checking weights (not necessary)
         f32 TotalWeight = 0.f;
         for (u32 ActiveAnimationIndex = 0; ActiveAnimationIndex < ActiveAnimationCount; ++ActiveAnimationIndex)
         {
             animation_state *Animation = ActiveAnimations[ActiveAnimationIndex];
-
             TotalWeight += Animation->Weight;
         }
         Assert(Abs(1.f - TotalWeight) < EPSILON);
+        //
         
-#if 1
-        // For debugging
-        if (!(Abs(1.f - TotalWeight) < EPSILON))
-        {
-            GetActiveAnimationCount(Graph);
-            GetActiveAnimations(Graph, ActiveAnimations, 1.f);
-        }
-#endif
-
         // Creating skeleton pose for each input clip
         for (u32 SkeletonPoseIndex = 0; SkeletonPoseIndex < ActiveAnimationCount; ++SkeletonPoseIndex)
         {
@@ -921,8 +937,8 @@ CalculateFinalSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memo
             }
         }
 
-        // Extracting skeleton pose from each input clip
         // todo: multithreading?
+        // Extracting skeleton pose from each input clip
         for (u32 AnimationIndex = 0; AnimationIndex < ActiveAnimationCount; ++AnimationIndex)
         {
             animation_state *AnimationState = ActiveAnimations[AnimationIndex];
@@ -932,31 +948,38 @@ CalculateFinalSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memo
         }
 
         // Lerping between all skeleton poses
-        u32 CurrentPoseIndex = 0;
-
-        skeleton_pose *Pose = SkeletonPoses + CurrentPoseIndex;
-        animation_state *Animation = ActiveAnimations[CurrentPoseIndex];
-        CurrentPoseIndex++;
-
-        f32 AccumulatedWeight = Animation->Weight;
+        skeleton_pose *Pose = First(SkeletonPoses);
+        animation_state *Animation = *First(ActiveAnimations);
 
         Lerp(Pose, 0.f, Pose, DestPose);
+
+        f32 AccumulatedWeight = Animation->Weight;
+        u32 CurrentPoseIndex = 1;
 
         while (CurrentPoseIndex < ActiveAnimationCount)
         {
             skeleton_pose *NextPose = SkeletonPoses + CurrentPoseIndex;
             animation_state *NextAnimation = ActiveAnimations[CurrentPoseIndex];
-            CurrentPoseIndex++;
+            ++CurrentPoseIndex;
 
             f32 NextWeight = NextAnimation->Weight;
 
             f32 t = NextWeight / (AccumulatedWeight + NextWeight);
+
+            Assert(t >= 0.f && t <= 1.f);
 
             Lerp(Pose, t, NextPose, DestPose);
 
             Pose = DestPose;
             Animation = NextAnimation;
             AccumulatedWeight += NextWeight;
+        }
+
+        // Clearing weights (not necessary?)
+        for (u32 ActiveAnimationIndex = 0; ActiveAnimationIndex < ActiveAnimationCount; ++ActiveAnimationIndex)
+        {
+            animation_state *Animation = ActiveAnimations[ActiveAnimationIndex];
+            Animation->Weight = 0.f;
         }
     }
 }

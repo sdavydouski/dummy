@@ -5,6 +5,10 @@
 
 #define joint_pose transform
 
+struct random_sequence;
+struct animation_node;
+struct animation_graph;
+
 struct joint
 {
     char Name[MAX_JOINT_NAME_LENGTH];
@@ -91,11 +95,11 @@ struct animation_transition
 {
     animation_transition_type Type;
 
-    struct animation_node *From;
-    struct animation_node *To;
+    animation_node *From;
+    animation_node *To;
 
     f32 Duration;
-    struct animation_node *TransitionNode;
+    animation_node *TransitionNode;
 };
 
 enum animation_node_type
@@ -105,13 +109,21 @@ enum animation_node_type
     AnimationNodeType_Graph
 };
 
-// todo:
 struct animation_node_params
+{
+    f32 Move;
+};
+
+struct animation_node_state
 {
     f32 Time;
     f32 MaxTime;
-    struct random_sequence *RNG;
+    random_sequence *Entropy;
+    animation_graph *Graph;
 };
+
+#define ANIMATION_NODE_UPDATE(name) void name(animation_node_state *State, animation_node_params *Params, f32 Delta)
+typedef ANIMATION_NODE_UPDATE(animation_node_update);
 
 struct animation_node
 {
@@ -123,36 +135,26 @@ struct animation_node
     {
         animation_state Animation;
         blend_space_1d *BlendSpace;
-        struct animation_graph *Graph;
+        animation_graph *Graph;
     };
 
     u32 TransitionCount;
     animation_transition *Transitions;
 
-    // todo:
+    animation_node_state *State;
     animation_node_params *Params;
+    animation_node_update *Update;
 };
 
 struct animation_mixer
 {
-    animation_node *From;
-    animation_node *To;
-
     f32 Time;
     f32 Duration;
-    f32 StartWeight;
+    f32 FadeInWeight;
+    f32 FadeOutWeight;
 
-    // todo: ?
-    u32 FadeInCount;
     animation_node *FadeIn;
-
-    u32 FadeOutCount;
     animation_node *FadeOut;
-};
-
-struct animation_graph_params
-{
-    f32 MoveBlend;
 };
 
 struct animation_graph
@@ -164,5 +166,4 @@ struct animation_graph
     animation_node *Active;
 
     animation_mixer Mixer;
-    animation_graph_params Params;
 };
