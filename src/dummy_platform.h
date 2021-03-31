@@ -18,7 +18,7 @@ struct read_file_result
 #define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformHandle, mouse_mode MouseMode)
 typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
 
-#define PLATFORM_READ_FILE(name) read_file_result name(void *PlatformHandle, char *FileName, memory_arena *Arena)
+#define PLATFORM_READ_FILE(name) read_file_result name(char *FileName, memory_arena *Arena, b32 Text)
 typedef PLATFORM_READ_FILE(platform_read_file);
 
 #define PLATFORM_DEBUG_PRINT_STRING(name) i32 name(const char *String, ...)

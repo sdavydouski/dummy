@@ -96,11 +96,17 @@ SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Ne
 inline void
 SetCamera(render_commands *Commands, vec3 Position, vec3 Target, vec3 Up, u32 RenderTarget = 0)
 {
-    render_command_set_camera *Command =
-        PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera, RenderTarget);
+    render_command_set_camera *Command = PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera, RenderTarget);
     Command->Position = Position;
     Command->Target = Target;
     Command->Up = Up;
+}
+
+inline void
+SetTime(render_commands *Commands, f32 Time)
+{
+    render_command_set_time *Command = PushRenderCommand(Commands, render_command_set_time, RenderCommand_SetTime, 0);
+    Command->Time = Time;
 }
 
 inline void
@@ -140,6 +146,7 @@ DrawMesh(
     render_commands *Commands, 
     u32 MeshId,
     transform Transform,
+    u32 Flags,
     material Material,
     point_light PointLight1,
     point_light PointLight2,
@@ -149,6 +156,7 @@ DrawMesh(
     render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh, RenderTarget);
     Command->MeshId = MeshId;
     Command->Transform = Transform;
+    Command->Flags = Flags;
     Command->Material = Material;
     Command->PointLight1 = PointLight1;
     Command->PointLight2 = PointLight2;
@@ -159,6 +167,7 @@ DrawSkinnedMesh(
     render_commands *Commands,
     u32 MeshId,
     transform Transform,
+    u32 Flags,
     material Material,
     point_light PointLight1,
     point_light PointLight2,
@@ -171,6 +180,7 @@ DrawSkinnedMesh(
         PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh, RenderTarget);
     Command->MeshId = MeshId;
     Command->Transform = Transform;
+    Command->Flags = Flags;
     Command->Material = Material;
     Command->PointLight1 = PointLight1;
     Command->PointLight2 = PointLight2;

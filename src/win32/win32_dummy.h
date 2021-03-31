@@ -49,3 +49,8 @@ struct win32_game_code
 
     b32 IsValid;
 };
+
+struct win32_file_attributes
+{
+    FILETIME LastWriteTime;
+};

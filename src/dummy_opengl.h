@@ -1,5 +1,7 @@
 #pragma once
 
+#define WIN32_RELOADABLE_SHADERS 1
+
 #define OPENGL_MAX_MESH_BUFFER_COUNT 64
 #define OPENGL_MAX_TEXTURE_COUNT 64
 #define OPENGL_MAX_SHADER_COUNT 64
@@ -28,10 +30,20 @@ struct opengl_texture
     GLuint Handle;
 };
 
+#define MAX_SHADER_FILE_PATH 64
+
 struct opengl_shader
 {
     u32 Id;
     GLuint Program;
+
+    char VertexShaderFileName[MAX_SHADER_FILE_PATH];
+    char FragmentShaderFileName[MAX_SHADER_FILE_PATH];
+
+#if WIN32_RELOADABLE_SHADERS
+    FILETIME LastVertexShaderWriteTime;
+    FILETIME LastFragmentShaderWriteTime;
+#endif
 
     GLint ModelUniformLocation;
     GLint ViewUniformLocation;
@@ -72,6 +84,7 @@ struct opengl_shader
 
     GLint ScreenTextureUniformLocation;
     GLint TimeUniformLocation;
+    GLint MeshFlagsUniformLocation;
 };
 
 struct opengl_state
@@ -82,6 +95,7 @@ struct opengl_state
     char *ShadingLanguageVersion;
 
     memory_arena Arena;
+    platform_api *Platform;
 
     GLuint Framebuffers[4];
     GLuint FramebufferTextures[4];

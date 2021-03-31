@@ -3,7 +3,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     model_asset *Result = PushType(Arena, model_asset);
 
-    read_file_result AssetFile = Platform->ReadFile(Platform->PlatformHandle, FileName, Arena);
+    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, false);
     void *Buffer = AssetFile.Contents;
 
     model_asset_header *Header = (model_asset_header *)Buffer;

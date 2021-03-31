@@ -19,9 +19,11 @@ RandomNextU32(random_sequence *Sequence)
 {
     // Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs"
     u32 Result = Sequence->State;
+
     Result ^= Result << 13;
     Result ^= Result >> 17;
     Result ^= Result << 5;
+
     Sequence->State = Result;
 
     return Result;

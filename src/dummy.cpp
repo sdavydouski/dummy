@@ -61,7 +61,7 @@ CreateMaterial(material_type Type, vec3 Color, b32 IsWireframe)
 }
 
 inline void
-DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose, transform Transform, point_light PointLight1, point_light PointLight2)
+DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose, transform Transform, u32 Flags, point_light PointLight1, point_light PointLight2)
 {
     Assert(Model->Skeleton);
     
@@ -81,14 +81,14 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
         material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial, false);
 
         DrawSkinnedMesh(
-            RenderCommands, Mesh->Id, {}, Material,
+            RenderCommands, Mesh->Id, {}, Flags, Material,
             PointLight1, PointLight2, Model->SkinningMatrixCount, Model->SkinningMatrices
         );
     }
 }
 
 inline void
-DrawModel(render_commands *RenderCommands, model *Model, transform Transform, point_light PointLight1, point_light PointLight2)
+DrawModel(render_commands *RenderCommands, model *Model, transform Transform, u32 Flags, point_light PointLight1, point_light PointLight2)
 {
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
@@ -96,18 +96,18 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform, po
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
         material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial, false);
 
-        DrawMesh(RenderCommands, Mesh->Id, Transform, Material, PointLight1, PointLight2);
+        DrawMesh(RenderCommands, Mesh->Id, Transform, Flags, Material, PointLight1, PointLight2);
     }
 }
 
 inline void
-DrawModel(render_commands *RenderCommands, model *Model, transform Transform, material Material, point_light PointLight1, point_light PointLight2)
+DrawModel(render_commands *RenderCommands, model *Model, transform Transform, u32 Flags, material Material, point_light PointLight1, point_light PointLight2)
 {
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
 
-        DrawMesh(RenderCommands, Mesh->Id, Transform, Material, PointLight1, PointLight2);
+        DrawMesh(RenderCommands, Mesh->Id, Transform, Flags, Material, PointLight1, PointLight2);
     }
 }
 
@@ -215,7 +215,7 @@ DrawSkeleton(render_commands *RenderCommands, skeleton_pose *Pose, model *JointM
         transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), quat(0.f));
         material Material = CreateMaterial(MaterialType_Unlit, vec3(1.f, 1.f, 0.f), false);
 
-        DrawModel(RenderCommands, JointModel, Transform, Material, {}, {});
+        DrawModel(RenderCommands, JointModel, Transform, 0, Material, {}, {});
 
         if (Joint->ParentIndex > -1)
         {
@@ -275,31 +275,6 @@ GAME_INIT(GameInit)
     // todo:
     State->PlayerCamera.Radius = 16.f;
 
-    State->RigidBodiesCount = 1;
-    State->RigidBodies = PushArray(&State->WorldArena, State->RigidBodiesCount, rigid_body);
-
-    {
-        rigid_body *Body = State->RigidBodies + 0;
-        *Body = {};
-        Body->PrevPosition = vec3(0.f, 3.f, 0.f);
-        Body->Position = vec3(0.f, 3.f, 0.f);
-        Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-        Body->Damping = 0.0001f;
-        Body->HalfSize = vec3(1.f, 3.f, 1.f);
-        SetRigidBodyMass(Body, 75.f);
-    }
-
-    {
-        rigid_body *Body = State->RigidBodies + 1;
-        *Body = {};
-        Body->PrevPosition = vec3(5.f, 10.f, 0.f);
-        Body->Position = vec3(5.f, 10.f, 0.f);
-        Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-        Body->Damping = 0.0001f;
-        Body->HalfSize = vec3(1.f);
-        SetRigidBodyMass(Body, 10.f);
-    }
-
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
     State->DirectionalColor = vec3(1.f);
@@ -350,7 +325,7 @@ GAME_INIT(GameInit)
 
             f32 z = j * 4.f + 1.f;
 
-            vec3 Position = vec3(x, 0.f, z);
+            vec3 Position = vec3(x, -0.2f, z);
             vec3 HalfSize = vec3(2.f, 0.2f, 2.f);
             quat Orientation = quat(0.f);
             Instance->Model = Transform(CreateTransform(Position, vec3(HalfSize.x, 2.f, HalfSize.z), Orientation));
@@ -378,17 +353,65 @@ GAME_INIT(GameInit)
     State->CurrentMove = vec2(0.f);
     State->TargetMove = vec2(0.f);
 
-    State->Player = {};
-    State->Player.Model = &State->YBotModel;
-    State->Player.RigidBody = State->RigidBodies + 0;
-    State->Player.Offset = vec3(0.f, -3.f, 0.f);
-    State->Player.State = EntityState_Idle;
-    // 
+    State->EntityCount = 3;
+    State->Entities = PushArray(&State->WorldArena, State->EntityCount, entity);
+
+    {
+        entity *Entity = State->Entities + 0;
+
+        State->Player = Entity;
+
+        State->Player->Model = &State->YBotModel;
+
+        State->Player->Body = PushType(&State->WorldArena, rigid_body);
+        State->Player->Body->PrevPosition = vec3(0.f, 3.f, 0.f);
+        State->Player->Body->Position = vec3(0.f, 3.f, 0.f);
+        State->Player->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+        State->Player->Body->Damping = 0.0001f;
+        State->Player->Body->HalfSize = vec3(1.f, 3.f, 1.f);
+        SetRigidBodyMass(State->Player->Body, 75.f);
+
+        State->Player->Offset = vec3(0.f, -3.f, 0.f);
+        State->Player->State = EntityState_Idle;
+
+        State->Player->Animation = PushType(&State->WorldArena, animation_graph);
+        BuildAnimationGraph(State->Player->Animation, State->Player->Model, &State->WorldArena, &State->RNG);
+        ActivateAnimationNode(State->Player->Animation, "Idle_Node");
+    }
+
+    {
+        entity *Entity = State->Entities + 1;
+
+        Entity->Model = &State->SkullModel;
+
+        Entity->Body = PushType(&State->WorldArena, rigid_body);
+        Entity->Body->PrevPosition = vec3(0.f, 0.f, 0.f);
+        Entity->Body->Position = vec3(0.f, 0.f, 0.f);
+        Entity->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+        Entity->Body->Damping = 0.0001f;
+        Entity->Body->HalfSize = vec3(0.2f);
+        SetRigidBodyMass(Entity->Body, 1.f);
+
+        Entity->Offset = vec3(0.f, -0.2f, 0.f);
+    }
+
+    {
+        entity *Entity = State->Entities + 2;
+
+        Entity->Model = &State->SkullModel;
+
+        Entity->Body = PushType(&State->WorldArena, rigid_body);
+        Entity->Body->PrevPosition = vec3(0.f, 0.f, 0.f);
+        Entity->Body->Position = vec3(0.f, 0.f, 0.f);
+        Entity->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+        Entity->Body->Damping = 0.0001f;
+        Entity->Body->HalfSize = vec3(0.2f);
+        SetRigidBodyMass(Entity->Body, 1.f);
+
+        Entity->Offset = vec3(0.f, -0.2f, 0.f);
+    }
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
-
-    BuildAnimationGraph(&State->Player.Animation, State->Player.Model, &State->WorldArena, &State->RNG);
-    ActivateAnimationNode(&State->Player.Animation, "Idle_Node");
 }
 
 extern "C" DLLExport
@@ -404,7 +427,7 @@ GAME_PROCESS_INPUT(GameProcessInput)
     f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
     Assert(0.f <= Lag && Lag <= 1.f);
 
-    vec3 PlayerPosition = Lerp(State->Player.RigidBody->PrevPosition, Lag, State->Player.RigidBody->Position);
+    vec3 PlayerPosition = Lerp(State->Player->Body->PrevPosition, Lag, State->Player->Body->Position);
 
     vec2 Move = Input->Move.Range;
 
@@ -434,23 +457,65 @@ GAME_PROCESS_INPUT(GameProcessInput)
     {
         State->Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32)Parameters->WindowWidth, (f32)Parameters->WindowHeight), &State->FreeCamera);
 
+        f32 MinDistance = F32_MAX;
+
+        entity *SelectedEntity = 0;
+        // todo: ?
+        render_instance *SelectedInstance = 0;
+
+        for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+        {
+            entity *Entity = State->Entities + EntityIndex;
+            rigid_body *Body = Entity->Body;
+            aabb Box = GetRigidBodyAABB(Body);
+
+            Entity->IsSelected = false;
+
+            vec3 IntersectionPoint;
+            if (HitBoundingBox(State->Ray, Box, IntersectionPoint))
+            {
+                f32 Distance = Magnitude(IntersectionPoint - State->FreeCamera.Position);
+
+                if (Distance < MinDistance)
+                {
+                    MinDistance = Distance;
+                    SelectedEntity = Entity;
+                }
+            }
+        }
+
         for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
         {
             entity *Entity = State->Batch.Entities + EntityIndex;
+            render_instance *Instance = State->Batch.Instances + EntityIndex;
+            
             aabb EntityBox = GetRigidBodyAABB(Entity->Body);
 
             Entity->IsSelected = false;
+            Instance->Flags = 0;
 
             vec3 IntersectionPoint;
             //if (IntersectRayAABB(State->Ray, EntityBox, &IntersectionPoint))
             if (HitBoundingBox(State->Ray, EntityBox, IntersectionPoint))
             {
-                render_instance *Instance = State->Batch.Instances + EntityIndex;
+                f32 Distance = Magnitude(IntersectionPoint - State->FreeCamera.Position);
 
-                Entity->IsSelected = true;
+                if (Distance < MinDistance)
+                {
+                    MinDistance = Distance;
+                    SelectedEntity = Entity;
+                    SelectedInstance = Instance;
+                }
+            }
+        }
 
-                // todo: peak closest?
-                //break;
+        if (SelectedEntity)
+        {
+            SelectedEntity->IsSelected = true;
+
+            if (SelectedInstance)
+            {
+                SelectedInstance->Flags |= RenderMesh_Highlight;
             }
         }
     }
@@ -520,10 +585,8 @@ GAME_PROCESS_INPUT(GameProcessInput)
 
             State->TargetMove = Move;
 
-            State->Player.RigidBody->Acceleration.x = (xMoveX + xMoveY) * 120.f;
-            State->Player.RigidBody->Acceleration.z = (zMoveX + zMoveY) * 120.f;
-
-            f32 CrossFadeDuration = 0.2f;
+            State->Player->Body->Acceleration.x = (xMoveX + xMoveY) * 120.f;
+            State->Player->Body->Acceleration.z = (zMoveX + zMoveY) * 120.f;
 
             quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
 
@@ -532,26 +595,35 @@ GAME_PROCESS_INPUT(GameProcessInput)
                 State->LerperQuat.IsEnabled = true;
                 State->LerperQuat.Time = 0.f;
                 State->LerperQuat.Duration = 0.2f;
-                State->LerperQuat.From = State->Player.RigidBody->Orientation;
+                State->LerperQuat.From = State->Player->Body->Orientation;
                 State->LerperQuat.To = PlayerOrientation;
-                State->LerperQuat.Result = &State->Player.RigidBody->Orientation;
+                State->LerperQuat.Result = &State->Player->Body->Orientation;
+            }
+            else
+            {
+                State->LerperQuat.IsEnabled = false;
+                State->LerperQuat.Time = 0.f;
+                State->LerperQuat.Duration = 0.f;
+                State->LerperQuat.From = quat(0.f);
+                State->LerperQuat.To = quat(0.f);
+                State->LerperQuat.Result = 0;
             }
 
 #if 1
-            switch (State->Player.State)
+            switch (State->Player->State)
             {
                 case EntityState_Idle:
                 {
                     if (Input->Crouch.IsActivated)
                     {
-                        State->Player.State = EntityState_Dance;
-                        TransitionToNode(&State->Player.Animation, "Dance_Node");
+                        State->Player->State = EntityState_Dance;
+                        TransitionToNode(State->Player->Animation, "Dance_Node");
                     }
                     
                     if (MoveMaginute > 0.f)
                     {
-                        State->Player.State = EntityState_Moving;
-                        TransitionToNode(&State->Player.Animation, "Move_Node");
+                        State->Player->State = EntityState_Moving;
+                        TransitionToNode(State->Player->Animation, "Move_Node");
                     }
 
                     break;
@@ -560,18 +632,18 @@ GAME_PROCESS_INPUT(GameProcessInput)
                 {
                     if (MoveMaginute < EPSILON)
                     {
-                        State->Player.State = EntityState_Idle;
-                        TransitionToNode(&State->Player.Animation, "Idle_Node");
+                        State->Player->State = EntityState_Idle;
+                        TransitionToNode(State->Player->Animation, "Idle_Node");
                     }
 
                     break;
                 }
                 case EntityState_Dance:
                 {
-                    if (Input->Crouch.IsActivated)
+                    if (Input->Crouch.IsActivated && MoveMaginute < EPSILON)
                     {
-                        State->Player.State = EntityState_Idle;
-                        TransitionToNode(&State->Player.Animation, "Idle_Node");
+                        State->Player->State = EntityState_Idle;
+                        TransitionToNode(State->Player->Animation, "Idle_Node");
                     }
 
                     break;
@@ -635,11 +707,12 @@ GAME_UPDATE(GameUpdate)
         State->Advance = false;
         State->BackgroundColor = vec3(0.f);
 
-        for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
+#if 1
+        //for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
         {
-            rigid_body *Body = State->RigidBodies + RigidBodyIndex;
+            rigid_body *Body = State->Player->Body;
 
-            AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
+            //AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
             Integrate(Body, Parameters->UpdateRate);
 
             aabb BodyAABB = GetRigidBodyAABB(Body);
@@ -654,7 +727,7 @@ GAME_UPDATE(GameUpdate)
                 Body->Acceleration = vec3(0.f);
             }
 
-            for (u32 OtherRigidBodyIndex = RigidBodyIndex + 1; OtherRigidBodyIndex < State->RigidBodiesCount; ++OtherRigidBodyIndex)
+            /*for (u32 OtherRigidBodyIndex = RigidBodyIndex + 1; OtherRigidBodyIndex < State->RigidBodiesCount; ++OtherRigidBodyIndex)
             {
                 rigid_body *OtherBody = State->RigidBodies + OtherRigidBodyIndex;
 
@@ -664,8 +737,9 @@ GAME_UPDATE(GameUpdate)
                 {
                     State->BackgroundColor = vec3(1.f, 0.f, 0.f);
                 }
-            }
+            }*/
         }
+#endif
     }
 }
 
@@ -681,7 +755,7 @@ GAME_RENDER(GameRender)
 
     f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
-    vec3 PlayerPosition = Lerp(State->Player.RigidBody->PrevPosition, Lag, State->Player.RigidBody->Position);
+    vec3 PlayerPosition = Lerp(State->Player->Body->PrevPosition, Lag, State->Player->Body->Position);
 
     SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
     
@@ -707,6 +781,8 @@ GAME_RENDER(GameRender)
                 Clear(RenderCommands, vec4(State->BackgroundColor, 1.f));
             }
 
+            SetTime(RenderCommands, Parameters->Time);
+
             f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
             SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
             
@@ -725,12 +801,12 @@ GAME_RENDER(GameRender)
             //DrawLine(RenderCommands, Ray.Origin, Ray.Origin + Ray.Direction * 100.f, vec4(1.f, 0.f, 1.f, 1.f), 4.f);
             
             // todo: pretty expensive
-            DrawGround(RenderCommands, Camera->Position);
+            //DrawGround(RenderCommands, Camera->Position);
 
-            if (State->Player.State == EntityState_Dance)
+            if (State->Player->State == EntityState_Dance)
             {
-                f32 Time = Parameters->Time * 11.f;
-                State->DirectionalColor = vec3(Sin(Time), Cos(Time), Sin(Time)) * 0.8f;
+                //f32 Time = Parameters->Time * 11.f;
+                //State->DirectionalColor = vec3(Sin(Time), Cos(Time), Sin(Time)) * 0.8f;
             }
             else
             {
@@ -811,24 +887,27 @@ GAME_RENDER(GameRender)
             vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
             State->CurrentMove += dMove * Parameters->Delta;
 
-            skeleton_pose *Pose = State->Player.Model->Pose;
+            skeleton_pose *Pose = State->Player->Model->Pose;
             
             // todo: ?
-            (State->Player.Animation.Nodes + 1)->Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+            (State->Player->Animation->Nodes + 1)->Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
 
-            AnimationGraphPerFrameUpdate(&State->Player.Animation, Parameters->Delta);
-            GetSkeletonPose(&State->Player.Animation, Pose, &State->WorldArena);
+            AnimationGraphPerFrameUpdate(State->Player->Animation, Parameters->Delta);
+            GetSkeletonPose(State->Player->Animation, Pose, &State->WorldArena);
 
             transform PlayerTransform = CreateTransform(
-                PlayerPosition + State->Player.Offset,
+                PlayerPosition + State->Player->Offset,
                 vec3(3.f),
-                State->Player.RigidBody->Orientation
+                State->Player->Body->Orientation
             );
             UpdateGlobalJointPoses(Pose, PlayerTransform);
 
             if (State->ShowModel)
             {
-                DrawSkinnedModel(RenderCommands, State->Player.Model, Pose, PlayerTransform, PointLight1, PointLight2);
+                u32 Flags = 0;
+                Flags |= State->Player->IsSelected ? RenderMesh_Highlight : 0;
+
+                DrawSkinnedModel(RenderCommands, State->Player->Model, Pose, PlayerTransform, Flags, PointLight1, PointLight2);
             }
 
             if (State->ShowSkeleton)
@@ -838,49 +917,70 @@ GAME_RENDER(GameRender)
 
             DrawModelInstanced(RenderCommands, (State->Batch.Entities + 0)->Model, State->Batch.EntityCount, State->Batch.Instances, PointLight1, PointLight2);
 
+            // Drawing flying skulls
             {
-                transform Transform = CreateTransform(PointLight1Position, vec3(1.f), State->Player.RigidBody->Orientation);
+                entity *Skull = State->Entities + 1;
+                Skull->Body->PrevPosition = PointLight1Position;
+                Skull->Body->Position = PointLight1Position;
+                Skull->Body->Orientation = State->Player->Body->Orientation;
+
+                transform Transform = CreateTransform(Skull->Body->Position + Skull->Offset, vec3(1.f), Skull->Body->Orientation);
                 material Material = CreateMaterial(MaterialType_Unlit, PointLight1Color, true);
 
-                DrawModel(RenderCommands, &State->SkullModel, Transform, PointLight1, PointLight2);
-            }
-            {
-                transform Transform = CreateTransform(PointLight2Position, vec3(1.f), State->Player.RigidBody->Orientation);
-                material Material = CreateMaterial(MaterialType_Unlit, PointLight2Color, true);
-
-                DrawModel(RenderCommands, &State->SkullModel, Transform, PointLight1, PointLight2);
+                DrawModel(RenderCommands, Skull->Model, Transform, 0, PointLight1, PointLight2);
             }
 
-            for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
             {
-                rigid_body *Body = State->RigidBodies + RigidBodyIndex;
+                entity *Skull = State->Entities + 2;
+                Skull->Body->PrevPosition = PointLight2Position;
+                Skull->Body->Position = PointLight2Position;
+                Skull->Body->Orientation = State->Player->Body->Orientation;
 
-                vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
-                transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
+                transform Transform = CreateTransform(Skull->Body->Position + Skull->Offset, vec3(1.f), Skull->Body->Orientation);
+                material Material = CreateMaterial(MaterialType_Unlit, PointLight1Color, true);
 
-                vec3 Color = vec3(1.f, 1.f, 0.f);
-                material Material = CreateMaterial(MaterialType_Unlit, Color, true);
-                //DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
+                DrawModel(RenderCommands, Skull->Model, Transform, 0, PointLight1, PointLight2);
             }
 
-            for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
+            // todo: merge?
+#if 1
+            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
-                entity *Entity = State->Batch.Entities + EntityIndex;
-                rigid_body *Body = Entity->Body;
-
-                vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
-                transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
-
-                vec3 Color = vec3(1.f, 1.f, 0.f);
+                entity *Entity = State->Entities + EntityIndex;
 
                 if (Entity->IsSelected)
                 {
-                    Color = vec3(1.f, 0.f, 0.f);
-                }
+                    rigid_body *Body = Entity->Body;
 
-                material Material = CreateMaterial(MaterialType_Unlit, Color, true);
-                DrawModel(RenderCommands, &State->CubeModel, Transform, Material, {}, {});
+                    vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
+                    transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
+
+                    vec3 Color = vec3(1.f, 1.f, 0.f);
+                    material Material = CreateMaterial(MaterialType_Unlit, Color, true);
+                    DrawModel(RenderCommands, &State->CubeModel, Transform, 0, Material, {}, {});
+                }
             }
+#endif
+
+#if 1
+            for (u32 EntityIndex = 0; EntityIndex < State->Batch.EntityCount; ++EntityIndex)
+            {
+                entity *Entity = State->Batch.Entities + EntityIndex;
+
+                if (Entity->IsSelected)
+                {
+                    rigid_body *Body = Entity->Body;
+
+                    vec3 Position = Lerp(Body->PrevPosition, Lag, Body->Position);
+                    transform Transform = CreateTransform(Position, Body->HalfSize, Body->Orientation);
+
+                    vec3 Color = vec3(1.f, 1.f, 0.f);
+
+                    material Material = CreateMaterial(MaterialType_Unlit, Color, true);
+                    DrawModel(RenderCommands, &State->CubeModel, Transform, 0, Material, {}, {});
+                }
+            }
+#endif
 
             break;
         }

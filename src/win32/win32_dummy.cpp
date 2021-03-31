@@ -1,12 +1,24 @@
 #include <windows.h>
 
-#include <glad/glad.c>
-
 #include "dummy_defs.h"
 #include "dummy_platform.h"
 #include "dummy_string.h"
 #include "dummy_math.h"
 #include "win32_dummy.h"
+
+inline FILETIME
+Win32GetLastWriteTime(char *FileName)
+{
+    FILETIME LastWriteTime = {};
+
+    WIN32_FILE_ATTRIBUTE_DATA FileInformation;
+    if (GetFileAttributesExA(FileName, GetFileExInfoStandard, &FileInformation))
+    {
+        LastWriteTime = FileInformation.ftLastWriteTime;
+    }
+
+    return LastWriteTime;
+}
 
 #include "win32_dummy_opengl.cpp"
 #include "dummy_opengl.cpp"
@@ -519,6 +531,11 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                 {
                     Win32ProcessKeyboardInput(KeyboardInput, PlatformState, &WindowMessage);
                 }
+
+                // pass event to imgui
+                TranslateMessage(&WindowMessage);
+                DispatchMessage(&WindowMessage);
+
                 break;
             }
             case WM_MOUSEMOVE:
@@ -615,32 +632,46 @@ PLATFORM_READ_FILE(Win32ReadFile)
 {
     read_file_result Result = {};
 
-    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     if (FileHandle != INVALID_HANDLE_VALUE)
     {
         LARGE_INTEGER FileSize;
         if (GetFileSizeEx(FileHandle, &FileSize))
         {
             u32 FileSize32 = (u32)FileSize.QuadPart;
-            Result.Contents = PushSize(Arena, FileSize32);
+            // Save room for the terminating NULL character. 
+            u32 BufferSize = Text ? FileSize32 + 1 : FileSize32;
+
+            Result.Contents = PushSize(Arena, BufferSize);
 
             DWORD BytesRead;
-            if (ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, 0) && FileSize32 == BytesRead)
+            if (ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, 0) && BytesRead == FileSize32)
             {
                 Result.Size = FileSize32;
+                
+                if (Text)
+                {
+                    u8 *NullTerminator = (u8 *)Result.Contents + BytesRead;
+                    *NullTerminator = 0;
+                }
             }
             else
             {
+                DWORD Error = GetLastError();
                 Assert(!"ReadFile failed");
             }
         }
         else
         {
+            DWORD Error = GetLastError();
             Assert(!"GetFileSizeEx failed");
         }
+
+        CloseHandle(FileHandle);
     }
     else
     {
+        DWORD Error = GetLastError();
         Assert(!"CreateFileA failed");
     }
 
@@ -762,12 +793,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 1600;
-    PlatformState.WindowHeight = 900;
+    PlatformState.WindowWidth = 3200;
+    PlatformState.WindowHeight = 1800;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.VSync = true;
+    PlatformState.VSync = false;
     PlatformState.TimeRate = 1.f;
 
     LARGE_INTEGER PerformanceFrequency;
@@ -837,9 +868,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         win32_opengl_state Win32OpenGLState = {};
 
-        // todo: do I really need memory arena inside renderer?
         umm RendererArenaSize = Megabytes(32);
         InitMemoryArena(&Win32OpenGLState.OpenGL.Arena, Win32AllocateMemory(0, RendererArenaSize), RendererArenaSize);
+
+        Win32OpenGLState.OpenGL.Platform = &PlatformApi;
+
         Win32InitOpenGL(&Win32OpenGLState, hInstance, PlatformState.WindowHandle);
         Win32OpenGLSetVSync(&Win32OpenGLState, PlatformState.VSync);
 
@@ -879,11 +912,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         // Game Loop
         while (PlatformState.IsGameRunning)
         {
+            ImGuiIO &DebugInput = ImGui::GetIO();
+
             Win32ProcessWindowMessages(&PlatformState, &KeyboardInput, &MouseInput);
-            if (PlatformState.IsWindowActive)
-            {
-                Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
-            }
+            Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
 
             FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
             if (CompareFileTime(&NewDLLWriteTime, &GameCode.LastWriteTime) != 0)
@@ -901,8 +933,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameInput = {};
 
                 XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
-                KeyboardInput2GameInput(&KeyboardInput, &GameInput);
-                MouseInput2GameInput(&MouseInput, &GameInput, GameParameters.Delta);
+
+                if (!DebugInput.WantCaptureKeyboard)
+                {
+                    KeyboardInput2GameInput(&KeyboardInput, &GameInput);
+                }
+
+                if (!DebugInput.WantCaptureMouse)
+                {
+                    MouseInput2GameInput(&MouseInput, &GameInput, GameParameters.Delta);
+                }
 
                 GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
 
@@ -947,19 +987,24 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
-            if (IsButtonActivated(&KeyboardInput.Plus))
+            if (!DebugInput.WantCaptureKeyboard)
             {
-                PlatformState.TimeRate *= 2.f;
-            }
-            if (IsButtonActivated(&KeyboardInput.Minus))
-            {
-                PlatformState.TimeRate *= 0.5f;
+                if (IsButtonActivated(&KeyboardInput.Plus))
+                {
+                    PlatformState.TimeRate *= 2.f;
+                }
+                if (IsButtonActivated(&KeyboardInput.Minus))
+                {
+                    PlatformState.TimeRate *= 0.5f;
+                }
             }
 
             Clamp(&PlatformState.TimeRate, 0.125f, 2.f);
 
             u64 DeltaPerformanceCounter = CurrentPerformanceCounter.QuadPart - LastPerformanceCounter.QuadPart;
             f32 Delta = (f32)DeltaPerformanceCounter / (f32)PlatformState.PerformanceFrequency;
+            // ?
+            Delta = Min(Delta, 1.f);
 
             GameParameters.Delta = PlatformState.TimeRate * Delta;
             GameParameters.Time += GameParameters.Delta;

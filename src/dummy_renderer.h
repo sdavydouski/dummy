@@ -55,9 +55,15 @@ struct spot_light
     light_attenuation Attenuation;
 };
 
+enum render_mesh_flags
+{
+    RenderMesh_Highlight = 0x1
+};
+
 struct render_instance
 {
     mat4 Model;
+    u32 Flags;
 };
 
 enum render_command_type
@@ -71,6 +77,7 @@ enum render_command_type
     RenderCommand_SetPerspectiveProjection,
     RenderCommand_SetCamera,
     RenderCommand_SetDirectionalLight,
+    RenderCommand_SetTime,
 
     RenderCommand_Clear,
     
@@ -173,6 +180,12 @@ struct render_command_set_directional_light
     directional_light Light;
 };
 
+struct render_command_set_time
+{
+    render_command_header Header;
+    f32 Time;
+};
+
 struct render_command_clear
 {
     render_command_header Header;
@@ -209,6 +222,7 @@ struct render_command_draw_mesh
     u32 MeshId;
 
     transform Transform;
+    u32 Flags;
 
     material Material;
 
@@ -223,6 +237,7 @@ struct render_command_draw_skinned_mesh
     u32 MeshId;
 
     transform Transform;
+    u32 Flags;
 
     material Material;
 

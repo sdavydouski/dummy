@@ -32,6 +32,20 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "glad", "glad", "{1A5F8808-6
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "assets_builder", "assets_builder\assets_builder.vcxproj", "{0964849F-7896-4266-9242-BEAAAAF15CD5}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shaders", "shaders", "{01085C6A-6694-4A34-8EDD-211E6D4B9BBC}"
+	ProjectSection(SolutionItems) = preProject
+		renderers\OpenGL\shaders\forward_shading.frag = renderers\OpenGL\shaders\forward_shading.frag
+		renderers\OpenGL\shaders\forward_shading.vert = renderers\OpenGL\shaders\forward_shading.vert
+		renderers\OpenGL\shaders\framebuffer.frag = renderers\OpenGL\shaders\framebuffer.frag
+		renderers\OpenGL\shaders\framebuffer.vert = renderers\OpenGL\shaders\framebuffer.vert
+		renderers\OpenGL\shaders\ground.frag = renderers\OpenGL\shaders\ground.frag
+		renderers\OpenGL\shaders\ground.vert = renderers\OpenGL\shaders\ground.vert
+		renderers\OpenGL\shaders\instanced_forward_shading.vert = renderers\OpenGL\shaders\instanced_forward_shading.vert
+		renderers\OpenGL\shaders\simple.frag = renderers\OpenGL\shaders\simple.frag
+		renderers\OpenGL\shaders\simple.vert = renderers\OpenGL\shaders\simple.vert
+		renderers\OpenGL\shaders\skinned_mesh.vert = renderers\OpenGL\shaders\skinned_mesh.vert
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -71,6 +85,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{68A7B3C9-664F-4610-813C-8954F4AAE036} = {3E191EB3-512A-46B4-A48B-DE0918E1FF94}
 		{1A5F8808-61F9-4753-9608-C7ABE5CC337A} = {68A7B3C9-664F-4610-813C-8954F4AAE036}
+		{01085C6A-6694-4A34-8EDD-211E6D4B9BBC} = {68A7B3C9-664F-4610-813C-8954F4AAE036}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3FF4CA08-A1FC-4054-A392-813D6849B305}

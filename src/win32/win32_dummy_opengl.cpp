@@ -1,4 +1,5 @@
 #include <glad/glad.h>
+#include <glad/glad.c>
 #include <wglext.h>
 
 #include "dummy_opengl.h"

@@ -32,10 +32,13 @@ enum entity_state
 
 struct entity
 {
-    b32 IsSelected;
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
+
+    b32 IsSelected;
+    vec3 Offset;
+    entity_state State;
 };
 
 struct entity_batch
@@ -44,17 +47,6 @@ struct entity_batch
     u32 MaxEntityCount;
     entity *Entities;
     render_instance *Instances;
-};
-
-struct game_player
-{
-    vec3 Offset;
-    entity_state State;
-
-    // todo: entity
-    model *Model;
-    rigid_body *RigidBody;
-    animation_graph Animation;
 };
 
 // todo: !!!
@@ -91,9 +83,6 @@ struct game_state
     game_camera FreeCamera;
     game_camera PlayerCamera;
 
-    u32 RigidBodiesCount;
-    rigid_body *RigidBodies;
-
     plane Ground;
 
     ray Ray;
@@ -106,7 +95,12 @@ struct game_state
     model FloorModel;
     model WallModel;
 
-    game_player Player;
+
+    u32 EntityCount;
+    entity *Entities;
+
+    entity *Player;
+
     entity_batch Batch;
 
     lerper_quat LerperQuat;

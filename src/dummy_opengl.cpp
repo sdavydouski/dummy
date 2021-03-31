@@ -1,7 +1,5 @@
-#include "dummy_opengl_shaders.h"
-
 internal GLuint
-CreateShader(GLenum Type, char *Source)
+CreateShader(GLenum Type, char *Source, b32 CrashIfError = true)
 {
     GLuint Shader = glCreateShader(Type);
     glShaderSource(Shader, 1, &Source, NULL);
@@ -18,15 +16,19 @@ CreateShader(GLenum Type, char *Source)
         glGetShaderInfoLog(Shader, LogLength, NULL, ErrorLog);
 
         glDeleteShader(Shader);
+        Shader = 0;
 
-        Assert(!ErrorLog);
+        if (CrashIfError)
+        {
+            Assert(!ErrorLog);
+        }
     }
 
     return Shader;
 }
 
 internal GLuint
-CreateProgram(GLuint VertexShader, GLuint FragmentShader)
+CreateProgram(GLuint VertexShader, GLuint FragmentShader, b32 CrashIfError = true)
 {
     GLuint Program = glCreateProgram();
     glAttachShader(Program, VertexShader);
@@ -46,14 +48,20 @@ CreateProgram(GLuint VertexShader, GLuint FragmentShader)
         char ErrorLog[256];
         glGetProgramInfoLog(Program, LogLength, NULL, ErrorLog);
 
-        Assert(!ErrorLog);
+        glDeleteProgram(Program);
+        Program = 0;
+
+        if (CrashIfError)
+        {
+            Assert(!ErrorLog);
+        }
     }
 
     return Program;
 }
 
 internal void
-InitLine(opengl_state *State)
+OpenGLInitLine(opengl_state *State)
 {
     vec3 LineVertices[] = {
         vec3(0.f, 0.f, 0.f),
@@ -75,7 +83,7 @@ InitLine(opengl_state *State)
 }
 
 internal void
-InitRectangle(opengl_state *State)
+OpenGLInitRectangle(opengl_state *State)
 {
     f32 RectangleVertices[] = {
         // potisions     // uvs
@@ -152,7 +160,7 @@ OpenGLGetTexture(opengl_state *State, u32 Id)
 inline opengl_shader *
 OpenGLGetShader(opengl_state *State, u32 Id)
 {
-    opengl_shader *Result = State->Shaders + Id;
+    opengl_shader *Result = 0;
 
     for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
     {
@@ -288,6 +296,10 @@ OpenGLAddMeshBufferInstanced(
     glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
     glVertexAttribDivisor(10, 1);
 
+    glEnableVertexAttribArray(11);
+    glVertexAttribIPointer(11, 1, GL_UNSIGNED_INT, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Flags)));
+    glVertexAttribDivisor(11, 1);
+
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u32), Indices, GL_STATIC_DRAW);
@@ -343,16 +355,9 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
 }
 
 internal void
-OpenGLAddShader(opengl_state *State, u32 Id, char *VertexShaderSource, char *FragmentShaderSource)
+OpenGLLoadShaderUniforms(opengl_shader *Shader)
 {
-    GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, VertexShaderSource);
-    GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, FragmentShaderSource);
-    GLuint Program = CreateProgram(VertexShader, FragmentShader);
-
-    opengl_shader *Shader = State->Shaders + State->CurrentShaderCount++;
-
-    Shader->Id = Id;
-    Shader->Program = Program;
+    GLuint Program = Shader->Program;
 
     Shader->ModelUniformLocation = glGetUniformLocation(Program, "u_Model");
     Shader->ViewUniformLocation = glGetUniformLocation(Program, "u_View");
@@ -395,6 +400,120 @@ OpenGLAddShader(opengl_state *State, u32 Id, char *VertexShaderSource, char *Fra
 
     Shader->ScreenTextureUniformLocation = glGetUniformLocation(Program, "u_ScreenTexture");
     Shader->TimeUniformLocation = glGetUniformLocation(Program, "u_Time");
+    // todo:
+    Shader->MeshFlagsUniformLocation = glGetUniformLocation(Program, "u_Highlight");
+}
+
+internal void
+OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *FragmentShaderFileName)
+{
+    opengl_shader *Shader = State->Shaders + State->CurrentShaderCount++;
+
+    // Loading shaders from files
+    scoped_memory ScopedMemory(&State->Arena);
+
+    read_file_result VertexShaderFile = State->Platform->ReadFile(VertexShaderFileName, ScopedMemory.Arena, true);
+    char *VertexShaderSource = (char *)VertexShaderFile.Contents;
+
+    read_file_result FragmentShaderFile = State->Platform->ReadFile(FragmentShaderFileName, ScopedMemory.Arena, true);
+    char *FragmentShaderSource = (char *)FragmentShaderFile.Contents;
+    //
+
+    GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, VertexShaderSource);
+    GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, FragmentShaderSource);
+    GLuint Program = CreateProgram(VertexShader, FragmentShader);
+
+    Shader->Id = Id;
+    Shader->Program = Program;
+
+    CopyString(VertexShaderFileName, Shader->VertexShaderFileName, MAX_SHADER_FILE_PATH);
+    CopyString(FragmentShaderFileName, Shader->FragmentShaderFileName, MAX_SHADER_FILE_PATH);
+
+#if WIN32_RELOADABLE_SHADERS
+    Shader->LastVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShaderFileName);
+    Shader->LastFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShaderFileName);
+#endif
+
+    OpenGLLoadShaderUniforms(Shader);
+}
+
+internal void
+OpenGLReloadShader(opengl_state *State, u32 Id)
+{
+    opengl_shader *Shader = OpenGLGetShader(State, Id);
+
+    // Loading shaders from files
+    scoped_memory ScopedMemory(&State->Arena);
+
+    read_file_result VertexShaderFile = State->Platform->ReadFile(Shader->VertexShaderFileName, ScopedMemory.Arena, true);
+    char *VertexShaderSource = (char *)VertexShaderFile.Contents;
+
+    read_file_result FragmentShaderFile = State->Platform->ReadFile(Shader->FragmentShaderFileName, ScopedMemory.Arena, true);
+    char *FragmentShaderSource = (char *)FragmentShaderFile.Contents;
+    //
+    
+    GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, VertexShaderSource, false);
+    GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, FragmentShaderSource, false);
+    GLuint Program = 0;
+
+    if (VertexShader && FragmentShader)
+    {
+        Program = CreateProgram(VertexShader, FragmentShader, false);
+    }
+
+    if (Program)
+    {
+        glDeleteProgram(Shader->Program);
+        Shader->Program = Program;
+
+        OpenGLLoadShaderUniforms(Shader);
+    }
+}
+
+internal void
+OpenGLLoadShaders(opengl_state *State)
+{
+    OpenGLLoadShader(
+        State,
+        OPENGL_SIMPLE_SHADER_ID,
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\simple.vert",
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\simple.frag"
+    );
+
+    OpenGLLoadShader(
+        State,
+        OPENGL_PHONG_SHADING_SHADER_ID,
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.vert",
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+    );
+
+    OpenGLLoadShader(
+        State,
+        OPENGL_SKINNED_PHONG_SHADING_SHADER_ID,
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\skinned_mesh.vert",
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+    );
+
+    OpenGLLoadShader(
+        State,
+        OPENGL_FRAMEBUFFER_SHADER_ID,
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\framebuffer.vert",
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\framebuffer.frag"
+    );
+
+    OpenGLLoadShader(
+        State,
+        OPENGL_GROUND_SHADER_ID,
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\ground.vert",
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\ground.frag"
+    );
+
+    OpenGLLoadShader(
+        State,
+        OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID,
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\instanced_forward_shading.vert",
+        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+    );
 }
 
 internal void
@@ -540,17 +659,47 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_shader *Shader, mesh_materia
     }
 }
 
-// todo: reloadable shaders?
 // todo: fix antialiasing?
 internal void
 OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 {
+#if WIN32_RELOADABLE_SHADERS
+    for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+    {
+        opengl_shader *Shader = State->Shaders + ShaderIndex;
+
+        b32 ShouldReload = false;
+
+        FILETIME NewVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShaderFileName);
+        if (CompareFileTime(&NewVertexShaderWriteTime, &Shader->LastVertexShaderWriteTime) != 0)
+        {
+            Shader->LastVertexShaderWriteTime = NewVertexShaderWriteTime;
+            ShouldReload = true;
+        }
+
+        FILETIME NewFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShaderFileName);
+        if (CompareFileTime(&NewFragmentShaderWriteTime, &Shader->LastFragmentShaderWriteTime) != 0)
+        {
+            Shader->LastFragmentShaderWriteTime = NewFragmentShaderWriteTime;
+            ShouldReload = true;
+        }
+
+        if (ShouldReload)
+        {
+            OpenGLReloadShader(State, Shader->Id);
+        }
+    }
+#endif
+
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
         render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
 
+#if 1
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->Framebuffers[Entry->RenderTarget]);
+#else
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->Framebuffers[Entry->RenderTarget]);
+#endif
 
         switch (Entry->Type)
         {
@@ -558,15 +707,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_init_renderer *Command = (render_command_init_renderer *)Entry;
 
-                InitLine(State);
-                InitRectangle(State);
-
-                OpenGLAddShader(State, OPENGL_SIMPLE_SHADER_ID, SimpleVertexShader, SimpleFragmentShader);
-                OpenGLAddShader(State, OPENGL_PHONG_SHADING_SHADER_ID, ForwardShadingVertexShader, ForwardShadingFragmentShader);
-                OpenGLAddShader(State, OPENGL_SKINNED_PHONG_SHADING_SHADER_ID, SkinnedMeshVertexShader, ForwardShadingFragmentShader);
-                OpenGLAddShader(State, OPENGL_FRAMEBUFFER_SHADER_ID, FramebufferVertexShader, FramebufferFragmentShader);
-                OpenGLAddShader(State, OPENGL_GROUND_SHADER_ID, GroundVertexShader, GroundFragmentShader);
-                OpenGLAddShader(State, OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID, InstancedForwardShadingVertexShader, ForwardShadingFragmentShader);
+                OpenGLInitLine(State);
+                OpenGLInitRectangle(State);
+                OpenGLLoadShaders(State);
 
                 glGenBuffers(1, &State->SkinningTBO);
                 glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
@@ -588,8 +731,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 OpenGLAddTexture(State, 0, &WhiteTexture);
 
-                //glEnable(GL_CULL_FACE);
-                //glCullFace(GL_BACK);
+                glEnable(GL_CULL_FACE);
+                glCullFace(GL_BACK);
+
                 glFrontFace(GL_CCW);
                 glEnable(GL_DEPTH_TEST);
                 glEnable(GL_BLEND);
@@ -756,6 +900,21 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 break;
             }
+            case RenderCommand_SetTime:
+            {
+                render_command_set_time *Command = (render_command_set_time *)Entry;
+
+                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+                {
+                    opengl_shader *Shader = State->Shaders + ShaderIndex;
+
+                    glUseProgram(Shader->Program);
+                    glUniform1f(Shader->TimeUniformLocation, Command->Time);
+                    glUseProgram(0);
+                }
+
+                break;
+            }
             case RenderCommand_Clear:
             {
                 render_command_clear *Command = (render_command_clear *)Entry;
@@ -871,6 +1030,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                         mat4 Model = Transform(Command->Transform);
                         glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
 
+                        glUniform1ui(Shader->MeshFlagsUniformLocation, Command->Flags);
+
                         OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial, &Command->PointLight1, &Command->PointLight2);
 
                         break;
@@ -886,6 +1047,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                         glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
                         glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, 1.f);
+                        glUniform1ui(Shader->MeshFlagsUniformLocation, Command->Flags);
 
                         break;
                     }
@@ -936,6 +1098,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                         glBindTexture(GL_TEXTURE_BUFFER, State->SkinningTBOTexture);
                         glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, State->SkinningTBO);
 
+                        glUniform1ui(Shader->MeshFlagsUniformLocation, Command->Flags);
                         glUniform1i(Shader->SkinningMatricesSamplerUniformLocation, 0);
 
                         OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial, &Command->PointLight1, &Command->PointLight2);

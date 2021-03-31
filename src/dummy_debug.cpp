@@ -35,7 +35,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 }
 
 internal void
@@ -148,9 +148,6 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 
     ImGui::Begin("Game State");
 
-    ImGui::Text("Ray Direction: x: %.3f, y: %.3f, z: %.3f", GameState->Ray.Direction.x, GameState->Ray.Direction.y, GameState->Ray.Direction.z);
-
-
     ImGui::Text("Player:");
 
     static int e0 = 0;
@@ -168,19 +165,21 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
         GameState->ShowSkeleton = true;
     }
 
-    ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player.RigidBody->Position.x, GameState->Player.RigidBody->Position.y, GameState->Player.RigidBody->Position.z);
-    //ImGui::Text("Orientation: x: %.1f, y: %.1f, z: %.1f, w: %.1f", GameState->Player.Orientation.x, GameState->Player.Orientation.y, GameState->Player.Orientation.z, GameState->Player.Orientation.w);
+    ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
 
     ImGui::ColorEdit3("Directional Light Color", (f32 *)&GameState->DirectionalColor);
 
     ImGui::End();
 
+    ImGui::SetNextWindowPos(ImVec2((f32)PlatformState->WindowWidth - 480.f, 10.f));
+
     ImGui::Begin("Animation Graph");
-    RenderAnimationGraphInfo(&GameState->Player.Animation);
+    RenderAnimationGraphInfo(GameState->Player->Animation);
     ImGui::End();
 
     ImGui::Begin("Debug");
 
+    // todo: merge?
     for (u32 EntityIndex = 0; EntityIndex < GameState->Batch.EntityCount; ++EntityIndex)
     {
         entity *Entity = GameState->Batch.Entities + EntityIndex;
@@ -188,8 +187,21 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
         if (Entity->IsSelected)
         {
             ImGui::Text("Selected Entity:");
-            ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", Entity->Body->Position.x, Entity->Body->Position.y, Entity->Body->Position.z);
-            ImGui::Text("Size: x: %.1f, y: %.1f, z: %.1f", 2.f * Entity->Body->HalfSize.x, 2.f * Entity->Body->HalfSize.y, 2.f * Entity->Body->HalfSize.z);
+            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
+            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
+            ImGui::Text("\n");
+        }
+    }
+
+    for (u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
+    {
+        entity *Entity = GameState->Entities + EntityIndex;
+
+        if (Entity->IsSelected)
+        {
+            ImGui::Text("Selected Entity:");
+            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
+            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
             ImGui::Text("\n");
         }
     }
