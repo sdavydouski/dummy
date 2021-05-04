@@ -35,11 +35,54 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
         Mesh->MaterialIndex = MeshHeader->MaterialIndex;
         Mesh->VertexCount = MeshHeader->VertexCount;
         Mesh->IndexCount = MeshHeader->IndexCount;
-        Mesh->Vertices = (skinned_vertex *)((u8 *)Buffer + MeshHeader->VerticesOffset);
+
+        u32 VerticesOffset = 0;
+
+        if (MeshHeader->HasPositions)
+        {
+            Mesh->Positions = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
+        }
+
+        if (MeshHeader->HasNormals)
+        {
+            Mesh->Normals = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
+        }
+
+        if (MeshHeader->HasTangents)
+        {
+            Mesh->Tangents = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
+        }
+
+        if (MeshHeader->HasBitangets)
+        {
+            Mesh->Bitangents = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
+        }
+
+        if (MeshHeader->HasTextureCoords)
+        {
+            Mesh->TextureCoords = (vec2 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(vec2) * MeshHeader->VertexCount;
+        }
+
+        if (MeshHeader->HasWeights)
+        {
+            Mesh->Weights = (vec4 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(vec4) * MeshHeader->VertexCount;
+        }
+
+        if (MeshHeader->HasJointIndices)
+        {
+            Mesh->JointIndices = (i32 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(i32) * 4 * MeshHeader->VertexCount;
+        }
+
         Mesh->Indices = (u32 *)((u8 *)Buffer + MeshHeader->IndicesOffset);
 
-        NextMeshHeaderOffset += sizeof(model_asset_mesh_header) +
-            MeshHeader->VertexCount * sizeof(skinned_vertex) + MeshHeader->IndexCount * sizeof(u32);
+        NextMeshHeaderOffset += sizeof(model_asset_mesh_header) + VerticesOffset + MeshHeader->IndexCount * sizeof(u32);
     }
 
     // Materials

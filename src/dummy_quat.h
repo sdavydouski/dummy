@@ -2,10 +2,21 @@
 
 struct quat
 {
-    f32 x;
-    f32 y;
-    f32 z;
-    f32 w;
+    union
+    {
+        struct
+        {
+            f32 x;
+            f32 y;
+            f32 z;
+            f32 w;
+        };
+
+        struct
+        {
+            f32 Elements[4];
+        };
+    };
 
     explicit quat() = default;
     explicit quat(f32 Value) : x(Value), y(Value), z(Value), w(Value) {}

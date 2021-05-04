@@ -12,6 +12,7 @@ struct rigid_body
     vec3 Acceleration;
 
     quat Orientation;
+    quat_lerp OrientationLerp;
 
     vec3 ForceAccumulator;
 
@@ -56,4 +57,17 @@ GetRigidBodyAABB(rigid_body *Body)
     Result.Max = vec3(Body->Position + Body->HalfSize);
 
     return Result;
+}
+
+inline void
+BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, vec3 HalfSize)
+{
+    Body->PrevPosition = Position;
+    Body->Position = Position;
+    Body->Orientation = Orientation;
+    Body->HalfSize = HalfSize;
+    
+    // todo: don't use at the moment? (except in Integrate)
+    Body->Damping = 0.0001f;
+    Body->InverseMass = 1.f / 100.f;
 }

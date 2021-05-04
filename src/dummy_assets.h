@@ -40,32 +40,30 @@ struct mesh_material
     material_property *Properties;
 };
 
-struct skinned_vertex
-{
-    vec3 Position;
-    vec3 Normal;
-    vec3 Tangent;
-    // todo: calculate bitangent instead of storing it? (fourth weight too)
-    vec3 Bitangent;
-    vec2 TextureCoords;
-    i32 JointIndices[4];
-    vec4 Weights;
-};
-
 struct mesh
 {
     u32 Id;
     u32 MaterialIndex;
 
+    // todo: calculate bitangent instead of storing it? (fourth weight too)
     u32 VertexCount;
-    skinned_vertex *Vertices;
+    vec3 *Positions;
+    vec3 *Normals;
+    vec3 *Tangents;
+    vec3 *Bitangents;
+    vec2 *TextureCoords;
+    vec4 *Weights;
+    i32 *JointIndices;
 
     u32 IndexCount;
     u32 *Indices;
 };
 
+// todo: break this
 struct model
 {
+    char Name[64];
+
     skeleton *Skeleton;
     skeleton_pose *BindPose;
     skeleton_pose *Pose;
@@ -99,6 +97,11 @@ struct model_asset
 };
 
 #pragma pack(push, 1)
+
+struct asset_header
+{
+
+};
 
 struct model_asset_header
 {
@@ -134,6 +137,15 @@ struct model_asset_mesh_header
     u32 MaterialIndex;
     u32 VertexCount;
     u32 IndexCount;
+
+    b32 HasPositions;
+    b32 HasNormals;
+    b32 HasTangents;
+    b32 HasBitangets;
+    b32 HasTextureCoords;
+    b32 HasWeights;
+    b32 HasJointIndices;
+
     u64 VerticesOffset;
     u64 IndicesOffset;
 };

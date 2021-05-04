@@ -1,15 +1,5 @@
-inline plane
-ComputePlane(vec3 a, vec3 b, vec3 c)
-{
-    plane Result;
-    Result.Normal = Normalize(Cross(b - a, c - a));
-    Result.d = Dot(Result.Normal, a);
-
-    return Result;
-}
-
 inline aabb
-CreateAABB(vec3 Min, vec3 Max)
+CreateAABBMinMax(vec3 Min, vec3 Max)
 {
     aabb Result = {};
 
@@ -19,24 +9,114 @@ CreateAABB(vec3 Min, vec3 Max)
     return Result;
 }
 
-inline b32
-TestAABBAABB(aabb a, aabb b)
+inline aabb
+CreateAABBCenterHalfSize(vec3 Center, vec3 HalfSize)
 {
-    // Exit with no intersection if separated along an axis
-    if (a.Max.x < b.Min.x || a.Min.x > b.Max.x)
+    aabb Result = {};
+
+    Result.Min = Center - HalfSize;
+    Result.Max = Center + HalfSize;
+
+    return Result;
+}
+
+inline vec3
+GetAABBHalfSize(aabb Box)
+{
+    vec3 Result = (Box.Max - Box.Min) * 0.5f;
+    return Result;
+}
+
+internal b32
+TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 &mtvAxis, f32 &mtvDistance)
+{
+    // [Separating Axis Theorem]
+    // • Two convex shapes only overlap if they overlap on all axes of separation
+    // • In order to create accurate responses we need to find the collision vector (Minimum Translation Vector)
+    // • Find if the two boxes intersect along a single axis
+    // • Compute the intersection interval for that axis
+    // • Keep the smallest intersection/penetration value
+
+    f32 AxisLengthSquared = Dot(Axis, Axis);
+
+    // If the axis is degenerate then ignore
+    if (AxisLengthSquared < EPSILON)
     {
-        return false;
+        return true;
     }
-    if (a.Max.y < b.Min.y || a.Min.y > b.Max.y)
-    {
-        return false;
-    }
-    if (a.Max.z < b.Min.z || a.Min.z > b.Max.z)
+
+    // Calculate the two possible overlap ranges
+    // Either we overlap on the left or the right sides
+    f32 d0 = (MaxB - MinA);   // 'Left' side
+    f32 d1 = (MaxA - MinB);   // 'Right' side
+
+    // Intervals do not overlap, so no intersection
+    if (d0 <= 0.0f || d1 <= 0.0f)
     {
         return false;
     }
 
-    // Overlapping on all axes means AABBs are intersecting
+    // Find out if we overlap on the 'right' or 'left' of the object.
+    f32 Overlap = (d0 < d1) ? d0 : -d1;
+
+    // The mtd vector for that axis
+    vec3 Sep = Axis * (Overlap / AxisLengthSquared);
+
+    // The mtd vector length squared
+    f32 SepLengthSquared = Dot(Sep, Sep);
+
+    // If that vector is smaller than our computed Minimum Translation Distance use that vector as our current MTV distance
+    if (SepLengthSquared < mtvDistance)
+    {
+        mtvDistance = SepLengthSquared;
+        mtvAxis = Sep;
+    }
+
+    return true;
+}
+
+internal b32
+TestAABBAABB(aabb a, aabb b, vec3 &mtv, f32 &Penetration)
+{
+    // [Minimum Translation Vector]
+    f32 mtvDistance = F32_MAX;              // Set current minimum distance (max float value so next value is always less)
+    vec3 mtvAxis;                           // Axis along which to travel with the minimum distance
+
+    // [Axes of potential separation]
+    // • Each shape must be projected on these axes to test for intersection:
+    // (1, 0, 0)                    A0 (= B0) [X Axis]
+    // (0, 1, 0)                    A1 (= B1) [Y Axis]
+    // (0, 0, 1)                    A1 (= B2) [Z Axis]
+
+    vec3 xAxis = vec3(1.f, 0.f, 0.f);
+    vec3 yAxis = vec3(0.f, 1.f, 0.f);
+    vec3 zAxis = vec3(0.f, 0.f, 1.f);
+
+    // [X Axis]
+    if (!TestAxis(xAxis, a.Min.x, a.Max.x, b.Min.x, b.Max.x, mtvAxis, mtvDistance))
+    {
+        return false;
+    }
+
+    // [Y Axis]
+    if (!TestAxis(yAxis, a.Min.y, a.Max.y, b.Min.y, b.Max.y, mtvAxis, mtvDistance))
+    {
+        return false;
+    }
+
+    // [Z Axis]
+    if (!TestAxis(zAxis, a.Min.z, a.Max.z, b.Min.z, b.Max.z, mtvAxis, mtvDistance))
+    {
+        return false;
+    }
+
+    // Calculate Minimum Translation Vector (MTV) [normal * penetration]
+    mtv = Normalize(mtvAxis);
+
+    // Multiply the penetration depth by itself plus a small increment
+    // When the penetration is resolved using the MTV, it will no longer intersect
+    Penetration = Sqrt(mtvDistance) * 1.001f;
+
     return true;
 }
 
@@ -229,6 +309,57 @@ GetAABBPlaneMinDistance(aabb Box, plane Plane)
     f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.d;
 
     f32 Result = Distance - Radius;
+
+    return Result;
+}
+
+internal aabb
+CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
+{
+    vec3 vMin = Vertices[0];
+    vec3 vMax = Vertices[0];
+
+    for (u32 VertexIndex = 1; VertexIndex < VertexCount; ++VertexIndex)
+    {
+        vec3 *Vertex = Vertices + VertexIndex;
+
+        vMin = Min(vMin, *Vertex);
+        vMax = Max(vMax, *Vertex);
+    }
+
+    aabb Result = {};
+
+    Result.Min = vMin;
+    Result.Max = vMax;
+
+    return Result;
+}
+
+internal aabb
+CalculateAxisAlignedBoundingBox(model *Model)
+{
+    aabb Result = {};
+
+    if (Model->MeshCount > 0)
+    {
+        mesh *FirstMesh = First(Model->Meshes);
+        aabb Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
+
+        vec3 vMin = Box.Min;
+        vec3 vMax = Box.Max;
+
+        for (u32 MeshIndex = 1; MeshIndex < Model->MeshCount; ++MeshIndex)
+        {
+            mesh *Mesh = Model->Meshes + MeshIndex;
+            aabb Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
+
+            vMin = Min(vMin, Box.Min);
+            vMax = Max(vMax, Box.Max);
+        }
+
+        Result.Min = vMin;
+        Result.Max = vMax;
+    }
 
     return Result;
 }

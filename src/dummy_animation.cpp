@@ -488,6 +488,7 @@ AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
         Node->Update(Node->State, Node->Params, Delta);
     }
 
+    // todo: hot-reloading doesn't work for some reason
     switch (Node->Type)
     {
         case AnimationNodeType_SingleMotion:
@@ -897,7 +898,7 @@ GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, 
 }
 
 internal void
-GetSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_arena *Arena)
+CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_arena *Arena)
 {
     u32 ActiveAnimationCount = GetActiveAnimationCount(Graph);
 

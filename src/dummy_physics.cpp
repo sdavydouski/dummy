@@ -105,16 +105,19 @@ ResolveIntepenetration(rigid_body *Body, plane *Plane, f32 Penetration)
 }
 
 inline void
-ResolveIntepenetration(rigid_body *Body, rigid_body *OtherBody, f32 Penetration)
+ResolveIntepenetration(rigid_body *Body, rigid_body *OtherBody, vec3 mtv, f32 Penetration)
 {
+    Assert(Penetration > 0.f);
+
     f32 TotalInverseMass = Body->InverseMass + OtherBody->InverseMass;
 
     //if (Penetration > 0.f)
     if (TotalInverseMass > 0.f)
     {
-        vec3 ContactNormal = Normalize(OtherBody->Position - Body->Position);
+        //vec3 ContactNormal = Normalize(OtherBody->Position - Body->Position);
+        //vec3 MovePerInverseMass = ContantNormal * (-Penetration / TotalInverseMass);
+        vec3 MovePerInverseMass = mtv * (Penetration / TotalInverseMass);
 
-        vec3 MovePerInverseMass = ContactNormal * (-Penetration / TotalInverseMass);
         Body->Position += MovePerInverseMass * Body->InverseMass;
         OtherBody->Position -= MovePerInverseMass * OtherBody->InverseMass;
     }

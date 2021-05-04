@@ -36,7 +36,13 @@ AddMesh(
     render_commands *Commands,
     u32 MeshId,
     u32 VertexCount,
-    skinned_vertex *Vertices,
+    vec3 *Positions,
+    vec3 *Normals,
+    vec3 *Tangents,
+    vec3 *Bitangents,
+    vec2 *TextureCoords,
+    vec4 *Weights,
+    i32 *JointIndices,
     u32 IndexCount,
     u32 *Indices,
     u32 MaxInstanceCount
@@ -45,7 +51,13 @@ AddMesh(
     render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh, 0);
     Command->MeshId = MeshId;
     Command->VertexCount = VertexCount;
-    Command->Vertices = Vertices;
+    Command->Positions = Positions;
+    Command->Normals = Normals;
+    Command->Tangents = Bitangents;
+    Command->Bitangents = Bitangents;
+    Command->TextureCoords = TextureCoords;
+    Command->Weights = Weights;
+    Command->JointIndices = JointIndices;
     Command->IndexCount = IndexCount;
     Command->Indices = Indices;
     Command->MaxInstanceCount = MaxInstanceCount;
@@ -135,10 +147,9 @@ DrawRectangle(render_commands *Commands, transform Transform, vec4 Color, u32 Re
 }
 
 inline void
-DrawGround(render_commands *Commands, vec3 CameraPosition, u32 RenderTarget = 0)
+DrawGround(render_commands *Commands, u32 RenderTarget = 0)
 {
     render_command_draw_ground *Command = PushRenderCommand(Commands, render_command_draw_ground, RenderCommand_DrawGround, RenderTarget);
-    Command->CameraPosition = CameraPosition;
 }
 
 inline void
@@ -146,20 +157,14 @@ DrawMesh(
     render_commands *Commands, 
     u32 MeshId,
     transform Transform,
-    u32 Flags,
     material Material,
-    point_light PointLight1,
-    point_light PointLight2,
     u32 RenderTarget = 0
 )
 {
     render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh, RenderTarget);
     Command->MeshId = MeshId;
     Command->Transform = Transform;
-    Command->Flags = Flags;
     Command->Material = Material;
-    Command->PointLight1 = PointLight1;
-    Command->PointLight2 = PointLight2;
 }
 
 inline void
@@ -167,10 +172,7 @@ DrawSkinnedMesh(
     render_commands *Commands,
     u32 MeshId,
     transform Transform,
-    u32 Flags,
     material Material,
-    point_light PointLight1,
-    point_light PointLight2,
     u32 SkinningMatrixCount,
     mat4 *SkinningMatrices,
     u32 RenderTarget = 0
@@ -180,10 +182,7 @@ DrawSkinnedMesh(
         PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh, RenderTarget);
     Command->MeshId = MeshId;
     Command->Transform = Transform;
-    Command->Flags = Flags;
     Command->Material = Material;
-    Command->PointLight1 = PointLight1;
-    Command->PointLight2 = PointLight2;
     Command->SkinningMatrixCount = SkinningMatrixCount;
     Command->SkinningMatrices = SkinningMatrices;
 }
@@ -195,8 +194,6 @@ DrawMeshInstanced(
     u32 InstanceCount,
     render_instance *Instances,
     material Material,
-    point_light PointLight1,
-    point_light PointLight2,
     u32 RenderTarget = 0
 )
 {
@@ -206,8 +203,6 @@ DrawMeshInstanced(
     Command->InstanceCount = InstanceCount;
     Command->Instances = Instances;
     Command->Material = Material;
-    Command->PointLight1 = PointLight1;
-    Command->PointLight2 = PointLight2;
 }
 
 inline void
@@ -216,4 +211,13 @@ SetDirectionalLight(render_commands *Commands, directional_light Light, u32 Rend
     render_command_set_directional_light *Command = 
         PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight, RenderTarget);
     Command->Light = Light;
+}
+
+inline void
+SetPointLights(render_commands *Commands, u32 PointLightCount, point_light *PointLights, u32 RenderTarget = 0)
+{
+    render_command_set_point_lights *Command =
+        PushRenderCommand(Commands, render_command_set_point_lights, RenderCommand_SetPointLights, RenderTarget);
+    Command->PointLightCount = PointLightCount;
+    Command->PointLights = PointLights;
 }

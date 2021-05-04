@@ -46,7 +46,7 @@ Win32VDebugPrintString(const char *Format, va_list Args)
     const u32 MAX_CHARS = 256;
     char Buffer[MAX_CHARS];
 
-    i32 CharsWritten = vsnprintf(Buffer, MAX_CHARS, Format, Args);
+    i32 CharsWritten = vsnprintf_s(Buffer, MAX_CHARS, Format, Args);
 
     OutputDebugStringA(Buffer);
 
@@ -295,6 +295,7 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
         case WM_SIZE :
         {
             win32_platform_state *PlatformState = GetWin32PlatformState(hwnd);
+
             PlatformState->WindowWidth = LOWORD(lParam);
             PlatformState->WindowHeight = HIWORD(lParam);
 
@@ -312,7 +313,9 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
         }
 #endif
         default:
+        {
             return DefWindowProc(hwnd, uMsg, wParam, lParam);
+        }
     }
     
     return 0;
@@ -595,7 +598,7 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
     EndProcessKeyboardInput(KeyboardInput);
 }
 
-PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
+internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
 {
     win32_platform_state *PlatformState = (win32_platform_state *)PlatformHandle;
 
@@ -628,7 +631,7 @@ PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
     }
 }
 
-PLATFORM_READ_FILE(Win32ReadFile)
+internal PLATFORM_READ_FILE(Win32ReadFile)
 {
     read_file_result Result = {};
 
@@ -817,11 +820,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     GameMemory.RenderCommandsStorageSize = Megabytes(4);
     GameMemory.Platform = &PlatformApi;
 
-    // todo: ?
+#if NDEBUG
+    void *BaseAddress = 0;
+#else
     void *BaseAddress = (void *)Terabytes(2);
-
+#endif
     PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize;
-    PlatformState.GameMemoryBlock = Win32AllocateMemory(0, PlatformState.GameMemoryBlockSize);
+    PlatformState.GameMemoryBlock = Win32AllocateMemory(BaseAddress, PlatformState.GameMemoryBlockSize);
 
     GameMemory.PermanentStorage = PlatformState.GameMemoryBlock;
     GameMemory.TransientStorage = (u8 *)PlatformState.GameMemoryBlock + GameMemory.PermanentStorageSize;
@@ -941,7 +946,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                 if (!DebugInput.WantCaptureMouse)
                 {
-                    MouseInput2GameInput(&MouseInput, &GameInput, GameParameters.Delta);
+                    MouseInput2GameInput(&MouseInput, &GameInput);
                 }
 
                 GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);

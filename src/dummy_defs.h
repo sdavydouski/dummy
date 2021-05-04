@@ -7,14 +7,20 @@
 #define global static
 #define persist static
 
-#define DLLExport __declspec(dllexport)
+#define DLLExport extern "C" __declspec(dllexport)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
 #define First(Array) Array
 #define Last(Array, Count) Array + (Count - 1)
 #define StructOffset(StructType, StructMember) ((u64)(&(((StructType *)0)->StructMember)))
+#define Stringify(Arg) #Arg
 
+#ifdef NDEBUG
+#define Assert(...)
+#else
 #define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
+#endif
+
 #define InvalidCodePath Assert(!"Invalid code path")
 
 #define i8 int8_t

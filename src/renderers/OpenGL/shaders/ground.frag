@@ -1,23 +1,18 @@
-#version 450
-
-in vec3 ex_VertexPosition;
-in vec3 ex_NearPlanePosition;
-in vec3 ex_FarPlanePosition;
+in VS_OUT
+{
+    vec3 NearPlanePosition;
+    vec3 FarPlanePosition;
+    vec3 VertexPosition;
+} fs_in;
 
 out vec4 out_Color;
 
 uniform mat4 u_Projection;
 uniform mat4 u_View;
 uniform vec3 u_CameraPosition;
-
-float Checkerboard(vec2 R, float Scale) {
-	float Result = float((
-        int(floor(R.x / Scale)) +
-		int(floor(R.y / Scale))
-	) % 2);
-    
-    return Result;
-}
+uniform directional_light u_DirectionalLight;
+uniform int u_PointLightCount;
+uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
 
 // computes Z-buffer depth value, and converts the range.
 float ComputeDepth(vec3 p, mat4 View, mat4 Projection) {
@@ -39,21 +34,38 @@ float ComputeDepth(vec3 p, mat4 View, mat4 Projection) {
 
 void main()
 {
-    float t = -ex_NearPlanePosition.y / (ex_FarPlanePosition.y - ex_NearPlanePosition.y);
-    vec3 R = ex_NearPlanePosition + t * (ex_FarPlanePosition - ex_NearPlanePosition);
+    float t = -fs_in.NearPlanePosition.y / (fs_in.FarPlanePosition.y - fs_in.NearPlanePosition.y);
+    vec3 GroundPoint = fs_in.NearPlanePosition + t * (fs_in.FarPlanePosition - fs_in.NearPlanePosition);
 
-    gl_FragDepth = ComputeDepth(R, u_View, u_Projection);
-
-    float Color =
-		Checkerboard(R.xz, 5.f) * 0.6f +
-		Checkerboard(R.xz, 10.f) * 0.2f +
-		Checkerboard(R.xz, 0.5f) * 0.1f +
-		0.1f;
-
-    Color *= float(t > 0);
-
-    float DistanceFromCamera = length(u_CameraPosition - R);
+    float DistanceFromCamera = length(u_CameraPosition.xz - GroundPoint.xz);
     float Opacity = clamp(DistanceFromCamera * 0.005f, 0.f, 1.f);
 
-	out_Color = vec4(Color * vec3(0.4f, 0.4f, 0.8f), 1.f - Opacity);
+    float GridScale = 4.f;
+    vec2 Coord = GroundPoint.xz / GridScale;
+
+    float LineWidth = 1.f;
+	vec2 Grid = abs(fract(Coord - 0.5) - 0.5) / (LineWidth * fwidth(Coord));
+	float Line = min(Grid.x, Grid.y);
+	vec3 GridColor = vec3(min(Line, 0.75f));
+
+	// Lighting
+	vec3 EyeDirection = normalize(u_CameraPosition - GroundPoint);
+	vec3 AmbientColor = vec3(0.f);
+	vec3 DiffuseColor = GridColor;
+	vec3 SpecularColor = vec3(0.f);
+	float SpecularShininess = 1.f;
+	vec3 Normal = vec3(0.f, 1.f, 0.f);
+
+    vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
+
+    for (int PointLightIndex = 0; PointLightIndex < u_PointLightCount; ++PointLightIndex)
+    {
+        point_light PointLight = u_PointLights[PointLightIndex];
+        Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, GroundPoint);
+    }
+    //
+
+	// todo: very expensive
+	gl_FragDepth = ComputeDepth(GroundPoint, u_View, u_Projection);
+	out_Color = vec4(Result, 1.f - Opacity);
 }

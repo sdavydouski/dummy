@@ -9,6 +9,8 @@ struct quat;
 inline f32 Square(f32 Value);
 inline f32 Sqrt(f32 Value);
 inline f32 Abs(f32 Value);
+inline f32 Min(f32 a, f32 b);
+inline f32 Max(f32 a, f32 b);
 
 #define EPSILON 0.0001f
 #define PI 3.14159265359f
@@ -60,6 +62,42 @@ struct transform
     vec3 Translation;
     vec3 Scale;
 };
+
+struct quat_lerp
+{
+    f32 Duration;
+    f32 Time;
+
+    quat From;
+    quat To;
+};
+
+struct vec3_lerp
+{
+    f32 Duration;
+    f32 Time;
+
+    vec3 From;
+    vec3 To;
+};
+
+inline void
+SetQuatLerp(quat_lerp *Lerp, f32 Time, f32 Duration, quat From, quat To)
+{
+    Lerp->Time = Time;
+    Lerp->Duration = Duration;
+    Lerp->From = From;
+    Lerp->To = To;
+}
+
+inline void
+SetVec3Lerp(vec3_lerp *Lerp, f32 Time, f32 Duration, vec3 From, vec3 To)
+{
+    Lerp->Time = Time;
+    Lerp->Duration = Duration;
+    Lerp->From = From;
+    Lerp->To = To;
+}
 
 inline transform
 CreateTransform(vec3 Translation, vec3 Scale, quat Rotation)
@@ -550,4 +588,30 @@ Swap(f32 &a, f32 &b)
     f32 Temp = a;
     a = b;
     b = Temp;
+}
+
+// djb2 by Dan Bernstein
+inline u64
+Hash(char *String)
+{
+    u64 Hash = 5381;
+    char Character;
+
+    while (Character = *String++)
+    {
+        // Hash * 33 + Character
+        Hash = ((Hash << 5) + Hash) + Character;
+    }
+
+    return Hash;
+}
+
+inline plane
+ComputePlane(vec3 a, vec3 b, vec3 c)
+{
+    plane Result;
+    Result.Normal = Normalize(Cross(b - a, c - a));
+    Result.d = Dot(Result.Normal, a);
+
+    return Result;
 }

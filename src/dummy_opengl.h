@@ -13,6 +13,8 @@
 #define OPENGL_GROUND_SHADER_ID 0x5
 #define OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID 0x6
 
+#define OPENGL_MAX_POINT_LIGHT_COUNT 8
+
 struct opengl_mesh_buffer
 {
     u32 Id;
@@ -22,6 +24,8 @@ struct opengl_mesh_buffer
     GLuint VAO;
     GLuint VBO;
     GLuint EBO;
+
+    u32 BufferSize;
 };
 
 struct opengl_texture
@@ -70,21 +74,11 @@ struct opengl_shader
     GLint DirectionalLightDirectionUniformLocation;
     GLint DirectionalLightColorUniformLocation;
 
-    GLint PointLight1PositionUniformLocation;
-    GLint PointLight1ColorUniformLocation;
-    GLint PointLight1AttenuationConstantUniformLocation;
-    GLint PointLight1AttenuationLinearUniformLocation;
-    GLint PointLight1AttenuationQuadraticUniformLocation;
-
-    GLint PointLight2PositionUniformLocation;
-    GLint PointLight2ColorUniformLocation;
-    GLint PointLight2AttenuationConstantUniformLocation;
-    GLint PointLight2AttenuationLinearUniformLocation;
-    GLint PointLight2AttenuationQuadraticUniformLocation;
+    GLint PointLightCountUniformLocation;
 
     GLint ScreenTextureUniformLocation;
     GLint TimeUniformLocation;
-    GLint MeshFlagsUniformLocation;
+    GLint BlinkUniformLocation;
 };
 
 struct opengl_state
@@ -94,13 +88,19 @@ struct opengl_state
     char *Version;
     char *ShadingLanguageVersion;
 
+    u32 WindowWidth;
+    u32 WindowHeight;
+
     memory_arena Arena;
     platform_api *Platform;
 
-    GLuint Framebuffers[4];
-    GLuint FramebufferTextures[4];
-    GLuint FramebufferColorRBOs[4];
-    GLuint FramebufferDepthRBOs[4];
+    GLuint MultiSampledFBO;
+    GLuint MultiSampledColorTexture;
+    GLuint MultiSampledDepthTexture;
+
+    GLuint SingleSampledFBO;
+    GLuint SingleSampledColorTexture;
+    GLuint SingleSampledDepthTexture;
 
     GLuint LineVAO;
     GLuint RectangleVAO;

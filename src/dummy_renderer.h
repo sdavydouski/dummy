@@ -5,8 +5,6 @@
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 
-#define MAX_NUMBER_OF_POINT_LIGHTS_PER_OBJECT 2
-
 enum material_type
 {
     MaterialType_BlinnPhong,
@@ -18,8 +16,9 @@ struct material
     material_type Type;
     mesh_material *MeshMaterial;
 
-    vec3 Color;
-    b32 IsWireframe;
+    // todo: Remove this?
+    vec4 Color;
+    b32 Wireframe;
 };
 
 struct light_attenuation
@@ -55,15 +54,9 @@ struct spot_light
     light_attenuation Attenuation;
 };
 
-enum render_mesh_flags
-{
-    RenderMesh_Highlight = 0x1
-};
-
 struct render_instance
 {
     mat4 Model;
-    u32 Flags;
 };
 
 enum render_command_type
@@ -76,8 +69,9 @@ enum render_command_type
     RenderCommand_SetOrthographicProjection,
     RenderCommand_SetPerspectiveProjection,
     RenderCommand_SetCamera,
-    RenderCommand_SetDirectionalLight,
     RenderCommand_SetTime,
+    RenderCommand_SetDirectionalLight,
+    RenderCommand_SetPointLights,
 
     RenderCommand_Clear,
     
@@ -108,7 +102,14 @@ struct render_command_add_mesh
     u32 MeshId;
 
     u32 VertexCount;
-    skinned_vertex *Vertices;
+
+    vec3 *Positions;
+    vec3 *Normals;
+    vec3 *Tangents;
+    vec3 *Bitangents;
+    vec2 *TextureCoords;
+    vec4 *Weights;
+    i32 *JointIndices;
 
     u32 IndexCount;
     u32 *Indices;
@@ -180,6 +181,13 @@ struct render_command_set_directional_light
     directional_light Light;
 };
 
+struct render_command_set_point_lights
+{
+    render_command_header Header;
+    u32 PointLightCount;
+    point_light *PointLights;
+};
+
 struct render_command_set_time
 {
     render_command_header Header;
@@ -211,8 +219,6 @@ struct render_command_draw_rectangle
 struct render_command_draw_ground
 {
     render_command_header Header;
-    // todo: put CameraPosition in the Header?
-    vec3 CameraPosition;
 };
 
 struct render_command_draw_mesh
@@ -222,12 +228,7 @@ struct render_command_draw_mesh
     u32 MeshId;
 
     transform Transform;
-    u32 Flags;
-
     material Material;
-
-    point_light PointLight1;
-    point_light PointLight2;
 };
 
 struct render_command_draw_skinned_mesh
@@ -237,12 +238,7 @@ struct render_command_draw_skinned_mesh
     u32 MeshId;
 
     transform Transform;
-    u32 Flags;
-
     material Material;
-
-    point_light PointLight1;
-    point_light PointLight2;
 
     u32 SkinningMatrixCount;
     mat4 *SkinningMatrices;
@@ -258,9 +254,6 @@ struct render_command_draw_mesh_instanced
     render_instance *Instances;
 
     material Material;
-
-    point_light PointLight1;
-    point_light PointLight2;
 };
 
 struct render_commands
@@ -271,5 +264,9 @@ struct render_commands
 
     i32 WindowWidth;
     i32 WindowHeight;
+
+    i32 PrevWindowWidth;
+    i32 PrevWindowHeight;
+
     f32 Time;
 };

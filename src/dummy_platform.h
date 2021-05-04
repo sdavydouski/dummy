@@ -40,6 +40,7 @@ struct game_memory
     umm TransientStorageSize;
     void *TransientStorage;
 
+    // todo: use TransientStorage for this?
     umm RenderCommandsStorageSize;
     void *RenderCommandsStorage;
 
@@ -312,19 +313,15 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
 }
 
 inline void
-MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput, f32 Delta)
+MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
 {
     if (Magnitude(GameInput->Camera.Range) == 0.f)
     {
-        // todo:
-        if (Delta > 0.f)
-        {
-            f32 MouseSensitivity = (1.f / Delta) * 0.0001f;
-            vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy) * MouseSensitivity;
+        f32 MouseSensitivity = 0.05f;
+        vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy) * MouseSensitivity;
 
-            GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
-            GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
-        }
+        GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
+        GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
     }
 
     if (GameInput->ZoomDelta == 0.f)

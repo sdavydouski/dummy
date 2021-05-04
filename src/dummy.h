@@ -1,5 +1,8 @@
 #pragma once
 
+#define GAME_PROCESS_ON_UPDATE(Name) void Name(struct game_state *State, struct game_process *Process, f32 Delta)
+typedef GAME_PROCESS_ON_UPDATE(game_process_on_update);
+
 enum game_mode
 {
     GameMode_None,
@@ -11,6 +14,7 @@ enum game_mode
 struct game_camera
 {
     vec3 Position;
+    vec3 Pivot;
     vec3 Direction;
     vec3 Up;
 
@@ -21,6 +25,15 @@ struct game_camera
     f32 Radius;
     f32 NearClipPlane;
     f32 FarClipPlane;
+
+    vec3_lerp PositionLerp;
+};
+
+struct game_debug
+{
+    b32 ShowCollisionVolume;
+    b32 ShowWireframeGeometry;
+    b32 ShowSkeleton;
 };
 
 enum entity_state
@@ -30,51 +43,51 @@ enum entity_state
     EntityState_Dance
 };
 
-struct entity
+struct game_entity
 {
+    transform Transform;
+    aabb MeshBounds;
+
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
 
-    b32 IsSelected;
-    vec3 Offset;
     entity_state State;
+
+    game_debug Debug;
+    b32 IsSelected;
 };
 
-struct entity_batch
+struct entity_render_batch
 {
+    char Name[256];
     u32 EntityCount;
     u32 MaxEntityCount;
-    entity *Entities;
+    game_entity **Entities;
     render_instance *Instances;
+    model *Model;
 };
 
-// todo: !!!
-struct lerper_quat
+struct game_process
 {
-    b32 IsEnabled;
-    f32 Duration;
-    f32 Time;
+    char Name[256];
+    game_process_on_update *OnUpdatePerFrame;
+    game_process *Child;
 
-    quat From;
-    quat To;
-    quat *Result;
+    game_process *Prev;
+    game_process *Next;
 };
 
-struct lerper_vec2
+struct game_assets
 {
-    b32 IsEnabled;
-    f32 Duration;
-    f32 Time;
-
-    vec2 From;
-    vec2 To;
-    vec2 *Result;
+    u32 ModelCount;
+    model *Models;
 };
 
 struct game_state
 {
-    memory_arena WorldArena;
+    memory_arena PermanentArena;
+    memory_arena TransientArena;
 
     game_mode Mode;
 
@@ -85,25 +98,26 @@ struct game_state
 
     plane Ground;
 
-    ray Ray;
-    vec3 IntersectionPoint;
-    
-    model YBotModel;
-    model SkullModel;
-    model CubeModel;
-    model SphereModel;
-    model FloorModel;
-    model WallModel;
+    game_assets Assets;
 
+    game_entity *Player;
 
+    u32 MaxEntityCount;
     u32 EntityCount;
-    entity *Entities;
+    game_entity *Entities;
 
-    entity *Player;
+    u32 EntityBatchCount;
+    entity_render_batch *EntityBatches;
 
-    entity_batch Batch;
+    u32 PointLightCount;
+    point_light *PointLights;
 
-    lerper_quat LerperQuat;
+    // linked-list (for efficient adding/removal and traversing)
+    game_process ProcessSentinel;
+
+    // hashtable (for storage)
+    u32 ProcessCount;
+    game_process *Processes;
 
     vec2 CurrentMove;
     vec2 TargetMove;
@@ -116,10 +130,9 @@ struct game_state
     b32 IsBackgroundHighlighted;
     b32 Advance;
 
-    b32 ShowModel;
-    b32 ShowSkeleton;
+    b32 SelectAll;
 
-    vec2 FloorDim;
-    u32 InstanceCount;
-    render_instance *Instances;
+    // for testing purpuses
+    f32 DelayTime;
+    f32 DelayDuration;
 };

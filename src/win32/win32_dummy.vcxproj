@@ -132,7 +132,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
@@ -163,7 +163,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
@@ -196,7 +196,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
     <Link>
@@ -215,7 +215,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\examples\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
     <Link>

@@ -4,6 +4,7 @@
 #include "dummy_assets.h"
 #include "dummy.h"
 
+//#pragma warning(push, 0)
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -14,8 +15,15 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_win32.cpp"
 
+#if NDEBUG
+#define IMGUI_IMPL_OPENGL_LOADER_CUSTOM <release/glad.h>
+#else
+#define IMGUI_IMPL_OPENGL_LOADER_CUSTOM <debug/glad.h>
+#endif
+
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_opengl3.cpp>
+//#pragma warning(pop)
 
 #define WIN32_IMGUI_WND_PROC_HANDLER if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
 
@@ -98,6 +106,50 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 }
 
 internal void
+RenderEntityInfo(game_entity *Entity, model *Model)
+{
+    ImGui::Text("Selected Entity:");
+
+    if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::InputFloat3("Position", Entity->Transform.Translation.Elements);
+        ImGui::InputFloat3("Scale", Entity->Transform.Scale.Elements);
+        ImGui::InputFloat4("Rotation", Entity->Transform.Rotation.Elements);
+    }
+
+    if (Model)
+    {
+        if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::Text("Meshes: %d", Model->MeshCount);
+            ImGui::Text("Materials: %d", Model->MaterialCount);
+            ImGui::Text("\n");
+
+            for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
+            {
+                mesh *Mesh = Model->Meshes + MeshIndex;
+
+                ImGui::Text("Mesh %d\n", MeshIndex);
+                ImGui::Text("Vertices: %d", Mesh->VertexCount);
+                ImGui::Text("Indices: %d", Mesh->IndexCount);
+                ImGui::Text("\n");
+            }
+        }
+    }
+
+    if (Entity->Body)
+    {
+        if (ImGui::CollapsingHeader("Ridig Body", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
+            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
+            ImGui::InputFloat4("Orientation", Entity->Body->Orientation.Elements);
+            ImGui::Text("\n");
+        }
+    }
+}
+
+internal void
 RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, game_parameters *GameParameters)
 {
     game_state *GameState = (game_state *)GameMemory->PermanentStorage;
@@ -116,6 +168,16 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
             if (ImGui::MenuItem("Close"))
             { 
                 PlatformState->IsGameRunning = false;
+            }
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Assets"))
+        {
+            if (ImGui::MenuItem("Viewer"))
+            {
+
             }
 
             ImGui::EndMenu();
@@ -150,22 +212,8 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 
     ImGui::Text("Player:");
 
-    static int e0 = 0;
-    ImGui::RadioButton("Show Model", &e0, 0);
-    ImGui::RadioButton("Show Skeleton", &e0, 1);
-
-    if (e0 == 0)
-    {
-        GameState->ShowModel = true;
-        GameState->ShowSkeleton = false;
-    }
-    else if (e0 == 1)
-    {
-        GameState->ShowModel = false;
-        GameState->ShowSkeleton = true;
-    }
-
     ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
+    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", GameState->PlayerCamera.Position.x, GameState->PlayerCamera.Position.y, GameState->PlayerCamera.Position.z);
 
     ImGui::ColorEdit3("Directional Light Color", (f32 *)&GameState->DirectionalColor);
 
@@ -177,32 +225,32 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
     RenderAnimationGraphInfo(GameState->Player->Animation);
     ImGui::End();
 
+#if 0
+    ImGui::Begin("GameWindow");
+    {
+        // Using a Child allow to fill all the space of the window.
+        // It also alows customization
+        ImGui::BeginChild("GameRender");
+        // Get the size of the child (i.e. the whole draw size of the windows).
+        ImVec2 WindowSize = ImGui::GetWindowSize();
+        // Because I use the texture from OpenGL, I need to invert the V from the UV.
+        ImGui::Image((ImTextureID)3, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
+        ImGui::EndChild();
+    }
+    ImGui::End();
+#endif
+
     ImGui::Begin("Debug");
 
-    // todo: merge?
-    for (u32 EntityIndex = 0; EntityIndex < GameState->Batch.EntityCount; ++EntityIndex)
-    {
-        entity *Entity = GameState->Batch.Entities + EntityIndex;
-
-        if (Entity->IsSelected)
-        {
-            ImGui::Text("Selected Entity:");
-            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
-            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
-            ImGui::Text("\n");
-        }
-    }
+    ImGui::Checkbox("Select All", (bool *)&GameState->SelectAll);
 
     for (u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
     {
-        entity *Entity = GameState->Entities + EntityIndex;
+        game_entity *Entity = GameState->Entities + EntityIndex;
 
         if (Entity->IsSelected)
         {
-            ImGui::Text("Selected Entity:");
-            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
-            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
-            ImGui::Text("\n");
+            RenderEntityInfo(Entity, Entity->Model);
         }
     }
 

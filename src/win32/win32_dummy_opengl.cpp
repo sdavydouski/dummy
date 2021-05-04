@@ -1,11 +1,21 @@
-#include <glad/glad.h>
-#include <glad/glad.c>
+#if NDEBUG
+#include <release/glad.h>
+#include <release/glad.c>
+#else
+#include <debug/glad.h>
+#include <debug/glad.c>
+#endif
 #include <wglext.h>
 
 #include "dummy_opengl.h"
 
 #define GladLoadGLLoader gladLoadGLLoader
+
+#ifdef NDEBUG
+#define GladSetPostCallback(...)
+#else
 #define GladSetPostCallback glad_set_post_callback
+#endif
 
 struct win32_opengl_state
 {
@@ -57,6 +67,12 @@ Win32OpenGLSetVSync(win32_opengl_state *State, b32 VSync)
 void internal
 Win32InitOpenGL(win32_opengl_state *State, HINSTANCE hInstance, HWND WindowHandle)
 {
+    RECT WindowRect;
+    GetClientRect(WindowHandle, &WindowRect);
+
+    State->OpenGL.WindowWidth = WindowRect.right - WindowRect.left;
+    State->OpenGL.WindowHeight = WindowRect.bottom - WindowRect.top;
+
     WNDCLASS FakeWindowClass = {};
     FakeWindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     FakeWindowClass.lpfnWndProc = DefWindowProc;
@@ -105,10 +121,10 @@ Win32InitOpenGL(win32_opengl_state *State, HINSTANCE hInstance, HWND WindowHandl
                     WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
                     WGL_COLOR_BITS_ARB, 32,
                     WGL_ALPHA_BITS_ARB, 8,
-                    WGL_DEPTH_BITS_ARB, 24,
-                    WGL_STENCIL_BITS_ARB, 8,
+                    WGL_DEPTH_BITS_ARB, 0,
+                    WGL_STENCIL_BITS_ARB, 0,
                     WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
-                    WGL_SAMPLES_ARB, 16,
+                    WGL_SAMPLES_ARB, 8,
                     0
                 };
 

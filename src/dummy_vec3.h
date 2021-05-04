@@ -168,3 +168,17 @@ Normalize(vec3 Vector)
 
     return Result;
 }
+
+inline vec3
+Min(vec3 a, vec3 b)
+{
+    vec3 Result = vec3(Min(a.x, b.x), Min(a.y, b.y), Min(a.z, b.z));
+    return Result;
+}
+
+inline vec3
+Max(vec3 a, vec3 b)
+{
+    vec3 Result = vec3(Max(a.x, b.x), Max(a.y, b.y), Max(a.z, b.z));
+    return Result;
+}

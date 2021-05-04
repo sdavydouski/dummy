@@ -41,6 +41,12 @@ struct vec4
 
         struct
         {
+            vec3 rgb;
+            f32 a;
+        };
+
+        struct
+        {
             f32 Elements[4];
         };
     };

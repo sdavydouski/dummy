@@ -1,5 +1,3 @@
-#version 450
-
 layout(location = 0) in vec3 in_Position;
 
 uniform mat4 u_Projection;

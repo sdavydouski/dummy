@@ -1,8 +1,8 @@
 internal GLuint
-CreateShader(GLenum Type, char *Source, b32 CrashIfError = true)
+OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, b32 CrashIfError = true)
 {
     GLuint Shader = glCreateShader(Type);
-    glShaderSource(Shader, 1, &Source, NULL);
+    glShaderSource(Shader, Count, Source, NULL);
     glCompileShader(Shader);
 
     i32 IsShaderCompiled;
@@ -28,7 +28,7 @@ CreateShader(GLenum Type, char *Source, b32 CrashIfError = true)
 }
 
 internal GLuint
-CreateProgram(GLuint VertexShader, GLuint FragmentShader, b32 CrashIfError = true)
+OpenGLCreateProgram(GLuint VertexShader, GLuint FragmentShader, b32 CrashIfError = true)
 {
     GLuint Program = glCreateProgram();
     glAttachShader(Program, VertexShader);
@@ -63,7 +63,8 @@ CreateProgram(GLuint VertexShader, GLuint FragmentShader, b32 CrashIfError = tru
 internal void
 OpenGLInitLine(opengl_state *State)
 {
-    vec3 LineVertices[] = {
+    vec3 LineVertices[] =
+    {
         vec3(0.f, 0.f, 0.f),
         vec3(1.f, 1.f, 1.f),
     };
@@ -85,7 +86,8 @@ OpenGLInitLine(opengl_state *State)
 internal void
 OpenGLInitRectangle(opengl_state *State)
 {
-    f32 RectangleVertices[] = {
+    f32 RectangleVertices[] = 
+    {
         // potisions     // uvs
         -1.f, -1.f, 0.f, 0.f, 0.f,
         1.f, -1.f, 0.f,  1.f, 0.f,
@@ -178,8 +180,73 @@ OpenGLGetShader(opengl_state *State, u32 Id)
     return Result;
 }
 
+inline u32
+GetMeshVerticesSize(
+    u32 VertexCount,
+    vec3 *Positions,
+    vec3 *Normals,
+    vec3 *Tangents,
+    vec3 *Bitangents,
+    vec2 *TextureCoords,
+    vec4 *Weights,
+    i32 *JointIndices
+)
+{
+    u32 Size = 0;
+
+    if (Positions)
+    {
+        Size += VertexCount * sizeof(vec3);
+    }
+
+    if (Normals)
+    {
+        Size += VertexCount * sizeof(vec3);
+    }
+
+    if (Tangents)
+    {
+        Size += VertexCount * sizeof(vec3);
+    }
+
+    if (Bitangents)
+    {
+        Size += VertexCount * sizeof(vec3);
+    }
+
+    if (TextureCoords)
+    {
+        Size += VertexCount * sizeof(vec2);
+    }
+
+    if (Weights)
+    {
+        Size += VertexCount * sizeof(vec4);
+    }
+
+    if (JointIndices)
+    {
+        Size += VertexCount * sizeof(i32) * 4;
+    }
+
+    return Size;
+}
+
 internal void
-OpenGLAddMeshBuffer(opengl_state *State, u32 MeshId, u32 VertexCount, skinned_vertex *Vertices, u32 IndexCount, u32 *Indices)
+OpenGLAddMeshBuffer(
+    opengl_state *State, 
+    u32 MeshId, 
+    u32 VertexCount, 
+    vec3 *Positions,
+    vec3 *Normals,
+    vec3 *Tangents,
+    vec3 *Bitangents,
+    vec2 *TextureCoords,
+    vec4 *Weights,
+    i32 *JointIndices,
+    u32 IndexCount, 
+    u32 *Indices
+)
 {
     Assert(State->CurrentMeshBufferCount < OPENGL_MAX_MESH_BUFFER_COUNT);
 
@@ -190,30 +257,77 @@ OpenGLAddMeshBuffer(opengl_state *State, u32 MeshId, u32 VertexCount, skinned_ve
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
 
+    u32 BufferSize = GetMeshVerticesSize(VertexCount, Positions, Normals, Tangents, Bitangents, TextureCoords, Weights, JointIndices);
+
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(skinned_vertex), Vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, BufferSize, 0, GL_STATIC_DRAW);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Position));
+    // per-vertex attributes
+    u64 Offset = 0;
+    if (Positions)
+    {
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
 
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Normal));
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Positions);
+        Offset += VertexCount * sizeof(vec3);
+    }
 
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Tangent));
+    if (Normals)
+    {
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
 
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Bitangent));
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Normals);
+        Offset += VertexCount * sizeof(vec3);
+    }
 
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, TextureCoords));
+    if (Tangents)
+    {
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
 
-    glEnableVertexAttribArray(5);
-    glVertexAttribIPointer(5, 4, GL_UNSIGNED_INT, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, JointIndices));
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Tangents);
+        Offset += VertexCount * sizeof(vec3);
+    }
 
-    glEnableVertexAttribArray(6);
-    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Weights));
+    if (Bitangents)
+    {
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Bitangents);
+        Offset += VertexCount * sizeof(vec3);
+    }
+
+    if (TextureCoords)
+    {
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec2), TextureCoords);
+        Offset += VertexCount * sizeof(vec2);
+    }
+
+    if (Weights)
+    {
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(vec4), (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec4), Weights);
+        Offset += VertexCount * sizeof(vec4);
+    }
+
+    if (JointIndices)
+    {
+        glEnableVertexAttribArray(6);
+        glVertexAttribIPointer(6, 4, GL_UNSIGNED_INT, sizeof(i32) * 4, (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(i32) * 4, JointIndices);
+        Offset += VertexCount * sizeof(i32) * 4;
+    }
+    //
 
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -228,6 +342,8 @@ OpenGLAddMeshBuffer(opengl_state *State, u32 MeshId, u32 VertexCount, skinned_ve
     MeshBuffer->VAO = VAO;
     MeshBuffer->VBO = VBO;
     MeshBuffer->EBO = EBO;
+
+    MeshBuffer->BufferSize = BufferSize;
 }
 
 internal void
@@ -235,7 +351,13 @@ OpenGLAddMeshBufferInstanced(
     opengl_state *State, 
     u32 MeshId, 
     u32 VertexCount, 
-    skinned_vertex *Vertices, 
+    vec3 *Positions,
+    vec3 *Normals,
+    vec3 *Tangents,
+    vec3 *Bitangents,
+    vec2 *TextureCoords,
+    vec4 *Weights,
+    i32 *JointIndices,
     u32 IndexCount, 
     u32 *Indices, 
     u32 MaxInstanceCount
@@ -250,55 +372,99 @@ OpenGLAddMeshBufferInstanced(
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
 
+    u32 BufferSize = GetMeshVerticesSize(VertexCount, Positions, Normals, Tangents, Bitangents, TextureCoords, Weights, JointIndices);
+
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, VertexCount * sizeof(skinned_vertex) + MaxInstanceCount * sizeof(render_instance), 0, GL_STREAM_DRAW);
-
-    glBufferSubData(GL_ARRAY_BUFFER, 0, VertexCount * sizeof(skinned_vertex), Vertices);
-    glBufferSubData(GL_ARRAY_BUFFER, VertexCount * sizeof(skinned_vertex), MaxInstanceCount * sizeof(render_instance), 0);
+    glBufferData(GL_ARRAY_BUFFER, BufferSize + MaxInstanceCount * sizeof(render_instance), 0, GL_STREAM_DRAW);
 
     // per-vertex attributes
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Position));
+    u64 Offset = 0;
+    if (Positions)
+    {
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
 
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Normal));
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Positions);
+        Offset += VertexCount * sizeof(vec3);
+    }
 
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Tangent));
+    if (Normals)
+    {
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
 
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Bitangent));
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Normals);
+        Offset += VertexCount * sizeof(vec3);
+    }
 
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, TextureCoords));
+    if (Tangents)
+    {
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
 
-    glEnableVertexAttribArray(5);
-    glVertexAttribIPointer(5, 4, GL_UNSIGNED_INT, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, JointIndices));
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Tangents);
+        Offset += VertexCount * sizeof(vec3);
+    }
 
-    glEnableVertexAttribArray(6);
-    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(skinned_vertex), (void *)StructOffset(skinned_vertex, Weights));
+    if (Bitangents)
+    {
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Bitangents);
+        Offset += VertexCount * sizeof(vec3);
+    }
+
+    if (TextureCoords)
+    {
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec2), TextureCoords);
+        Offset += VertexCount * sizeof(vec2);
+    }
+
+    if (Weights)
+    {
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(vec4), (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec4), Weights);
+        Offset += VertexCount * sizeof(vec4);
+    }
+
+    if (JointIndices)
+    {
+        glEnableVertexAttribArray(6);
+        glVertexAttribIPointer(6, 4, GL_UNSIGNED_INT, sizeof(i32) * 4, (GLvoid *)Offset);
+
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(i32) * 4, JointIndices);
+        Offset += VertexCount * sizeof(i32) * 4;
+    }
 
     // per-instance attributes
     glEnableVertexAttribArray(7);
-    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + 0));
+    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + 0));
     glVertexAttribDivisor(7, 1);
 
     glEnableVertexAttribArray(8);
-    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + sizeof(vec4)));
+    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + sizeof(vec4)));
     glVertexAttribDivisor(8, 1);
 
     glEnableVertexAttribArray(9);
-    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
+    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
     glVertexAttribDivisor(9, 1);
 
     glEnableVertexAttribArray(10);
-    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
+    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
     glVertexAttribDivisor(10, 1);
 
+#if 0
     glEnableVertexAttribArray(11);
     glVertexAttribIPointer(11, 1, GL_UNSIGNED_INT, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Flags)));
     glVertexAttribDivisor(11, 1);
+#endif
 
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -313,6 +479,8 @@ OpenGLAddMeshBufferInstanced(
     MeshBuffer->VAO = VAO;
     MeshBuffer->VBO = VBO;
     MeshBuffer->EBO = EBO;
+
+    MeshBuffer->BufferSize = BufferSize;
 }
 
 inline GLint
@@ -386,22 +554,49 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
     Shader->DirectionalLightDirectionUniformLocation = glGetUniformLocation(Program, "u_DirectionalLight.Direction");
     Shader->DirectionalLightColorUniformLocation = glGetUniformLocation(Program, "u_DirectionalLight.Color");
 
-    Shader->PointLight1PositionUniformLocation = glGetUniformLocation(Program, "u_PointLights[0].Position");
-    Shader->PointLight1ColorUniformLocation = glGetUniformLocation(Program, "u_PointLights[0].Color");
-    Shader->PointLight1AttenuationConstantUniformLocation = glGetUniformLocation(Program, "u_PointLights[0].Attenuation.Constant");
-    Shader->PointLight1AttenuationLinearUniformLocation = glGetUniformLocation(Program, "u_PointLights[0].Attenuation.Linear");
-    Shader->PointLight1AttenuationQuadraticUniformLocation = glGetUniformLocation(Program, "u_PointLights[0].Attenuation.Quadratic");
-
-    Shader->PointLight2PositionUniformLocation = glGetUniformLocation(Program, "u_PointLights[1].Position");
-    Shader->PointLight2ColorUniformLocation = glGetUniformLocation(Program, "u_PointLights[1].Color");
-    Shader->PointLight2AttenuationConstantUniformLocation = glGetUniformLocation(Program, "u_PointLights[1].Attenuation.Constant");
-    Shader->PointLight2AttenuationLinearUniformLocation = glGetUniformLocation(Program, "u_PointLights[1].Attenuation.Linear");
-    Shader->PointLight2AttenuationQuadraticUniformLocation = glGetUniformLocation(Program, "u_PointLights[1].Attenuation.Quadratic");
+    Shader->PointLightCountUniformLocation = glGetUniformLocation(Program, "u_PointLightCount");
 
     Shader->ScreenTextureUniformLocation = glGetUniformLocation(Program, "u_ScreenTexture");
     Shader->TimeUniformLocation = glGetUniformLocation(Program, "u_Time");
+    Shader->BlinkUniformLocation = glGetUniformLocation(Program, "u_Blink");
+}
+
+inline char *
+OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
+{
+    u32 Size = InitialSize + 256;
+    char *Result = PushString(Arena, Size);
+    FormatString(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT);
+
+    return Result;
+}
+
+internal char **
+OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Count, memory_arena *Arena)
+{
+    // Common
+    read_file_result VersionShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\version.glsl", Arena, true);
+    char *VersionShaderSource = (char *)VersionShaderFile.Contents;
+
+    read_file_result MathShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\math.glsl", Arena, true);
+    char *MathShaderSource = (char *)MathShaderFile.Contents;
+
+    read_file_result BlinnPhongShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl", Arena, true);
+    char *BlinnPhongShaderSource = OpenGLPreprocessShader((char *)BlinnPhongShaderFile.Contents, BlinnPhongShaderFile.Size, Arena);
+    //
+
+    read_file_result ShaderFile = State->Platform->ReadFile(ShaderFileName, Arena, true);
+    char *ShaderSource = (char *)ShaderFile.Contents;
+
+    char **Sources = PushArray(Arena, Count, char *);
+
     // todo:
-    Shader->MeshFlagsUniformLocation = glGetUniformLocation(Program, "u_Highlight");
+    Sources[0] = VersionShaderSource;
+    Sources[1] = MathShaderSource;
+    Sources[2] = BlinnPhongShaderSource;
+    Sources[3] = ShaderSource;
+
+    return Sources;
 }
 
 internal void
@@ -409,19 +604,15 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
 {
     opengl_shader *Shader = State->Shaders + State->CurrentShaderCount++;
 
-    // Loading shaders from files
     scoped_memory ScopedMemory(&State->Arena);
 
-    read_file_result VertexShaderFile = State->Platform->ReadFile(VertexShaderFileName, ScopedMemory.Arena, true);
-    char *VertexShaderSource = (char *)VertexShaderFile.Contents;
+    u32 Count = 4;
+    char **VertexSource = OpenGLLoadShaderFile(State, Id, VertexShaderFileName, Count, ScopedMemory.Arena);
+    char **FragmentSource = OpenGLLoadShaderFile(State, Id, FragmentShaderFileName, Count, ScopedMemory.Arena);
 
-    read_file_result FragmentShaderFile = State->Platform->ReadFile(FragmentShaderFileName, ScopedMemory.Arena, true);
-    char *FragmentShaderSource = (char *)FragmentShaderFile.Contents;
-    //
-
-    GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, VertexShaderSource);
-    GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, FragmentShaderSource);
-    GLuint Program = CreateProgram(VertexShader, FragmentShader);
+    GLuint VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource);
+    GLuint FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource);
+    GLuint Program = OpenGLCreateProgram(VertexShader, FragmentShader);
 
     Shader->Id = Id;
     Shader->Program = Program;
@@ -442,23 +633,20 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
 {
     opengl_shader *Shader = OpenGLGetShader(State, Id);
 
-    // Loading shaders from files
     scoped_memory ScopedMemory(&State->Arena);
 
-    read_file_result VertexShaderFile = State->Platform->ReadFile(Shader->VertexShaderFileName, ScopedMemory.Arena, true);
-    char *VertexShaderSource = (char *)VertexShaderFile.Contents;
+    u32 Count = 4;
+    char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShaderFileName, Count, ScopedMemory.Arena);
+    char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShaderFileName, Count, ScopedMemory.Arena);
 
-    read_file_result FragmentShaderFile = State->Platform->ReadFile(Shader->FragmentShaderFileName, ScopedMemory.Arena, true);
-    char *FragmentShaderSource = (char *)FragmentShaderFile.Contents;
-    //
-    
-    GLuint VertexShader = CreateShader(GL_VERTEX_SHADER, VertexShaderSource, false);
-    GLuint FragmentShader = CreateShader(GL_FRAGMENT_SHADER, FragmentShaderSource, false);
+    GLuint VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource, false);
+    GLuint FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource, false);
+
     GLuint Program = 0;
 
     if (VertexShader && FragmentShader)
     {
-        Program = CreateProgram(VertexShader, FragmentShader, false);
+        Program = OpenGLCreateProgram(VertexShader, FragmentShader, false);
     }
 
     if (Program)
@@ -471,7 +659,7 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
 }
 
 internal void
-OpenGLLoadShaders(opengl_state *State)
+OpenGLInitShaders(opengl_state *State)
 {
     OpenGLLoadShader(
         State,
@@ -517,7 +705,7 @@ OpenGLLoadShaders(opengl_state *State)
 }
 
 internal void
-OpenGLBlinnPhongShading(opengl_state *State, opengl_shader *Shader, mesh_material *MeshMaterial, point_light *PointLight1, point_light *PointLight2)
+OpenGLBlinnPhongShading(opengl_state *State, opengl_shader *Shader, mesh_material *MeshMaterial)
 {
     glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, false);
     glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, false);
@@ -529,137 +717,192 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_shader *Shader, mesh_materia
     glActiveTexture(GL_TEXTURE0 + 0);
     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-    for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
+    if (MeshMaterial)
     {
-        material_property *MaterialProperty = MeshMaterial->Properties + MaterialPropertyIndex;
-
-        switch (MaterialProperty->Type)
+        for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
         {
-            case MaterialProperty_Float_Shininess:
-            {
-                glUniform1f(Shader->MaterialSpecularShininessUniformLocation, MaterialProperty->Value);
-                break;
-            }
-            case MaterialProperty_Color_Ambient:
-            {
-                glUniform3f(
-                    Shader->MaterialAmbientColorUniformLocation,
-                    MaterialProperty->Color.r,
-                    MaterialProperty->Color.g,
-                    MaterialProperty->Color.b
-                );
-                break;
-            }
-            case MaterialProperty_Color_Diffuse:
-            {
-                glUniform3f(
-                    Shader->MaterialDiffuseColorUniformLocation,
-                    MaterialProperty->Color.r,
-                    MaterialProperty->Color.g,
-                    MaterialProperty->Color.b
-                );
-                break;
-            }
-            case MaterialProperty_Color_Specular:
-            {
-                glUniform3f(
-                    Shader->MaterialSpecularColorUniformLocation,
-                    MaterialProperty->Color.r,
-                    MaterialProperty->Color.g,
-                    MaterialProperty->Color.b
-                );
-                break;
-            }
-            case MaterialProperty_Texture_Diffuse:
-            {
-                opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+            material_property *MaterialProperty = MeshMaterial->Properties + MaterialPropertyIndex;
 
-                glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                glBindTexture(GL_TEXTURE_2D, Texture->Handle);
-
-                glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, true);
-                glUniform1i(Shader->MaterialDiffuseMapUniformLocation, MaterialPropertyIndex);
-                break;
-            }
-            case MaterialProperty_Texture_Specular:
+            switch (MaterialProperty->Type)
             {
-                opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+                case MaterialProperty_Float_Shininess:
+                {
+                    glUniform1f(Shader->MaterialSpecularShininessUniformLocation, MaterialProperty->Value);
+                    break;
+                }
+                case MaterialProperty_Color_Ambient:
+                {
+                    glUniform3f(
+                        Shader->MaterialAmbientColorUniformLocation,
+                        MaterialProperty->Color.r,
+                        MaterialProperty->Color.g,
+                        MaterialProperty->Color.b
+                    );
+                    break;
+                }
+                case MaterialProperty_Color_Diffuse:
+                {
+                    glUniform3f(
+                        Shader->MaterialDiffuseColorUniformLocation,
+                        MaterialProperty->Color.r,
+                        MaterialProperty->Color.g,
+                        MaterialProperty->Color.b
+                    );
+                    break;
+                }
+                case MaterialProperty_Color_Specular:
+                {
+                    glUniform3f(
+                        Shader->MaterialSpecularColorUniformLocation,
+                        MaterialProperty->Color.r,
+                        MaterialProperty->Color.g,
+                        MaterialProperty->Color.b
+                    );
+                    break;
+                }
+                case MaterialProperty_Texture_Diffuse:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
 
-                glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
+                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, true);
-                glUniform1i(Shader->MaterialSpecularMapUniformLocation, MaterialPropertyIndex);
-                break;
-            }
-            case MaterialProperty_Texture_Shininess:
-            {
-                opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+                    glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, true);
+                    glUniform1i(Shader->MaterialDiffuseMapUniformLocation, MaterialPropertyIndex);
+                    break;
+                }
+                case MaterialProperty_Texture_Specular:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
 
-                glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
+                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                glUniform1i(Shader->MaterialHasShininessMapUniformLocation, true);
-                glUniform1i(Shader->MaterialShininessMapUniformLocation, MaterialPropertyIndex);
-                break;
-            }
-            case MaterialProperty_Texture_Normal:
-            {
-                opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+                    glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, true);
+                    glUniform1i(Shader->MaterialSpecularMapUniformLocation, MaterialPropertyIndex);
+                    break;
+                }
+                case MaterialProperty_Texture_Shininess:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
 
-                glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
+                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                glUniform1i(Shader->MaterialHasNormalMapUniformLocation, true);
-                glUniform1i(Shader->MaterialNormalMapUniformLocation, MaterialPropertyIndex);
-                break;
-            }
-            default:
-            {
-                Assert(!"Invalid material property");
+                    glUniform1i(Shader->MaterialHasShininessMapUniformLocation, true);
+                    glUniform1i(Shader->MaterialShininessMapUniformLocation, MaterialPropertyIndex);
+                    break;
+                }
+                case MaterialProperty_Texture_Normal:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+
+                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
+                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+
+                    glUniform1i(Shader->MaterialHasNormalMapUniformLocation, true);
+                    glUniform1i(Shader->MaterialNormalMapUniformLocation, MaterialPropertyIndex);
+                    break;
+                }
+                default:
+                {
+                    Assert(!"Invalid material property");
+                }
             }
         }
     }
-
-    // Point Lights
-    {
-        glUniform3f(
-            Shader->PointLight1PositionUniformLocation,
-            PointLight1->Position.x,
-            PointLight1->Position.y,
-            PointLight1->Position.z
-        );
-        glUniform3f(
-            Shader->PointLight1ColorUniformLocation,
-            PointLight1->Color.r,
-            PointLight1->Color.g,
-            PointLight1->Color.b
-        );
-        glUniform1f(Shader->PointLight1AttenuationConstantUniformLocation, PointLight1->Attenuation.Constant);
-        glUniform1f(Shader->PointLight1AttenuationLinearUniformLocation, PointLight1->Attenuation.Linear);
-        glUniform1f(Shader->PointLight1AttenuationQuadraticUniformLocation, PointLight1->Attenuation.Quadratic);
-    }
-
-    {
-        glUniform3f(
-            Shader->PointLight2PositionUniformLocation,
-            PointLight2->Position.x,
-            PointLight2->Position.y,
-            PointLight2->Position.z
-        );
-        glUniform3f(
-            Shader->PointLight2ColorUniformLocation,
-            PointLight2->Color.r,
-            PointLight2->Color.g,
-            PointLight2->Color.b
-        );
-        glUniform1f(Shader->PointLight2AttenuationConstantUniformLocation, PointLight2->Attenuation.Constant);
-        glUniform1f(Shader->PointLight2AttenuationLinearUniformLocation, PointLight2->Attenuation.Linear);
-        glUniform1f(Shader->PointLight2AttenuationQuadraticUniformLocation, PointLight2->Attenuation.Quadratic);
-    }
 }
 
-// todo: fix antialiasing?
+internal void
+OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
+{
+    GLint MSAA = 8;
+
+    // Setup multi-sampled FBO (primary render target)
+    glGenFramebuffers(1, &State->MultiSampledFBO);
+
+    // Build the texture that will serve as the color attachment for the framebuffer.
+    glGenTextures(1, &State->MultiSampledColorTexture);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledColorTexture);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAA, GL_RGBA, WindowWidth, WindowHeight, 0);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+    //
+
+    // Build the texture that will serve as the depth attachment for the framebuffer.
+    glGenTextures(1, &State->MultiSampledDepthTexture);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledDepthTexture);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAA, GL_DEPTH_COMPONENT32, WindowWidth, WindowHeight, 0);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+    //
+
+    glBindFramebuffer(GL_FRAMEBUFFER, State->MultiSampledFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledColorTexture, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledDepthTexture, 0);
+
+    GLenum MultiSampledFramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    Assert(MultiSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    //
+
+    // Setup single-sampled FBO
+    glGenFramebuffers(1, &State->SingleSampledFBO);
+
+    // Build the texture that will serve as the color attachment for the framebuffer.
+    glGenTextures(1, &State->SingleSampledColorTexture);
+    glBindTexture(GL_TEXTURE_2D, State->SingleSampledColorTexture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WindowWidth, WindowHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    //
+
+    // Build the texture that will serve as the depth attachment for the framebuffer.
+    glGenTextures(1, &State->SingleSampledDepthTexture);
+    glBindTexture(GL_TEXTURE_2D, State->SingleSampledDepthTexture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, WindowWidth, WindowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    //
+
+    glBindFramebuffer(GL_FRAMEBUFFER, State->SingleSampledFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, State->SingleSampledColorTexture, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->SingleSampledDepthTexture, 0);
+
+    GLenum SingleSampledFramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    Assert(SingleSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    //
+}
+
+internal void
+OpenGLOnWindowResize(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
+{
+    State->WindowWidth = WindowWidth;
+    State->WindowHeight = WindowHeight;
+
+    glDeleteFramebuffers(1, &State->MultiSampledFBO);
+    glDeleteFramebuffers(1, &State->SingleSampledFBO);
+
+    glDeleteTextures(1, &State->MultiSampledColorTexture);
+    glDeleteTextures(1, &State->MultiSampledDepthTexture);
+
+    glDeleteTextures(1, &State->SingleSampledColorTexture);
+    glDeleteTextures(1, &State->SingleSampledDepthTexture);
+
+    OpenGLInitFramebuffers(State, WindowWidth, WindowHeight);
+}
+
 internal void
 OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 {
@@ -691,15 +934,18 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     }
 #endif
 
+    if (State->WindowWidth != Commands->WindowWidth || State->WindowHeight != Commands->WindowHeight)
+    {
+        OpenGLOnWindowResize(State, Commands->WindowWidth, Commands->WindowHeight);
+    }
+
+    // todo: move commands to buckets (based on shader?)
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
         render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
 
-#if 1
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-#else
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->Framebuffers[Entry->RenderTarget]);
-#endif
+        // todo: use RenderTarget somehow?
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->MultiSampledFBO);
 
         switch (Entry->Type)
         {
@@ -709,7 +955,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 OpenGLInitLine(State);
                 OpenGLInitRectangle(State);
-                OpenGLLoadShaders(State);
+                OpenGLInitShaders(State);
+                OpenGLInitFramebuffers(State, Commands->WindowWidth, Commands->WindowHeight);
 
                 glGenBuffers(1, &State->SkinningTBO);
                 glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
@@ -743,74 +990,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 // todo: use GL_ZERO_TO_ONE?
                 glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
-
-                glGenFramebuffers(ArrayCount(State->Framebuffers) - 1, State->Framebuffers);
-                glGenRenderbuffers(ArrayCount(State->FramebufferColorRBOs) - 1, State->FramebufferColorRBOs);
-                glGenRenderbuffers(ArrayCount(State->FramebufferDepthRBOs) - 1, State->FramebufferDepthRBOs);
-
-                GLint MSAA = 16;
-
-                // todo: handle resizing
-                for (u32 FramebufferIndex = 0; FramebufferIndex < ArrayCount(State->Framebuffers) - 1; ++FramebufferIndex)
-                {
-#if 0
-                    glBindTexture(GL_TEXTURE_2D, State->FramebufferTextures[FramebufferIndex]);
-
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-
-                    // todo: rgb or rgba?
-                    // todo: multisample?
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Commands->WindowWidth, Commands->WindowHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-#endif
-                    glBindRenderbuffer(GL_RENDERBUFFER, State->FramebufferColorRBOs[FramebufferIndex]);
-                    glRenderbufferStorageMultisample(GL_RENDERBUFFER, MSAA, GL_RGB8, Commands->WindowWidth, Commands->WindowHeight);
-
-                    glBindRenderbuffer(GL_RENDERBUFFER, State->FramebufferDepthRBOs[FramebufferIndex]);
-                    glRenderbufferStorageMultisample(GL_RENDERBUFFER, MSAA, GL_DEPTH_COMPONENT, Commands->WindowWidth, Commands->WindowHeight);
-
-                    glBindFramebuffer(GL_FRAMEBUFFER, State->Framebuffers[FramebufferIndex]);
-                    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, State->FramebufferTextures[FramebufferIndex], 0);
-                    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, State->FramebufferColorRBOs[FramebufferIndex]);
-                    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, State->FramebufferDepthRBOs[FramebufferIndex]);
-
-                    GLenum FramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-                    Assert(FramebufferStatus == GL_FRAMEBUFFER_COMPLETE)
-                }
-
-                i32 FramebufferIndex = ArrayCount(State->Framebuffers) - 1;
-
-#if 1
-                glGenFramebuffers(1, &State->Framebuffers[FramebufferIndex]);
-                glGenTextures(1, &State->FramebufferTextures[FramebufferIndex]);
-                glGenRenderbuffers(1, &State->FramebufferDepthRBOs[FramebufferIndex]);
-
-                glBindTexture(GL_TEXTURE_2D, State->FramebufferTextures[FramebufferIndex]);
-
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE); // automatic mipmap generation included in OpenGL v1.4
-
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Commands->WindowWidth, Commands->WindowHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-                glBindTexture(GL_TEXTURE_2D, 0);
-#endif
-
-                glBindRenderbuffer(GL_RENDERBUFFER, State->FramebufferDepthRBOs[FramebufferIndex]);
-                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, Commands->WindowWidth, Commands->WindowHeight);
-
-                glBindFramebuffer(GL_FRAMEBUFFER, State->Framebuffers[FramebufferIndex]);
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, State->FramebufferTextures[FramebufferIndex], 0);
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, State->FramebufferDepthRBOs[FramebufferIndex]);
-
-                GLenum FramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-                Assert(FramebufferStatus == GL_FRAMEBUFFER_COMPLETE)
-
-                glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 
                 break;
             }
@@ -818,13 +997,20 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_add_mesh *Command = (render_command_add_mesh *)Entry;
 
+                // todo: maybe split into two separate commands (AddMesh/AddMeshInstanced)?
                 if (Command->MaxInstanceCount > 0)
                 {
-                    OpenGLAddMeshBufferInstanced(State, Command->MeshId, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices, Command->MaxInstanceCount);
+                    OpenGLAddMeshBufferInstanced(
+                        State, Command->MeshId, Command->VertexCount, 
+                        Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices, 
+                        Command->IndexCount, Command->Indices, Command->MaxInstanceCount);
                 }
                 else
                 {
-                    OpenGLAddMeshBuffer(State, Command->MeshId, Command->VertexCount, Command->Vertices, Command->IndexCount, Command->Indices);
+                    OpenGLAddMeshBuffer(
+                        State, Command->MeshId, Command->VertexCount, 
+                        Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices,
+                        Command->IndexCount, Command->Indices);
                 }
 
                 
@@ -984,7 +1170,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 glBindVertexArray(State->RectangleVAO);
                 glUseProgram(Shader->Program);
 
-                glUniform3f(Shader->CameraPositionUniformLocation, Command->CameraPosition.x, Command->CameraPosition.y, Command->CameraPosition.z);
+                OpenGLBlinnPhongShading(State, Shader, 0);
 
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -1004,6 +1190,54 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     glUseProgram(Shader->Program);
                     glUniform3f(Shader->DirectionalLightDirectionUniformLocation, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
                     glUniform3f(Shader->DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
+                    glUseProgram(0);
+                }
+
+                break;
+            }
+            case RenderCommand_SetPointLights:
+            {
+                render_command_set_point_lights *Command = (render_command_set_point_lights *)Entry;
+
+                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+                {
+                    opengl_shader *Shader = State->Shaders + ShaderIndex;
+
+                    glUseProgram(Shader->Program);
+
+                    glUniform1i(Shader->PointLightCountUniformLocation, Command->PointLightCount);
+
+                    for (u32 PointLightIndex = 0; PointLightIndex < Command->PointLightCount; ++PointLightIndex)
+                    {
+                        point_light *PointLight = Command->PointLights + PointLightIndex;
+
+                        char PositionUniformName[64];
+                        FormatString(PositionUniformName, ArrayCount(PositionUniformName), "u_PointLights[%d].Position", PointLightIndex);
+                        GLint PositionUniformLocation = glGetUniformLocation(Shader->Program, PositionUniformName);
+
+                        char ColorUniformName[64];
+                        FormatString(ColorUniformName, ArrayCount(ColorUniformName), "u_PointLights[%d].Color", PointLightIndex);
+                        GLint ColorUniformLocation = glGetUniformLocation(Shader->Program, ColorUniformName);
+
+                        char AttenuationConstantUniformName[64];
+                        FormatString(AttenuationConstantUniformName, ArrayCount(AttenuationConstantUniformName), "u_PointLights[%d].Attenuation.Constant", PointLightIndex);
+                        GLint AttenuationConstantUniformLocation = glGetUniformLocation(Shader->Program, AttenuationConstantUniformName);
+
+                        char AttenuationLinearUniformName[64];
+                        FormatString(AttenuationLinearUniformName, ArrayCount(AttenuationLinearUniformName), "u_PointLights[%d].Attenuation.Linear", PointLightIndex);
+                        GLint AttenuationLinearUniformLocation = glGetUniformLocation(Shader->Program, AttenuationLinearUniformName);
+
+                        char AttenuationQuadraticUniformName[64];
+                        FormatString(AttenuationQuadraticUniformName, ArrayCount(AttenuationQuadraticUniformName), "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
+                        GLint AttenuationQuadraticUniformLocation = glGetUniformLocation(Shader->Program, AttenuationQuadraticUniformName);
+
+                        glUniform3f(PositionUniformLocation, PointLight->Position.x, PointLight->Position.y, PointLight->Position.z);
+                        glUniform3f(ColorUniformLocation, PointLight->Color.r, PointLight->Color.g, PointLight->Color.b);
+                        glUniform1f(AttenuationConstantUniformLocation, PointLight->Attenuation.Constant);
+                        glUniform1f(AttenuationLinearUniformLocation, PointLight->Attenuation.Linear);
+                        glUniform1f(AttenuationQuadraticUniformLocation, PointLight->Attenuation.Quadratic);
+                    }
+
                     glUseProgram(0);
                 }
 
@@ -1030,9 +1264,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                         mat4 Model = Transform(Command->Transform);
                         glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
 
-                        glUniform1ui(Shader->MeshFlagsUniformLocation, Command->Flags);
-
-                        OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial, &Command->PointLight1, &Command->PointLight2);
+                        OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial);
 
                         break;
                     }
@@ -1046,8 +1278,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                         material Material = Command->Material;
 
                         glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
-                        glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, 1.f);
-                        glUniform1ui(Shader->MeshFlagsUniformLocation, Command->Flags);
+                        glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
 
                         break;
                     }
@@ -1058,13 +1289,17 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     }
                 }
 
-                GLint PrevPolygonMode[2];
-                glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
-                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
+                if (Command->Material.Wireframe)
+                {
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                    glUniform1i(Shader->BlinkUniformLocation, true);
+                }
 
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
 
-                glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
                 glUseProgram(0);
                 glBindVertexArray(0);
@@ -1098,10 +1333,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                         glBindTexture(GL_TEXTURE_BUFFER, State->SkinningTBOTexture);
                         glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, State->SkinningTBO);
 
-                        glUniform1ui(Shader->MeshFlagsUniformLocation, Command->Flags);
                         glUniform1i(Shader->SkinningMatricesSamplerUniformLocation, 0);
 
-                        OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial, &Command->PointLight1, &Command->PointLight2);
+                        OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial);
 
                         break;
                     }
@@ -1118,13 +1352,13 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     }
                 }
 
-                GLint PrevPolygonMode[2];
+                /*GLint PrevPolygonMode[2];
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
-                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
+                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);*/
 
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
 
-                glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
+                //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
 
                 glUseProgram(0);
                 glBindVertexArray(0);
@@ -1138,7 +1372,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
 
                 glBindVertexArray(MeshBuffer->VAO);
-                glBufferSubData(GL_ARRAY_BUFFER, MeshBuffer->VertexCount * sizeof(skinned_vertex), Command->InstanceCount * sizeof(render_instance), Command->Instances);
+                glBindBuffer(GL_ARRAY_BUFFER, MeshBuffer->VBO);
+                glBufferSubData(GL_ARRAY_BUFFER, MeshBuffer->BufferSize, Command->InstanceCount * sizeof(render_instance), Command->Instances);
 
                 switch (Command->Material.Type)
                 {
@@ -1150,7 +1385,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                         glUseProgram(Shader->Program);
 
-                        OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial, &Command->PointLight1, &Command->PointLight2);
+                        OpenGLBlinnPhongShading(State, Shader, Command->Material.MeshMaterial);
 
                         break;
                     }
@@ -1166,7 +1401,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                         material Material = Command->Material;
 
                         glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
-                        glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, 1.f);
+                        glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
 #endif
 
                         break;
@@ -1179,13 +1414,13 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 }
 
                 // todo: make polygon mode that operates globally and not on per-command basis
-                GLint PrevPolygonMode[2];
+               /* GLint PrevPolygonMode[2];
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
-                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);
+                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);*/
 
                 glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
 
-                glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
+                //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
 
                 glUseProgram(0);
                 glBindVertexArray(0);
@@ -1202,19 +1437,20 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     }
 
 #if 0
-    glDisable(GL_DEPTH_TEST);
+    // todo: still aliasing :(
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, State->MultiSampledFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->SingleSampledFBO);
+    glBlitFramebuffer(
+        0, 0, Commands->WindowWidth, Commands->WindowHeight, 
+        0, 0, Commands->WindowWidth, Commands->WindowHeight, 
+        GL_COLOR_BUFFER_BIT, 
+        GL_LINEAR
+    );
 
-    // copy rendered image from MSAA (multi-sample) to normal (single-sample)
-    // NOTE: The multi samples at a pixel in read buffer will be converted
-    // to a single sample at the target pixel in draw buffer.
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, State->Framebuffers[0]); // src FBO (multi-sample)
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->Framebuffers[ArrayCount(State->Framebuffers) - 1]);     // dst FBO (single-sample)
-
-    glBlitFramebuffer(0, 0, Commands->WindowWidth, Commands->WindowHeight, 0, 0, Commands->WindowWidth, Commands->WindowHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, State->Framebuffers[ArrayCount(State->Framebuffers) - 1]);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
     glViewport(0, 0, Commands->WindowWidth, Commands->WindowHeight);
+
     glClearColor(1.f, 0.f, 1.f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1223,12 +1459,17 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     glBindVertexArray(State->RectangleVAO);
     glUseProgram(Shader->Program);
 
-    glUniform1f(Shader->TimeUniformLocation, Commands->Time);
-
-    glBindTexture(GL_TEXTURE_2D, State->FramebufferTextures[ArrayCount(State->Framebuffers) - 1]);
+    glBindTexture(GL_TEXTURE_2D, State->SingleSampledColorTexture);
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    glEnable(GL_DEPTH_TEST);
+#else
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, State->MultiSampledFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(
+        0, 0, Commands->WindowWidth, Commands->WindowHeight,
+        0, 0, Commands->WindowWidth, Commands->WindowHeight,
+        GL_COLOR_BUFFER_BIT,
+        GL_LINEAR
+    );
 #endif
 }

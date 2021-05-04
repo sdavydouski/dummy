@@ -27,6 +27,7 @@
     <None Include="dummy_animation.cpp" />
     <None Include="dummy_collision.cpp" />
     <None Include="dummy_physics.cpp" />
+    <None Include="dummy_process.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

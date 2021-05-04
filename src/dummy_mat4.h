@@ -102,7 +102,7 @@ struct mat4
         return Result;
     }
 
-    inline vec4 operator *(vec4 &Vector)
+    inline vec4 operator *(const vec4 &Vector)
     {
         vec4 Row0 = Rows[0];
         vec4 Row1 = Rows[1];
