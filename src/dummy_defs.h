@@ -10,7 +10,7 @@
 #define DLLExport extern "C" __declspec(dllexport)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
-#define First(Array) Array
+#define First(Array) Array + 0
 #define Last(Array, Count) Array + (Count - 1)
 #define StructOffset(StructType, StructMember) ((u64)(&(((StructType *)0)->StructMember)))
 #define Stringify(Arg) #Arg

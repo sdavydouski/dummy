@@ -3,6 +3,8 @@
 #include "dummy_memory.h"
 #include "dummy_renderer.h"
 
+struct game_state;
+
 enum mouse_mode
 {
     MouseMode_Navigation,
@@ -46,6 +48,13 @@ struct game_memory
 
     platform_api *Platform;
 };
+
+inline game_state *
+GetGameState(game_memory *Memory)
+{
+    game_state *GameState =(game_state *)Memory->PermanentStorage;
+    return GameState;
+}
 
 inline render_commands *
 GetRenderCommands(game_memory *Memory)

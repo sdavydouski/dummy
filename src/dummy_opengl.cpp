@@ -987,6 +987,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                 glEnable(GL_LINE_SMOOTH);
                 glEnable(GL_MULTISAMPLE);
+                //glEnable(GL_FRAMEBUFFER_SRGB);
 
                 // todo: use GL_ZERO_TO_ONE?
                 glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);

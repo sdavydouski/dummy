@@ -210,6 +210,8 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 
     ImGui::Begin("Game State");
 
+    ImGui::Text("Entity Count: %d", GameState->EntityCount);
+
     ImGui::Text("Player:");
 
     ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
@@ -248,7 +250,7 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
     {
         game_entity *Entity = GameState->Entities + EntityIndex;
 
-        if (Entity->IsSelected)
+        if (Entity->DebugView)
         {
             RenderEntityInfo(Entity, Entity->Model);
         }

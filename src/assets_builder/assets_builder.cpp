@@ -34,9 +34,6 @@
 // probably related:
 // https://github.com/assimp/assimp/pull/2815
 
-//#undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
-//#define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 1.f
-
 #define INVALID_FLOAT -1.f
 #define INVALID_COLOR vec4(-1.f)
 
@@ -140,6 +137,8 @@ FindAssimpTextureByFileName(const aiScene *AssimpScene, aiString TexturePath)
         }
     }
 
+    Assert(Result);
+
     return Result;
 }
 
@@ -163,8 +162,6 @@ ProcessAssimpTextures(
             bitmap *Bitmap = *Bitmaps + TextureIndex;
 
             aiTexture *AssimpTexture = FindAssimpTextureByFileName(AssimpScene, TexturePath);
-
-            Assert(AssimpTexture);
 
             if (AssimpTexture->mHeight == 0)
             {
@@ -319,6 +316,7 @@ internal void
 ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, skeleton *Skeleton)
 {
     Assert(AssimpAnimation->mName.length < MAX_ANIMATION_NAME_LENGTH);
+
     CopyString(AssimpAnimation->mName.C_Str(), Animation->Name, (u32)(AssimpAnimation->mName.length + 1));
     Animation->Duration = (f32)AssimpAnimation->mDuration / (f32)AssimpAnimation->mTicksPerSecond;
     Animation->PoseSampleCount = AssimpAnimation->mNumChannels;
@@ -346,7 +344,6 @@ ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, 
 
             key_frame *KeyFrame = AnimationSample->KeyFrames + KeyIndex;
             KeyFrame->Time = (f32)PositionKey->mTime / (f32)AssimpAnimation->mTicksPerSecond;
-            KeyFrame->Pose = {};
             KeyFrame->Pose.Rotation = AssimpQuaternion2Quaternion(RotationKey->mValue);
             KeyFrame->Pose.Translation = AssimpVector2Vector(PositionKey->mValue);
             KeyFrame->Pose.Scale = AssimpVector2Vector(ScalingKey->mValue);
@@ -518,7 +515,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
 internal void
 ProcessAssimpNodeHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes)
 {
-    assimp_node *Node = (assimp_node *)malloc(sizeof(assimp_node) * 1);
+    assimp_node *Node = (assimp_node *)malloc(sizeof(assimp_node));
     Node->Node = AssimpNode;
     Node->Bone = 0;             // will be filled later
 
@@ -793,7 +790,7 @@ LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
     else
     {
         const char *ErrorMessage = aiGetErrorString();
-        int t = 0;
+        Assert(!ErrorMessage);
     }
 }
 
@@ -817,6 +814,7 @@ LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, cons
     aiReleaseImport(AssimpScene);
 }
 
+// For testing
 internal void
 ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAsset)
 {
@@ -1323,7 +1321,7 @@ ProcessPelegriniModel()
         aiProcess_JoinIdenticalVertices |
         aiProcess_ValidateDataStructure |
         aiProcess_LimitBoneWeights |
-        aiProcess_GlobalScale |
+        //aiProcess_GlobalScale |
         aiProcess_RemoveRedundantMaterials |
         aiProcess_FixInfacingNormals |
         aiProcess_OptimizeGraph;
@@ -1373,6 +1371,9 @@ ProcessAsset(const char *FilePath, const char *OutputPath)
     model_asset Asset;
     LoadModelAsset(FilePath, &Asset, Flags);
     // todo: check if has animations and process them as well
+
+
+
     WriteAssetFile(OutputPath, &Asset);
 }
 
@@ -1380,10 +1381,16 @@ i32 main(i32 ArgCount, char **Args)
 {
     // todo: get from Args
     string Path = "models\\";
+    //string Path = "models\\pelegrini";
 
 #if 1
     for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
     {
+        if (Entry.is_directory())
+        {
+
+        }
+
         if (Entry.is_regular_file())
         {
             fs::path FileName = Entry.path().filename();
@@ -1394,6 +1401,15 @@ i32 main(i32 ArgCount, char **Args)
 
             char OutputPath[64];
             FormatString(OutputPath, ArrayCount(OutputPath), "assets\\%s.asset", AssetName.generic_string().c_str());
+
+#if 1
+            fs::path FileExtension = Entry.path().extension();
+
+            if (FileExtension == ".animation")
+            {
+                
+            }
+#endif
 
             // todo: multithreading (std::thread maybe?)
             ProcessAsset(FilePath, OutputPath);

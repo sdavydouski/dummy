@@ -60,13 +60,11 @@ void main()
     vec3 Result = DiffuseColor;
 #endif
 
-    out_Color = vec4(Result, 1.f);
+ out_Color = vec4(Result, 1.f);
 
 #if 0
-    if (bool(fs_in.Highlight & MeshFlag_Highlight) || bool(u_MeshFlags & MeshFlag_Highlight))
-    {
-        float Value = 0.1f * abs(sin(u_Time * 2.f)) + 0.1f;
-        out_Color += vec4(Value, Value, 0.f, 0.f);
-    }
+    // apply gamma correction
+    float gamma = 2.2f;
+    out_Color.rgb = pow(out_Color.rgb, vec3(1.f / gamma));
 #endif
 }

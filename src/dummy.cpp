@@ -17,6 +17,14 @@
 #include "dummy_animation.cpp"
 
 template <typename T>
+inline b32
+IsEmpty(T *Value)
+{
+    b32 Result = StringEquals(Value->Name, "");
+    return Result;
+}
+
+template <typename T>
 internal T *
 HashTableLookup(u32 Count, T *Values, char *Name)
 {
@@ -30,7 +38,7 @@ HashTableLookup(u32 Count, T *Values, char *Name)
     u32 ProbIndex = (HashSlot + 1) % Count;
     u32 IterationCount = 0;
     // todo: better conditions
-    while (!(StringEquals(Result->Name, "") || StringEquals(Result->Name, Name)))
+    while (!(IsEmpty(Result) || StringEquals(Result->Name, Name)))
     {
         Result = Values + ProbIndex++;
 
@@ -324,6 +332,8 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
             }
         }
     }
+
+    Model->Bounds = CalculateAxisAlignedBoundingBox(Model);
 }
 
 inline ray
@@ -382,6 +392,7 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         InitModel(Asset, Model, Name, Arena, RenderCommands);
     }
 
+    // todo: sRGB?
     {
         char Name[32] = "Cube";
         model *Model = GetModelAsset(Assets, Name);
@@ -409,11 +420,18 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         model *Model = GetModelAsset(Assets, Name);
         model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\floor.asset", Arena);
         // todo: render instance count?
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
+        InitModel(Asset, Model, Name, Arena, RenderCommands, 1024);
     }
 
     {
         char Name[32] = "Wall";
+        model *Model = GetModelAsset(Assets, Name);
+        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\wall.asset", Arena);
+        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
+    }
+
+    {
+        char Name[32] = "Wall_90";
         model *Model = GetModelAsset(Assets, Name);
         model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\wall_90.asset", Arena);
         InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
@@ -467,7 +485,7 @@ RenderCollisionVolume(render_commands *RenderCommands, game_state *State, game_e
 
     // Mesh Bounds
     {
-        vec3 HalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->MeshBounds);
+        vec3 HalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->Model->Bounds);
         vec3 Position = Entity->Transform.Translation;
 
         transform Transform = CreateTransform(Position, HalfSize, quat(0.f));
@@ -501,14 +519,14 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
         DrawModel(RenderCommands, Entity->Model, Entity->Transform);
     }
 
-    if (Entity->Debug.ShowCollisionVolume)
+    if (Entity->DebugView)
     {
         RenderCollisionVolume(RenderCommands, State, Entity);
-    }
 
-    if (Entity->Debug.ShowSkeleton)
-    {
-        DrawSkeleton(RenderCommands, State, Entity->Model->Pose);
+        if (Entity->Model->Skeleton->JointCount > 1)
+        {
+            DrawSkeleton(RenderCommands, State, Entity->Model->Pose);
+        }
     }
 }
 
@@ -524,14 +542,25 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
         game_entity *Entity = Batch->Entities[EntityIndex];
         //render_instance *Instance = Batch->Instances + EntityIndex;
 
-        if (Entity->Debug.ShowCollisionVolume)
+        if (Entity->DebugView)
         {
             RenderCollisionVolume(RenderCommands, State, Entity);
         }
     }
 }
 
-internal void
+inline void
+InitRenderBatch(entity_render_batch *Batch, model *Model, u32 MaxEntityCount, memory_arena *Arena)
+{
+    CopyString(Model->Name, Batch->Name, ArrayCount(Batch->Name));
+    Batch->Model = Model;
+    Batch->EntityCount = 0;
+    Batch->MaxEntityCount = 1024;
+    Batch->Entities = PushArray(Arena, Batch->MaxEntityCount, game_entity *);
+    Batch->Instances = PushArray(Arena, Batch->MaxEntityCount, render_instance);
+}
+
+inline void
 AddEntityToRenderBatch(entity_render_batch *Batch, game_entity *Entity)
 {
     Assert(Batch->EntityCount < Batch->MaxEntityCount);
@@ -545,9 +574,213 @@ AddEntityToRenderBatch(entity_render_batch *Batch, game_entity *Entity)
     Batch->EntityCount++;
 }
 
+internal void
+GenerateRoom(game_state *State, vec3 Origin, vec2 Size, vec3 Scale)
+{
+    // https://quaternius.itch.io/lowpoly-modular-dungeon-pack
+    model *FloorModel = GetModelAsset(&State->Assets, "Floor");
+    model *WallModel = GetModelAsset(&State->Assets, "Wall");
+    model *Wall90Model = GetModelAsset(&State->Assets, "Wall_90");
+    model *ColumnModel = GetModelAsset(&State->Assets, "Column");
+
+    vec3 FloorModelBoundsSize = FloorModel->Bounds.Max - FloorModel->Bounds.Min;
+    vec3 WallModelBoundsSize = WallModel->Bounds.Max - WallModel->Bounds.Min;
+    vec3 Wall90ModelBoundsSize = Wall90Model->Bounds.Max - Wall90Model->Bounds.Min;
+    vec3 ColumnModelBoundsSize = ColumnModel->Bounds.Max - ColumnModel->Bounds.Min;
+
+    // todo: ?
+    f32 TileSize = FloorModelBoundsSize.x;
+
+    // todo: odd sizes
+    i32 HalfDimX = (i32) (Size.x / 2.f);
+    i32 HalfDimY = (i32) (Size.y / 2.f);
+
+    // Floor Tiles
+    for (i32 x = -HalfDimX; x < HalfDimX; ++x)
+    {
+        for (i32 y = -HalfDimY; y < HalfDimY; ++y)
+        {
+            game_entity *Entity = State->Entities + State->EntityCount++;
+
+            vec3 Offset = vec3(FloorModelBoundsSize.x * x + FloorModelBoundsSize.x / 2.f, 0.f, FloorModelBoundsSize.z * y + FloorModelBoundsSize.z / 2.f) * Scale;
+            vec3 Position = Origin + Offset;
+            quat Orientation = quat(0.f);
+
+            Entity->Transform = CreateTransform(Position, Scale, Orientation);
+            Entity->Model = FloorModel;
+        }
+    }
+
+    // Wall Tiles
+    {
+        // Top
+        for (i32 x = -HalfDimX; x < HalfDimX; ++x)
+        {
+            // First Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, 0.f, TileSize * -HalfDimY) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = WallModel;
+            }
+
+            // Second Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, WallModelBoundsSize.y, TileSize * -HalfDimY) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = WallModel;
+            }
+        }
+
+        // Bottom
+        for (i32 x = -HalfDimX; x < HalfDimX; ++x)
+        {
+            // First Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, 0.f, TileSize * HalfDimY) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = WallModel;
+            }
+
+            // Second Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, WallModelBoundsSize.y, TileSize * HalfDimY) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = WallModel;
+            }
+        }
+
+        // Left
+        for (i32 y = -HalfDimY; y < HalfDimY; ++y)
+        {
+            // First Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * -HalfDimX, 0.f, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = Wall90Model;
+            }
+
+            // Second Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * -HalfDimX, Wall90ModelBoundsSize.y, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = Wall90Model;
+            }
+        }
+
+        // Right
+        for (i32 y = -HalfDimY; y < HalfDimY; ++y)
+        {
+            // First Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * HalfDimX, 0.f, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = Wall90Model;
+            }
+
+            // Second Level
+            {
+                game_entity *Entity = State->Entities + State->EntityCount++;
+
+                vec3 Offset = vec3(TileSize * HalfDimX, Wall90ModelBoundsSize.y, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
+                vec3 Position = Origin + Offset;
+                quat Orientation = quat(0.f);
+
+                Entity->Transform = CreateTransform(Position, Scale, Orientation);
+                Entity->Model = Wall90Model;
+            }
+        }
+    }
+
+    // Columns
+    {
+        // Top-Left
+        {
+            game_entity *Entity = State->Entities + State->EntityCount++;
+
+            vec3 Offset = vec3(-HalfDimX * TileSize, 0.f, -HalfDimY * TileSize) * Scale;
+            vec3 Position = Origin + Offset;
+            quat Orientation = quat(0.f);
+
+            Entity->Transform = CreateTransform(Position, Scale, Orientation);
+            Entity->Model = ColumnModel;
+        }
+
+        // Top-Right
+        {
+            game_entity *Entity = State->Entities + State->EntityCount++;
+
+            vec3 Offset = vec3(HalfDimX * TileSize, 0.f, -HalfDimY * TileSize) * Scale;
+            vec3 Position = Origin + Offset;
+            quat Orientation = quat(0.f);
+
+            Entity->Transform = CreateTransform(Position, Scale, Orientation);
+            Entity->Model = ColumnModel;
+        }
+
+        // Bottom-Left
+        {
+            game_entity *Entity = State->Entities + State->EntityCount++;
+
+            vec3 Offset = vec3(-HalfDimX * TileSize, 0.f, HalfDimY * TileSize) * Scale;
+            vec3 Position = Origin + Offset;
+            quat Orientation = quat(0.f);
+
+            Entity->Transform = CreateTransform(Position, Scale, Orientation);
+            Entity->Model = ColumnModel;
+        }
+
+        // Bottom-Right
+        {
+            game_entity *Entity = State->Entities + State->EntityCount++;
+
+            vec3 Offset = vec3(HalfDimX * TileSize, 0.f, HalfDimY * TileSize) * Scale;
+            vec3 Position = Origin + Offset;
+            quat Orientation = quat(0.f);
+
+            Entity->Transform = CreateTransform(Position, Scale, Orientation);
+            Entity->Model = ColumnModel;
+        }
+    }
+}
+
 DLLExport GAME_INIT(GameInit)
 {
-    game_state *State = (game_state *)Memory->PermanentStorage;
+    game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
 
     umm PermanentArenaSize = Memory->PermanentStorageSize - sizeof(game_state);
@@ -569,6 +802,7 @@ DLLExport GAME_INIT(GameInit)
     State->DelayDuration = 0.5f;
 
     State->Mode = GameMode_World;
+    Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
     InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
     InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 0.f, 0.f));
@@ -607,8 +841,6 @@ DLLExport GAME_INIT(GameInit)
 
         State->Player->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f));
         State->Player->State = EntityState_Idle;
-        // todo: skinned meshes?
-        State->Player->MeshBounds = CalculateAxisAlignedBoundingBox(State->Player->Model);
 
         State->Player->Animation = PushType(&State->PermanentArena, animation_graph);
         BuildAnimationGraph(State->Player->Animation, State->Player->Model, &State->PermanentArena, &State->RNG);
@@ -620,7 +852,6 @@ DLLExport GAME_INIT(GameInit)
 
         Entity->Model = GetModelAsset(&State->Assets, "Skull");
         Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
-        Entity->MeshBounds = CalculateAxisAlignedBoundingBox(Entity->Model);
     }
 
     {
@@ -628,88 +859,12 @@ DLLExport GAME_INIT(GameInit)
 
         Entity->Model = GetModelAsset(&State->Assets, "Skull");
         Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
-        Entity->MeshBounds = CalculateAxisAlignedBoundingBox(Entity->Model);
     }
 
-    vec3 Scale = vec3(2.f);
-    vec2 FloorDim = vec2(10.f, 10.f);
-
-#if 1
-    model *FloorModel = GetModelAsset(&State->Assets, "Floor");
-    aabb FloorBounds = CalculateAxisAlignedBoundingBox(FloorModel);
-
-    vec2 HalfDim = FloorDim / 2.f;
-
-    for (f32 i = -HalfDim.x; i < HalfDim.x; ++i)
-    {
-        //f32 x = i * 8.f + 2.f;
-        f32 x = i * 10.f + 2.f;
-
-        for (f32 j = -HalfDim.y; j < HalfDim.y; ++j)
-        {
-            game_entity *Entity = State->Entities + State->EntityCount++;
-
-            //f32 z = j * 8.f + 1.f;
-            f32 z = j * 10.f + 1.f;
-
-            vec3 Position = vec3(x, 0.f, z);
-            quat Orientation = quat(0.f);
-
-            Entity->Transform = CreateTransform(Position, Scale, Orientation);
-            Entity->Model = FloorModel;
-            Entity->MeshBounds = FloorBounds;
-        }
-    }
-#endif
-
-#if 1
-    model *WallModel = GetModelAsset(&State->Assets, "Wall");
-    aabb WallBounds = CalculateAxisAlignedBoundingBox(WallModel);
-
-    for (f32 i = 0; i < 10; ++i)
-    {
-        game_entity *Entity = State->Entities + State->EntityCount++;
-
-        f32 x = 0.f;
-        f32 z = 0.f;
-
-        if (i < 5)
-        {
-            x = -FloorDim.x * 2.f;
-            //z = (i - 1) * 8.f - FloorDim.y;
-            z = (i - 1) * 10.f - FloorDim.y;
-        }
-        else
-        {
-            x = FloorDim.x * 2.f;
-            //z = (i - 6) * 8.f - FloorDim.y;
-            z = (i - 6) * 10.f - FloorDim.y;
-        }
-
-        vec3 Position = vec3(x, 0.f, z);
-        quat Orientation = quat(0.f);
-
-        Entity->Transform = CreateTransform(Position, Scale, Orientation);
-        Entity->MeshBounds = WallBounds;
-        Entity->Model = WallModel;
-    }
-#endif
-
-    model *ColumnModel = GetModelAsset(&State->Assets, "Column");
-    aabb ColumnBounds = CalculateAxisAlignedBoundingBox(ColumnModel);
-
-    {
-        game_entity *Entity = State->Entities + State->EntityCount++;
-
-        vec3 Position = vec3(5.f, 0.f, 5.f);
-        quat Orientation = quat(0.f);
-
-        Entity->Transform = CreateTransform(Position, Scale, Orientation);
-        Entity->MeshBounds = ColumnBounds;
-        Entity->Model = ColumnModel;
-    }
-
-    Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
+    // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
+    GenerateRoom(State, vec3(0.f), vec2(16.f, 10.f), vec3(2.f));
+    GenerateRoom(State, vec3(0.f, 0.f, -36.f), vec2(8.f, 8.f), vec3(2.f));
+    GenerateRoom(State, vec3(0.f, 0.f, 48.f), vec2(8.f, 14.f), vec3(2.f));
 
     State->PointLightCount = 2;
     State->PointLights = PushArray(&State->PermanentArena, State->PointLightCount, point_light);
@@ -739,7 +894,7 @@ DLLExport GAME_INIT(GameInit)
 
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 {
-    game_state *State = (game_state *)Memory->PermanentStorage;
+    game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
 
     vec3 xAxis = vec3(1.f, 0.f, 0.f);
@@ -785,12 +940,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             game_entity *Entity = State->Entities + EntityIndex;
 
-            vec3 BoxCenter = Entity->Transform.Translation + Entity->Transform.Scale * vec3(0.f, (Entity->MeshBounds.Max.y - Entity->MeshBounds.Min.y) * 0.5f, 0.f);
-            vec3 BoxHalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->MeshBounds);
+            vec3 BoxCenter = Entity->Transform.Translation + Entity->Transform.Scale * vec3(0.f, (Entity->Model->Bounds.Max.y - Entity->Model->Bounds.Min.y) * 0.5f, 0.f);
+            vec3 BoxHalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->Model->Bounds);
             aabb Box = CreateAABBCenterHalfSize(BoxCenter, BoxHalfSize);
 
-            Entity->IsSelected = false;
-            Entity->Debug.ShowCollisionVolume = false;
+            Entity->DebugView = false;
 
             vec3 IntersectionPoint;
             if (HitBoundingBox(Ray, Box, IntersectionPoint))
@@ -807,8 +961,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
         if (SelectedEntity)
         {
-            SelectedEntity->IsSelected = true;
-            SelectedEntity->Debug.ShowCollisionVolume = true;
+            SelectedEntity->DebugView = true;
         }
     }
 
@@ -845,7 +998,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             State->PlayerCamera.Radius -= Input->ZoomDelta * 250.0f * Parameters->Delta;
             State->PlayerCamera.Radius = Clamp(State->PlayerCamera.Radius, 10.f, 70.f);
 
-            f32 CameraHeight = State->PlayerCamera.Radius * Sin(State->PlayerCamera.Pitch);
+            f32 CameraHeight = Max(0.1f, State->PlayerCamera.Radius * Sin(State->PlayerCamera.Pitch));
 
             vec3 PlayerPosition = State->Player->Transform.Translation;
 #if 1
@@ -1010,12 +1163,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
 DLLExport GAME_UPDATE(GameUpdate)
 {
-    game_state *State = (game_state *)Memory->PermanentStorage;
+    game_state *State = GetGameState(Memory);
 
     //if (State->Advance)
     {
         State->Advance = false;
-        State->BackgroundColor = vec3(0.f);
 
 #if 1
         game_entity *Player = State->Player;
@@ -1066,7 +1218,7 @@ DLLExport GAME_UPDATE(GameUpdate)
 
 DLLExport GAME_RENDER(GameRender)
 {
-    game_state *State = (game_state *)Memory->PermanentStorage;
+    game_state *State = GetGameState(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
 
     ClearMemoryArena(&State->TransientArena);
@@ -1115,15 +1267,16 @@ DLLExport GAME_RENDER(GameRender)
             SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
             
+#if 0
             // Axis
             f32 Bounds = 100.f;
 
-            //DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
-            //DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 4.f);
-            //DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
+            DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
+            DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 4.f);
+            DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
+#endif
 
-            //DrawLine(RenderCommands, Ray.Origin, Ray.Origin + Ray.Direction * 100.f, vec4(1.f, 0.f, 1.f, 1.f), 4.f);
-
+            // Scene lighting
             directional_light DirectionalLight = {};
             DirectionalLight.Color = State->DirectionalColor;
             DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
@@ -1143,21 +1296,6 @@ DLLExport GAME_RENDER(GameRender)
             PointLight2->Position = PointLight2Position;
 
             SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
-
-            /*
-                Pivotal Movement
-                To implement pivotal movement, we can simply play the forward locomotion
-                loop while rotating the entire character about its vertical axis to make it turn.
-                Pivotal movement looks more natural if the character’s body doesn’t remain
-                bolt upright when it is turning—real humans tend to lean into their turns a
-                little bit. We could try slightly tilting the vertical axis of the character as a
-                whole, but that would cause problems with the inner foot sinking into the
-                ground while the outer foot comes off the ground. A more natural-looking
-                result can be achieved by animating three variations on the basic forward walk
-                or run—one going perfectly straight, one making an extreme left turn and one
-                making an extreme right turn. We can then LERP-blend between the straight
-                clip and the extreme left turn clip to implement any desired lean angle.
-            */
 
             // Player
             // todo: naming
@@ -1179,7 +1317,7 @@ DLLExport GAME_RENDER(GameRender)
 
             UpdateGlobalJointPoses(Pose, State->Player->Transform);
 
-            // Drawing flying skulls
+            // Flying skulls
             {
                 game_entity *Skull = State->Entities + 1;
 
@@ -1194,8 +1332,7 @@ DLLExport GAME_RENDER(GameRender)
                 Skull->Transform.Rotation = State->Player->Body->Orientation;
             }
 
-            DrawGround(RenderCommands);
-
+#if 0
             for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
                 game_entity *Entity = State->Entities + EntityIndex;
@@ -1207,6 +1344,7 @@ DLLExport GAME_RENDER(GameRender)
                     Entity->Debug.ShowCollisionVolume = true;
                 }
             }
+#endif
 
             // Grouping entities into render batches (by model)
             State->EntityBatchCount = 32;
@@ -1215,17 +1353,11 @@ DLLExport GAME_RENDER(GameRender)
             for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
                 game_entity *Entity = State->Entities + EntityIndex;
-
                 entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
 
-                if (StringEquals(Batch->Name, ""))
+                if (IsEmpty(Batch))
                 {
-                    CopyString(Entity->Model->Name, Batch->Name, ArrayCount(Batch->Name));
-                    Batch->MaxEntityCount = 256;
-                    Batch->EntityCount = 0;
-                    Batch->Model = Entity->Model;
-                    Batch->Entities = PushArray(&State->TransientArena, Batch->MaxEntityCount, game_entity *);
-                    Batch->Instances = PushArray(&State->TransientArena, Batch->MaxEntityCount, render_instance);
+                    InitRenderBatch(Batch, Entity->Model, 256, &State->TransientArena);
                 }
 
                 AddEntityToRenderBatch(Batch, Entity);
@@ -1253,6 +1385,8 @@ DLLExport GAME_RENDER(GameRender)
                     }
                 }
             }
+
+            DrawGround(RenderCommands);
 
             break;
         }

@@ -29,13 +29,6 @@ struct game_camera
     vec3_lerp PositionLerp;
 };
 
-struct game_debug
-{
-    b32 ShowCollisionVolume;
-    b32 ShowWireframeGeometry;
-    b32 ShowSkeleton;
-};
-
 enum entity_state
 {
     EntityState_Idle,
@@ -46,7 +39,6 @@ enum entity_state
 struct game_entity
 {
     transform Transform;
-    aabb MeshBounds;
 
     model *Model;
     rigid_body *Body;
@@ -54,8 +46,7 @@ struct game_entity
 
     entity_state State;
 
-    game_debug Debug;
-    b32 IsSelected;
+    b32 DebugView;
 };
 
 struct entity_render_batch

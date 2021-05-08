@@ -45,7 +45,7 @@ struct mesh
     u32 Id;
     u32 MaterialIndex;
 
-    // todo: calculate bitangent instead of storing it? (fourth weight too)
+    // todo: calculate bitangent instead of storing it? (fourth weight too) <- do I even care?
     u32 VertexCount;
     vec3 *Positions;
     vec3 *Normals;
@@ -59,7 +59,7 @@ struct mesh
     u32 *Indices;
 };
 
-// todo: break this
+// todo: break this?
 struct model
 {
     char Name[64];
@@ -67,6 +67,8 @@ struct model
     skeleton *Skeleton;
     skeleton_pose *BindPose;
     skeleton_pose *Pose;
+
+    aabb Bounds;
 
     u32 MeshCount;
     mesh *Meshes;
