@@ -420,21 +420,21 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         model *Model = GetModelAsset(Assets, Name);
         model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\floor.asset", Arena);
         // todo: render instance count?
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 1024);
+        InitModel(Asset, Model, Name, Arena, RenderCommands, 4096);
     }
 
     {
         char Name[32] = "Wall";
         model *Model = GetModelAsset(Assets, Name);
         model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\wall.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
+        InitModel(Asset, Model, Name, Arena, RenderCommands, 4096);
     }
 
     {
         char Name[32] = "Wall_90";
         model *Model = GetModelAsset(Assets, Name);
         model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\wall_90.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
+        InitModel(Asset, Model, Name, Arena, RenderCommands, 4096);
     }
 
     {
@@ -555,7 +555,7 @@ InitRenderBatch(entity_render_batch *Batch, model *Model, u32 MaxEntityCount, me
     CopyString(Model->Name, Batch->Name, ArrayCount(Batch->Name));
     Batch->Model = Model;
     Batch->EntityCount = 0;
-    Batch->MaxEntityCount = 1024;
+    Batch->MaxEntityCount = 4096;
     Batch->Entities = PushArray(Arena, Batch->MaxEntityCount, game_entity *);
     Batch->Instances = PushArray(Arena, Batch->MaxEntityCount, render_instance);
 }
@@ -778,6 +778,83 @@ GenerateRoom(game_state *State, vec3 Origin, vec2 Size, vec3 Scale)
     }
 }
 
+internal void
+GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
+{
+    Assert(RoomCount > 0);
+
+#if 0
+    u32 RoomWidth = RandomBetween(&State->RNG, 6, 12);
+    u32 RoomHeight = RandomBetween(&State->RNG, 6, 12);
+#else
+    u32 RoomWidth = 8;
+    u32 RoomHeight = 6;
+#endif
+
+    vec2 RoomSize = vec2((f32)RoomWidth, (f32)RoomHeight);
+    vec3 RoomOrigin = Origin;
+
+    GenerateRoom(State, RoomOrigin, RoomSize, Scale);
+
+    vec2 PrevRoomSize = RoomSize;
+    vec3 PrevRoomOrigin = RoomOrigin;
+    u32 PrevDirection = -1;
+
+    // todo: fix overlapping rooms
+    for (u32 RoomIndex = 1; RoomIndex < RoomCount; ++RoomIndex)
+    {
+#if 0
+        u32 RoomWidth = RandomBetween(&State->RNG, 6, 12);
+        u32 RoomHeight = RandomBetween(&State->RNG, 6, 12);
+#else
+        u32 RoomWidth = 8;
+        u32 RoomHeight = 6;
+#endif
+
+        vec2 RoomSize = vec2((f32)RoomWidth, (f32)RoomHeight);
+        vec3 RoomOrigin = PrevRoomOrigin;
+
+        u32 Direction = RandomChoice(&State->RNG, 4);
+
+        Assert(Direction < 4);
+
+        if (Direction == PrevDirection)
+        {
+            //Direction = 2;
+        }
+
+        switch (Direction)
+        {
+            case 0:
+            {
+                RoomOrigin.z += (PrevRoomSize.y + RoomSize.y) * Scale.z;
+                break;
+            }
+            case 1:
+            {
+                RoomOrigin.x += (PrevRoomSize.x + RoomSize.x) * Scale.x;
+                break;
+            }
+            case 2:
+            {
+                RoomOrigin.z -= (PrevRoomSize.y + RoomSize.y) * Scale.z;
+                break;
+            }
+            case 3:
+            {
+                RoomOrigin.x -= (PrevRoomSize.x + RoomSize.x) * Scale.x;
+                break;
+            }
+        }
+
+        GenerateRoom(State, RoomOrigin, RoomSize, Scale);
+
+        PrevRoomSize = RoomSize;
+        PrevRoomOrigin = RoomOrigin;
+        PrevDirection = Direction;
+    }
+}
+
 DLLExport GAME_INIT(GameInit)
 {
     game_state *State = GetGameState(Memory);
@@ -824,7 +901,7 @@ DLLExport GAME_INIT(GameInit)
     State->CurrentMove = vec2(0.f);
     State->TargetMove = vec2(0.f);
 
-    State->MaxEntityCount = 1024;
+    State->MaxEntityCount = 4096;
     State->Entities = PushArray(&State->PermanentArena, State->MaxEntityCount, game_entity);
 
     State->EntityCount = 0;
@@ -861,10 +938,14 @@ DLLExport GAME_INIT(GameInit)
         Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
     }
 
+#if 0
     // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
     GenerateRoom(State, vec3(0.f), vec2(16.f, 10.f), vec3(2.f));
     GenerateRoom(State, vec3(0.f, 0.f, -36.f), vec2(8.f, 8.f), vec3(2.f));
     GenerateRoom(State, vec3(0.f, 0.f, 48.f), vec2(8.f, 14.f), vec3(2.f));
+#else
+    GenerateDungeon(State, vec3(0.f), 24, vec3(2.f));
+#endif
 
     State->PointLightCount = 2;
     State->PointLights = PushArray(&State->PermanentArena, State->PointLightCount, point_light);
@@ -1331,20 +1412,6 @@ DLLExport GAME_RENDER(GameRender)
                 Skull->Transform.Translation = PointLight2Position;
                 Skull->Transform.Rotation = State->Player->Body->Orientation;
             }
-
-#if 0
-            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
-            {
-                game_entity *Entity = State->Entities + EntityIndex;
-
-                if (State->SelectAll)
-                {
-                    // todo: too many parameters
-                    Entity->IsSelected = true;
-                    Entity->Debug.ShowCollisionVolume = true;
-                }
-            }
-#endif
 
             // Grouping entities into render batches (by model)
             State->EntityBatchCount = 32;
