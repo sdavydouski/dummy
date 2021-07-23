@@ -665,6 +665,47 @@ ANIMATION_NODE_UPDATE(LongIdleNodeUpdate)
 internal void
 BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, random_sequence *Entropy)
 {
+    /*
+    #Knight Animation Graph
+
+    :StateIdle
+    type substate
+    count 3
+    entry StateIdle_0
+    message go_state_walking StateWalking blend 0.2
+    message go_state_dancing StateDancing blend 0.2
+
+    :StateIdle_0
+    parent StateIdle
+    animation idle_0
+    message go_state_idle_1 StateIdle_1 blend 0.2
+    message go_state_idle_2 StateIdle_2 blend 0.2
+
+    :StateIdle_1
+    parent StateIdle
+    animation idle_1
+    when_done StateIdle_0 blend 0.2
+
+    :StateIdle_2
+    parent StateIdle
+    animation idle_2
+    when_done StateIdle_0 blend 0.2
+
+    :StateWalking
+    type blendspace
+    count 3
+    initial_value 0
+    value 0 idle_3
+    value 0.5 walking
+    value 1 running
+    message go_state_idle StateIdle blend 0.2
+
+    :StateDancing
+    animation samba
+    message go_state_idle StateIdle blend 0.2
+
+    */
+
     *Graph = {};
 
     Graph->Mixer = {};
@@ -770,7 +811,7 @@ BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, r
     BuildAnimationNode(NodeWalking, "Move_Node", BlendSpace);
     NodeWalking->Params = PushType(Arena, animation_node_params);
     NodeWalking->Params->Move = 0.f;
-
+     
     // Dancing
     animation_node *NodeDancing = Graph->Nodes + NodeIndex++;
     BuildAnimationNode(NodeDancing, "Dance_Node", GetAnimationClip(Model, "Samba"));

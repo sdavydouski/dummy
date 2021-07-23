@@ -944,7 +944,7 @@ DLLExport GAME_INIT(GameInit)
     GenerateRoom(State, vec3(0.f, 0.f, -36.f), vec2(8.f, 8.f), vec3(2.f));
     GenerateRoom(State, vec3(0.f, 0.f, 48.f), vec2(8.f, 14.f), vec3(2.f));
 #else
-    GenerateDungeon(State, vec3(0.f), 24, vec3(2.f));
+    GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
 #endif
 
     State->PointLightCount = 2;
