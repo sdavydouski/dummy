@@ -8,12 +8,18 @@ in VS_OUT {
 
 out vec4 out_Color;
 
+layout (std140, binding = 0) uniform State
+{
+    mat4 u_Projection;
+    mat4 u_View;
+    vec3 u_CameraPosition;
+    float u_Time;
+};
+
 uniform phong_material u_Material;
 uniform directional_light u_DirectionalLight;
 uniform int u_PointLightCount;
 uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
-uniform vec3 u_CameraPosition;
-uniform float u_Time;
 
 void main()
 {

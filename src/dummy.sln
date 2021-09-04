@@ -24,6 +24,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "assets_builder", "assets_bu
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shaders", "shaders", "{01085C6A-6694-4A34-8EDD-211E6D4B9BBC}"
 	ProjectSection(SolutionItems) = preProject
+		renderers\OpenGL\shaders\empty.frag = renderers\OpenGL\shaders\empty.frag
 		renderers\OpenGL\shaders\forward_shading.frag = renderers\OpenGL\shaders\forward_shading.frag
 		renderers\OpenGL\shaders\forward_shading.vert = renderers\OpenGL\shaders\forward_shading.vert
 		renderers\OpenGL\shaders\framebuffer.frag = renderers\OpenGL\shaders\framebuffer.frag

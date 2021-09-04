@@ -179,6 +179,8 @@ struct render_command_set_directional_light
 {
     render_command_header Header;
     directional_light Light;
+    mat4 LightProjection;
+    mat4 LightView;
 };
 
 struct render_command_set_point_lights

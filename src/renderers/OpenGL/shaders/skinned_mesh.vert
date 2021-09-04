@@ -14,10 +14,16 @@ out VS_OUT {
     vec2 TextureCoords;
     mat3 TBN;
     unsigned int Highlight;
-} vs_out;  
+} vs_out;
 
-uniform mat4 u_View;
-uniform mat4 u_Projection;
+layout (std140, binding = 0) uniform State
+{
+    mat4 u_Projection;
+    mat4 u_View;
+    vec3 u_CameraPosition;
+    float u_Time;
+};
+
 uniform samplerBuffer u_SkinningMatricesSampler;
 
 void main()

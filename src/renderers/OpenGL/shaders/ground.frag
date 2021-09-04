@@ -7,9 +7,14 @@ in VS_OUT
 
 out vec4 out_Color;
 
-uniform mat4 u_Projection;
-uniform mat4 u_View;
-uniform vec3 u_CameraPosition;
+layout (std140, binding = 0) uniform State
+{
+    mat4 u_Projection;
+    mat4 u_View;
+	vec3 u_CameraPosition;
+    float u_Time;
+};
+
 uniform directional_light u_DirectionalLight;
 uniform int u_PointLightCount;
 uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];

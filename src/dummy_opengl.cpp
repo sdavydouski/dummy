@@ -528,12 +528,9 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
     GLuint Program = Shader->Program;
 
     Shader->ModelUniformLocation = glGetUniformLocation(Program, "u_Model");
-    Shader->ViewUniformLocation = glGetUniformLocation(Program, "u_View");
-    Shader->ProjectionUniformLocation = glGetUniformLocation(Program, "u_Projection");
     Shader->SkinningMatricesSamplerUniformLocation = glGetUniformLocation(Program, "u_SkinningMatricesSampler");
 
     Shader->ColorUniformLocation = glGetUniformLocation(Program, "u_Color");
-    Shader->CameraPositionUniformLocation = glGetUniformLocation(Program, "u_CameraPosition");
 
     Shader->MaterialSpecularShininessUniformLocation = glGetUniformLocation(Program, "u_Material.SpecularShininess");
 
@@ -557,7 +554,6 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
     Shader->PointLightCountUniformLocation = glGetUniformLocation(Program, "u_PointLightCount");
 
     Shader->ScreenTextureUniformLocation = glGetUniformLocation(Program, "u_ScreenTexture");
-    Shader->TimeUniformLocation = glGetUniformLocation(Program, "u_Time");
     Shader->BlinkUniformLocation = glGetUniformLocation(Program, "u_Blink");
 }
 
@@ -947,6 +943,25 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         // todo: use RenderTarget somehow?
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->MultiSampledFBO);
 
+        u32 ShadowMapWidth = 2048;
+        u32 ShadowMapHeight = 2048;
+
+#if 0
+        // todo: if initialized
+        if (State->ShaderStateUBO)
+        {
+            mat4 Projection = Orthographic(-10.f, 10.f, -10.f, 10.f, -10.f, 10.f);
+            mat4 TransposeProjection = Transpose(Projection);
+            mat4 View = LookAt(vec3(-2.0f, 4.0f, -1.0f), vec3(0.f), vec3(0.f, 1.f, 0.f));
+            mat4 TransposeView = Transpose(View);
+
+            glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+            glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
+            glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeView);
+            glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        }
+#endif
+
         switch (Entry->Type)
         {
             case RenderCommand_InitRenderer:
@@ -958,14 +973,43 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 OpenGLInitShaders(State);
                 OpenGLInitFramebuffers(State, Commands->WindowWidth, Commands->WindowHeight);
 
+                // Shadow Map Configuration
+                glGenFramebuffers(1, &State->DepthMapFBO);
+                glBindFramebuffer(GL_FRAMEBUFFER, State->DepthMapFBO);
+
+                glGenTextures(1, &State->DepthMapTexture);
+                glBindTexture(GL_TEXTURE_2D, State->DepthMapTexture);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, ShadowMapWidth, ShadowMapHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->DepthMapTexture, 0);
+
+                glDrawBuffer(GL_NONE);
+                glReadBuffer(GL_NONE);
+
+                GLenum FramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+                Assert(FramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
+
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                //
+
                 glGenBuffers(1, &State->SkinningTBO);
                 glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
                 // todo: size?
                 glBufferData(GL_TEXTURE_BUFFER, Kilobytes(32), 0, GL_STREAM_DRAW);
+                glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
                 glGenTextures(1, &State->SkinningTBOTexture);
 
-                glBindBuffer(GL_TEXTURE_BUFFER, 0);
+                glGenBuffers(1, &State->ShaderStateUBO);
+                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                glBufferData(GL_UNIFORM_BUFFER, sizeof(opengl_shader_state), NULL, GL_STREAM_DRAW);
+                glBindBufferBase(GL_UNIFORM_BUFFER, 0, State->ShaderStateUBO);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
                 // todo: cleanup
                 bitmap WhiteTexture = {};
@@ -1004,16 +1048,17 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     OpenGLAddMeshBufferInstanced(
                         State, Command->MeshId, Command->VertexCount, 
                         Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices, 
-                        Command->IndexCount, Command->Indices, Command->MaxInstanceCount);
+                        Command->IndexCount, Command->Indices, Command->MaxInstanceCount
+                    );
                 }
                 else
                 {
                     OpenGLAddMeshBuffer(
                         State, Command->MeshId, Command->VertexCount, 
                         Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices,
-                        Command->IndexCount, Command->Indices);
+                        Command->IndexCount, Command->Indices
+                    );
                 }
-
                 
                 break;
             }
@@ -1038,17 +1083,12 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *)Entry;
 
                 mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
+                mat4 TransposeProjection = Transpose(Projection);
 
-                // todo: use uniform buffer?
-                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
-                {
-                    opengl_shader *Shader = State->Shaders + ShaderIndex;
+                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-                    glUseProgram(Shader->Program);
-                    glUniformMatrix4fv(Shader->ProjectionUniformLocation, 1, GL_TRUE, &Projection.Elements[0][0]);
-                    glUseProgram(0);
-                }
-                
                 break;
             }
             case RenderCommand_SetPerspectiveProjection:
@@ -1056,17 +1096,12 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 render_command_set_perspective_projection *Command = (render_command_set_perspective_projection *)Entry;
 
                 mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
+                mat4 TransposeProjection = Transpose(Projection);
 
-                // todo: use uniform buffer?
-                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
-                {
-                    opengl_shader *Shader = State->Shaders + ShaderIndex;
+                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-                    glUseProgram(Shader->Program);
-                    glUniformMatrix4fv(Shader->ProjectionUniformLocation, 1, GL_TRUE, &Projection.Elements[0][0]);
-                    glUseProgram(0);
-                }
-                
                 break;
             }
             case RenderCommand_SetCamera:
@@ -1074,16 +1109,12 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 render_command_set_camera *Command = (render_command_set_camera *)Entry;
 
                 mat4 View = LookAt(Command->Position, Command->Target, Command->Up);
+                mat4 TransposeView = Transpose(View);
 
-                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
-                {
-                    opengl_shader *Shader = State->Shaders + ShaderIndex;
-
-                    glUseProgram(Shader->Program);
-                    glUniformMatrix4fv(Shader->ViewUniformLocation, 1, GL_TRUE, &View.Elements[0][0]);
-                    glUniform3f(Shader->CameraPositionUniformLocation, Command->Position.x, Command->Position.y, Command->Position.z);
-                    glUseProgram(0);
-                }
+                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeView);
+                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, CameraPosition), sizeof(vec3), &Command->Position);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
                 break;
             }
@@ -1091,14 +1122,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_set_time *Command = (render_command_set_time *)Entry;
 
-                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
-                {
-                    opengl_shader *Shader = State->Shaders + ShaderIndex;
-
-                    glUseProgram(Shader->Program);
-                    glUniform1f(Shader->TimeUniformLocation, Command->Time);
-                    glUseProgram(0);
-                }
+                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Time), sizeof(f32), &Command->Time);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
                 break;
             }
@@ -1150,8 +1176,11 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 mat4 Model = Transform(Command->Transform);
                 mat4 View = mat4(1.f);
 
+                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
                 glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
-                glUniformMatrix4fv(Shader->ViewUniformLocation, 1, GL_TRUE, &View.Elements[0][0]);
                 glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

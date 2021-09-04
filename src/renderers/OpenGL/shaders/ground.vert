@@ -7,8 +7,13 @@ out VS_OUT
     vec3 VertexPosition;
 } vs_out;
 
-uniform mat4 u_Projection;
-uniform mat4 u_View;
+layout (std140, binding = 0) uniform State
+{
+    mat4 u_Projection;
+    mat4 u_View;
+    vec3 u_CameraPosition;
+    float u_Time;
+};
 
 void main()
 {

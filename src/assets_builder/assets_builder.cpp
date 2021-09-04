@@ -34,6 +34,9 @@
 // probably related:
 // https://github.com/assimp/assimp/pull/2815
 
+#undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
+#define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 1.f
+
 #define INVALID_FLOAT -1.f
 #define INVALID_COLOR vec4(-1.f)
 
@@ -1313,6 +1316,7 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 internal void
 ProcessPelegriniModel()
 {
+#if 0
     u32 Flags =
         aiProcess_Triangulate |
         aiProcess_FlipUVs |
@@ -1321,11 +1325,11 @@ ProcessPelegriniModel()
         aiProcess_JoinIdenticalVertices |
         aiProcess_ValidateDataStructure |
         aiProcess_LimitBoneWeights |
-        //aiProcess_GlobalScale |
+        aiProcess_GlobalScale |
         aiProcess_RemoveRedundantMaterials |
         aiProcess_FixInfacingNormals |
         aiProcess_OptimizeGraph;
-        aiProcess_OptimizeMeshes;
+    aiProcess_OptimizeMeshes;
 
     model_asset Asset;
     LoadModelAsset("models\\pelegrini\\pelegrini.fbx", &Asset, Flags);
@@ -1348,6 +1352,43 @@ ProcessPelegriniModel()
 #if 1
     model_asset TestAsset = {};
     ReadAssetFile("assets\\pelegrini.asset", &TestAsset, &Asset);
+#endif
+#endif
+
+#if 1
+    FILE *AnimationConfigFile = fopen("models\\pelegrini\\pelegrini.animation", "r");
+
+    if (AnimationConfigFile)
+    {
+        char Line[256];
+
+        while (fgets(Line, sizeof(Line), AnimationConfigFile))
+        {
+            char FirstChar = Line[0];
+
+            switch (FirstChar)
+            {
+                case '\n':
+                case '#':
+                {
+                    int temp = 0;
+                    break;
+                }
+                case ':':
+                {
+                    int temp = 0;
+                    break;
+                }
+                default:
+                {
+                    int temp = 0;
+                    break;
+                }
+            }
+        }
+
+        fclose(AnimationConfigFile);
+    }
 #endif
 }
 
@@ -1381,9 +1422,8 @@ i32 main(i32 ArgCount, char **Args)
 {
     // todo: get from Args
     string Path = "models\\";
-    //string Path = "models\\pelegrini";
 
-#if 1
+#if 0
     for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
     {
         if (Entry.is_directory())
@@ -1417,7 +1457,5 @@ i32 main(i32 ArgCount, char **Args)
     }
 #endif
 
-    //ProcessAsset("models\\dungeon.fbx", "dungeon.asset");
-
-    //ProcessPelegriniModel();
+    ProcessPelegriniModel();
 }

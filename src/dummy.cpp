@@ -788,7 +788,7 @@ GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
     u32 RoomHeight = RandomBetween(&State->RNG, 6, 12);
 #else
     u32 RoomWidth = 8;
-    u32 RoomHeight = 6;
+    u32 RoomHeight = 8;
 #endif
 
     vec2 RoomSize = vec2((f32)RoomWidth, (f32)RoomHeight);
@@ -944,7 +944,7 @@ DLLExport GAME_INIT(GameInit)
     GenerateRoom(State, vec3(0.f, 0.f, -36.f), vec2(8.f, 8.f), vec3(2.f));
     GenerateRoom(State, vec3(0.f, 0.f, 48.f), vec2(8.f, 14.f), vec3(2.f));
 #else
-    GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
+    //GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
 #endif
 
     State->PointLightCount = 2;
@@ -1376,6 +1376,7 @@ DLLExport GAME_RENDER(GameRender)
             point_light *PointLight2 = State->PointLights + 1;
             PointLight2->Position = PointLight2Position;
 
+            // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
             SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
 
             // Player

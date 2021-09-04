@@ -23,15 +23,17 @@ inline GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
 
 inline GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
 {
-    if (State->Player->Body->OrientationLerp.Duration > 0.f)
-    {
-        State->Player->Body->OrientationLerp.Time += Delta;
+    rigid_body *PlayerBody = State->Player->Body;
 
-        f32 t = State->Player->Body->OrientationLerp.Time / State->Player->Body->OrientationLerp.Duration;
+    if (PlayerBody->OrientationLerp.Duration > 0.f)
+    {
+        PlayerBody->OrientationLerp.Time += Delta;
+
+        f32 t = PlayerBody->OrientationLerp.Time / PlayerBody->OrientationLerp.Duration;
 
         if (t <= 1.f)
         {
-            State->Player->Body->Orientation = Slerp(State->Player->Body->OrientationLerp.From, t, State->Player->Body->OrientationLerp.To);
+            PlayerBody->Orientation = Slerp(PlayerBody->OrientationLerp.From, t, PlayerBody->OrientationLerp.To);
         }
         else
         {

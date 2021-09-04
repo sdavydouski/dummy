@@ -50,12 +50,9 @@ struct opengl_shader
 #endif
 
     GLint ModelUniformLocation;
-    GLint ViewUniformLocation;
-    GLint ProjectionUniformLocation;
     GLint SkinningMatricesSamplerUniformLocation;
 
     GLint ColorUniformLocation;
-    GLint CameraPositionUniformLocation;
 
     GLint MaterialSpecularShininessUniformLocation;
     GLint MaterialAmbientColorUniformLocation;
@@ -77,8 +74,15 @@ struct opengl_shader
     GLint PointLightCountUniformLocation;
 
     GLint ScreenTextureUniformLocation;
-    GLint TimeUniformLocation;
     GLint BlinkUniformLocation;
+};
+
+struct opengl_shader_state
+{
+    mat4 Projection;
+    mat4 View;
+    vec3 CameraPosition;
+    f32 Time;
 };
 
 struct opengl_state
@@ -102,11 +106,16 @@ struct opengl_state
     GLuint SingleSampledColorTexture;
     GLuint SingleSampledDepthTexture;
 
+    GLuint DepthMapFBO;
+    GLuint DepthMapTexture;
+
     GLuint LineVAO;
     GLuint RectangleVAO;
 
     GLuint SkinningTBO;
     GLuint SkinningTBOTexture;
+
+    GLuint ShaderStateUBO;
 
     u32 CurrentMeshBufferCount;
     opengl_mesh_buffer MeshBuffers[OPENGL_MAX_MESH_BUFFER_COUNT];
