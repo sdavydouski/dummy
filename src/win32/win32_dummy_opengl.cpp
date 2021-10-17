@@ -33,7 +33,7 @@ void Win32GladPostCallback(const char *Name, void *FuncPtr, i32 LenArgs, ...) {
     if (ErrorCode != GL_NO_ERROR)
     {
         char OpenGLError[256];
-        FormatString(OpenGLError, ArrayCount(OpenGLError), "OpenGL Error: %d in %s\n", ErrorCode, Name);
+        FormatString(OpenGLError, "OpenGL Error: %d in %s\n", ErrorCode, Name);
 
         Assert(!OpenGLError);
     }

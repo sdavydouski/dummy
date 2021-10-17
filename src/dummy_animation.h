@@ -52,8 +52,6 @@ struct animation_clip
 {
     char Name[MAX_ANIMATION_NAME_LENGTH];
     f32 Duration;
-    b32 IsLooping;
-    b32 InPlace;
 
     u32 PoseSampleCount;
     animation_sample *PoseSamples;
@@ -65,6 +63,9 @@ struct animation_state
     // todo: This weight is used to store computed values during final pose computing. 
     // This of a better name or place it somewhere else?
     f32 Weight;
+
+    b32 IsLooping;
+    b32 InPlace;
 
     animation_clip *Clip;
 };
@@ -87,8 +88,7 @@ struct blend_space_1d
 enum animation_transition_type
 {
     AnimationTransitionType_Immediate,
-    AnimationTransitionType_Crossfade,
-    AnimationTransitionType_Transitional
+    AnimationTransitionType_Crossfade
 };
 
 struct animation_transition
@@ -97,6 +97,8 @@ struct animation_transition
 
     animation_node *From;
     animation_node *To;
+
+    char Message[256];
 
     f32 Duration;
     animation_node *TransitionNode;
@@ -108,22 +110,6 @@ enum animation_node_type
     AnimationNodeType_BlendSpace,
     AnimationNodeType_Graph
 };
-
-struct animation_node_params
-{
-    f32 Move;
-};
-
-struct animation_node_state
-{
-    f32 Time;
-    f32 MaxTime;
-    random_sequence *Entropy;
-    animation_graph *Graph;
-};
-
-#define ANIMATION_NODE_UPDATE(name) void name(animation_node_state *State, animation_node_params *Params, f32 Delta)
-typedef ANIMATION_NODE_UPDATE(animation_node_update);
 
 struct animation_node
 {
@@ -140,10 +126,6 @@ struct animation_node
 
     u32 TransitionCount;
     animation_transition *Transitions;
-
-    animation_node_state *State;
-    animation_node_params *Params;
-    animation_node_update *Update;
 };
 
 struct animation_mixer
@@ -157,6 +139,11 @@ struct animation_mixer
     animation_node *FadeOut;
 };
 
+struct animation_graph_params
+{
+    f32 Move;
+};
+
 struct animation_graph
 {
     u32 NodeCount;
@@ -166,4 +153,7 @@ struct animation_graph
     animation_node *Active;
 
     animation_mixer Mixer;
+
+    // todo: graph state
+    f32 Time;
 };

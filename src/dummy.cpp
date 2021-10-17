@@ -88,7 +88,7 @@ RemoveGameProcess(game_state *State, game_process *Process)
 inline void
 InitGameProcess(game_process *Process, char *ProcessName, game_process_on_update *OnUpdatePerFrame)
 {
-    CopyString(ProcessName, Process->Name, ArrayCount(Process->Name));
+    CopyString(ProcessName, Process->Name);
     Process->OnUpdatePerFrame = OnUpdatePerFrame;
 }
 
@@ -122,7 +122,7 @@ EndGameProcess(game_state *State, const char *ProcessName)
         }
 
         // todo: removing element from hashtable
-        CopyString("", Process->Name, ArrayCount(Process->Name));
+        CopyString("", Process->Name);
     }
 }
 
@@ -273,7 +273,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
 {
     *Model = {};
 
-    CopyString(Name, Model->Name, ArrayCount(Model->Name));
+    CopyString(Name, Model->Name);
     Model->Skeleton = &Asset->Skeleton;
     Model->BindPose = &Asset->BindPose;
     
@@ -290,6 +290,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
         *DestLocalJointPose = *SourceLocalJointPose;
     }
 
+    Model->AnimationGraph = &Asset->AnimationGraph;
     Model->MeshCount = Asset->MeshCount;
     Model->Meshes = Asset->Meshes;
     Model->MaterialCount = Asset->MaterialCount;
@@ -334,6 +335,8 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     }
 
     Model->Bounds = CalculateAxisAlignedBoundingBox(Model);
+
+    int temp = 0;
 }
 
 inline ray
@@ -473,7 +476,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
             vec3 LineStart = GetTranslation(*ParentGlobalJointPose);
             vec3 LineEnd = GetTranslation(*GlobalJointPose);
 
-            DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 1.f);
+            DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 2.f);
         }
     }
 }
@@ -483,8 +486,20 @@ RenderCollisionVolume(render_commands *RenderCommands, game_state *State, game_e
 {
     model *Cube = GetModelAsset(&State->Assets, "Cube");
 
-    // Mesh Bounds
+    if (Entity->Body)
     {
+        // Rigid Body
+        vec3 HalfSize = Entity->Body->HalfSize;
+        vec3 Position = Entity->Transform.Translation;
+
+        transform Transform = CreateTransform(Position, HalfSize, quat(0.f));
+        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 0.f, 0.f, 1.f), true);
+
+        DrawModel(RenderCommands, Cube, Transform, Material);
+    }
+    //else
+    {
+        // Mesh Bounds
         vec3 HalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->Model->Bounds);
         vec3 Position = Entity->Transform.Translation;
 
@@ -494,17 +509,7 @@ RenderCollisionVolume(render_commands *RenderCommands, game_state *State, game_e
         DrawModel(RenderCommands, Cube, Transform, Material);
     }
 
-    // Rigid Body
-    if (Entity->Body)
-    {
-        vec3 HalfSize = Entity->Body->HalfSize;
-        vec3 Position = Entity->Transform.Translation;
-
-        transform Transform = CreateTransform(Position, HalfSize, quat(0.f));
-        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 0.f, 0.f, 1.f), true);
-
-        DrawModel(RenderCommands, Cube, Transform, Material);
-    }
+    
 }
 
 internal void
@@ -552,7 +557,7 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
 inline void
 InitRenderBatch(entity_render_batch *Batch, model *Model, u32 MaxEntityCount, memory_arena *Arena)
 {
-    CopyString(Model->Name, Batch->Name, ArrayCount(Batch->Name));
+    CopyString(Model->Name, Batch->Name);
     Batch->Model = Model;
     Batch->EntityCount = 0;
     Batch->MaxEntityCount = 4096;
@@ -869,7 +874,7 @@ DLLExport GAME_INIT(GameInit)
     InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
 
     game_process *Sentinel = &State->ProcessSentinel;
-    CopyString("Sentinel", Sentinel->Name, ArrayCount(Sentinel->Name));
+    CopyString("Sentinel", Sentinel->Name);
     Sentinel->Next = Sentinel->Prev = Sentinel;
 
     State->ProcessCount = 32;
@@ -917,11 +922,9 @@ DLLExport GAME_INIT(GameInit)
         BuildRigidBody(State->Player->Body, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f));
 
         State->Player->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f));
-        State->Player->State = EntityState_Idle;
 
         State->Player->Animation = PushType(&State->PermanentArena, animation_graph);
-        BuildAnimationGraph(State->Player->Animation, State->Player->Model, &State->PermanentArena, &State->RNG);
-        ActivateAnimationNode(State->Player->Animation, "Idle_Node");
+        BuildAnimationGraph(State->Player->Animation, State->Player->Model->AnimationGraph, State->Player->Model, &State->PermanentArena);
     }
 
     {
@@ -944,7 +947,7 @@ DLLExport GAME_INIT(GameInit)
     GenerateRoom(State, vec3(0.f, 0.f, -36.f), vec2(8.f, 8.f), vec3(2.f));
     GenerateRoom(State, vec3(0.f, 0.f, 48.f), vec2(8.f, 14.f), vec3(2.f));
 #else
-    //GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
+    GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
 #endif
 
     State->PointLightCount = 2;
@@ -1089,6 +1092,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             State->PlayerCamera.Position.z = PlayerPosition.z -
                 Sqrt(Square(State->PlayerCamera.Radius) - Square(CameraHeight)) * Cos(State->PlayerCamera.Yaw);
 
+            // todo:
             vec3 CameraLookAtPoint = PlayerPosition + vec3(0.f, 4.f, 0.f);
 #else
             // Attempt to make camera with free movement radius...
@@ -1154,51 +1158,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 EndGameProcess(State, Stringify(PlayerOrientationLerpProcess));
             }
 
-#if 1
-            switch (State->Player->State)
-            {
-                case EntityState_Idle:
-                {
-                    if (Input->Crouch.IsActivated)
-                    {
-                        State->Player->State = EntityState_Dance;
-                        TransitionToNode(State->Player->Animation, "Dance_Node");
-                    }
-                    
-                    if (MoveMaginute > 0.f)
-                    {
-                        State->Player->State = EntityState_Moving;
-                        TransitionToNode(State->Player->Animation, "Move_Node");
-                    }
-
-                    break;
-                }
-                case EntityState_Moving:
-                {
-                    if (MoveMaginute < EPSILON)
-                    {
-                        State->Player->State = EntityState_Idle;
-                        TransitionToNode(State->Player->Animation, "Idle_Node");
-                    }
-
-                    break;
-                }
-                case EntityState_Dance:
-                {
-                    if (Input->Crouch.IsActivated && MoveMaginute < EPSILON)
-                    {
-                        State->Player->State = EntityState_Idle;
-                        TransitionToNode(State->Player->Animation, "Idle_Node");
-                    }
-
-                    break;
-                }
-                default:
-                {
-                    Assert(!"Invalid state");
-                }
-            }
-#endif
+            PlayerAnimationControllerUpdate(State->Player->Animation, Input, &State->RNG, 10.f, Parameters->Delta);
 
             break;
         }
@@ -1387,10 +1347,10 @@ DLLExport GAME_RENDER(GameRender)
 
             skeleton_pose *Pose = State->Player->Model->Pose;
             
-            // todo: ?
-            (State->Player->Animation->Nodes + 1)->Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+            animation_graph_params GraphParams = {};
+            GraphParams.Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
 
-            AnimationGraphPerFrameUpdate(State->Player->Animation, Parameters->Delta);
+            AnimationGraphPerFrameUpdate(State->Player->Animation, GraphParams, Parameters->Delta);
             CalculateSkeletonPose(State->Player->Animation, Pose, &State->PermanentArena);
 
             // transform.translation for rigid bodies

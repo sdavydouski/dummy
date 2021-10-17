@@ -8,6 +8,7 @@ GetRootLocalJointPose(skeleton_pose *Pose)
 inline joint_pose *
 GetRootTranslationLocalJointPose(skeleton_pose *SkeletonPose)
 {
+    // todo:
     joint_pose *Result = SkeletonPose->LocalJointPoses + 1;
     return Result;
 }
@@ -121,7 +122,7 @@ FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime, key_frame **
 }
 
 internal void
-AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_clip *Animation, f32 Time)
+AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_clip *Animation, b32 InPlace, f32 Time)
 {
     for (u32 JointIndex = 0; JointIndex < SkeletonPose->Skeleton->JointCount; ++JointIndex)
     {
@@ -148,7 +149,7 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_clip *Animation, f32 
         }
     }
 
-    if (Animation->InPlace)
+    if (InPlace)
     {
         joint_pose *RootTranslationLocalJointPose = GetRootTranslationLocalJointPose(SkeletonPose);
         RootTranslationLocalJointPose->Translation = vec3(0.f, RootTranslationLocalJointPose->Translation.y, 0.f);
@@ -190,6 +191,7 @@ EnableAnimationNode(animation_node *Node)
         case AnimationNodeType_Graph:
         {
             EnableAnimationNode(Node->Graph->Entry);
+            // todo: use ActiveAnimationNode instead?
             Node->Graph->Active = Node->Graph->Entry;
 
             break;
@@ -366,14 +368,6 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
 
             break;
         }
-        case AnimationTransitionType_Transitional:
-        {
-            Graph->Active = Transition->TransitionNode;
-
-            CrossFade(&Graph->Mixer, FromNode, Transition->TransitionNode, Transition->Duration);
-
-            break;
-        }
         default:
         {
             Assert(!"Invalid Transition Type");
@@ -394,14 +388,13 @@ AnimationStatePerFrameUpdate(animation_state *AnimationState, f32 Delta)
 
     if (AnimationState->Time > AnimationState->Clip->Duration)
     {
-        if (AnimationState->Clip->IsLooping)
+        if (AnimationState->IsLooping)
         {
             AnimationState->Time = 0.f;
         }
         else
         {
-            // TODO(IMPORTANT): ?
-            //AnimationState->Time = AnimationState->Clip->Duration;
+            AnimationState->Time = AnimationState->Clip->Duration;
         }
     }
 }
@@ -445,9 +438,9 @@ LinearLerpBlend(blend_space_1d *BlendSpace, f32 BlendParameter)
 }
 
 internal void
-AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 BlendParameter, f32 Delta)
+AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, animation_graph_params Params, f32 Delta)
 {
-    LinearLerpBlend(BlendSpace, BlendParameter);
+    LinearLerpBlend(BlendSpace, Params.Move);
 
     f32 Duration = 0.f;
     for (u32 AnimationIndex = 0; AnimationIndex < BlendSpace->ValueCount; ++AnimationIndex)
@@ -476,19 +469,13 @@ AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 BlendParameter
     }
 }
 
-internal void AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta);
+internal void AnimationGraphPerFrameUpdate(animation_graph *Graph, animation_graph_params Params, f32 Delta);
 
 internal void
-AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
+AnimationNodePerFrameUpdate(animation_node *Node, animation_graph_params Params, f32 Delta)
 {
     Assert(Node->Weight > 0.f);
 
-    if (Node->Update)
-    {
-        Node->Update(Node->State, Node->Params, Delta);
-    }
-
-    // todo: hot-reloading doesn't work for some reason
     switch (Node->Type)
     {
         case AnimationNodeType_SingleMotion:
@@ -498,14 +485,12 @@ AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
         }
         case AnimationNodeType_BlendSpace:
         {
-            Assert(Node->Params);
-
-            AnimationBlendSpacePerFrameUpdate(Node->BlendSpace, Node->Params->Move, Delta);
+            AnimationBlendSpacePerFrameUpdate(Node->BlendSpace, Params, Delta);
             break;
         }
         case AnimationNodeType_Graph:
         {
-            AnimationGraphPerFrameUpdate(Node->Graph, Delta);
+            AnimationGraphPerFrameUpdate(Node->Graph, Params, Delta);
             break;
         }
         default:
@@ -516,7 +501,7 @@ AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
 }
 
 internal void
-AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta)
+AnimationGraphPerFrameUpdate(animation_graph *Graph, animation_graph_params Params, f32 Delta)
 {
     AnimationMixerPerFrameUpdate(&Graph->Mixer, Delta);
 
@@ -526,7 +511,7 @@ AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta)
 
         if (Node->Weight > 0.f)
         {
-            AnimationNodePerFrameUpdate(Node, Delta);
+            AnimationNodePerFrameUpdate(Node, Params, Delta);
         }
     }
 }
@@ -553,21 +538,23 @@ GetAnimationClip(model *Model, const char *ClipName)
 }
 
 inline animation_state
-CreateAnimationState(animation_clip *Clip)
+CreateAnimationState(animation_clip *Clip, b32 IsLooping, b32 InPlace)
 {
     animation_state Result = {};
     Result.Clip = Clip;
+    Result.IsLooping = IsLooping;
+    Result.InPlace = InPlace;
 
     return Result;
 }
 
 inline void
-BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip)
+BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip, b32 IsLooping, b32 InPlace)
 {
     *Node = {};
     Node->Type = AnimationNodeType_SingleMotion;
-    CopyString(Name, Node->Name, ArrayCount(Node->Name));
-    Node->Animation = CreateAnimationState(Clip);
+    CopyString(Name, Node->Name);
+    Node->Animation = CreateAnimationState(Clip, IsLooping, InPlace);
 }
 
 inline void
@@ -575,7 +562,7 @@ BuildAnimationNode(animation_node *Node, const char *Name, blend_space_1d *Blend
 {
     *Node = {};
     Node->Type = AnimationNodeType_BlendSpace;
-    CopyString(Name, Node->Name, ArrayCount(Node->Name));
+    CopyString(Name, Node->Name);
     Node->BlendSpace = BlendSpace;
 }
 
@@ -584,7 +571,7 @@ BuildAnimationNode(animation_node *Node, const char *Name, animation_graph *Grap
 {
     *Node = {};
     Node->Type = AnimationNodeType_Graph;
-    CopyString(Name, Node->Name, ArrayCount(Node->Name));
+    CopyString(Name, Node->Name);
     Node->Graph = Graph;
 }
 
@@ -635,216 +622,88 @@ ActivateAnimationNode(animation_graph *Graph, const char *NodeName)
     EnableAnimationNode(Node);
 }
 
-ANIMATION_NODE_UPDATE(IdleEntryNodeUpdate)
-{
-    State->Time += Delta;
-
-    if (State->Time > State->MaxTime)
-    {
-        State->Time = 0.f;
-
-        if (Random01(State->Entropy) > 0.5f)
-        {
-            TransitionToNode(State->Graph, "Idle_Node#Node_1");
-        }
-        else
-        {
-            TransitionToNode(State->Graph, "Idle_Node#Node_2");
-        }
-    }
-}
-
-ANIMATION_NODE_UPDATE(LongIdleNodeUpdate)
-{
-    if (State->Graph->Active->Animation.Time > State->Graph->Active->Animation.Clip->Duration)
-    {
-        TransitionToNode(State->Graph, "Idle_Node#Node_0");
-    }
-}
-
 internal void
-BuildAnimationGraph(animation_graph *Graph, model *Model, memory_arena *Arena, random_sequence *Entropy)
+BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model *Model, memory_arena *Arena)
 {
-    /*
-    #Knight Animation Graph
-
-    :StateIdle
-    type substate
-    count 3
-    entry StateIdle_0
-    message go_state_walking StateWalking blend 0.2
-    message go_state_dancing StateDancing blend 0.2
-
-    :StateIdle_0
-    parent StateIdle
-    animation idle_0
-    message go_state_idle_1 StateIdle_1 blend 0.2
-    message go_state_idle_2 StateIdle_2 blend 0.2
-
-    :StateIdle_1
-    parent StateIdle
-    animation idle_1
-    when_done StateIdle_0 blend 0.2
-
-    :StateIdle_2
-    parent StateIdle
-    animation idle_2
-    when_done StateIdle_0 blend 0.2
-
-    :StateWalking
-    type blendspace
-    count 3
-    initial_value 0
-    value 0 idle_3
-    value 0.5 walking
-    value 1 running
-    message go_state_idle StateIdle blend 0.2
-
-    :StateDancing
-    animation samba
-    message go_state_idle StateIdle blend 0.2
-
-    */
-
     *Graph = {};
 
-    Graph->Mixer = {};
-    Graph->NodeCount = 3;
+    Graph->NodeCount = Asset->NodeCount;
     Graph->Nodes = PushArray(Arena, Graph->NodeCount, animation_node);
 
-    u32 NodeIndex = 0;
-
-    // Nodes
-
-    // Idle
-    animation_node *NodeIdle = Graph->Nodes + NodeIndex++;
-
-    animation_graph *IdleGraph = PushType(Arena, animation_graph);
-
-    IdleGraph->Mixer = {};
-    IdleGraph->NodeCount = 3;
-    IdleGraph->Nodes = PushArray(Arena, IdleGraph->NodeCount, animation_node);
-
-    BuildAnimationNode(NodeIdle, "Idle_Node", IdleGraph);
-
+    for (u32 NodeIndex = 0; NodeIndex < Asset->NodeCount; ++NodeIndex)
     {
-        // Nodes
+        animation_node *Node = Graph->Nodes + NodeIndex;
+        animation_node_asset *NodeAsset = Asset->Nodes + NodeIndex;
 
-        animation_node *IdleEntry = IdleGraph->Nodes + 0;
-        BuildAnimationNode(IdleEntry, "Idle_Node#Node_0", GetAnimationClip(Model, "Idle"));
-        IdleEntry->State = PushType(Arena, animation_node_state);
-        IdleEntry->State->Time = 0.f;
-        IdleEntry->State->MaxTime = 5.f;
-        IdleEntry->State->Entropy = Entropy;
-        IdleEntry->State->Graph = IdleGraph;
-        IdleEntry->Update = IdleEntryNodeUpdate;
+        switch (NodeAsset->Type)
+        {
+            case AnimationNodeType_SingleMotion:
+            {
+                BuildAnimationNode(
+                    Node, 
+                    NodeAsset->Name, 
+                    GetAnimationClip(Model, NodeAsset->Animation->AnimationClipName), 
+                    NodeAsset->Animation->IsLooping, 
+                    NodeAsset->Animation->InPlace
+                );
 
-        animation_node *LongIdleEntry = IdleGraph->Nodes + 1;
-        BuildAnimationNode(LongIdleEntry, "Idle_Node#Node_1", GetAnimationClip(Model, "Idle_2"));
-        LongIdleEntry->State = PushType(Arena, animation_node_state);
-        LongIdleEntry->State->Graph = IdleGraph;
-        LongIdleEntry->Update = LongIdleNodeUpdate;
+                break;
+            }
+            case AnimationNodeType_BlendSpace:
+            {
+                blend_space_1d *BlendSpace = PushType(Arena, blend_space_1d);
+                BlendSpace->ValueCount = NodeAsset->Blendspace->ValueCount;
+                BlendSpace->Values = PushArray(Arena, BlendSpace->ValueCount, blend_space_1d_value);
 
-        animation_node *LongIdle2Entry = IdleGraph->Nodes + 2;
-        BuildAnimationNode(LongIdle2Entry, "Idle_Node#Node_2", GetAnimationClip(Model, "Idle_3"));
-        LongIdle2Entry->State = PushType(Arena, animation_node_state);
-        LongIdle2Entry->State->Graph = IdleGraph;
-        LongIdle2Entry->Update = LongIdleNodeUpdate;
+                for (u32 ValueIndex = 0; ValueIndex < NodeAsset->Blendspace->ValueCount; ++ValueIndex)
+                {
+                    blend_space_1d_value *Value = BlendSpace->Values + ValueIndex;
+                    blend_space_1d_value_asset *ValueAsset = NodeAsset->Blendspace->Values + ValueIndex;
 
-        // Transitions
+                    Value->Value =ValueAsset->Value;
+                    // todo: IsLooping/InPlace for blendspace?
+                    Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, ValueAsset->AnimationClipName), true, true);
+                }
 
-        // --
-        IdleEntry->TransitionCount = 2;
-        IdleEntry->Transitions = PushArray(Arena, IdleEntry->TransitionCount, animation_transition);
+                BuildAnimationNode(Node, NodeAsset->Name, BlendSpace);
 
-        animation_transition *IdleToLongIdleTransition = IdleEntry->Transitions + 0;
-        BuildAnimationTransition(IdleToLongIdleTransition, IdleEntry, LongIdleEntry, AnimationTransitionType_Crossfade, 0.2f);
+                break;
+            }
+            case AnimationNodeType_Graph:
+            {
+                animation_graph *NodeGraph = PushType(Arena, animation_graph);
 
-        animation_transition *IdleToLongIdle2Transition = IdleEntry->Transitions + 1;
-        BuildAnimationTransition(IdleToLongIdle2Transition, IdleEntry, LongIdle2Entry, AnimationTransitionType_Crossfade, 0.2f);
+                BuildAnimationGraph(NodeGraph, NodeAsset->Graph, Model, Arena);
+                BuildAnimationNode(Node, NodeAsset->Name, NodeGraph);
 
-        // --
-        LongIdleEntry->TransitionCount = 1;
-        LongIdleEntry->Transitions = PushArray(Arena, LongIdleEntry->TransitionCount, animation_transition);
-
-        animation_transition *LongIdleToIdleTransition = LongIdleEntry->Transitions + 0;
-        BuildAnimationTransition(LongIdleToIdleTransition, LongIdleEntry, IdleEntry, AnimationTransitionType_Crossfade, 0.2f);
-
-        // --
-        LongIdle2Entry->TransitionCount = 1;
-        LongIdle2Entry->Transitions = PushArray(Arena, LongIdle2Entry->TransitionCount, animation_transition);
-
-        animation_transition *LongIdle2ToIdleTransition = LongIdle2Entry->Transitions + 0;
-        BuildAnimationTransition(LongIdle2ToIdleTransition, LongIdle2Entry, IdleEntry, AnimationTransitionType_Crossfade, 0.2f);
-
-        //
-        IdleGraph->Entry = IdleEntry;
-        IdleGraph->Active = IdleGraph->Entry;
-        IdleEntry->Weight = 1.f;
+                break;
+            }
+        }
     }
-
-    // Moving
-    animation_node *NodeWalking = Graph->Nodes + NodeIndex++;
-
-    blend_space_1d *BlendSpace = PushType(Arena, blend_space_1d);
-    BlendSpace->ValueCount = 3;
-    BlendSpace->Values = PushArray(Arena, BlendSpace->ValueCount, blend_space_1d_value);
-
-    {
-        blend_space_1d_value *Value = BlendSpace->Values + 0;
-        Value->Value = 0.f;
-        Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, "Idle_4"));
-    }
-
-    {
-        blend_space_1d_value *Value = BlendSpace->Values + 1;
-        Value->Value = 0.5f;
-        Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, "Walking"));
-    }
-
-    {
-        blend_space_1d_value *Value = BlendSpace->Values + 2;
-        Value->Value = 1.f;
-        Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, "Running"));
-    }
-
-    BuildAnimationNode(NodeWalking, "Move_Node", BlendSpace);
-    NodeWalking->Params = PushType(Arena, animation_node_params);
-    NodeWalking->Params->Move = 0.f;
-     
-    // Dancing
-    animation_node *NodeDancing = Graph->Nodes + NodeIndex++;
-    BuildAnimationNode(NodeDancing, "Dance_Node", GetAnimationClip(Model, "Samba"));
 
     // Transitions
+    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
+    {
+        animation_node *Node = Graph->Nodes + NodeIndex;
+        animation_node_asset *NodeAsset = Asset->Nodes + NodeIndex;
 
-    // Idle Node
-    NodeIdle->TransitionCount = 2;
-    NodeIdle->Transitions = PushArray(Arena, NodeIdle->TransitionCount, animation_transition);
+        Node->TransitionCount = NodeAsset->TransitionCount;
+        Node->Transitions = PushArray(Arena, Node->TransitionCount, animation_transition);
 
-    animation_transition *IdleToWalkingTransition = NodeIdle->Transitions + 0;
-    BuildAnimationTransition(IdleToWalkingTransition, NodeIdle, NodeWalking, AnimationTransitionType_Crossfade, 0.2f);
+        for (u32 TransitionIndex = 0; TransitionIndex < NodeAsset->TransitionCount; ++TransitionIndex)
+        {
+            animation_transition *Transition = Node->Transitions + TransitionIndex;
+            animation_transition_asset *TransitionAsset = NodeAsset->Transitions + TransitionIndex;
 
-    animation_transition *IdleToDancingTransition = NodeIdle->Transitions + 1;
-    BuildAnimationTransition(IdleToDancingTransition, NodeIdle, NodeDancing, AnimationTransitionType_Crossfade, 0.2f);
+            animation_node *From = GetAnimationNode(Graph, TransitionAsset->From);
+            animation_node *To = GetAnimationNode(Graph, TransitionAsset->To);
+            BuildAnimationTransition(Transition, From, To, TransitionAsset->Type, TransitionAsset->Duration);
+        }
+    }
 
-    // Walking Node
-    NodeWalking->TransitionCount = 1;
-    NodeWalking->Transitions = PushArray(Arena, NodeWalking->TransitionCount, animation_transition);
-
-    animation_transition *WalkingToIdleTransition = NodeWalking->Transitions + 0;
-    BuildAnimationTransition(WalkingToIdleTransition, NodeWalking, NodeIdle, AnimationTransitionType_Crossfade, 0.2f);
-
-    // Dance Node
-    NodeDancing->TransitionCount = 1;
-    NodeDancing->Transitions = PushArray(Arena, NodeDancing->TransitionCount, animation_transition);
-
-    animation_transition *DanceToIdleTransition = NodeDancing->Transitions + 0;
-    BuildAnimationTransition(DanceToIdleTransition, NodeDancing, NodeIdle, AnimationTransitionType_Crossfade, 0.2f);
-
-    //
-    Graph->Entry = NodeIdle;
-    Graph->Active = NodeIdle;
+    animation_node *Entry = GetAnimationNode(Graph, Asset->Entry);
+    Graph->Entry = Entry;
+    ActivateAnimationNode(Graph, Entry->Name);
 }
 
 internal u32
@@ -986,7 +845,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
             animation_state *AnimationState = ActiveAnimations[AnimationIndex];
             skeleton_pose *SkeletonPose = SkeletonPoses + AnimationIndex;
 
-            AnimateSkeletonPose(SkeletonPose, AnimationState->Clip, AnimationState->Time);
+            AnimateSkeletonPose(SkeletonPose, AnimationState->Clip, AnimationState->InPlace, AnimationState->Time);
         }
 
         // Lerping between all skeleton poses
@@ -1026,3 +885,85 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
     }
 }
 
+internal void
+PlayerAnimationControllerUpdate(animation_graph *Graph, game_input *Input, random_sequence *Entropy, f32 MaxTime, f32 Delta)
+{
+    animation_node *Active = Graph->Active;
+
+    f32 MoveMaginute = Clamp(Magnitude(Input->Move.Range), 0.f, 1.f);
+
+    if (StringEquals(Active->Name, "StateIdle"))
+    {
+        // StateIdle sub-graph
+        animation_graph *StateIdleGraph = Active->Graph;
+        animation_node *Active = StateIdleGraph->Active;
+
+        if (StringEquals(Active->Name, "StateIdle_0"))
+        {
+            StateIdleGraph->Time += Delta;
+
+            if (StateIdleGraph->Time > MaxTime)
+            {
+                StateIdleGraph->Time = 0.f;
+
+                if (Random01(Entropy) > 0.5f)
+                {
+                    TransitionToNode(StateIdleGraph, "StateIdle_1");
+                }
+                else
+                {
+                    TransitionToNode(StateIdleGraph, "StateIdle_2");
+                }
+            }
+        }
+        else if (StringEquals(Active->Name, "StateIdle_1"))
+        {
+            if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+            {
+                TransitionToNode(StateIdleGraph, "StateIdle_0");
+            }
+        }
+        else if (StringEquals(Active->Name, "StateIdle_2"))
+        {
+            if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+            {
+                TransitionToNode(StateIdleGraph, "StateIdle_0");
+            }
+        }
+        else
+        {
+            Assert(!"Invalid state");
+        }
+
+        // External transitions
+        if (Input->Crouch.IsActivated)
+        {
+            StateIdleGraph->Time = 0.f;
+            TransitionToNode(Graph, "StateDancing");
+        }
+
+        if (MoveMaginute > 0.f)
+        {
+            StateIdleGraph->Time = 0.f;
+            TransitionToNode(Graph, "StateWalking");
+        }
+    }
+    else if (StringEquals(Active->Name, "StateWalking"))
+    {
+        if (MoveMaginute < EPSILON)
+        {
+            TransitionToNode(Graph, "StateIdle");
+        }
+    }
+    else if (StringEquals(Active->Name, "StateDancing"))
+    {
+        if (Input->Crouch.IsActivated && MoveMaginute < EPSILON)
+        {
+            TransitionToNode(Graph, "StateIdle");
+        }
+    }
+    else
+    {
+        Assert(!"Invalid state");
+    }
+}

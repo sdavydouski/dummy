@@ -1,820 +1,75 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "dummy_defs.h"
-#include "dummy_math.h"
-#include "dummy_string.h"
-#include "dummy_animation.h"
-#include "dummy_assets.h"
-
-#undef PI
-
-#include <assimp/cimport.h>        // Plain-C interface
-#include <assimp/scene.h>          // Output data structure
-#include <assimp/postprocess.h>    // Post processing flags
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
-#include <string>
-#include <vector>
-#include <unordered_map>
-
-#undef global
-#undef internal
-#undef persist
 #include <filesystem>
-#define global
-#define internal
-#define persist
 
-// todo: some models have weird bone transformations
-// https://github.com/assimp/assimp/issues/1974
-// probably related:
-// https://github.com/assimp/assimp/pull/2815
+#include "rapidjson/document.h"
 
-#undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
-#define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 1.f
+#include "assets_utils.cpp"
 
-#define INVALID_FLOAT -1.f
-#define INVALID_COLOR vec4(-1.f)
-
-#define MAX_MATERIAL_PROPERTY_COUNT 16u
-#define TEXTURE_COORDINATES_SET_INDEX 0
-
-#define MAX_WEIGHT_COUNT 4
-#undef AI_CONFIG_PP_LBW_MAX_WEIGHTS
-#define AI_CONFIG_PP_LBW_MAX_WEIGHTS MAX_WEIGHT_COUNT
-
-using std::string;
-
-template <typename TValue>
-using dynamic_array = std::vector<TValue>;
-
-template <typename TKey, typename TValue>
-using hashtable = std::unordered_map<TKey, TValue>;
-
+using namespace rapidjson;
 namespace fs = std::filesystem;
 
-// good material: https://assimp-docs.readthedocs.io/en/latest/usage/use_the_lib.html
-
-struct assimp_node
+// For testing
+internal u32
+ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
 {
-    aiNode *Node;
-    aiBone *Bone;
-};
+    model_asset_animation_graph_header *AnimationGraphHeader = (model_asset_animation_graph_header *)(Buffer + Offset);
+    CopyString(AnimationGraphHeader->Name, GraphAsset->Name);
+    CopyString(AnimationGraphHeader->Entry, GraphAsset->Entry);
+    GraphAsset->NodeCount = AnimationGraphHeader->NodeCount;
+    GraphAsset->Nodes = AllocateMemory<animation_node_asset>(GraphAsset->NodeCount);
 
-inline vec4
-AssimpColor2Vector(aiColor4D AssimpColor)
-{
-    vec4 Result;
-
-    Result.r = AssimpColor.r;
-    Result.g = AssimpColor.g;
-    Result.b = AssimpColor.b;
-    Result.a = AssimpColor.a;
-
-    return Result;
-}
-
-inline vec3
-AssimpVector2Vector(aiVector3D AssimpVector)
-{
-    vec3 Result;
-
-    Result.x = AssimpVector.x;
-    Result.y = AssimpVector.y;
-    Result.z = AssimpVector.z;
-
-    return Result;
-}
-
-inline quat
-AssimpQuaternion2Quaternion(aiQuaternion AssimpQuaternion)
-{
-    quat Result;
-
-    Result.x = AssimpQuaternion.x;
-    Result.y = AssimpQuaternion.y;
-    Result.z = AssimpQuaternion.z;
-    Result.w = AssimpQuaternion.w;
-
-    return Result;
-}
-
-inline mat4
-AssimpMatrix2Matrix(aiMatrix4x4 aiMatrix)
-{
-    mat4 Result = mat4(
-        vec4(aiMatrix.a1, aiMatrix.a2, aiMatrix.a3, aiMatrix.a4),
-        vec4(aiMatrix.b1, aiMatrix.b2, aiMatrix.b3, aiMatrix.b4),
-        vec4(aiMatrix.c1, aiMatrix.c2, aiMatrix.c3, aiMatrix.c4),
-        vec4(aiMatrix.d1, aiMatrix.d2, aiMatrix.d3, aiMatrix.d4)
-    );
-
-    return Result;
-}
-
-inline string
-AssimpString2StdString(aiString AssimpString)
-{
-    string Result = string(AssimpString.C_Str());
-
-    return Result;
-}
-
-inline aiTexture *
-FindAssimpTextureByFileName(const aiScene *AssimpScene, aiString TexturePath)
-{
-    aiTexture *Result = 0;
-
-    for (u32 TextureIndex = 0; TextureIndex < AssimpScene->mNumTextures; ++TextureIndex)
+    u32 TotalPrevNodeSize = 0;
+    for (u32 NodeIndex = 0; NodeIndex < GraphAsset->NodeCount; ++NodeIndex)
     {
-        aiTexture *AssimpTexture = AssimpScene->mTextures[TextureIndex];
+        model_asset_animation_node_header *NodeHeader = (model_asset_animation_node_header *)(Buffer + AnimationGraphHeader->NodesOffset + TotalPrevNodeSize);
+        animation_node_asset *NodeAsset = GraphAsset->Nodes + NodeIndex;
 
-        if (AssimpTexture->mFilename == TexturePath)
+        NodeAsset->Type = NodeHeader->Type;
+        CopyString(NodeHeader->Name, NodeAsset->Name);
+        NodeAsset->TransitionCount = NodeHeader->TransitionCount;
+        NodeAsset->Transitions = (animation_transition_asset *)(Buffer + NodeHeader->TransitionsOffset);
+
+        switch (NodeAsset->Type)
         {
-            Result = AssimpTexture;
-            break;
-        }
-    }
-
-    Assert(Result);
-
-    return Result;
-}
-
-internal void 
-ProcessAssimpTextures(
-    const aiScene *AssimpScene,
-    aiMaterial *AssimpMaterial,
-    aiTextureType AssimpTextureType,
-    u32 *TextureCount,
-    bitmap **Bitmaps
-)
-{
-    *TextureCount = aiGetMaterialTextureCount(AssimpMaterial, AssimpTextureType);
-    *Bitmaps = (bitmap *)malloc(*TextureCount * sizeof(bitmap));
-
-    for (u32 TextureIndex = 0; TextureIndex < *TextureCount; ++TextureIndex)
-    {
-        aiString TexturePath;
-        if (aiGetMaterialTexture(AssimpMaterial, AssimpTextureType, TextureIndex, &TexturePath) == AI_SUCCESS)
-        {
-            bitmap *Bitmap = *Bitmaps + TextureIndex;
-
-            aiTexture *AssimpTexture = FindAssimpTextureByFileName(AssimpScene, TexturePath);
-
-            if (AssimpTexture->mHeight == 0)
+            case AnimationNodeType_SingleMotion:
             {
-                // Compressed texture data
-                i32 TextureWidth;
-                i32 TextureHeight;
-                i32 TextureChannels;
-                void *Pixels = stbi_load_from_memory((stbi_uc *)AssimpTexture->pcData, AssimpTexture->mWidth, &TextureWidth, &TextureHeight, &TextureChannels, 0);
+                model_asset_animation_state_header *AnimationStateHeader = (model_asset_animation_state_header *)(Buffer + NodeHeader->Offset);
 
-                Bitmap->Width = TextureWidth;
-                Bitmap->Height = TextureHeight;
-                Bitmap->Channels = TextureChannels;
-                Bitmap->Pixels = Pixels;
+                NodeAsset->Animation = AllocateMemory<animation_state_asset>();
+                CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
+                NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
+                NodeAsset->Animation->InPlace = AnimationStateHeader->InPlace;
+
+                TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
+                break;
             }
-            else
+            case AnimationNodeType_BlendSpace:
             {
-                Assert(!"Not implemented");
+                model_asset_blend_space_1d_header *BlendSpaceHeader = (model_asset_blend_space_1d_header *)(Buffer + NodeHeader->Offset);
+
+                NodeAsset->Blendspace = AllocateMemory<blend_space_1d_asset>();
+                NodeAsset->Blendspace->ValueCount = BlendSpaceHeader->ValueCount;
+                NodeAsset->Blendspace->Values = (blend_space_1d_value_asset *)(Buffer + BlendSpaceHeader->ValuesOffset);
+
+                TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader->ValueCount * sizeof(blend_space_1d_value_asset);
+                break;
             }
-        }
-    }
-}
-
-internal void
-ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, mesh_material *Material)
-{
-    Material->Properties = (material_property *)malloc(MAX_MATERIAL_PROPERTY_COUNT * sizeof(material_property));
-    u32 MaterialPropertyIndex = 0;
-
-    f32 SpecularShininess;
-    if (aiGetMaterialFloat(AssimpMaterial, AI_MATKEY_SHININESS, &SpecularShininess) == AI_SUCCESS)
-    {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Float_Shininess;
-        MaterialProperty->Value = SpecularShininess;
-
-        ++MaterialPropertyIndex;
-    }
-
-    aiColor4D AmbientColor;
-    if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_AMBIENT, &AmbientColor) == AI_SUCCESS)
-    {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Color_Ambient;
-        MaterialProperty->Color = AssimpColor2Vector(AmbientColor);
-
-        ++MaterialPropertyIndex;
-    }
-
-    aiColor4D DiffuseColor;
-    if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &DiffuseColor) == AI_SUCCESS)
-    {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Color_Diffuse;
-        MaterialProperty->Color = AssimpColor2Vector(DiffuseColor);
-
-        ++MaterialPropertyIndex;
-    }
-
-    aiColor4D SpecularColor;
-    if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_SPECULAR, &SpecularColor) == AI_SUCCESS)
-    {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Color_Specular;
-        MaterialProperty->Color = AssimpColor2Vector(SpecularColor);
-
-        ++MaterialPropertyIndex;
-    }
-
-    u32 DiffuseMapCount = 0;
-    bitmap *DiffuseMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DIFFUSE, &DiffuseMapCount, &DiffuseMaps);
-    for (u32 DiffuseMapIndex = 0; DiffuseMapIndex < DiffuseMapCount; ++DiffuseMapIndex)
-    {
-        bitmap *DiffuseMap = DiffuseMaps + DiffuseMapIndex;
-
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Diffuse;
-        MaterialProperty->Bitmap = *DiffuseMap;
-
-        ++MaterialPropertyIndex;
-    }
-
-    u32 SpecularMapCount = 0;
-    bitmap *SpecularMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SPECULAR, &SpecularMapCount, &SpecularMaps);
-    for (u32 SpecularMapIndex = 0; SpecularMapIndex < SpecularMapCount; ++SpecularMapIndex)
-    {
-        bitmap *SpecularMap = SpecularMaps + SpecularMapIndex;
-
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Specular;
-        MaterialProperty->Bitmap = *SpecularMap;
-
-        ++MaterialPropertyIndex;
-    }
-
-    u32 ShininessMapCount = 0;
-    bitmap *ShininessMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SHININESS, &ShininessMapCount, &ShininessMaps);
-    for (u32 ShininessMapIndex = 0; ShininessMapIndex < ShininessMapCount; ++ShininessMapIndex)
-    {
-        bitmap *ShininessMap = ShininessMaps + ShininessMapIndex;
-
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Shininess;
-        MaterialProperty->Bitmap = *ShininessMap;
-
-        ++MaterialPropertyIndex;
-    }
-
-    u32 NormalsMapCount = 0;
-    bitmap *NormalsMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_NORMALS, &NormalsMapCount, &NormalsMaps);
-    for (u32 NormalsMapIndex = 0; NormalsMapIndex < NormalsMapCount; ++NormalsMapIndex)
-    {
-        bitmap *NormalsMap = NormalsMaps + NormalsMapIndex;
-
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Normal;
-        MaterialProperty->Bitmap = *NormalsMap;
-
-        ++MaterialPropertyIndex;
-    }
-
-    Material->PropertyCount = MaterialPropertyIndex;
-
-    Assert(MaterialPropertyIndex < MAX_MATERIAL_PROPERTY_COUNT);
-}
-
-inline u32
-FindJointIndexByName(const char *JointName, skeleton *Skeleton)
-{
-    u32 Result = -1;
-
-    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
-    {
-        joint *Joint = Skeleton->Joints + JointIndex;
-
-        if (StringEquals(JointName, Joint->Name))
-        {
-            Result = JointIndex;
-            break;
-        }
-    }
-
-    Assert(Result != -1);
-
-    return Result;
-}
-
-internal void
-ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, skeleton *Skeleton)
-{
-    Assert(AssimpAnimation->mName.length < MAX_ANIMATION_NAME_LENGTH);
-
-    CopyString(AssimpAnimation->mName.C_Str(), Animation->Name, (u32)(AssimpAnimation->mName.length + 1));
-    Animation->Duration = (f32)AssimpAnimation->mDuration / (f32)AssimpAnimation->mTicksPerSecond;
-    Animation->PoseSampleCount = AssimpAnimation->mNumChannels;
-    Animation->PoseSamples = (animation_sample *)malloc(Animation->PoseSampleCount * sizeof(animation_sample));
-
-    for (u32 ChannelIndex = 0; ChannelIndex < AssimpAnimation->mNumChannels; ++ChannelIndex)
-    {
-        // Channel desribes the movement of a single joint over time
-        aiNodeAnim *Channel = AssimpAnimation->mChannels[ChannelIndex];
-
-        Assert((Channel->mNumPositionKeys == Channel->mNumRotationKeys) && (Channel->mNumPositionKeys == Channel->mNumScalingKeys));
-
-        animation_sample *AnimationSample = Animation->PoseSamples + ChannelIndex;
-        AnimationSample->JointIndex = FindJointIndexByName(Channel->mNodeName.C_Str(), Skeleton);
-        AnimationSample->KeyFrameCount = Channel->mNumPositionKeys;
-        AnimationSample->KeyFrames = (key_frame *)malloc(AnimationSample->KeyFrameCount * sizeof(key_frame));
-
-        for (u32 KeyIndex = 0; KeyIndex < Channel->mNumPositionKeys; ++KeyIndex)
-        {
-            aiVectorKey *PositionKey = Channel->mPositionKeys + KeyIndex;
-            aiQuatKey *RotationKey = Channel->mRotationKeys + KeyIndex;
-            aiVectorKey *ScalingKey = Channel->mScalingKeys + KeyIndex;
-
-            Assert((PositionKey->mTime == RotationKey->mTime) && (PositionKey->mTime == ScalingKey->mTime));
-
-            key_frame *KeyFrame = AnimationSample->KeyFrames + KeyIndex;
-            KeyFrame->Time = (f32)PositionKey->mTime / (f32)AssimpAnimation->mTicksPerSecond;
-            KeyFrame->Pose.Rotation = AssimpQuaternion2Quaternion(RotationKey->mValue);
-            KeyFrame->Pose.Translation = AssimpVector2Vector(PositionKey->mValue);
-            KeyFrame->Pose.Scale = AssimpVector2Vector(ScalingKey->mValue);
-        }
-    }
-}
-
-internal void
-ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNode, mesh *Mesh, skeleton *Skeleton)
-{
-    Mesh->MaterialIndex = AssimpMesh->mMaterialIndex;
-    Mesh->VertexCount = AssimpMesh->mNumVertices;
-
-    Mesh->Positions = 0;
-    Mesh->Normals = 0;
-    Mesh->Tangents = 0;
-    Mesh->Bitangents = 0;
-    Mesh->TextureCoords = 0;
-    Mesh->Weights = 0;
-    Mesh->JointIndices = 0;
-
-    if (AssimpMesh->HasPositions())
-    {
-        Mesh->Positions = (vec3 *)malloc(Mesh->VertexCount * sizeof(vec3));
-    }
-
-    if (AssimpMesh->HasNormals())
-    {
-        Mesh->Normals = (vec3 *)malloc(Mesh->VertexCount * sizeof(vec3));
-    }
-
-    if (AssimpMesh->HasTangentsAndBitangents())
-    {
-        Mesh->Tangents = (vec3 *)malloc(Mesh->VertexCount * sizeof(vec3));
-        Mesh->Bitangents = (vec3 *)malloc(Mesh->VertexCount * sizeof(vec3));
-    }
-
-    if (AssimpMesh->HasTextureCoords(TEXTURE_COORDINATES_SET_INDEX))
-    {
-        Mesh->TextureCoords = (vec2 *)malloc(Mesh->VertexCount * sizeof(vec2));
-    }
-
-    for (u32 VertexIndex = 0; VertexIndex < AssimpMesh->mNumVertices; ++VertexIndex)
-    {
-        if (AssimpMesh->HasPositions())
-        {
-            vec3 *Position = Mesh->Positions + VertexIndex;
-
-            aiVector3D AssimpPosition = AssimpMesh->mVertices[VertexIndex];
-            *Position = AssimpVector2Vector(AssimpPosition);
-        }
-
-        if (AssimpMesh->HasNormals())
-        {
-            vec3 *Normal = Mesh->Normals + VertexIndex;
-
-            aiVector3D AssimpNormal = AssimpMesh->mNormals[VertexIndex];
-            *Normal = AssimpVector2Vector(AssimpNormal);
-        }
-
-        if (AssimpMesh->HasTangentsAndBitangents())
-        {
-            vec3 *Tangent = Mesh->Tangents + VertexIndex;
-            vec3 *Bitangent = Mesh->Bitangents + VertexIndex;
-
-            aiVector3D AssimpTangent = AssimpMesh->mTangents[VertexIndex];
-            aiVector3D AssimpBiTangent = AssimpMesh->mBitangents[VertexIndex];
-
-            *Tangent = AssimpVector2Vector(AssimpTangent);
-            *Bitangent = AssimpVector2Vector(AssimpBiTangent);
-        }
-
-        if (AssimpMesh->HasTextureCoords(TEXTURE_COORDINATES_SET_INDEX))
-        {
-            vec2 *TextureCoords = Mesh->TextureCoords + VertexIndex;
-
-            aiVector3D AssimpTextureCoords = AssimpMesh->mTextureCoords[TEXTURE_COORDINATES_SET_INDEX][VertexIndex];
-            *TextureCoords = vec2(AssimpVector2Vector(AssimpTextureCoords).xy);
-        }
-    }
-
-    if (AssimpMesh->HasBones())
-    {
-        Mesh->Weights = (vec4 *)malloc(Mesh->VertexCount * sizeof(vec4));
-        Mesh->JointIndices = (i32 *)malloc(Mesh->VertexCount * sizeof(i32) * 4);
-
-        hashtable<u32, dynamic_array<joint_weight>> JointWeightsTable = {};
-
-        for (u32 BoneIndex = 0; BoneIndex < AssimpMesh->mNumBones; ++BoneIndex)
-        {
-            aiBone *AssimpBone = AssimpMesh->mBones[BoneIndex];
-
-            for (u32 VertexWeightIndex = 0; VertexWeightIndex < AssimpBone->mNumWeights; ++VertexWeightIndex)
+            case AnimationNodeType_Graph:
             {
-                aiVertexWeight *AssimpVertexWeight = AssimpBone->mWeights + VertexWeightIndex;
+                NodeAsset->Graph = AllocateMemory<animation_graph_asset>();
 
-                u32 VertexIndex = AssimpVertexWeight->mVertexId;
-                f32 JointWeight = AssimpVertexWeight->mWeight;
-                u32 JointIndex = FindJointIndexByName(AssimpBone->mName.C_Str(), Skeleton);
+                u32 NodeSize = ReadAnimationGraph(NodeAsset->Graph, NodeHeader->Offset, Buffer);
 
-                JointWeightsTable[VertexIndex].push_back({ JointIndex, JointWeight });
+                TotalPrevNodeSize += NodeSize + sizeof(model_asset_animation_graph_header);
+                break;
             }
         }
 
-        hashtable<u32, dynamic_array<joint_weight>>::iterator it;
-        for (it = JointWeightsTable.begin(); it != JointWeightsTable.end(); ++it)
-        {
-            dynamic_array<joint_weight> &JointWeights = it->second;
-
-            std::sort(
-                JointWeights.begin(),
-                JointWeights.end(),
-                [](const joint_weight &A, const joint_weight &B) -> b32
-            {
-                return A.Weight > B.Weight;
-            });
-
-            JointWeights.resize(MAX_WEIGHT_COUNT);
-
-        }
-
-        for (u32 VertexIndex = 0; VertexIndex < Mesh->VertexCount; ++VertexIndex)
-        {
-            vec4 *Weight = Mesh->Weights + VertexIndex;
-            i32 *JointIndices = Mesh->JointIndices + VertexIndex * 4;
-
-            dynamic_array<joint_weight> &JointWeights = JointWeightsTable[VertexIndex];
-
-            for (u32 JointWeightIndex = 0; JointWeightIndex < MAX_WEIGHT_COUNT; ++JointWeightIndex)
-            {
-                joint_weight JointWeight = JointWeights[JointWeightIndex];
-
-                JointIndices[JointWeightIndex] = JointWeight.JointIndex;
-                Weight->Elements[JointWeightIndex] = JointWeight.Weight;
-            }
-
-            Weight->Elements[3] = 1.f - (Weight->Elements[0] + Weight->Elements[1] + Weight->Elements[2]);
-
-            Assert(Weight->Elements[0] + Weight->Elements[1] + Weight->Elements[2] + Weight->Elements[3] == 1.f);
-        }
+        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader->TransitionCount * sizeof(animation_transition_asset);
     }
 
-    if (AssimpMesh->HasFaces())
-    {
-        u32 IndexCount = 0;
-
-        for (u32 FaceIndex = 0; FaceIndex < AssimpMesh->mNumFaces; ++FaceIndex)
-        {
-            aiFace *Face = AssimpMesh->mFaces + FaceIndex;
-            IndexCount += Face->mNumIndices;
-        }
-
-        Mesh->IndexCount = IndexCount;
-        Mesh->Indices = (u32 *)malloc(Mesh->IndexCount * sizeof(u32));
-
-        for (u32 FaceIndex = 0; FaceIndex < AssimpMesh->mNumFaces; ++FaceIndex)
-        {
-            aiFace *Face = AssimpMesh->mFaces + FaceIndex;
-
-            for (u32 FaceIndexIndex = 0; FaceIndexIndex < Face->mNumIndices; ++FaceIndexIndex)
-            {
-                u32 *Index = Mesh->Indices + (FaceIndex * Face->mNumIndices + FaceIndexIndex);
-                *Index = Face->mIndices[FaceIndexIndex];
-            }
-        }
-    }
-}
-
-internal void
-ProcessAssimpNodeHierarchy(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes)
-{
-    assimp_node *Node = (assimp_node *)malloc(sizeof(assimp_node));
-    Node->Node = AssimpNode;
-    Node->Bone = 0;             // will be filled later
-
-    string Name = AssimpString2StdString(AssimpNode->mName);
-    SceneNodes[Name] = Node;
-
-    for (u32 ChildIndex = 0; ChildIndex < AssimpNode->mNumChildren; ++ChildIndex)
-    {
-        aiNode *ChildNode = AssimpNode->mChildren[ChildIndex];
-        ProcessAssimpNodeHierarchy(ChildNode, SceneNodes);
-    }
-}
-
-internal aiNode *
-GetBoneRootNode(aiNode *AssimpNode, hashtable<string, assimp_node *> &SceneNodes)
-{
-    string Name = AssimpString2StdString(AssimpNode->mName);
-    assimp_node *SceneNode = SceneNodes[Name];
-    if (SceneNode->Bone)
-    {
-        return SceneNode->Node;
-    }
-
-    for (u32 ChildIndex = 0; ChildIndex < AssimpNode->mNumChildren; ++ChildIndex)
-    {
-        aiNode *ChildNode = AssimpNode->mChildren[ChildIndex];
-        return GetBoneRootNode(ChildNode, SceneNodes);
-    }
-
-    return 0;
-}
-
-inline aiNode *
-GetAssimpRootNode(const aiScene *AssimpScene)
-{
-    aiNode *RootNode = AssimpScene->mRootNode;
-
-    for (u32 ChildIndex = 0; ChildIndex < RootNode->mNumChildren; ++ChildIndex)
-    {
-        aiNode *ChildNode = RootNode->mChildren[ChildIndex];
-
-        if (ChildNode->mName == aiString("RootNode"))
-        {
-            RootNode = ChildNode;
-            break;
-        }
-    }
-
-    return RootNode;
-}
-
-internal void
-ProcessAssimpBoneHierarchy(
-    aiNode *AssimpNode, 
-    hashtable<string, assimp_node *> &SceneNodes, 
-    skeleton_pose *Pose, 
-    i32 &CurrentIndexForward, 
-    i32 &CurrentIndexParent
-)
-{
-    string Name = AssimpString2StdString(AssimpNode->mName);
-    assimp_node *SceneNode = SceneNodes[Name];
-
-    joint *Joint = Pose->Skeleton->Joints + CurrentIndexForward;
-    Assert(Name.length() < MAX_JOINT_NAME_LENGTH);
-    CopyString(Name.c_str(), Joint->Name, MAX_JOINT_NAME_LENGTH);
-    Joint->InvBindTranform = SceneNode->Bone 
-        ? AssimpMatrix2Matrix(SceneNode->Bone->mOffsetMatrix) 
-        : mat4(1.f);
-
-    Joint->ParentIndex = CurrentIndexParent;
-
-    aiVector3D Scale;
-    aiVector3D Translation;
-    aiQuaternion Rotation;
-    SceneNode->Node->mTransformation.Decompose(Scale, Rotation, Translation);
-
-    joint_pose *LocalJointPose = Pose->LocalJointPoses + CurrentIndexForward;
-    LocalJointPose->Scale = AssimpVector2Vector(Scale);
-    LocalJointPose->Translation = AssimpVector2Vector(Translation);
-    LocalJointPose->Rotation = AssimpQuaternion2Quaternion(Rotation);
-
-    CurrentIndexParent = CurrentIndexForward;
-    ++CurrentIndexForward;
-
-    for (u32 ChildIndex = 0; ChildIndex < AssimpNode->mNumChildren; ++ChildIndex)
-    {
-        aiNode *ChildNode = AssimpNode->mChildren[ChildIndex];
-
-        ProcessAssimpBoneHierarchy(ChildNode, SceneNodes, Pose, CurrentIndexForward, CurrentIndexParent);
-    }
-
-    CurrentIndexParent = Joint->ParentIndex;
-}
-
-// todo: duplicate
-internal mat4
-CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton_pose *Pose)
-{
-    mat4 Result = mat4(1.f);
-
-    while (true)
-    {
-        mat4 GlobalPose = Transform(*CurrentJointPose);
-        Result = GlobalPose * Result;
-
-        if (CurrentJoint->ParentIndex == -1)
-        {
-            break;
-        }
-
-        CurrentJointPose = Pose->LocalJointPoses + CurrentJoint->ParentIndex;
-        CurrentJoint = Pose->Skeleton->Joints + CurrentJoint->ParentIndex;
-    }
-    
-    return Result;
-}
-
-// todo: duplicate
-inline u32
-GetMeshVerticesSize(mesh *Mesh)
-{
-    u32 Size = 0;
-
-    if (Mesh->Positions)
-    {
-        Size += Mesh->VertexCount * sizeof(vec3);
-    }
-
-    if (Mesh->Normals)
-    {
-        Size += Mesh->VertexCount * sizeof(vec3);
-    }
-
-    if (Mesh->Tangents)
-    {
-        Size += Mesh->VertexCount * sizeof(vec3);
-    }
-
-    if (Mesh->Bitangents)
-    {
-        Size += Mesh->VertexCount * sizeof(vec3);
-    }
-
-    if (Mesh->TextureCoords)
-    {
-        Size += Mesh->VertexCount * sizeof(vec2);
-    }
-
-    if (Mesh->Weights)
-    {
-        Size += Mesh->VertexCount * sizeof(vec4);
-    }
-
-    if (Mesh->JointIndices)
-    {
-        Size += Mesh->VertexCount * sizeof(i32) * 4;
-    }
-
-    return Size;
-}
-
-internal void 
-ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton, skeleton_pose *Pose)
-{
-    hashtable<string, assimp_node *> SceneNodes;
-
-    aiNode *RootNode = GetAssimpRootNode(AssimpScene);
-    ProcessAssimpNodeHierarchy(RootNode, SceneNodes);
-
-    u32 JointCount = (u32)SceneNodes.size();
-
-    //if (JointCount > 1)
-    {
-        for (u32 MeshIndex = 0; MeshIndex < AssimpScene->mNumMeshes; ++MeshIndex)
-        {
-            aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
-
-            for (u32 BoneIndex = 0; BoneIndex < AssimpMesh->mNumBones; ++BoneIndex)
-            {
-                aiBone *AssimpBone = AssimpMesh->mBones[BoneIndex];
-                aiNode *AssimpNode = AssimpScene->mRootNode->FindNode(AssimpBone->mName);
-
-                string Name = AssimpString2StdString(AssimpNode->mName);
-                SceneNodes[Name]->Bone = AssimpBone;
-            }
-        }
-
-        Skeleton->JointCount = JointCount;
-        Skeleton->Joints = (joint *)malloc(sizeof(joint) * JointCount);
-
-        Pose->Skeleton = Skeleton;
-        Pose->LocalJointPoses = (joint_pose *)malloc(sizeof(joint_pose) * JointCount);
-        Pose->GlobalJointPoses = (mat4 *)malloc(sizeof(mat4) * JointCount);
-
-        i32 CurrentIndexForward = 0;
-        i32 CurrentIndexParent = -1;
-        ProcessAssimpBoneHierarchy(RootNode, SceneNodes, Pose, CurrentIndexForward, CurrentIndexParent);
-
-        for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
-        {
-            joint *Joint = Skeleton->Joints + JointIndex;
-            joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
-            mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
-
-            *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Pose);
-        }
-    }
-}
-
-internal void
-ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
-{
-    ProcessAssimpSkeleton(AssimpScene, &Asset->Skeleton, &Asset->BindPose);
-
-    if (AssimpScene->HasMeshes())
-    {
-        Asset->MeshCount = AssimpScene->mNumMeshes;
-        Asset->Meshes = (mesh *)malloc(Asset->MeshCount * sizeof(mesh));
-
-        for (u32 MeshIndex = 0; MeshIndex < Asset->MeshCount; ++MeshIndex)
-        {
-            aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
-            mesh *Mesh = Asset->Meshes + MeshIndex;
-
-            ProcessAssimpMesh(AssimpMesh, MeshIndex, AssimpScene->mRootNode, Mesh, &Asset->Skeleton);
-        }
-    }
-
-    if (AssimpScene->HasMaterials())
-    {
-        Asset->MaterialCount = AssimpScene->mNumMaterials;
-        Asset->Materials = (mesh_material *)malloc(Asset->MaterialCount * sizeof(mesh_material));
-
-        for (u32 MaterialIndex = 0; MaterialIndex < Asset->MaterialCount; ++MaterialIndex)
-        {
-            aiMaterial *AssimpMaterial = AssimpScene->mMaterials[MaterialIndex];
-            mesh_material *Material = Asset->Materials + MaterialIndex;
-
-            ProcessAssimpMaterial(AssimpScene, AssimpMaterial, Material);
-        }
-    }
-
-    if (AssimpScene->HasAnimations())
-    {
-        Asset->AnimationCount = AssimpScene->mNumAnimations;
-        Asset->Animations = (animation_clip *)malloc(Asset->AnimationCount * sizeof(animation_clip));
-
-        for (u32 AnimationIndex = 0; AnimationIndex < Asset->AnimationCount; ++AnimationIndex)
-        {
-            aiAnimation *AssimpAnimation = AssimpScene->mAnimations[AnimationIndex];
-            animation_clip *Animation = Asset->Animations + AnimationIndex;
-
-            ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
-        }
-    }
-}
-
-internal void
-LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
-{
-    const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
-
-    if (AssimpScene)
-    {
-        *Asset = {};
-
-        ProcessAssimpScene(AssimpScene, Asset);
-
-        aiReleaseImport(AssimpScene);
-    }
-    else
-    {
-        const char *ErrorMessage = aiGetErrorString();
-        Assert(!ErrorMessage);
-    }
-}
-
-internal void
-LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, const char *AnimationName, b32 IsLooping, b32 InPlace, u32 AnimationIndex)
-{
-    const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
-
-    Assert(AssimpScene);
-    Assert(AssimpScene->mNumAnimations == 1);
-
-    aiAnimation *AssimpAnimation = AssimpScene->mAnimations[0];
-    animation_clip *Animation = Asset->Animations + AnimationIndex;
-
-    ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
-
-    CopyString(AnimationName, Animation->Name, MAX_ANIMATION_NAME_LENGTH);
-    Animation->IsLooping = IsLooping;
-    Animation->InPlace = InPlace;
-
-    aiReleaseImport(AssimpScene);
+    return TotalPrevNodeSize;
 }
 
 // For testing
@@ -822,34 +77,39 @@ internal void
 ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAsset)
 {
     FILE *AssetFile = fopen(FilePath, "rb");
-    
-    fseek(AssetFile, 0, SEEK_END);
-    u32 FileSize = ftell(AssetFile);
-    fseek(AssetFile, 0, SEEK_SET);
 
-    void *Buffer = malloc(FileSize);
+    u32 FileSize = GetFileSize(AssetFile);
+
+    u8 *Buffer = AllocateMemory<u8>(FileSize);
 
     fread(Buffer, FileSize, 1, AssetFile);
 
     model_asset_header *Header = (model_asset_header *)Buffer;
 
-    model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)((u8 *)Buffer + Header->SkeletonHeaderOffset);
+    // Read skeleton
+    model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)(Buffer + Header->SkeletonHeaderOffset);
     skeleton Skeleton = {};
     Skeleton.JointCount = SkeletonHeader->JointCount;
-    Skeleton.Joints = (joint *)((u8*)Buffer + SkeletonHeader->JointsOffset);
+    Skeleton.Joints = (joint *)((u8 *)Buffer + SkeletonHeader->JointsOffset);
 
-    model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)((u8 *)Buffer + Header->SkeletonPoseHeaderOffset);
+    // Read skeleton bind pose
+    model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)(Buffer + Header->SkeletonPoseHeaderOffset);
     skeleton_pose BindPose = {};
-    BindPose.LocalJointPoses = (joint_pose *)((u8*)Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
-    BindPose.GlobalJointPoses = (mat4 *)((u8*)Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
+    BindPose.LocalJointPoses = (joint_pose *)((u8 *)Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
+    BindPose.GlobalJointPoses = (mat4 *)((u8 *)Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
 
-    model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)((u8 *)Buffer + Header->MeshesHeaderOffset);
+    // Read animation graph
+    animation_graph_asset GraphAsset = {};
+    ReadAnimationGraph(&GraphAsset, Header->AnimationGraphHeaderOffset, Buffer);
+
+    // Read meshes
+    model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)(Buffer + Header->MeshesHeaderOffset);
 
     u32 NextMeshHeaderOffset = 0;
 
     for (u32 MeshIndex = 0; MeshIndex < MeshesHeader->MeshCount; ++MeshIndex)
     {
-        model_asset_mesh_header *MeshHeader = (model_asset_mesh_header *)((u8 *)Buffer + 
+        model_asset_mesh_header *MeshHeader = (model_asset_mesh_header *)(Buffer +
             MeshesHeader->MeshesOffset + NextMeshHeaderOffset);
         mesh Mesh = {};
 
@@ -861,67 +121,68 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
         if (MeshHeader->HasPositions)
         {
-            Mesh.Positions = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh.Positions = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasNormals)
         {
-            Mesh.Normals = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh.Normals = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasTangents)
         {
-            Mesh.Tangents = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh.Tangents = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasBitangets)
         {
-            Mesh.Bitangents = (vec3 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh.Bitangents = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasTextureCoords)
         {
-            Mesh.TextureCoords = (vec2 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh.TextureCoords = (vec2 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
             VerticesOffset += sizeof(vec2) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasWeights)
         {
-            Mesh.Weights = (vec4 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh.Weights = (vec4 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
             VerticesOffset += sizeof(vec4) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasJointIndices)
         {
-            Mesh.JointIndices = (i32 *)((u8 *)Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh.JointIndices = (i32 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
             VerticesOffset += sizeof(i32) * 4 * MeshHeader->VertexCount;
         }
 
-        Mesh.Indices = (u32 *)((u8 *)Buffer + MeshHeader->IndicesOffset);
+        Mesh.Indices = (u32 *)(Buffer + MeshHeader->IndicesOffset);
 
         NextMeshHeaderOffset += sizeof(model_asset_mesh_header) + VerticesOffset + MeshHeader->IndexCount * sizeof(u32);
     }
 
-    model_asset_materials_header *MaterialsHeader = (model_asset_materials_header *)((u8 *)Buffer + Header->MaterialsHeaderOffset);
+    // Read materials
+    model_asset_materials_header *MaterialsHeader = (model_asset_materials_header *)(Buffer + Header->MaterialsHeaderOffset);
 
     u64 NextMaterialHeaderOffset = 0;
     for (u32 MaterialIndex = 0; MaterialIndex < MaterialsHeader->MaterialCount; ++MaterialIndex)
     {
-        model_asset_material_header *MaterialHeader = (model_asset_material_header *)((u8 *)Buffer +
+        model_asset_material_header *MaterialHeader = (model_asset_material_header *)(Buffer +
             MaterialsHeader->MaterialsOffset + NextMaterialHeaderOffset);
         mesh_material Material = {};
         Material.PropertyCount = MaterialHeader->PropertyCount;
-        Material.Properties = (material_property *)((u8 *)Buffer + MaterialHeader->PropertiesOffset);
+        Material.Properties = (material_property *)(Buffer + MaterialHeader->PropertiesOffset);
 
         u64 NextMaterialPropertyHeaderOffset = 0;
         for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MaterialHeader->PropertyCount; ++MaterialPropertyIndex)
         {
             model_asset_material_property_header *MaterialPropertyHeader = (model_asset_material_property_header *)
-                ((u8 *)Buffer + MaterialHeader->PropertiesOffset + NextMaterialPropertyHeaderOffset);
+                (Buffer + MaterialHeader->PropertiesOffset + NextMaterialPropertyHeaderOffset);
 
             material_property *MaterialProperty = Material.Properties + MaterialPropertyIndex;
 
@@ -949,14 +210,14 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
                 case MaterialProperty_Texture_Diffuse:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
-                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
 
-#if 1
+    #if 0
                     char FileName[64];
                     FormatString(FileName, ArrayCount(FileName), "Diffuse - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
-#endif
+    #endif
 
                     u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
 
@@ -967,14 +228,14 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
                 case MaterialProperty_Texture_Specular:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
-                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
 
-#if 1
+    #if 0
                     char FileName[64];
                     FormatString(FileName, ArrayCount(FileName), "Specular - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
-#endif
+    #endif
 
                     u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
 
@@ -985,14 +246,14 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
                 case MaterialProperty_Texture_Shininess:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
-                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
 
-#if 1
+    #if 0
                     char FileName[64];
                     FormatString(FileName, ArrayCount(FileName), "Shininess - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
-#endif
+    #endif
 
                     u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
 
@@ -1003,14 +264,14 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
                 case MaterialProperty_Texture_Normal:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
-                    MaterialProperty->Bitmap.Pixels = (void *)((u8 *)Buffer + MaterialPropertyHeader->BitmapOffset);
+                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
 
-#if 1
+    #if 0
                     char FileName[64];
                     FormatString(FileName, ArrayCount(FileName), "Normal - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
-#endif
+    #endif
 
                     u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
 
@@ -1028,35 +289,34 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
         NextMaterialHeaderOffset += sizeof(model_asset_material_header) + NextMaterialPropertyHeaderOffset;
     }
 
-    model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)((u8 *)Buffer + Header->AnimationsHeaderOffset);
+    // Read animation clips
+    model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)(Buffer + Header->AnimationsHeaderOffset);
 
     u64 NextAnimationHeaderOffset = 0;
 
     for (u32 AnimationIndex = 0; AnimationIndex < AnimationsHeader->AnimationCount; ++AnimationIndex)
     {
-        model_asset_animation_header *AnimationHeader = (model_asset_animation_header *)((u8 *)Buffer + 
+        model_asset_animation_header *AnimationHeader = (model_asset_animation_header *)(Buffer +
             AnimationsHeader->AnimationsOffset + NextAnimationHeaderOffset);
         animation_clip Animation = {};
-        CopyString(AnimationHeader->Name, Animation.Name, MAX_ANIMATION_NAME_LENGTH);
+        CopyString(AnimationHeader->Name, Animation.Name);
         Animation.Duration = AnimationHeader->Duration;
-        Animation.IsLooping = AnimationHeader->IsLooping;
-        Animation.InPlace = AnimationHeader->InPlace;
         Animation.PoseSampleCount = AnimationHeader->PoseSampleCount;
-        Animation.PoseSamples = (animation_sample *)((u8 *)Buffer + AnimationHeader->PoseSamplesOffset);
+        Animation.PoseSamples = (animation_sample *)(Buffer + AnimationHeader->PoseSamplesOffset);
 
         u64 NextAnimationSampleHeaderOffset = 0;
 
         for (u32 AnimationPoseIndex = 0; AnimationPoseIndex < AnimationHeader->PoseSampleCount; ++AnimationPoseIndex)
         {
             model_asset_animation_sample_header *AnimationSampleHeader = (model_asset_animation_sample_header *)
-                ((u8 *)Buffer + AnimationHeader->PoseSamplesOffset + NextAnimationSampleHeaderOffset);
+                (Buffer + AnimationHeader->PoseSamplesOffset + NextAnimationSampleHeaderOffset);
 
             animation_sample *AnimationSample = Animation.PoseSamples + AnimationPoseIndex;
 
             AnimationSample->KeyFrameCount = AnimationSampleHeader->KeyFrameCount;
-            AnimationSample->KeyFrames = (key_frame *)((u8 *)Buffer + AnimationSampleHeader->KeyFramesOffset);
+            AnimationSample->KeyFrames = (key_frame *)(Buffer + AnimationSampleHeader->KeyFramesOffset);
 
-            NextAnimationSampleHeaderOffset += sizeof(model_asset_animation_sample_header) + 
+            NextAnimationSampleHeaderOffset += sizeof(model_asset_animation_sample_header) +
                 AnimationSampleHeader->KeyFrameCount * sizeof(key_frame);
         }
 
@@ -1066,54 +326,79 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
     fclose(AssetFile);
 }
 
-internal void
-WriteAssetFile(const char *FilePath, model_asset *Asset)
+internal u32
+WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *AssetFile)
 {
-    FILE *AssetFile = fopen(FilePath, "wb");
+    model_asset_animation_graph_header AnimationGraphHeader = {};
+    CopyString(AnimationGraph->Name, AnimationGraphHeader.Name);
+    CopyString(AnimationGraph->Entry, AnimationGraphHeader.Entry);
+    AnimationGraphHeader.NodeCount = AnimationGraph->NodeCount;
+    AnimationGraphHeader.NodesOffset = Offset + sizeof(model_asset_animation_graph_header);
 
-    model_asset_header Header = {};
-    Header.MagicValue = 0x451;
-    Header.Version = 1;
-    // will be filled later
-    Header.SkeletonHeaderOffset = 0;
-    Header.MeshesHeaderOffset = 0;
-    Header.MaterialsHeaderOffset = 0;
-    Header.AnimationsHeaderOffset = 0;
+    fwrite(&AnimationGraphHeader, sizeof(model_asset_animation_graph_header), 1, AssetFile);
 
-    u64 CurrentStreamPosition = 0;
+    u32 TotalPrevNodeSize = 0;
+    for (u32 NodeIndex = 0; NodeIndex < AnimationGraph->NodeCount; ++NodeIndex)
+    {
+        animation_node_asset *Node = AnimationGraph->Nodes + NodeIndex;
 
-    fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
+        model_asset_animation_node_header NodeHeader = {};
+        NodeHeader.Type = Node->Type;
+        CopyString(Node->Name, NodeHeader.Name);
+        NodeHeader.TransitionCount = Node->TransitionCount;
+        NodeHeader.TransitionsOffset = AnimationGraphHeader.NodesOffset + sizeof(model_asset_animation_node_header) + TotalPrevNodeSize;
+        NodeHeader.Offset = NodeHeader.TransitionsOffset + NodeHeader.TransitionCount * sizeof(animation_transition_asset);
 
-    CurrentStreamPosition = ftell(AssetFile);
-    Header.SkeletonHeaderOffset = CurrentStreamPosition;
+        fwrite(&NodeHeader, sizeof(model_asset_animation_node_header), 1, AssetFile);
+        fwrite(Node->Transitions, sizeof(animation_transition_asset), Node->TransitionCount, AssetFile);
 
-    // Writing skeleton
-    model_asset_skeleton_header SkeletonHeader = {};
-    SkeletonHeader.JointCount = Asset->Skeleton.JointCount;
-    SkeletonHeader.JointsOffset = Header.SkeletonHeaderOffset + sizeof(SkeletonHeader);
+        switch (NodeHeader.Type)
+        {
+            case AnimationNodeType_SingleMotion:
+            {
+                model_asset_animation_state_header AnimationStateHeader = {};
+                CopyString(Node->Animation->AnimationClipName, AnimationStateHeader.AnimationClipName);
+                AnimationStateHeader.IsLooping = Node->Animation->IsLooping;
+                AnimationStateHeader.InPlace = Node->Animation->InPlace;
 
-    fwrite(&SkeletonHeader, sizeof(model_asset_skeleton_header), 1, AssetFile);
-    fwrite(Asset->Skeleton.Joints, sizeof(joint), Asset->Skeleton.JointCount, AssetFile);
+                fwrite(&AnimationStateHeader, sizeof(model_asset_animation_state_header), 1, AssetFile);
 
-    CurrentStreamPosition = ftell(AssetFile);
-    Header.SkeletonPoseHeaderOffset = CurrentStreamPosition;
+                TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
+                break;
+            }
+            case AnimationNodeType_BlendSpace:
+            {
+                model_asset_blend_space_1d_header BlendSpaceHeader = {};
+                BlendSpaceHeader.ValueCount = Node->Blendspace->ValueCount;
+                BlendSpaceHeader.ValuesOffset = NodeHeader.Offset + sizeof(model_asset_blend_space_1d_header);
 
-    // Writing skeleton bind pose
-    model_asset_skeleton_pose_header SkeletonPoseHeader = {};
-    SkeletonPoseHeader.LocalJointPosesOffset = Header.SkeletonPoseHeaderOffset + sizeof(model_asset_skeleton_pose_header);
-    SkeletonPoseHeader.GlobalJointPosesOffset = SkeletonPoseHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(joint_pose);
+                fwrite(&BlendSpaceHeader, sizeof(model_asset_blend_space_1d_header), 1, AssetFile);
+                fwrite(Node->Blendspace->Values, sizeof(blend_space_1d_value_asset), Node->Blendspace->ValueCount, AssetFile);
 
-    fwrite(&SkeletonPoseHeader, sizeof(model_asset_skeleton_pose_header), 1, AssetFile);
-    fwrite(Asset->BindPose.LocalJointPoses, sizeof(joint_pose), Asset->Skeleton.JointCount, AssetFile);
-    fwrite(Asset->BindPose.GlobalJointPoses, sizeof(mat4), Asset->Skeleton.JointCount, AssetFile);
+                TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader.ValueCount * sizeof(blend_space_1d_value_asset);
+                break;
+            }
+            case AnimationNodeType_Graph:
+            {
+                u32 NodeSize = WriteAnimationGraph(Node->Graph, NodeHeader.Offset, AssetFile);
 
-    CurrentStreamPosition = ftell(AssetFile);
-    Header.MeshesHeaderOffset = CurrentStreamPosition;
+                TotalPrevNodeSize += NodeSize + sizeof(model_asset_animation_graph_header);
+                break;
+            }
+        }
 
-    // Writing meshes
+        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader.TransitionCount * sizeof(animation_transition_asset);
+    }
+
+    return TotalPrevNodeSize;
+}
+
+internal void
+WriteMeshes(model_asset *Asset, u64 Offset, FILE *AssetFile)
+{
     model_asset_meshes_header MeshesHeader = {};
     MeshesHeader.MeshCount = Asset->MeshCount;
-    MeshesHeader.MeshesOffset = Header.MeshesHeaderOffset + sizeof(model_asset_meshes_header);
+    MeshesHeader.MeshesOffset = Offset + sizeof(model_asset_meshes_header);
 
     fwrite(&MeshesHeader, sizeof(model_asset_meshes_header), 1, AssetFile);
 
@@ -1178,14 +463,14 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 
         fwrite(Mesh->Indices, sizeof(u32), Mesh->IndexCount, AssetFile);
     }
+}
 
-    CurrentStreamPosition = ftell(AssetFile);
-    Header.MaterialsHeaderOffset = CurrentStreamPosition;
-
-    // Writing materials
+internal void
+WriteMaterials(model_asset *Asset, u64 Offset, FILE *AssetFile)
+{
     model_asset_materials_header MaterialsHeader = {};
     MaterialsHeader.MaterialCount = Asset->MaterialCount;
-    MaterialsHeader.MaterialsOffset = Header.MaterialsHeaderOffset + sizeof(model_asset_materials_header);
+    MaterialsHeader.MaterialsOffset = Offset + sizeof(model_asset_materials_header);
 
     fwrite(&MaterialsHeader, sizeof(model_asset_materials_header), 1, AssetFile);
 
@@ -1211,63 +496,62 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 
             switch (MaterialProperty->Type)
             {
-            case MaterialProperty_Float_Shininess:
-            {
-                MaterialPropertyHeader.Value = MaterialProperty->Value;
+                case MaterialProperty_Float_Shininess:
+                {
+                    MaterialPropertyHeader.Value = MaterialProperty->Value;
 
-                fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
 
-                PrevPropertiesSize += sizeof(model_asset_material_property_header);
+                    PrevPropertiesSize += sizeof(model_asset_material_property_header);
 
-                break;
-            }
-            case MaterialProperty_Color_Ambient:
-            case MaterialProperty_Color_Diffuse:
-            case MaterialProperty_Color_Specular:
-            {
-                MaterialPropertyHeader.Color = MaterialProperty->Color;
+                    break;
+                }
+                case MaterialProperty_Color_Ambient:
+                case MaterialProperty_Color_Diffuse:
+                case MaterialProperty_Color_Specular:
+                {
+                    MaterialPropertyHeader.Color = MaterialProperty->Color;
 
-                fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
 
-                PrevPropertiesSize += sizeof(model_asset_material_property_header);
+                    PrevPropertiesSize += sizeof(model_asset_material_property_header);
 
-                break;
-            }
-            case MaterialProperty_Texture_Diffuse:
-            case MaterialProperty_Texture_Specular:
-            case MaterialProperty_Texture_Shininess:
-            case MaterialProperty_Texture_Normal:
-            {
-                MaterialPropertyHeader.Bitmap = MaterialProperty->Bitmap;
-                MaterialPropertyHeader.BitmapOffset = MaterialHeader.PropertiesOffset + sizeof(model_asset_material_property_header) + PrevPropertiesSize;
+                    break;
+                }
+                case MaterialProperty_Texture_Diffuse:
+                case MaterialProperty_Texture_Specular:
+                case MaterialProperty_Texture_Shininess:
+                case MaterialProperty_Texture_Normal:
+                {
+                    MaterialPropertyHeader.Bitmap = MaterialProperty->Bitmap;
+                    MaterialPropertyHeader.BitmapOffset = MaterialHeader.PropertiesOffset + sizeof(model_asset_material_property_header) + PrevPropertiesSize;
 
-                fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
+                    fwrite(&MaterialPropertyHeader, sizeof(model_asset_material_property_header), 1, AssetFile);
 
-                u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
-                fwrite(MaterialPropertyHeader.Bitmap.Pixels, sizeof(u8), BitmapSize, AssetFile);
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+                    fwrite(MaterialPropertyHeader.Bitmap.Pixels, sizeof(u8), BitmapSize, AssetFile);
 
-                PrevPropertiesSize += sizeof(model_asset_material_property_header) + BitmapSize;
+                    PrevPropertiesSize += sizeof(model_asset_material_property_header) + BitmapSize;
 
-                break;
-            }
-            default:
-            {
-                Assert(!"Invalid material property");
-            }
+                    break;
+                }
+                default:
+                {
+                    Assert(!"Invalid material property");
+                }
             }
         }
 
         TotalPrevPropertiesSize += PrevPropertiesSize;
     }
+}
 
-
-    CurrentStreamPosition = ftell(AssetFile);
-    Header.AnimationsHeaderOffset = CurrentStreamPosition;
-
-    // Writing animation clips
+internal void
+WriteAnimationClips(model_asset *Asset, u64 Offset, FILE *AssetFile)
+{
     model_asset_animations_header AnimationsHeader = {};
     AnimationsHeader.AnimationCount = Asset->AnimationCount;
-    AnimationsHeader.AnimationsOffset = Header.AnimationsHeaderOffset + sizeof(model_asset_animations_header);
+    AnimationsHeader.AnimationsOffset = Offset + sizeof(model_asset_animations_header);
 
     fwrite(&AnimationsHeader, sizeof(model_asset_animations_header), 1, AssetFile);
 
@@ -1277,10 +561,8 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
         animation_clip *Animation = Asset->Animations + AnimationIndex;
 
         model_asset_animation_header AnimationHeader = {};
-        CopyString(Animation->Name, AnimationHeader.Name, MAX_ANIMATION_NAME_LENGTH);
+        CopyString(Animation->Name, AnimationHeader.Name);
         AnimationHeader.Duration = Animation->Duration;
-        AnimationHeader.IsLooping = Animation->IsLooping;
-        AnimationHeader.InPlace = Animation->InPlace;
         AnimationHeader.PoseSampleCount = Animation->PoseSampleCount;
         AnimationHeader.PoseSamplesOffset = AnimationsHeader.AnimationsOffset + sizeof(model_asset_animation_header) +
             AnimationIndex * sizeof(model_asset_animation_header) + TotalPrevKeyFrameSize;
@@ -1306,6 +588,63 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 
         TotalPrevKeyFrameSize += PrevKeyFrameSize;
     }
+}
+
+internal void
+WriteAssetFile(const char *FilePath, model_asset *Asset)
+{
+    FILE *AssetFile = fopen(FilePath, "wb");
+
+    model_asset_header Header = {};
+    Header.MagicValue = 0x451;
+    Header.Version = 1;
+
+    u64 CurrentStreamPosition = 0;
+
+    fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.SkeletonHeaderOffset = CurrentStreamPosition;
+
+    // Writing skeleton
+    model_asset_skeleton_header SkeletonHeader = {};
+    SkeletonHeader.JointCount = Asset->Skeleton.JointCount;
+    SkeletonHeader.JointsOffset = Header.SkeletonHeaderOffset + sizeof(SkeletonHeader);
+
+    fwrite(&SkeletonHeader, sizeof(model_asset_skeleton_header), 1, AssetFile);
+    fwrite(Asset->Skeleton.Joints, sizeof(joint), Asset->Skeleton.JointCount, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.SkeletonPoseHeaderOffset = CurrentStreamPosition;
+
+    // Writing skeleton bind pose
+    model_asset_skeleton_pose_header SkeletonPoseHeader = {};
+    SkeletonPoseHeader.LocalJointPosesOffset = Header.SkeletonPoseHeaderOffset + sizeof(model_asset_skeleton_pose_header);
+    SkeletonPoseHeader.GlobalJointPosesOffset = SkeletonPoseHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(joint_pose);
+
+    fwrite(&SkeletonPoseHeader, sizeof(model_asset_skeleton_pose_header), 1, AssetFile);
+    fwrite(Asset->BindPose.LocalJointPoses, sizeof(joint_pose), Asset->Skeleton.JointCount, AssetFile);
+    fwrite(Asset->BindPose.GlobalJointPoses, sizeof(mat4), Asset->Skeleton.JointCount, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.AnimationGraphHeaderOffset = CurrentStreamPosition;
+
+    WriteAnimationGraph(&Asset->AnimationGraph, Header.AnimationGraphHeaderOffset, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.MeshesHeaderOffset = CurrentStreamPosition;
+
+    WriteMeshes(Asset, Header.MeshesHeaderOffset, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.MaterialsHeaderOffset = CurrentStreamPosition;
+
+    WriteMaterials(Asset, Header.MaterialsHeaderOffset, AssetFile);
+
+    CurrentStreamPosition = ftell(AssetFile);
+    Header.AnimationsHeaderOffset = CurrentStreamPosition;
+
+    WriteAnimationClips(Asset, Header.AnimationsHeaderOffset, AssetFile);
 
     fseek(AssetFile, 0, SEEK_SET);
     fwrite(&Header, sizeof(model_asset_header), 1, AssetFile);
@@ -1314,86 +653,206 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 }
 
 internal void
-ProcessPelegriniModel()
+LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
 {
-#if 0
-    u32 Flags =
-        aiProcess_Triangulate |
-        aiProcess_FlipUVs |
-        aiProcess_GenNormals |
-        aiProcess_CalcTangentSpace |
-        aiProcess_JoinIdenticalVertices |
-        aiProcess_ValidateDataStructure |
-        aiProcess_LimitBoneWeights |
-        aiProcess_GlobalScale |
-        aiProcess_RemoveRedundantMaterials |
-        aiProcess_FixInfacingNormals |
-        aiProcess_OptimizeGraph;
-    aiProcess_OptimizeMeshes;
+    const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
 
-    model_asset Asset;
-    LoadModelAsset("models\\pelegrini\\pelegrini.fbx", &Asset, Flags);
-
-    // todo: create config file
-    Asset.AnimationCount = 7;
-    Asset.Animations = (animation_clip *)malloc(Asset.AnimationCount * sizeof(animation_clip));
-
-    u32 AnimationIndex = 0;
-    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (1).fbx", Flags, &Asset, "Idle", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (2).fbx", Flags, &Asset, "Idle_2", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (3).fbx", Flags, &Asset, "Idle_3", false, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\pelegrini\\animations\\idle (4).fbx", Flags, &Asset, "Idle_4", true, false, AnimationIndex++);
-    LoadAnimationClipAsset("models\\pelegrini\\animations\\walking.fbx", Flags, &Asset, "Walking", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\pelegrini\\animations\\running.fbx", Flags, &Asset, "Running", true, true, AnimationIndex++);
-    LoadAnimationClipAsset("models\\pelegrini\\animations\\samba.fbx", Flags, &Asset, "Samba", true, false, AnimationIndex++);
-
-    WriteAssetFile("assets\\pelegrini.asset", &Asset);
-
-#if 1
-    model_asset TestAsset = {};
-    ReadAssetFile("assets\\pelegrini.asset", &TestAsset, &Asset);
-#endif
-#endif
-
-#if 1
-    FILE *AnimationConfigFile = fopen("models\\pelegrini\\pelegrini.animation", "r");
-
-    if (AnimationConfigFile)
+    if (AssimpScene)
     {
-        char Line[256];
+        *Asset = {};
 
-        while (fgets(Line, sizeof(Line), AnimationConfigFile))
-        {
-            char FirstChar = Line[0];
+        ProcessAssimpScene(AssimpScene, Asset);
 
-            switch (FirstChar)
-            {
-                case '\n':
-                case '#':
-                {
-                    int temp = 0;
-                    break;
-                }
-                case ':':
-                {
-                    int temp = 0;
-                    break;
-                }
-                default:
-                {
-                    int temp = 0;
-                    break;
-                }
-            }
-        }
-
-        fclose(AnimationConfigFile);
+        aiReleaseImport(AssimpScene);
     }
-#endif
+    else
+    {
+        const char *ErrorMessage = aiGetErrorString();
+        Assert(!ErrorMessage);
+    }
 }
 
 internal void
-ProcessAsset(const char *FilePath, const char *OutputPath)
+LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, const char *AnimationName, u32 AnimationIndex)
+{
+    const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
+
+    Assert(AssimpScene);
+    Assert(AssimpScene->mNumAnimations == 1);
+
+    aiAnimation *AssimpAnimation = AssimpScene->mAnimations[0];
+    animation_clip *Animation = Asset->Animations + AnimationIndex;
+
+    ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
+
+    CopyString(AnimationName, Animation->Name);
+
+    aiReleaseImport(AssimpScene);
+}
+
+internal void
+ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
+{
+    GraphAsset->NodeCount = Nodes.Size();
+    GraphAsset->Nodes = AllocateMemory<animation_node_asset>(GraphAsset->NodeCount);
+
+    for (u32 NodeIndex = 0; NodeIndex < GraphAsset->NodeCount; ++NodeIndex)
+    {
+        animation_node_asset *NodeAsset = GraphAsset->Nodes + NodeIndex;
+
+        Value &Node = Nodes[NodeIndex];
+
+        const char *Name = Node["name"].GetString();
+        const char *Type = Node["type"].GetString();
+
+        CopyString(Name, NodeAsset->Name);
+
+        Value &Transitions = Node["transitions"].GetArray();
+
+        NodeAsset->TransitionCount = Transitions.Size();
+        NodeAsset->Transitions = AllocateMemory<animation_transition_asset>(NodeAsset->TransitionCount);
+
+        // Transitions
+        for (u32 TransitionIndex = 0; TransitionIndex < NodeAsset->TransitionCount; ++TransitionIndex)
+        {
+            animation_transition_asset *TransitionAsset = NodeAsset->Transitions + TransitionIndex;
+
+            Value &Message = Transitions[TransitionIndex];
+
+            const char *From = Name;
+            const char *To = Message["to"].GetString();
+
+            CopyString(From, TransitionAsset->From);
+            CopyString(To, TransitionAsset->To);
+
+            // todo:
+            TransitionAsset->Type = AnimationTransitionType_Crossfade;
+            TransitionAsset->Duration = Message["blend"].GetFloat();
+        }
+
+        // Nodes
+        if (StringEquals(Type, "Graph"))
+        {
+            NodeAsset->Type = AnimationNodeType_Graph;
+            NodeAsset->Graph = AllocateMemory<animation_graph_asset>();
+
+            const char *Name = Node["name"].GetString();
+            const char *Entry = Node["entry"].GetString();
+            Value &SubNodes = Node["nodes"].GetArray();
+
+            CopyString(Name, NodeAsset->Graph->Name);
+            CopyString(Entry, NodeAsset->Graph->Entry);
+
+            ProcessGraphNodes(NodeAsset->Graph, SubNodes);
+        }
+        else if (StringEquals(Type, "Blendspace"))
+        {
+            NodeAsset->Type = AnimationNodeType_BlendSpace;
+            NodeAsset->Blendspace = AllocateMemory<blend_space_1d_asset>();
+
+            Value &Values = Node["values"].GetArray();
+
+            NodeAsset->Blendspace->ValueCount = Values.Size();
+            NodeAsset->Blendspace->Values = AllocateMemory<blend_space_1d_value_asset>(NodeAsset->Blendspace->ValueCount);
+
+            for (u32 ValueIndex = 0; ValueIndex < NodeAsset->Blendspace->ValueCount; ++ValueIndex)
+            {
+                blend_space_1d_value_asset *ValueAsset = NodeAsset->Blendspace->Values + ValueIndex;
+
+                Value &BlendspaceValue = Values[ValueIndex];
+
+                const char *Clip = BlendspaceValue["clip"].GetString();
+
+                CopyString(Clip, ValueAsset->AnimationClipName);
+                ValueAsset->Value = BlendspaceValue["value"].GetFloat();
+            }
+        }
+        else if (StringEquals(Type, "Animation"))
+        {
+            NodeAsset->Type = AnimationNodeType_SingleMotion;
+            NodeAsset->Animation = AllocateMemory<animation_state_asset>();
+
+            const char *Clip = Node["clip"].GetString();
+            b32 IsLooping = Node["looping"].GetBool();
+            b32 InPlace = Node["inPlace"].GetBool();
+
+            CopyString(Clip, NodeAsset->Animation->AnimationClipName);
+            NodeAsset->Animation->IsLooping = IsLooping;
+            NodeAsset->Animation->InPlace = InPlace;
+        }
+        else
+        {
+            Assert(!"Unknown node type");
+        }
+    }
+}
+
+internal void
+LoadAnimationGrah(const char *FilePath, model_asset *Asset)
+{
+    char *Contents = ReadTextFile(FilePath);
+
+    if (Contents)
+    {
+        Document Document;
+        ParseResult ok = Document.Parse(Contents);
+
+        if (ok)
+        {
+            animation_graph_asset *GraphAsset = &Asset->AnimationGraph;
+
+            const char *Version = Document["version"].GetString();
+            Value &Graph = Document["graph"];
+
+            const char *Name = Graph["name"].GetString();
+            const char *Entry = Graph["entry"].GetString();
+            Value &Nodes = Graph["nodes"].GetArray();
+
+            CopyString(Name, GraphAsset->Name);
+            CopyString(Entry, GraphAsset->Entry);
+
+            ProcessGraphNodes(GraphAsset, Nodes);
+        }
+    }
+}
+
+internal void
+LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
+{
+    if (fs::exists(DirectoryPath))
+    {
+        u32 AnimationCount = 0;
+
+        for (const fs::directory_entry &Entry : fs::directory_iterator(DirectoryPath))
+        {
+            if (Entry.is_regular_file())
+            {
+                ++AnimationCount;
+            }
+        }
+
+        Asset->AnimationCount = AnimationCount;
+        Asset->Animations = AllocateMemory<animation_clip>(Asset->AnimationCount);
+
+        u32 AnimationIndex = 0;
+        for (const fs::directory_entry &Entry : fs::directory_iterator(DirectoryPath))
+        {
+            if (Entry.is_regular_file())
+            {
+                fs::path FileName = Entry.path().filename();
+                fs::path AnimationClipName = Entry.path().stem();
+
+                char FilePath[64];
+                FormatString(FilePath, "%s/%s", DirectoryPath, FileName.generic_string().c_str());
+
+                LoadAnimationClipAsset(FilePath, Flags, Asset, AnimationClipName.generic_string().c_str(), AnimationIndex++);
+            }
+        }
+    }
+}
+
+internal void
+ProcessAsset(const char *FilePath, const char *AnimationConfigPath, const char *AnimationClipsPath, const char *OutputPath)
 {
     u32 Flags =
         aiProcess_Triangulate |
@@ -1402,60 +861,52 @@ ProcessAsset(const char *FilePath, const char *OutputPath)
         aiProcess_CalcTangentSpace |
         aiProcess_JoinIdenticalVertices |
         aiProcess_ValidateDataStructure |
-        aiProcess_OptimizeMeshes |
         aiProcess_LimitBoneWeights |
-        //aiProcess_GlobalScale |
         aiProcess_RemoveRedundantMaterials |
         aiProcess_FixInfacingNormals |
-        aiProcess_OptimizeGraph;
+        aiProcess_GlobalScale |
+        aiProcess_OptimizeGraph |
+        aiProcess_OptimizeMeshes;
 
     model_asset Asset;
+
     LoadModelAsset(FilePath, &Asset, Flags);
-    // todo: check if has animations and process them as well
-
-
+    LoadAnimationGrah(AnimationConfigPath, &Asset);
+    LoadAnimationClips(AnimationClipsPath, Flags, &Asset);
 
     WriteAssetFile(OutputPath, &Asset);
+
+#if 1
+    model_asset TestAsset = {};
+    ReadAssetFile(OutputPath, &TestAsset, &Asset);
+#endif
 }
 
 i32 main(i32 ArgCount, char **Args)
 {
-    // todo: get from Args
-    string Path = "models\\";
+    char *Path = Args[1];
 
-#if 0
     for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
     {
         if (Entry.is_directory())
         {
+            fs::path DirectoryPath = Entry.path();
+            fs::path DirectoryName = Entry.path().filename();
 
-        }
+            char FilePath[256];
+            FormatString(FilePath, "%s/%s.fbx", DirectoryPath.generic_string().c_str(), DirectoryName.generic_string().c_str());
 
-        if (Entry.is_regular_file())
-        {
-            fs::path FileName = Entry.path().filename();
-            fs::path AssetName = Entry.path().stem();
+            char AnimationConfigPath[256];
+            FormatString(AnimationConfigPath, "%s/animation_config.json", DirectoryPath.generic_string().c_str());
 
-            char FilePath[64];
-            FormatString(FilePath, ArrayCount(FilePath), "models\\%s", FileName.generic_string().c_str());
+            char AnimationClipsPath[256];
+            FormatString(AnimationClipsPath, "%s/clips", DirectoryPath.generic_string().c_str());
 
-            char OutputPath[64];
-            FormatString(OutputPath, ArrayCount(OutputPath), "assets\\%s.asset", AssetName.generic_string().c_str());
+            char OutputPath[256];
+            FormatString(OutputPath, "assets/%s.asset", DirectoryName.generic_string().c_str());
 
-#if 1
-            fs::path FileExtension = Entry.path().extension();
-
-            if (FileExtension == ".animation")
-            {
-                
-            }
-#endif
-
-            // todo: multithreading (std::thread maybe?)
-            ProcessAsset(FilePath, OutputPath);
+            // todo: multithreading (std::thread?)
+            ProcessAsset(FilePath, AnimationConfigPath, AnimationClipsPath, OutputPath);
         }
     }
-#endif
-
-    ProcessPelegriniModel();
 }

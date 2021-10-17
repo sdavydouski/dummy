@@ -562,7 +562,7 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 {
     u32 Size = InitialSize + 256;
     char *Result = PushString(Arena, Size);
-    FormatString(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT);
+    FormatString_(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT);
 
     return Result;
 }
@@ -613,8 +613,8 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
     Shader->Id = Id;
     Shader->Program = Program;
 
-    CopyString(VertexShaderFileName, Shader->VertexShaderFileName, MAX_SHADER_FILE_PATH);
-    CopyString(FragmentShaderFileName, Shader->FragmentShaderFileName, MAX_SHADER_FILE_PATH);
+    CopyString(VertexShaderFileName, Shader->VertexShaderFileName);
+    CopyString(FragmentShaderFileName, Shader->FragmentShaderFileName);
 
 #if WIN32_RELOADABLE_SHADERS
     Shader->LastVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShaderFileName);
@@ -1022,8 +1022,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 OpenGLAddTexture(State, 0, &WhiteTexture);
 
-                glEnable(GL_CULL_FACE);
-                glCullFace(GL_BACK);
+                //glEnable(GL_CULL_FACE);
+                //glCullFace(GL_BACK);
 
                 glFrontFace(GL_CCW);
                 glEnable(GL_DEPTH_TEST);
@@ -1155,6 +1155,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *)Model.Elements);
                     glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
                 }
+
                 glDrawArrays(GL_LINES, 0, 2);
 
                 glUseProgram(0);
@@ -1242,23 +1243,23 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                         point_light *PointLight = Command->PointLights + PointLightIndex;
 
                         char PositionUniformName[64];
-                        FormatString(PositionUniformName, ArrayCount(PositionUniformName), "u_PointLights[%d].Position", PointLightIndex);
+                        FormatString(PositionUniformName, "u_PointLights[%d].Position", PointLightIndex);
                         GLint PositionUniformLocation = glGetUniformLocation(Shader->Program, PositionUniformName);
 
                         char ColorUniformName[64];
-                        FormatString(ColorUniformName, ArrayCount(ColorUniformName), "u_PointLights[%d].Color", PointLightIndex);
+                        FormatString(ColorUniformName, "u_PointLights[%d].Color", PointLightIndex);
                         GLint ColorUniformLocation = glGetUniformLocation(Shader->Program, ColorUniformName);
 
                         char AttenuationConstantUniformName[64];
-                        FormatString(AttenuationConstantUniformName, ArrayCount(AttenuationConstantUniformName), "u_PointLights[%d].Attenuation.Constant", PointLightIndex);
+                        FormatString(AttenuationConstantUniformName, "u_PointLights[%d].Attenuation.Constant", PointLightIndex);
                         GLint AttenuationConstantUniformLocation = glGetUniformLocation(Shader->Program, AttenuationConstantUniformName);
 
                         char AttenuationLinearUniformName[64];
-                        FormatString(AttenuationLinearUniformName, ArrayCount(AttenuationLinearUniformName), "u_PointLights[%d].Attenuation.Linear", PointLightIndex);
+                        FormatString(AttenuationLinearUniformName, "u_PointLights[%d].Attenuation.Linear", PointLightIndex);
                         GLint AttenuationLinearUniformLocation = glGetUniformLocation(Shader->Program, AttenuationLinearUniformName);
 
                         char AttenuationQuadraticUniformName[64];
-                        FormatString(AttenuationQuadraticUniformName, ArrayCount(AttenuationQuadraticUniformName), "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
+                        FormatString(AttenuationQuadraticUniformName, "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
                         GLint AttenuationQuadraticUniformLocation = glGetUniformLocation(Shader->Program, AttenuationQuadraticUniformName);
 
                         glUniform3f(PositionUniformLocation, PointLight->Position.x, PointLight->Position.y, PointLight->Position.z);

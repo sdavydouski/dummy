@@ -43,6 +43,12 @@ GetLastAfterDelimiter(wchar *String, const wchar Delimiter) {
 }
 
 inline u32
+StringLength(const char *String) {
+    u32 Result = (u32)strlen(String);
+    return Result;
+}
+
+inline u32
 StringLength(const wchar *String) {
     u32 Result = (u32)wcslen(String);
     return Result;
@@ -64,16 +70,18 @@ ConcatenateStrings(const wchar *SourceA, const wchar *SourceB, wchar *Dest) {
 }
 
 inline void
-CopyString(const char *Source, char *Dest, u32 DestLength)
+CopyString_(const char *Source, char *Dest, u32 DestLength)
 {
     strcpy_s(Dest, DestLength, Source);
 }
 
 inline void
-CopyString(const wchar *Source, wchar *Dest, u32 DestLength)
+CopyString_(const wchar *Source, wchar *Dest, u32 DestLength)
 {
     wcscpy_s(Dest, DestLength, Source);
 }
+
+#define CopyString(Source, Dest) CopyString_(Source, Dest, sizeof(Dest))
 
 inline void
 CopyStringUnsafe(const char *Source, char *Dest, u32 DestLength)
@@ -87,7 +95,7 @@ CopyStringUnsafe(const char *Source, char *Dest, u32 DestLength)
 }
 
 inline void
-FormatString(char *String, u32 Size, const char *Format, ...)
+FormatString_(char *String, u32 Size, const char *Format, ...)
 {
     va_list ArgPtr;
 
@@ -97,7 +105,7 @@ FormatString(char *String, u32 Size, const char *Format, ...)
 }
 
 inline void
-FormatString(wchar *String, u32 Size, const wchar *Format, ...)
+FormatString_(wchar *String, u32 Size, const wchar *Format, ...)
 {
     va_list ArgPtr;
 
@@ -106,14 +114,16 @@ FormatString(wchar *String, u32 Size, const wchar *Format, ...)
     va_end(ArgPtr);
 }
 
-inline void
-GetDirectoryPath(char *FilePath, char *DirectoryPath)
-{
-    char *LastDelimiter = FilePath;
+#define FormatString(String, Format, ...) FormatString_(String, sizeof(String), Format, __VA_ARGS__)
 
-    for (char *Scan = FilePath; *Scan; ++Scan)
+inline void
+GetDirectoryPath(const char *FilePath, char *DirectoryPath)
+{
+    const char *LastDelimiter = FilePath;
+
+    for (const char *Scan = FilePath; *Scan; ++Scan)
     {
-        if (*Scan == '\\')
+        if (*Scan == '/')
         {
             LastDelimiter = Scan + 1;
         }

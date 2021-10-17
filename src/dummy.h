@@ -29,13 +29,6 @@ struct game_camera
     vec3_lerp PositionLerp;
 };
 
-enum entity_state
-{
-    EntityState_Idle,
-    EntityState_Moving,
-    EntityState_Dance
-};
-
 struct game_entity
 {
     transform Transform;
@@ -43,8 +36,6 @@ struct game_entity
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
-
-    entity_state State;
 
     b32 DebugView;
 };

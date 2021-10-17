@@ -3,4 +3,7 @@
   <ItemGroup>
     <ClCompile Include="assets_builder.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="assets_utils.cpp" />
+  </ItemGroup>
 </Project>
