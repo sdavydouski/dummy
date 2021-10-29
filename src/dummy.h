@@ -83,6 +83,8 @@ struct game_state
     game_assets Assets;
 
     game_entity *Player;
+    game_entity *xBot;
+    game_entity *yBot;
 
     u32 MaxEntityCount;
     u32 EntityCount;

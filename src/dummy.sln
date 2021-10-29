@@ -46,21 +46,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{E838FA
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "loader", "loader", "{A9456357-4F53-4C44-8676-3A1385DA7693}"
 	ProjectSection(SolutionItems) = preProject
+		renderers\OpenGL\loader\glad.c = renderers\OpenGL\loader\glad.c
+		renderers\OpenGL\loader\glad.h = renderers\OpenGL\loader\glad.h
+		renderers\OpenGL\loader\khrplatform.h = renderers\OpenGL\loader\khrplatform.h
 		renderers\OpenGL\loader\wglext.h = renderers\OpenGL\loader\wglext.h
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "debug", "debug", "{7444AD37-3F89-474C-8535-12434E23DB76}"
-	ProjectSection(SolutionItems) = preProject
-		renderers\OpenGL\loader\debug\glad.c = renderers\OpenGL\loader\debug\glad.c
-		renderers\OpenGL\loader\debug\glad.h = renderers\OpenGL\loader\debug\glad.h
-		renderers\OpenGL\loader\debug\khrplatform.h = renderers\OpenGL\loader\debug\khrplatform.h
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "release", "release", "{5722C34C-7AD5-498A-809F-FEED3BF21005}"
-	ProjectSection(SolutionItems) = preProject
-		renderers\OpenGL\loader\release\glad.c = renderers\OpenGL\loader\release\glad.c
-		renderers\OpenGL\loader\release\glad.h = renderers\OpenGL\loader\release\glad.h
-		renderers\OpenGL\loader\release\khrplatform.h = renderers\OpenGL\loader\release\khrplatform.h
 	EndProjectSection
 EndProject
 Global
@@ -90,8 +79,6 @@ Global
 		{01085C6A-6694-4A34-8EDD-211E6D4B9BBC} = {68A7B3C9-664F-4610-813C-8954F4AAE036}
 		{E838FA38-32E5-4E28-829C-93D44A18AF91} = {01085C6A-6694-4A34-8EDD-211E6D4B9BBC}
 		{A9456357-4F53-4C44-8676-3A1385DA7693} = {68A7B3C9-664F-4610-813C-8954F4AAE036}
-		{7444AD37-3F89-474C-8535-12434E23DB76} = {A9456357-4F53-4C44-8676-3A1385DA7693}
-		{5722C34C-7AD5-498A-809F-FEED3BF21005} = {A9456357-4F53-4C44-8676-3A1385DA7693}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3FF4CA08-A1FC-4054-A392-813D6849B305}

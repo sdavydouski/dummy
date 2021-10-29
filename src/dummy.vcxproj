@@ -40,6 +40,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_entity.cpp" />
     <None Include="dummy_process.cpp" />
     <None Include="dummy_physics.cpp" />
     <None Include="dummy_animation.cpp" />

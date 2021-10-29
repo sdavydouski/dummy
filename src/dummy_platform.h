@@ -110,6 +110,7 @@ struct platform_input_keyboard
 
     platform_button_state Z;
     platform_button_state C;
+    platform_button_state E;
 
     platform_button_state Tab;
     platform_button_state Ctrl;
@@ -167,6 +168,7 @@ struct game_input
 {
     game_input_range Move;
     game_input_action Crouch;
+    game_input_action Activate;
 
     game_input_range Camera;
     game_input_action Menu;
@@ -222,6 +224,7 @@ BeginProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
 {
     SavePrevButtonState(&KeyboardInput->C);
     SavePrevButtonState(&KeyboardInput->Z);
+    SavePrevButtonState(&KeyboardInput->E);
     SavePrevButtonState(&KeyboardInput->Tab);
     SavePrevButtonState(&KeyboardInput->Space);
     SavePrevButtonState(&KeyboardInput->Enter);
@@ -234,6 +237,7 @@ EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
 {
     UpdateToggleButtonState(&KeyboardInput->C);
     UpdateToggleButtonState(&KeyboardInput->Z);
+    UpdateToggleButtonState(&KeyboardInput->E);
     UpdateToggleButtonState(&KeyboardInput->Tab);
     UpdateToggleButtonState(&KeyboardInput->Space);
     UpdateToggleButtonState(&KeyboardInput->Enter);
@@ -298,6 +302,11 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
     if (!GameInput->Crouch.IsActivated)
     {
         GameInput->Crouch.IsActivated = IsButtonActivated(&KeyboardInput->C);
+    }
+
+    if (!GameInput->Activate.IsActivated)
+    {
+        GameInput->Activate.IsActivated = IsButtonActivated(&KeyboardInput->E);
     }
 
     if (!GameInput->Menu.IsActivated)

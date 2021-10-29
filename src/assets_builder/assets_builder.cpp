@@ -32,14 +32,13 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
 
         switch (NodeAsset->Type)
         {
-            case AnimationNodeType_SingleMotion:
+            case AnimationNodeType_Clip:
             {
                 model_asset_animation_state_header *AnimationStateHeader = (model_asset_animation_state_header *)(Buffer + NodeHeader->Offset);
 
                 NodeAsset->Animation = AllocateMemory<animation_state_asset>();
                 CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
-                NodeAsset->Animation->InPlace = AnimationStateHeader->InPlace;
 
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
                 break;
@@ -354,12 +353,11 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
 
         switch (NodeHeader.Type)
         {
-            case AnimationNodeType_SingleMotion:
+            case AnimationNodeType_Clip:
             {
                 model_asset_animation_state_header AnimationStateHeader = {};
                 CopyString(Node->Animation->AnimationClipName, AnimationStateHeader.AnimationClipName);
                 AnimationStateHeader.IsLooping = Node->Animation->IsLooping;
-                AnimationStateHeader.InPlace = Node->Animation->InPlace;
 
                 fwrite(&AnimationStateHeader, sizeof(model_asset_animation_state_header), 1, AssetFile);
 
@@ -598,6 +596,7 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
     model_asset_header Header = {};
     Header.MagicValue = 0x451;
     Header.Version = 1;
+    CopyString("Dummy asset file", Header.Description);
 
     u64 CurrentStreamPosition = 0;
 
@@ -725,9 +724,28 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
             CopyString(From, TransitionAsset->From);
             CopyString(To, TransitionAsset->To);
 
-            // todo:
-            TransitionAsset->Type = AnimationTransitionType_Crossfade;
-            TransitionAsset->Duration = Message["blend"].GetFloat();
+            const char *TransitionType = Message["type"].GetString();
+
+            if (StringEquals(TransitionType, "transitional"))
+            {
+                TransitionAsset->Type = AnimationTransitionType_Transitional;
+
+                const char *TransitionNode = Message["through"].GetString();
+                CopyString(TransitionNode, TransitionAsset->TransitionNode);
+            }
+            else if (StringEquals(TransitionType, "crossfade"))
+            {
+                TransitionAsset->Type = AnimationTransitionType_Crossfade;
+                TransitionAsset->Duration = Message["blend"].GetFloat();
+            }
+            else if (StringEquals(TransitionType, "immediate"))
+            {
+                TransitionAsset->Type = AnimationTransitionType_Immediate;
+            }
+            else
+            {
+                Assert(!"Unknown transition type");
+            }
         }
 
         // Nodes
@@ -769,16 +787,14 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
         }
         else if (StringEquals(Type, "Animation"))
         {
-            NodeAsset->Type = AnimationNodeType_SingleMotion;
+            NodeAsset->Type = AnimationNodeType_Clip;
             NodeAsset->Animation = AllocateMemory<animation_state_asset>();
 
             const char *Clip = Node["clip"].GetString();
             b32 IsLooping = Node["looping"].GetBool();
-            b32 InPlace = Node["inPlace"].GetBool();
 
             CopyString(Clip, NodeAsset->Animation->AnimationClipName);
             NodeAsset->Animation->IsLooping = IsLooping;
-            NodeAsset->Animation->InPlace = InPlace;
         }
         else
         {
@@ -812,6 +828,10 @@ LoadAnimationGrah(const char *FilePath, model_asset *Asset)
             CopyString(Entry, GraphAsset->Entry);
 
             ProcessGraphNodes(GraphAsset, Nodes);
+        }
+        else
+        {
+            Assert(!"Failed to parse animation graph");
         }
     }
 }
@@ -882,6 +902,7 @@ ProcessAsset(const char *FilePath, const char *AnimationConfigPath, const char *
 #endif
 }
 
+// https://nilooy.github.io/character-animation-combiner/
 i32 main(i32 ArgCount, char **Args)
 {
     char *Path = Args[1];
@@ -897,7 +918,7 @@ i32 main(i32 ArgCount, char **Args)
             FormatString(FilePath, "%s/%s.fbx", DirectoryPath.generic_string().c_str(), DirectoryName.generic_string().c_str());
 
             char AnimationConfigPath[256];
-            FormatString(AnimationConfigPath, "%s/animation_config.json", DirectoryPath.generic_string().c_str());
+            FormatString(AnimationConfigPath, "%s/animation_graph.json", DirectoryPath.generic_string().c_str());
 
             char AnimationClipsPath[256];
             FormatString(AnimationClipsPath, "%s/clips", DirectoryPath.generic_string().c_str());

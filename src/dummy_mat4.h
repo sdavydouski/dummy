@@ -1,17 +1,14 @@
 #pragma once
 
+#include <xmmintrin.h>
+
 struct mat4
 {
     union
     {
-        struct
-        {
-            vec4 Rows[4];
-        };
-        struct
-        {
-            f32 Elements[4][4];
-        };
+        vec4 Rows[4];
+        f32 Elements[4][4];
+        __m128 Rows_4x[4];
     };
 
     mat4(const mat4 &Value)
@@ -80,8 +77,25 @@ struct mat4
         return Result;
     }
 
+    inline __m128 MulVecMat_sse(const __m128 &Vector, const mat4 &M)
+    {
+        // First transpose vector
+        __m128 vX = _mm_shuffle_ps(Vector, Vector, 0x00);  // (vx,vx,vx,vx)
+        __m128 vY = _mm_shuffle_ps(Vector, Vector, 0x55);  // (vy,vy,vy,vy)
+        __m128 vZ = _mm_shuffle_ps(Vector, Vector, 0xAA);  // (vz,vz,vz,vz)
+        __m128 vW = _mm_shuffle_ps(Vector, Vector, 0xFF);  // (vw,vw,vw,vw)
+
+        __m128 Result = _mm_mul_ps(vX, M.Rows_4x[0]);
+        Result = _mm_add_ps(Result, _mm_mul_ps(vY, M.Rows_4x[1]));
+        Result = _mm_add_ps(Result, _mm_mul_ps(vZ, M.Rows_4x[2]));
+        Result = _mm_add_ps(Result, _mm_mul_ps(vW, M.Rows_4x[3]));
+
+        return Result;
+    }
+
     inline mat4 operator *(mat4 &M)
     {
+#if 0
         vec4 Row0 = Rows[0];
         vec4 Row1 = Rows[1];
         vec4 Row2 = Rows[2];
@@ -98,18 +112,31 @@ struct mat4
             Dot(Row2, Column0), Dot(Row2, Column1), Dot(Row2, Column2), Dot(Row2, Column3),
             Dot(Row3, Column0), Dot(Row3, Column1), Dot(Row3, Column2), Dot(Row3, Column3)
         );
+#else
+        mat4 Result;
+
+        Result.Rows_4x[0] = MulVecMat_sse(Rows_4x[0], M);
+        Result.Rows_4x[1] = MulVecMat_sse(Rows_4x[1], M);
+        Result.Rows_4x[2] = MulVecMat_sse(Rows_4x[2], M);
+        Result.Rows_4x[3] = MulVecMat_sse(Rows_4x[3], M);
+#endif
 
         return Result;
     }
 
     inline vec4 operator *(const vec4 &Vector)
     {
+#if 1
         vec4 Row0 = Rows[0];
         vec4 Row1 = Rows[1];
         vec4 Row2 = Rows[2];
         vec4 Row3 = Rows[3];
 
         vec4 Result = vec4(Dot(Row0, Vector), Dot(Row1, Vector), Dot(Row2, Vector), Dot(Row3, Vector));
+#else
+        vec4 Result;
+        Result.Row_4x = MulVecMat_sse(Vector.Row_4x, *this);
+#endif
 
         return Result;
     }

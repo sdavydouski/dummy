@@ -65,7 +65,6 @@ struct animation_state
     f32 Weight;
 
     b32 IsLooping;
-    b32 InPlace;
 
     animation_clip *Clip;
 };
@@ -80,6 +79,7 @@ struct blend_space_1d_value
 struct blend_space_1d
 {
     f32 NormalizedTime;
+    f32 Parameter;
 
     u32 ValueCount;
     blend_space_1d_value *Values;
@@ -88,25 +88,26 @@ struct blend_space_1d
 enum animation_transition_type
 {
     AnimationTransitionType_Immediate,
-    AnimationTransitionType_Crossfade
+    AnimationTransitionType_Crossfade,
+    AnimationTransitionType_Transitional
 };
 
 struct animation_transition
 {
-    animation_transition_type Type;
-
     animation_node *From;
     animation_node *To;
 
-    char Message[256];
-
-    f32 Duration;
-    animation_node *TransitionNode;
+    animation_transition_type Type;
+    union
+    {
+        f32 Duration;
+        animation_node *TransitionNode;
+    };
 };
 
 enum animation_node_type
 {
-    AnimationNodeType_SingleMotion,
+    AnimationNodeType_Clip,
     AnimationNodeType_BlendSpace,
     AnimationNodeType_Graph
 };
@@ -144,6 +145,11 @@ struct animation_graph_params
     f32 Move;
 };
 
+struct animation_graph_state
+{
+    f32 Time;
+};
+
 struct animation_graph
 {
     u32 NodeCount;
@@ -154,6 +160,5 @@ struct animation_graph
 
     animation_mixer Mixer;
 
-    // todo: graph state
-    f32 Time;
+    animation_graph_state State;
 };

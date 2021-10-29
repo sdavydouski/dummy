@@ -72,7 +72,7 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 
         switch (Node->Type)
         {
-            case AnimationNodeType_SingleMotion:
+            case AnimationNodeType_Clip:
             {
                 ImGui::Text("%s\tName: %s", Prefix, Node->Animation.Clip->Name);
                 ImGui::Text("%s\tTime: %.3f", Prefix, Node->Animation.Time);

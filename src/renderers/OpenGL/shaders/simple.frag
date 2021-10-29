@@ -17,6 +17,6 @@ void main()
 
     if (u_Blink)
     {
-        out_Color.a = 0.5f + (sin(u_Time * 5.f) + 1.f) / 4.f;
+        //out_Color.a = 0.5f + (sin(u_Time * 5.f) + 1.f) / 4.f;
     }
 }

@@ -1,10 +1,5 @@
-#if NDEBUG
-#include <release/glad.h>
-#include <release/glad.c>
-#else
-#include <debug/glad.h>
-#include <debug/glad.c>
-#endif
+#include <glad.h>
+#include <glad.c>
 #include <wglext.h>
 
 #include "dummy_opengl.h"

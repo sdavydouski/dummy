@@ -83,11 +83,6 @@ TestAABBAABB(aabb a, aabb b, vec3 &mtv, f32 &Penetration)
     vec3 mtvAxis;                           // Axis along which to travel with the minimum distance
 
     // [Axes of potential separation]
-    // • Each shape must be projected on these axes to test for intersection:
-    // (1, 0, 0)                    A0 (= B0) [X Axis]
-    // (0, 1, 0)                    A1 (= B1) [Y Axis]
-    // (0, 0, 1)                    A1 (= B2) [Z Axis]
-
     vec3 xAxis = vec3(1.f, 0.f, 0.f);
     vec3 yAxis = vec3(0.f, 1.f, 0.f);
     vec3 zAxis = vec3(0.f, 0.f, 1.f);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <xmmintrin.h>
+
 struct vec4
 {
     union
@@ -48,6 +50,11 @@ struct vec4
         struct
         {
             f32 Elements[4];
+        };
+
+        struct
+        {
+            __m128 Row_4x;
         };
     };
 
@@ -116,7 +123,19 @@ inline vec4 &operator -=(vec4 &Dest, vec4 Vector)
 inline f32
 Dot(vec4 a, vec4 b)
 {
+#if 1
     f32 Result = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+#else
+    __m128 r1 = _mm_mul_ps(a.Row_4x, b.Row_4x);
+
+    __m128 shuf = _mm_shuffle_ps(r1, r1, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128 sums = _mm_add_ps(r1, shuf);
+
+    shuf = _mm_movehl_ps(shuf, sums);
+    sums = _mm_add_ss(sums, shuf);
+
+    f32 Result = _mm_cvtss_f32(sums);
+#endif
     return Result;
 }
 

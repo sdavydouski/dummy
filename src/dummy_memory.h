@@ -7,12 +7,29 @@
 #define Gigabytes(Bytes) (Megabytes(Bytes) * 1024LL)
 #define Terabytes(Bytes) (Gigabytes(Bytes) * 1024LL)
 
-// todo: alignment
-
 inline void
 ClearMemory(void *Memory, umm Size)
 {
     memset(Memory, 0, Size);
+}
+
+inline umm
+AlignAddress(umm Address, umm Alignment)
+{
+    umm AlignmentMask = Alignment - 1;
+    umm AlignmentOffset = 0;
+
+    // Alignment must be a power of 2
+    Assert((Alignment & AlignmentMask) == 0); 
+
+    if (Address & AlignmentMask)
+    {
+        AlignmentOffset = Alignment - (Address & AlignmentMask);
+    }
+
+    umm Result = Address + AlignmentOffset;
+
+    return Result;
 }
 
 struct memory_arena
@@ -49,19 +66,25 @@ ClearMemoryArena(memory_arena *Arena)
 }
 
 inline void *
-PushSize(memory_arena *Arena, umm Size)
+PushSize(memory_arena *Arena, umm Size, umm Alignment = 4)
 {
-    Assert(Arena->Used + Size < Arena->Size);
+    umm RawAddress = (umm)Arena->Base + Arena->Used;
+    umm AlignedAddress = AlignAddress(RawAddress, Alignment);
+    umm AlignmentOffset = AlignedAddress - RawAddress;
 
-    void *Result = (u8 *)Arena->Base + Arena->Used;
-    Arena->Used += Size;
+    umm ActualSize = Size + AlignmentOffset;
+
+    Assert(Arena->Used + ActualSize < Arena->Size);
+
+    void *Result = (void *)AlignedAddress;
+    Arena->Used += ActualSize;
 
     // todo: control flags
-    ClearMemory(Result, Size);
+    ClearMemory(Result, ActualSize);
 
     return Result;
 }
 
-#define PushType(Arena, Type) (Type *)PushSize(Arena, sizeof(Type))
-#define PushArray(Arena, Count, Type) (Type *)PushSize(Arena, Count * sizeof(Type))
-#define PushString(Arena, Count) (char *)PushArray(Arena, Count, char)
+#define PushType(Arena, Type, ...) (Type *)PushSize(Arena, sizeof(Type), __VA_ARGS__)
+#define PushArray(Arena, Count, Type, ...) (Type *)PushSize(Arena, Count * sizeof(Type), __VA_ARGS__)
+#define PushString(Arena, Count, ...) (char *)PushArray(Arena, Count, char, __VA_ARGS__)

@@ -15,6 +15,7 @@
 #include "dummy_physics.cpp"
 #include "dummy_renderer.cpp"
 #include "dummy_animation.cpp"
+#include "dummy_entity.cpp"
 
 template <typename T>
 inline b32
@@ -392,6 +393,20 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         char Name[32] = "Pelegrini";
         model *Model = GetModelAsset(Assets, Name);
         model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\pelegrini.asset", Arena);
+        InitModel(Asset, Model, Name, Arena, RenderCommands);
+    }
+
+    {
+        char Name[32] = "xBot";
+        model *Model = GetModelAsset(Assets, Name);
+        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\xbot.asset", Arena);
+        InitModel(Asset, Model, Name, Arena, RenderCommands);
+    }
+
+    {
+        char Name[32] = "yBot";
+        model *Model = GetModelAsset(Assets, Name);
+        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\ybot.asset", Arena);
         InitModel(Asset, Model, Name, Arena, RenderCommands);
     }
 
@@ -916,7 +931,8 @@ DLLExport GAME_INIT(GameInit)
 
         State->Player = Entity;
 
-        State->Player->Model = GetModelAsset(&State->Assets, "Pelegrini");
+        //State->Player->Model = GetModelAsset(&State->Assets, "Pelegrini");
+        State->Player->Model = GetModelAsset(&State->Assets, "yBot");
 
         State->Player->Body = PushType(&State->PermanentArena, rigid_body);
         BuildRigidBody(State->Player->Body, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f));
@@ -927,7 +943,7 @@ DLLExport GAME_INIT(GameInit)
         BuildAnimationGraph(State->Player->Animation, State->Player->Model->AnimationGraph, State->Player->Model, &State->PermanentArena);
     }
 
-    {
+    /*{
         game_entity *Entity = State->Entities + State->EntityCount++;
 
         Entity->Model = GetModelAsset(&State->Assets, "Skull");
@@ -939,7 +955,7 @@ DLLExport GAME_INIT(GameInit)
 
         Entity->Model = GetModelAsset(&State->Assets, "Skull");
         Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
-    }
+    }*/
 
 #if 0
     // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
@@ -947,7 +963,7 @@ DLLExport GAME_INIT(GameInit)
     GenerateRoom(State, vec3(0.f, 0.f, -36.f), vec2(8.f, 8.f), vec3(2.f));
     GenerateRoom(State, vec3(0.f, 0.f, 48.f), vec2(8.f, 14.f), vec3(2.f));
 #else
-    GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
+    //GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
 #endif
 
     State->PointLightCount = 2;
@@ -1024,11 +1040,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             game_entity *Entity = State->Entities + EntityIndex;
 
+            Entity->DebugView = false;
+
             vec3 BoxCenter = Entity->Transform.Translation + Entity->Transform.Scale * vec3(0.f, (Entity->Model->Bounds.Max.y - Entity->Model->Bounds.Min.y) * 0.5f, 0.f);
             vec3 BoxHalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->Model->Bounds);
             aabb Box = CreateAABBCenterHalfSize(BoxCenter, BoxHalfSize);
-
-            Entity->DebugView = false;
 
             vec3 IntersectionPoint;
             if (HitBoundingBox(Ray, Box, IntersectionPoint))
@@ -1158,7 +1174,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 EndGameProcess(State, Stringify(PlayerOrientationLerpProcess));
             }
 
-            PlayerAnimationControllerUpdate(State->Player->Animation, Input, &State->RNG, 10.f, Parameters->Delta);
+            //PelegriniAnimatorPerFrameUpdate(State->Player->Animation, Input, &State->RNG, 5.f, Parameters->Delta);
+            BotAnimatorPerFrameUpdate(State->Player->Animation, Input, &State->RNG, 5.f, Parameters->Delta);
 
             break;
         }
@@ -1202,6 +1219,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     }
 }
 
+// todo(continue): ybot and xbot
+
 DLLExport GAME_UPDATE(GameUpdate)
 {
     game_state *State = GetGameState(Memory);
@@ -1210,7 +1229,6 @@ DLLExport GAME_UPDATE(GameUpdate)
     {
         State->Advance = false;
 
-#if 1
         game_entity *Player = State->Player;
 #if 1
         aabb PlayerBox = GetRigidBodyAABB(Player->Body);
@@ -1253,7 +1271,6 @@ DLLExport GAME_UPDATE(GameUpdate)
                 }
             }*/
         }
-#endif
     }
 }
 
@@ -1307,15 +1324,6 @@ DLLExport GAME_RENDER(GameRender)
             f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
             SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
-            
-#if 0
-            // Axis
-            f32 Bounds = 100.f;
-
-            DrawLine(RenderCommands, vec3(-Bounds, 0.f, 0.f), vec3(Bounds, 0.f, 0.f), vec4(NormalizeRGB(vec3(255, 51, 82)), 1.f), 4.f);
-            DrawLine(RenderCommands, vec3(0.f, -Bounds, 0.f), vec3(0.f, Bounds, 0.f), vec4(NormalizeRGB(vec3(135, 213, 2)), 1.f), 4.f);
-            DrawLine(RenderCommands, vec3(0.f, 0.f, -Bounds), vec3(0.f, 0.f, Bounds), vec4(NormalizeRGB(vec3(40, 144, 255)), 1.f), 4.f);
-#endif
 
             // Scene lighting
             directional_light DirectionalLight = {};
@@ -1337,7 +1345,7 @@ DLLExport GAME_RENDER(GameRender)
             PointLight2->Position = PointLight2Position;
 
             // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
-            SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
+            //SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
 
             // Player
             // todo: naming
@@ -1347,10 +1355,11 @@ DLLExport GAME_RENDER(GameRender)
 
             skeleton_pose *Pose = State->Player->Model->Pose;
             
-            animation_graph_params GraphParams = {};
-            GraphParams.Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+            f32 Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
 
-            AnimationGraphPerFrameUpdate(State->Player->Animation, GraphParams, Parameters->Delta);
+            //SetPelegriniAnimationParameters(State->Player->Animation, Move);
+            SetBotAnimationParameters(State->Player->Animation, Move);
+            AnimationGraphPerFrameUpdate(State->Player->Animation, Parameters->Delta);
             CalculateSkeletonPose(State->Player->Animation, Pose, &State->PermanentArena);
 
             // transform.translation for rigid bodies
@@ -1360,7 +1369,7 @@ DLLExport GAME_RENDER(GameRender)
             UpdateGlobalJointPoses(Pose, State->Player->Transform);
 
             // Flying skulls
-            {
+            /*{
                 game_entity *Skull = State->Entities + 1;
 
                 Skull->Transform.Translation = PointLight1Position;
@@ -1372,7 +1381,7 @@ DLLExport GAME_RENDER(GameRender)
 
                 Skull->Transform.Translation = PointLight2Position;
                 Skull->Transform.Rotation = State->Player->Body->Orientation;
-            }
+            }*/
 
             // Grouping entities into render batches (by model)
             State->EntityBatchCount = 32;
@@ -1454,10 +1463,6 @@ DLLExport GAME_RENDER(GameRender)
             );
 
             break;
-        }
-        default:
-        {
-            Assert(!"GameMode is not supported");
         }
     }
 }

@@ -91,7 +91,6 @@ struct animation_state_asset
 {
     char AnimationClipName[256];
     b32 IsLooping;
-    b32 InPlace;
 };
 
 struct blend_space_1d_value_asset
@@ -111,7 +110,11 @@ struct animation_transition_asset
     char To[256];
 
     animation_transition_type Type;
-    f32 Duration;
+    union
+    {
+        f32 Duration;
+        char TransitionNode[256];
+    };
 };
 
 struct animation_graph_asset;
@@ -168,6 +171,7 @@ struct model_asset_header
 {
     i32 MagicValue;
     i32 Version;
+    char Description[32];
     u64 SkeletonHeaderOffset;
     u64 SkeletonPoseHeaderOffset;
     u64 AnimationGraphHeaderOffset;
@@ -204,20 +208,12 @@ struct model_asset_animation_node_header
     u64 TransitionsOffset;
 
     u64 Offset;
-
-    /*union
-    {
-        u64 GraphOffset;
-        u64 BlendspaceOffset;
-        u64 AnimationClipOffset;
-    };*/
 };
 
 struct model_asset_animation_state_header
 {
     char AnimationClipName[256];
     b32 IsLooping;
-    b32 InPlace;
 };
 
 struct model_asset_blend_space_1d_header

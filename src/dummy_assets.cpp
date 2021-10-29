@@ -20,14 +20,13 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
 
         switch (NodeAsset->Type)
         {
-            case AnimationNodeType_SingleMotion:
+            case AnimationNodeType_Clip:
             {
                 model_asset_animation_state_header *AnimationStateHeader = (model_asset_animation_state_header *)(Buffer + NodeHeader->Offset);
 
                 NodeAsset->Animation = (animation_state_asset *)malloc(sizeof(animation_state_asset) * 1);
                 CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
-                NodeAsset->Animation->InPlace = AnimationStateHeader->InPlace;
 
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
                 break;
@@ -73,13 +72,31 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     // Skeleton
     model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)(Buffer + Header->SkeletonHeaderOffset);
     Result->Skeleton.JointCount = SkeletonHeader->JointCount;
+#if 0
     Result->Skeleton.Joints = (joint *)(Buffer + SkeletonHeader->JointsOffset);
+#else
+    joint *Joints = (joint *)(Buffer + SkeletonHeader->JointsOffset);
+
+    Result->Skeleton.Joints = PushArray(Arena, Result->Skeleton.JointCount, joint, 16);
+
+    for (u32 JointIndex = 0; JointIndex < Result->Skeleton.JointCount; ++JointIndex)
+    {
+        joint *SourceJoint = Joints + JointIndex;
+        joint *DestJoint = Result->Skeleton.Joints + JointIndex;
+
+        *DestJoint = *SourceJoint;
+    }
+#endif
 
     // Skeleton Bind Pose
     model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)(Buffer + Header->SkeletonPoseHeaderOffset);
     Result->BindPose.Skeleton = &Result->Skeleton;
     Result->BindPose.LocalJointPoses = (joint_pose *)(Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
+#if 0
     Result->BindPose.GlobalJointPoses = (mat4 *)(Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
+#else
+    Result->BindPose.GlobalJointPoses = PushArray(Arena, Result->Skeleton.JointCount, mat4, 16);
+#endif
 
     // Animation Graph
     ReadAnimationGraph(&Result->AnimationGraph, Header->AnimationGraphHeaderOffset, Buffer);

@@ -941,6 +941,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
 
         // todo: use RenderTarget somehow?
+        //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->MultiSampledFBO);
 
         u32 ShadowMapWidth = 2048;
@@ -1022,8 +1023,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 OpenGLAddTexture(State, 0, &WhiteTexture);
 
-                //glEnable(GL_CULL_FACE);
-                //glCullFace(GL_BACK);
+                glEnable(GL_CULL_FACE);
+                glCullFace(GL_BACK);
 
                 glFrontFace(GL_CCW);
                 glEnable(GL_DEPTH_TEST);
@@ -1143,6 +1144,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
 
+                glDisable(GL_DEPTH_TEST);
+
                 glLineWidth(Command->Thickness);
 
                 glBindVertexArray(State->LineVAO);
@@ -1162,6 +1165,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 glBindVertexArray(0);
 
                 glLineWidth(1.f);
+
+                glEnable(GL_DEPTH_TEST);
                 
                 break;
             }
@@ -1496,6 +1501,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 #else
     glBindFramebuffer(GL_READ_FRAMEBUFFER, State->MultiSampledFBO);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    // todo: performance
     glBlitFramebuffer(
         0, 0, Commands->WindowWidth, Commands->WindowHeight,
         0, 0, Commands->WindowWidth, Commands->WindowHeight,
