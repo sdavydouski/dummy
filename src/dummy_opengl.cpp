@@ -1333,7 +1333,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                     glUniform1i(Shader->BlinkUniformLocation, true);
                 }
 
+                //glDisable(GL_DEPTH_TEST);
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+                //glEnable(GL_DEPTH_TEST);
 
                 glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 

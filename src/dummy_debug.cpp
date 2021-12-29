@@ -50,6 +50,8 @@ Win32InitImGui(win32_platform_state *PlatformState)
 internal void
 RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 {
+    if (!Graph) return;
+
     char Prefix[8];
 
     for (u32 DepthLevel = 0; DepthLevel < Depth; ++DepthLevel)
@@ -215,7 +217,11 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 
     ImGui::Text("Player:");
 
-    ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
+    if (GameState->Player->Body)
+    {
+        ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
+    }
+
     ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", GameState->PlayerCamera.Position.x, GameState->PlayerCamera.Position.y, GameState->PlayerCamera.Position.z);
 
     ImGui::ColorEdit3("Directional Light Color", (f32 *)&GameState->DirectionalColor);

@@ -18,6 +18,7 @@
     <ClInclude Include="dummy_vec4.h" />
     <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_random.h" />
+    <ClInclude Include="dummy_container.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_assets.cpp" />

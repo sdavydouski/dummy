@@ -150,6 +150,14 @@ struct animation_graph_state
     f32 Time;
 };
 
+struct game_input;
+
+#define ANIMATION_GRAPH_SET_PARAMETERS(name) void name(animation_graph *Graph, f32 Move)
+typedef ANIMATION_GRAPH_SET_PARAMETERS(animation_graph_set_parameters);
+
+#define ANIMATION_GRAPH_UPDATE(name) void name(animation_graph *Graph, game_input *Input, random_sequence *Entropy, f32 MaxTime, f32 Delta)
+typedef ANIMATION_GRAPH_UPDATE(animation_graph_update);
+
 struct animation_graph
 {
     u32 NodeCount;
@@ -161,4 +169,7 @@ struct animation_graph
     animation_mixer Mixer;
 
     animation_graph_state State;
+
+    animation_graph_set_parameters *SetParameters;
+    animation_graph_update *Update;
 };

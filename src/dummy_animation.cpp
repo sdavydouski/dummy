@@ -135,11 +135,28 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_clip *Animation, f32 
                 t = (Time - PrevKeyFrame->Time) / (Abs(NextKeyFrame->Time - PrevKeyFrame->Time));
             }
 
-            Assert(t >= 0.f && t <= 1.f);
-
-            *LocalJointPose = Lerp(&PrevKeyFrame->Pose, t, &NextKeyFrame->Pose);
+            // todo:
+            //Assert(t >= 0.f && t <= 1.f);
+            if (t >= 0.f && t <= 1.f)
+            {
+                *LocalJointPose = Lerp(&PrevKeyFrame->Pose, t, &NextKeyFrame->Pose);
+            }
         }
     }
+
+#if 0   
+    // Root Motion
+    joint_pose *Root = SkeletonPose->LocalJointPoses + 0;
+    joint_pose *Hips = SkeletonPose->LocalJointPoses + 1;
+
+    vec3 ForwardMotion = Hips->Translation;
+
+    Hips->Translation.x = 0.f;
+    Hips->Translation.z = 0.f;
+
+    //Root->Translation.x = ForwardMotion.x;
+    //Root->Translation.z = ForwardMotion.z;
+#endif
 }
 
 inline void
@@ -849,11 +866,6 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
 internal void
 UpdateGlobalJointPoses(skeleton_pose *Pose, transform Transform)
 {
-    joint_pose *RootLocalJointPose = GetRootLocalJointPose(Pose);
-    RootLocalJointPose->Translation = Transform.Translation;
-    RootLocalJointPose->Rotation = Transform.Rotation;
-    RootLocalJointPose->Scale = Transform.Scale;
-
     for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
     {
         joint *Joint = Pose->Skeleton->Joints + JointIndex;

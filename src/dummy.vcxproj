@@ -23,6 +23,7 @@
     <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_assets.h" />
     <None Include="dummy_collision.cpp" />
+    <ClInclude Include="dummy_container.h" />
     <ClInclude Include="dummy_defs.h" />
     <ClInclude Include="dummy_mat4.h" />
     <ClInclude Include="dummy_math.h" />

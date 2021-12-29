@@ -1,5 +1,4 @@
-inline void
-SetPelegriniAnimationParameters(animation_graph *Graph, f32 Move)
+ANIMATION_GRAPH_SET_PARAMETERS(SetPelegriniAnimationParameters)
 {
     animation_node *WalkingNode = GetAnimationNode(Graph, "StateWalking");
     WalkingNode->BlendSpace->Parameter = Move;
@@ -50,8 +49,7 @@ PelegriniStateIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entrop
     }
 }
 
-internal void
-PelegriniAnimatorPerFrameUpdate(animation_graph *Graph, game_input *Input, random_sequence *Entropy, f32 MaxTime, f32 Delta)
+ANIMATION_GRAPH_UPDATE(PelegriniAnimatorPerFrameUpdate)
 {
     animation_node *Active = Graph->Active;
 
@@ -95,8 +93,7 @@ PelegriniAnimatorPerFrameUpdate(animation_graph *Graph, game_input *Input, rando
     }
 }
 
-inline void
-SetBotAnimationParameters(animation_graph *Graph, f32 Move)
+ANIMATION_GRAPH_SET_PARAMETERS(SetBotAnimationParameters)
 {
     animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
     WalkingNode->BlendSpace->Parameter = Move;
@@ -146,8 +143,7 @@ ActionIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entropy, f32 M
     }
 }
 
-internal void
-BotAnimatorPerFrameUpdate(animation_graph *Graph, game_input *Input, random_sequence *Entropy, f32 MaxTime, f32 Delta)
+ANIMATION_GRAPH_UPDATE(BotAnimatorPerFrameUpdate)
 {
     animation_node *Active = Graph->Active;
 

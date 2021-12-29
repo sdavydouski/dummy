@@ -37,6 +37,7 @@ struct game_entity
     rigid_body *Body;
     animation_graph *Animation;
 
+    b32 Controllable;
     b32 DebugView;
 };
 
@@ -72,6 +73,7 @@ struct game_state
     memory_arena TransientArena;
 
     game_mode Mode;
+    game_input Input;
 
     vec2 ViewFrustrumSize;
 
@@ -82,12 +84,8 @@ struct game_state
 
     game_assets Assets;
 
-    game_entity *Player;
-    game_entity *xBot;
-    game_entity *yBot;
-
-    u32 MaxEntityCount;
     u32 EntityCount;
+    u32 MaxEntityCount;
     game_entity *Entities;
 
     u32 EntityBatchCount;
@@ -96,12 +94,18 @@ struct game_state
     u32 PointLightCount;
     point_light *PointLights;
 
+    // hashtable (for storage)
+    u32 MaxProcessCount;
+    game_process *Processes;
     // linked-list (for efficient adding/removal and traversing)
     game_process ProcessSentinel;
 
-    // hashtable (for storage)
-    u32 ProcessCount;
-    game_process *Processes;
+    game_entity *Player;
+    game_entity *Pelegrini;
+    game_entity *xBot;
+    game_entity *yBot;
+    game_entity *Skulls[2];
+    game_entity *Dummy;
 
     vec2 CurrentMove;
     vec2 TargetMove;
