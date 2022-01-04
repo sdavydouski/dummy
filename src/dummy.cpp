@@ -211,8 +211,6 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     }
 
     Model->Bounds = CalculateAxisAlignedBoundingBox(Model);
-
-    int temp = 0;
 }
 
 inline ray
@@ -389,7 +387,7 @@ RenderCollisionVolume(render_commands *RenderCommands, game_state *State, game_e
 
         DrawModel(RenderCommands, Cube, Transform, Material);
     }
-    //else
+    else
     {
         // Mesh Bounds
         vec3 HalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->Model->Bounds);
@@ -400,8 +398,6 @@ RenderCollisionVolume(render_commands *RenderCommands, game_state *State, game_e
 
         DrawModel(RenderCommands, Cube, Transform, Material);
     }
-
-    
 }
 
 internal void
@@ -493,10 +489,10 @@ AddRigidBodyComponent(game_entity *Entity, vec3 Position, quat Orientation, vec3
 }
 
 inline void
-AddAnimationComponent(game_entity *Entity, memory_arena *Arena)
+AddAnimationComponent(game_entity *Entity, const char *Animator, memory_arena *Arena)
 {
     Entity->Animation = PushType(Arena, animation_graph);
-    BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Arena);
+    BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Animator, Arena);
 }
 
 internal void
@@ -780,26 +776,50 @@ GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
     }
 }
 
+inline animator_params
+GameInput2AnimatorParams(game_state *State)
+{
+    animator_params Result = {};
+
+    game_input *Input = &State->Input;
+    b32 Random = Random01(&State->RNG) > 0.5f;
+
+    // todo:
+    Result.MaxTime = 5.f;
+    Result.Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+    Result.MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
+    Result.ToStateActionIdle = Input->Activate.IsActivated;
+    Result.ToStateStandingIdle = Input->Activate.IsActivated;
+    Result.ToStateActionIdleFromDancing = Input->Crouch.IsActivated;
+    Result.ToStateDancing = Input->Crouch.IsActivated;
+    Result.ToStateIdle = Input->Crouch.IsActivated;
+    Result.ToStateActionIdle1 = Random;
+    Result.ToStateActionIdle2 = !Random;
+    Result.ToStateIdle1 = Random;
+    Result.ToStateIdle2 = !Random;
+
+    return Result;
+}
+
 internal void
 AnimateEntity(game_state *State, game_entity *Entity, f32 Delta)
 {
     Assert(Entity->Animation);
-        
-    skeleton_pose *Pose = Entity->Model->Pose;
 
-    f32 Move = 0.f;
-    game_input Input = {};
-    Input.Activate = State->Input.Activate;
+    animator_params Params = {};
 
-    if (Entity->Controllable)
+    if (Entity->Controllable)       // todo: ProcessInput happens before AnimateEntity
     {
-        // todo:
-        Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
-        Input = State->Input;
+        Params = GameInput2AnimatorParams(State);
+    }
+    else
+    {
+        // todo: GameLogic2AnimatorParams ?
     }
 
-    Entity->Animation->SetParameters(Entity->Animation, Move);
-    Entity->Animation->Update(Entity->Animation, &Input, &State->RNG, 5.f, Delta);
+    AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
+
+    skeleton_pose *Pose = Entity->Model->Pose;
 
     joint_pose *LocalSpaceOrigin = GetRootLocalJointPose(Pose);
     LocalSpaceOrigin->Translation = Entity->Transform.Translation;
@@ -828,8 +848,20 @@ DLLExport GAME_INIT(GameInit)
     CopyString("Sentinel", Sentinel->Name);
     Sentinel->Next = Sentinel->Prev = Sentinel;
 
-    State->MaxProcessCount = 32;
+    State->MaxProcessCount = 31;
     State->Processes = PushArray(&State->PermanentArena, State->MaxProcessCount, game_process);
+
+    // Animator Setup
+    State->Animator = {};
+    State->Animator.ControllerCount = 31;
+    State->Animator.Controllers = PushArray(&State->PermanentArena, State->Animator.ControllerCount, animator_controller);
+
+    animator_controller *PelegriniController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *)"Pelegrini");
+    PelegriniController->Func = PelegriniAnimatorController;
+
+    animator_controller *BotController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *)"Bot");
+    BotController->Func = BotAnimatorController;
+    //
 
     State->DelayTime = 0.f;
     State->DelayDuration = 0.5f;
@@ -844,7 +876,9 @@ DLLExport GAME_INIT(GameInit)
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
-    State->DirectionalColor = vec3(1.f);
+    State->DirectionalLight = {};
+    State->DirectionalLight.Color = vec3(1.f);
+    State->DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
 
     State->RNG = RandomSequence(42);
 
@@ -863,30 +897,24 @@ DLLExport GAME_INIT(GameInit)
 
     // Pelegrini
     State->Pelegrini = CreateGameEntity(State);
-    State->Pelegrini->Transform = CreateTransform(vec3(12.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Pelegrini->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
-    AddRigidBodyComponent(State->Pelegrini, vec3(12.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
-    AddAnimationComponent(State->Pelegrini, &State->PermanentArena);
-    State->Pelegrini->Animation->SetParameters = SetPelegriniAnimationParameters;
-    State->Pelegrini->Animation->Update = PelegriniAnimatorPerFrameUpdate;
+    AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
+    AddAnimationComponent(State->Pelegrini, "Pelegrini", &State->PermanentArena);
 
     // xBot
     State->xBot = CreateGameEntity(State);
-    State->xBot->Transform = CreateTransform(vec3(3.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->xBot->Transform = CreateTransform(vec3(6.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->xBot, &State->Assets, "xBot");
-    AddRigidBodyComponent(State->xBot, vec3(3.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
-    AddAnimationComponent(State->xBot, &State->PermanentArena);
-    State->xBot->Animation->SetParameters = SetBotAnimationParameters;
-    State->xBot->Animation->Update = BotAnimatorPerFrameUpdate;
+    AddRigidBodyComponent(State->xBot, vec3(6.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
+    AddAnimationComponent(State->xBot, "Bot", &State->PermanentArena);
 
     // yBot
     State->yBot = CreateGameEntity(State);
-    State->yBot->Transform = CreateTransform(vec3(-3.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->yBot->Transform = CreateTransform(vec3(-6.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->yBot, &State->Assets, "yBot");
-    AddRigidBodyComponent(State->yBot, vec3(-3.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
-    AddAnimationComponent(State->yBot, &State->PermanentArena);
-    State->yBot->Animation->SetParameters = SetBotAnimationParameters;
-    State->yBot->Animation->Update = BotAnimatorPerFrameUpdate;
+    AddRigidBodyComponent(State->yBot, vec3(-6.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
+    AddAnimationComponent(State->yBot, "Bot", &State->PermanentArena);
 
     // Skull 0
     State->Skulls[0] = CreateGameEntity(State);
@@ -900,12 +928,13 @@ DLLExport GAME_INIT(GameInit)
 
     // Dummy
     State->Dummy = CreateGameEntity(State);
+    AddRigidBodyComponent(State->Dummy, vec3(0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), &State->PermanentArena);
 
     // Player
     //State->Player = State->xBot;
-    State->Player = State->yBot;
+    //State->Player = State->yBot;
     //State->Player = State->Pelegrini;
-    //State->Player = State->Dummy;
+    State->Player = State->Dummy;
 #if 0
     // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
     GenerateRoom(State, vec3(0.f), vec2(16.f, 10.f), vec3(2.f));
@@ -979,6 +1008,34 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         State->Advance = true;
     }
 
+    if (Input->ChooseHero1.IsActivated)
+    {
+        State->Player->Controllable = false;
+        State->Player = State->yBot;
+        State->Player->Controllable = true;
+    }
+
+    if (Input->ChooseHero2.IsActivated)
+    {
+        State->Player->Controllable = false;
+        State->Player = State->Pelegrini;
+        State->Player->Controllable = true;
+    }
+
+    if (Input->ChooseHero3.IsActivated)
+    {
+        State->Player->Controllable = false;
+        State->Player = State->xBot;
+        State->Player->Controllable = true;
+    }
+
+    if (Input->ChooseDummy.IsActivated)
+    {
+        State->Player->Controllable = false;
+        State->Player = State->Dummy;
+        State->Player->Controllable = true;
+    }
+
     if (Input->LeftClick.IsActivated)
     {
         ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32)Parameters->WindowWidth, (f32)Parameters->WindowHeight), &State->FreeCamera);
@@ -995,9 +1052,12 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             {
                 Entity->DebugView = false;
 
-                vec3 BoxCenter = Entity->Transform.Translation + Entity->Transform.Scale * vec3(0.f, (Entity->Model->Bounds.Max.y - Entity->Model->Bounds.Min.y) * 0.5f, 0.f);
-                vec3 BoxHalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->Model->Bounds);
-                aabb Box = CreateAABBCenterHalfSize(BoxCenter, BoxHalfSize);
+                vec3 HalfSize = Entity->Body 
+                    ? Entity->Body->HalfSize
+                    : Entity->Transform.Scale *GetAABBHalfSize(Entity->Model->Bounds);
+
+                vec3 Center = Entity->Transform.Translation + vec3(0.f, HalfSize.y, 0.f);
+                aabb Box = CreateAABBCenterHalfSize(Center, HalfSize);
 
                 vec3 IntersectionPoint;
                 if (HitBoundingBox(Ray, Box, IntersectionPoint))
@@ -1056,6 +1116,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             vec3 PlayerPosition = State->Player->Transform.Translation;
 #if 1
+            // todo(continue): smooth translation to player position
             State->PlayerCamera.Position.x = PlayerPosition.x +
                 Sqrt(Square(State->PlayerCamera.Radius) - Square(CameraHeight)) * Sin(State->PlayerCamera.Yaw);
             State->PlayerCamera.Position.y = PlayerPosition.y + CameraHeight;
@@ -1097,6 +1158,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             if (Input->Activate.IsActivated)
             {
                 Player->Controllable = !Player->Controllable;
+                //StartGameProcess(State, Stringify(PlayerControllableProcess), PlayerControllableProcess);
             }
 
             // todo:
@@ -1178,8 +1240,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
     }
 }
-
-// todo(continue): ybot and xbot
 
 DLLExport GAME_UPDATE(GameUpdate)
 {
@@ -1290,11 +1350,7 @@ DLLExport GAME_RENDER(GameRender)
             SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
 
             // Scene lighting
-            directional_light DirectionalLight = {};
-            DirectionalLight.Color = State->DirectionalColor;
-            DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
-
-            SetDirectionalLight(RenderCommands, DirectionalLight);
+            SetDirectionalLight(RenderCommands, State->DirectionalLight);
 
             f32 PointLightRadius = 4.f;
             vec3 PointLight1Position = State->Player->Transform.Translation + vec3(0.f, 3.f, 0.f) +
@@ -1312,7 +1368,7 @@ DLLExport GAME_RENDER(GameRender)
             SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
 
             // Flying skulls
-            // todo(continue): get entity by id
+            // todo: get entity by id ?
             if (State->Player->Body)
             {
                 {
@@ -1354,7 +1410,7 @@ DLLExport GAME_RENDER(GameRender)
                     AnimateEntity(State, Entity, Parameters->Delta);
                 }
 
-                // Grouping entities into render batches (by model)
+                // Grouping entities into render batches
                 if (Entity->Model)
                 {
                     entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
@@ -1368,7 +1424,7 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
-            // Rendering entities
+            // Pushing entities into render buffer
             for (u32 EntityBatchIndex = 0; EntityBatchIndex < State->EntityBatchCount; ++EntityBatchIndex)
             {
                 entity_render_batch *Batch = State->EntityBatches + EntityBatchIndex;

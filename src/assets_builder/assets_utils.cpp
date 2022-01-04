@@ -457,7 +457,8 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
                 [](const joint_weight &A, const joint_weight &B) -> b32
                 {
                     return A.Weight > B.Weight;
-                });
+                }
+            );
 
             JointWeights.resize(MAX_WEIGHT_COUNT);
 

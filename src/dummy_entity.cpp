@@ -1,13 +1,5 @@
-ANIMATION_GRAPH_SET_PARAMETERS(SetPelegriniAnimationParameters)
-{
-    animation_node *WalkingNode = GetAnimationNode(Graph, "StateWalking");
-    WalkingNode->BlendSpace->Parameter = Move;
-}
-
-// todo: duplicated?
-// Pelegrini animator
 internal void
-PelegriniStateIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entropy, f32 MaxTime, f32 Delta)
+PelegriniStateIdlePerFrameUpdate(animation_graph *Graph, animator_params Params, f32 Delta)
 {
     animation_node *Active = Graph->Active;
 
@@ -15,15 +7,16 @@ PelegriniStateIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entrop
     {
         Graph->State.Time += Delta;
 
-        if (Graph->State.Time > MaxTime)
+        if (Graph->State.Time > Params.MaxTime)
         {
             Graph->State.Time = 0.f;
 
-            if (Random01(Entropy) > 0.5f)
+            if (Params.ToStateIdle1)
             {
                 TransitionToNode(Graph, "StateIdle_1");
             }
-            else
+
+            if (Params.ToStateIdle2)
             {
                 TransitionToNode(Graph, "StateIdle_2");
             }
@@ -49,25 +42,26 @@ PelegriniStateIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entrop
     }
 }
 
-ANIMATION_GRAPH_UPDATE(PelegriniAnimatorPerFrameUpdate)
+ANIMATOR_CONTROLLER(PelegriniAnimatorController)
 {
-    animation_node *Active = Graph->Active;
+    animation_node *WalkingNode = GetAnimationNode(Graph, "StateWalking");
+    WalkingNode->BlendSpace->Parameter = Params.Move;
 
-    f32 MoveMaginute = Clamp(Magnitude(Input->Move.Range), 0.f, 1.f);
+    animation_node *Active = Graph->Active;
 
     if (StringEquals(Active->Name, "StateIdle"))
     {
         animation_graph *StateIdleGraph = Active->Graph;
-        PelegriniStateIdlePerFrameUpdate(StateIdleGraph, Entropy, MaxTime, Delta);
+        PelegriniStateIdlePerFrameUpdate(StateIdleGraph, Params, Delta);
 
         // External transitions
-        if (Input->Crouch.IsActivated)
+        if (Params.ToStateDancing)
         {
             StateIdleGraph->State.Time = 0.f;
             TransitionToNode(Graph, "StateDancing");
         }
 
-        if (MoveMaginute > 0.f)
+        if (Params.MoveMagnitude > 0.f)
         {
             StateIdleGraph->State.Time = 0.f;
             TransitionToNode(Graph, "StateWalking");
@@ -75,14 +69,14 @@ ANIMATION_GRAPH_UPDATE(PelegriniAnimatorPerFrameUpdate)
     }
     else if (StringEquals(Active->Name, "StateWalking"))
     {
-        if (MoveMaginute < EPSILON)
+        if (Params.MoveMagnitude < EPSILON)
         {
             TransitionToNode(Graph, "StateIdle");
         }
     }
     else if (StringEquals(Active->Name, "StateDancing"))
     {
-        if (Input->Crouch.IsActivated && MoveMaginute < EPSILON)
+        if (Params.ToStateIdle && Params.MoveMagnitude < EPSILON)
         {
             TransitionToNode(Graph, "StateIdle");
         }
@@ -93,15 +87,9 @@ ANIMATION_GRAPH_UPDATE(PelegriniAnimatorPerFrameUpdate)
     }
 }
 
-ANIMATION_GRAPH_SET_PARAMETERS(SetBotAnimationParameters)
-{
-    animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
-    WalkingNode->BlendSpace->Parameter = Move;
-}
-
 // xBot/yBot animator
 internal void
-ActionIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entropy, f32 MaxTime, f32 Delta)
+ActionIdlePerFrameUpdate(animation_graph *Graph, animator_params Params, f32 Delta)
 {
     animation_node *Active = Graph->Active;
 
@@ -109,15 +97,16 @@ ActionIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entropy, f32 M
     {
         Graph->State.Time += Delta;
 
-        if (Graph->State.Time > MaxTime)
+        if (Graph->State.Time > Params.MaxTime)
         {
             Graph->State.Time = 0.f;
 
-            if (Random01(Entropy) > 0.5f)
+            if (Params.ToStateActionIdle1)
             {
                 TransitionToNode(Graph, "ActionIdle_1");
             }
-            else
+
+            if (Params.ToStateActionIdle2)
             {
                 TransitionToNode(Graph, "ActionIdle_2");
             }
@@ -143,15 +132,16 @@ ActionIdlePerFrameUpdate(animation_graph *Graph, random_sequence *Entropy, f32 M
     }
 }
 
-ANIMATION_GRAPH_UPDATE(BotAnimatorPerFrameUpdate)
+ANIMATOR_CONTROLLER(BotAnimatorController)
 {
-    animation_node *Active = Graph->Active;
+    animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
+    WalkingNode->BlendSpace->Parameter = Params.Move;
 
-    f32 MoveMaginute = Clamp(Magnitude(Input->Move.Range), 0.f, 1.f);
+    animation_node *Active = Graph->Active;
 
     if (StringEquals(Active->Name, "StandingIdle"))
     {
-        if (Input->Activate.IsActivated)
+        if (Params.ToStateActionIdle)
         {
             TransitionToNode(Graph, "ActionIdle");
         }
@@ -159,21 +149,21 @@ ANIMATION_GRAPH_UPDATE(BotAnimatorPerFrameUpdate)
     else if (StringEquals(Active->Name, "ActionIdle"))
     {
         animation_graph *StateIdleGraph = Active->Graph;
-        ActionIdlePerFrameUpdate(StateIdleGraph, Entropy, MaxTime, Delta);
+        ActionIdlePerFrameUpdate(StateIdleGraph, Params, Delta);
 
-        if (Input->Activate.IsActivated)
+        if (Params.ToStateStandingIdle)
         {
             StateIdleGraph->State.Time = 0.f;
             TransitionToNode(Graph, "StandingIdle");
         }
 
-        if (Input->Crouch.IsActivated)
+        if (Params.ToStateDancing)
         {
             StateIdleGraph->State.Time = 0.f;
             TransitionToNode(Graph, "Dancing");
         }
 
-        if (MoveMaginute > 0.f)
+        if (Params.MoveMagnitude > 0.f)
         {
             StateIdleGraph->State.Time = 0.f;
             TransitionToNode(Graph, "Moving");
@@ -181,14 +171,14 @@ ANIMATION_GRAPH_UPDATE(BotAnimatorPerFrameUpdate)
     }
     else if (StringEquals(Active->Name, "Moving"))
     {
-        if (MoveMaginute < EPSILON)
+        if (Params.MoveMagnitude < EPSILON)
         {
             TransitionToNode(Graph, "ActionIdle");
         }
     }
     else if (StringEquals(Active->Name, "Dancing"))
     {
-        if (Input->Crouch.IsActivated && MoveMaginute < EPSILON)
+        if (Params.ToStateActionIdleFromDancing && Params.MoveMagnitude < EPSILON)
         {
             TransitionToNode(Graph, "ActionIdle");
         }

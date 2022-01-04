@@ -37,7 +37,7 @@ struct game_entity
     rigid_body *Body;
     animation_graph *Animation;
 
-    b32 Controllable;
+    b32 Controllable;   // todo: come up with smth better
     b32 DebugView;
 };
 
@@ -83,6 +83,7 @@ struct game_state
     plane Ground;
 
     game_assets Assets;
+    animator Animator;
 
     u32 EntityCount;
     u32 MaxEntityCount;
@@ -93,6 +94,8 @@ struct game_state
 
     u32 PointLightCount;
     point_light *PointLights;
+
+    directional_light DirectionalLight;
 
     // hashtable (for storage)
     u32 MaxProcessCount;
@@ -112,13 +115,10 @@ struct game_state
 
     random_sequence RNG;
 
-    vec3 DirectionalColor;
     vec3 BackgroundColor;
 
     b32 IsBackgroundHighlighted;
     b32 Advance;
-
-    b32 SelectAll;
 
     // for testing purpuses
     f32 DelayTime;

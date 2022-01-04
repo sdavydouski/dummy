@@ -1,10 +1,13 @@
 #include <windows.h>
+#include <xinput.h>
 
 #include "dummy_defs.h"
 #include "dummy_platform.h"
 #include "dummy_string.h"
 #include "dummy_math.h"
 #include "win32_dummy.h"
+
+#define DEBUG_UI 1
 
 inline FILETIME
 Win32GetLastWriteTime(char *FileName)
@@ -23,8 +26,22 @@ Win32GetLastWriteTime(char *FileName)
 #include "win32_dummy_opengl.cpp"
 #include "dummy_opengl.cpp"
 
-#if 1
+#if DEBUG_UI
 #include "dummy_debug.cpp"
+
+#define DEBUG_UI_INIT(...) Win32InitImGui(__VA_ARGS__)
+#define DEBUG_UI_RENDER(...) Win32RenderDebugInfo(__VA_ARGS__)
+#define DEBUG_UI_SHUTDOWN(...)    \
+    ImGui_ImplOpenGL3_Shutdown(); \
+    ImGui_ImplWin32_Shutdown();   \
+    ImGui::DestroyContext();
+
+#define DEBUG_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
+#else
+#define DEBUG_UI_INIT(...)
+#define DEBUG_UI_RENDER(...)
+#define DEBUG_UI_SHUTDOWN(...)
+#define DEBUG_UI_WND_PROC_HANDLER(...)
 #endif
 
 inline void *
@@ -244,7 +261,7 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
 
 LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, _In_ LPARAM lParam)
 {
-    WIN32_IMGUI_WND_PROC_HANDLER;
+    DEBUG_UI_WND_PROC_HANDLER();
 
     switch (uMsg)
     {
@@ -474,6 +491,30 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
             case VK_SUBTRACT:
             {
                 KeyboardInput->Minus.IsPressed = IsKeyPressed;
+                break;
+            }
+            case '1':
+            case VK_NUMPAD1:
+            {
+                KeyboardInput->One.IsPressed = IsKeyPressed;
+                break;
+            }
+            case '2':
+            case VK_NUMPAD2:
+            {
+                KeyboardInput->Two.IsPressed = IsKeyPressed;
+                break;
+            }
+            case '3':
+            case VK_NUMPAD3:
+            {
+                KeyboardInput->Three.IsPressed = IsKeyPressed;
+                break;
+            }
+            case '0':
+            case VK_NUMPAD0:
+            {
+                KeyboardInput->Zero.IsPressed = IsKeyPressed;
                 break;
             }
             case VK_ESCAPE:
@@ -801,8 +842,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
-    PlatformState.WindowWidth = 3200;
-    PlatformState.WindowHeight = 1800;
+    PlatformState.WindowWidth = 1600;
+    PlatformState.WindowHeight = 900;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
@@ -868,7 +909,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 FullWindowWidth = Rect.right - Rect.left;
     u32 FullWindowHeight = Rect.bottom - Rect.top;
 
-    PlatformState.WindowHandle = CreateWindowEx(0, WindowClass.lpszClassName, L"Dummy", PlatformState.WindowStyles,
+    PlatformState.WindowHandle = CreateWindowEx(
+        0, WindowClass.lpszClassName, L"Dummy", PlatformState.WindowStyles,
         CW_USEDEFAULT, CW_USEDEFAULT, FullWindowWidth, FullWindowHeight, 0, 0, hInstance, &PlatformState
     );
 
@@ -899,7 +941,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
-        Win32InitImGui(&PlatformState);
+        DEBUG_UI_INIT(&PlatformState);
 
         game_parameters GameParameters = {};
         game_input GameInput = {};
@@ -922,7 +964,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         // Game Loop
         while (PlatformState.IsGameRunning)
         {
-            ImGuiIO &DebugInput = ImGui::GetIO();
+            //ImGuiIO &DebugInput = ImGui::GetIO();
 
             Win32ProcessWindowMessages(&PlatformState, &KeyboardInput, &MouseInput);
             Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
@@ -944,12 +986,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                 XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
-                if (!DebugInput.WantCaptureKeyboard)
+                //if (!DebugInput.WantCaptureKeyboard)
                 {
                     KeyboardInput2GameInput(&KeyboardInput, &GameInput);
                 }
 
-                if (!DebugInput.WantCaptureMouse)
+                //if (!DebugInput.WantCaptureMouse)
                 {
                     MouseInput2GameInput(&MouseInput, &GameInput);
                 }
@@ -980,7 +1022,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             win32_platform_state LastPlatformState = PlatformState;
 #if 1
-            RenderDebugInfo(&PlatformState, &GameMemory, &GameParameters);
+            DEBUG_UI_RENDER(&PlatformState, &GameMemory, &GameParameters);
 #endif
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
             {
@@ -997,7 +1039,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
-            if (!DebugInput.WantCaptureKeyboard)
+            //if (!DebugInput.WantCaptureKeyboard)
             {
                 if (IsButtonActivated(&KeyboardInput.Plus))
                 {
@@ -1020,12 +1062,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             GameParameters.Time += GameParameters.Delta;
 
             LastPerformanceCounter = CurrentPerformanceCounter;
+
+            char WindowTitle[64];
+            FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
+            SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
         }
 
         // Cleanup
-        ImGui_ImplOpenGL3_Shutdown();
-        ImGui_ImplWin32_Shutdown();
-        ImGui::DestroyContext();
+        DEBUG_UI_SHUTDOWN();
 
         Win32DeallocateMemory(PlatformState.GameMemoryBlock);
 

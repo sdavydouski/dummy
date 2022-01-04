@@ -150,13 +150,25 @@ struct animation_graph_state
     f32 Time;
 };
 
+struct animator_params
+{
+    f32 MaxTime;
+    b32 ToStateIdle1;
+    b32 ToStateIdle2;
+
+    f32 Move;
+    f32 MoveMagnitude;
+    b32 ToStateDancing;
+    b32 ToStateIdle;
+
+    b32 ToStateActionIdle1;
+    b32 ToStateActionIdle2;
+    b32 ToStateActionIdle;
+    b32 ToStateActionIdleFromDancing;
+    b32 ToStateStandingIdle;
+};
+
 struct game_input;
-
-#define ANIMATION_GRAPH_SET_PARAMETERS(name) void name(animation_graph *Graph, f32 Move)
-typedef ANIMATION_GRAPH_SET_PARAMETERS(animation_graph_set_parameters);
-
-#define ANIMATION_GRAPH_UPDATE(name) void name(animation_graph *Graph, game_input *Input, random_sequence *Entropy, f32 MaxTime, f32 Delta)
-typedef ANIMATION_GRAPH_UPDATE(animation_graph_update);
 
 struct animation_graph
 {
@@ -170,6 +182,21 @@ struct animation_graph
 
     animation_graph_state State;
 
-    animation_graph_set_parameters *SetParameters;
-    animation_graph_update *Update;
+    char Animator[256];
+};
+
+#define ANIMATOR_CONTROLLER(name) void name(animation_graph *Graph, animator_params Params, f32 Delta)
+typedef ANIMATOR_CONTROLLER(animator_controller_func);
+
+struct animator_controller
+{
+    char Name[256];
+    animator_controller_func *Func;
+};
+
+struct animator
+{
+    // HashTable
+    u32 ControllerCount;
+    animator_controller *Controllers;
 };

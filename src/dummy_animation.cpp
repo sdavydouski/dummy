@@ -590,10 +590,11 @@ GetAnimationNode(animation_graph *Graph, const char *NodeName)
 }
 
 internal void
-BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model *Model, memory_arena *Arena)
+BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model *Model, const char *Animator, memory_arena *Arena)
 {
     Graph->NodeCount = Asset->NodeCount;
     Graph->Nodes = PushArray(Arena, Graph->NodeCount, animation_node);
+    CopyString(Animator, Graph->Animator);
 
     for (u32 NodeIndex = 0; NodeIndex < Asset->NodeCount; ++NodeIndex)
     {
@@ -636,7 +637,7 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
             {
                 animation_graph *NodeGraph = PushType(Arena, animation_graph);
 
-                BuildAnimationGraph(NodeGraph, NodeAsset->Graph, Model, Arena);
+                BuildAnimationGraph(NodeGraph, NodeAsset->Graph, Model, Animator, Arena);
                 BuildAnimationNode(Node, NodeAsset->Name, NodeGraph);
 
                 break;
@@ -873,5 +874,20 @@ UpdateGlobalJointPoses(skeleton_pose *Pose, transform Transform)
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
         *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Pose);
+    }
+}
+
+internal void
+AnimatorPerFrameUpdate(animator *Animator, animation_graph *Animation, animator_params Params, f32 Delta)
+{
+    animator_controller *Controller = HashTableLookup(Animator->ControllerCount, Animator->Controllers, Animation->Animator);
+
+    if (Controller->Func)
+    {
+        Controller->Func(Animation, Params, Delta);
+    }
+    else
+    {
+        Assert(!"No controller is found for this animation graph");
     }
 }

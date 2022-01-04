@@ -121,6 +121,10 @@ struct platform_input_keyboard
     platform_button_state Plus;
     platform_button_state Minus;
 
+    platform_button_state One;
+    platform_button_state Two;
+    platform_button_state Three;
+    platform_button_state Zero;
 };
 
 struct platform_input_mouse
@@ -169,6 +173,11 @@ struct game_input
     game_input_range Move;
     game_input_action Crouch;
     game_input_action Activate;
+
+    game_input_action ChooseHero1;
+    game_input_action ChooseHero2;
+    game_input_action ChooseHero3;
+    game_input_action ChooseDummy;
 
     game_input_range Camera;
     game_input_action Menu;
@@ -230,6 +239,10 @@ BeginProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
     SavePrevButtonState(&KeyboardInput->Enter);
     SavePrevButtonState(&KeyboardInput->Plus);
     SavePrevButtonState(&KeyboardInput->Minus);
+    SavePrevButtonState(&KeyboardInput->One);
+    SavePrevButtonState(&KeyboardInput->Two);
+    SavePrevButtonState(&KeyboardInput->Three);
+    SavePrevButtonState(&KeyboardInput->Zero);
 }
 
 inline void
@@ -243,6 +256,10 @@ EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
     UpdateToggleButtonState(&KeyboardInput->Enter);
     UpdateToggleButtonState(&KeyboardInput->Plus);
     UpdateToggleButtonState(&KeyboardInput->Minus);
+    UpdateToggleButtonState(&KeyboardInput->One);
+    UpdateToggleButtonState(&KeyboardInput->Two);
+    UpdateToggleButtonState(&KeyboardInput->Three);
+    UpdateToggleButtonState(&KeyboardInput->Zero);
 }
 
 inline void
@@ -322,6 +339,26 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
     if (!GameInput->EditMode.IsActivated)
     {
         GameInput->EditMode.IsActivated = IsButtonActivated(&KeyboardInput->Tab);
+    }
+
+    if (!GameInput->ChooseHero1.IsActivated)
+    {
+        GameInput->ChooseHero1.IsActivated = IsButtonActivated(&KeyboardInput->One);
+    }
+
+    if (!GameInput->ChooseHero2.IsActivated)
+    {
+        GameInput->ChooseHero2.IsActivated = IsButtonActivated(&KeyboardInput->Two);
+    }
+
+    if (!GameInput->ChooseHero3.IsActivated)
+    {
+        GameInput->ChooseHero3.IsActivated = IsButtonActivated(&KeyboardInput->Three);
+    }
+
+    if (!GameInput->ChooseDummy.IsActivated)
+    {
+        GameInput->ChooseDummy.IsActivated = IsButtonActivated(&KeyboardInput->Zero);
     }
 
     if (!GameInput->HighlightBackground.IsActive)

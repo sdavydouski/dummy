@@ -26,8 +26,6 @@
 #include <imgui_impl_opengl3.cpp>
 //#pragma warning(pop)
 
-#define WIN32_IMGUI_WND_PROC_HANDLER if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
-
 internal void
 Win32InitImGui(win32_platform_state *PlatformState)
 {
@@ -44,7 +42,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 }
 
 internal void
@@ -153,7 +151,7 @@ RenderEntityInfo(game_entity *Entity, model *Model)
 }
 
 internal void
-RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, game_parameters *GameParameters)
+Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, game_parameters *GameParameters)
 {
     game_state *GameState = (game_state *)GameMemory->PermanentStorage;
 
@@ -224,11 +222,11 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 
     ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", GameState->PlayerCamera.Position.x, GameState->PlayerCamera.Position.y, GameState->PlayerCamera.Position.z);
 
-    ImGui::ColorEdit3("Directional Light Color", (f32 *)&GameState->DirectionalColor);
+    ImGui::ColorEdit3("Dir Color", (f32 *)&GameState->DirectionalLight.Color);
+    ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
+    GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
     ImGui::End();
-
-    ImGui::SetNextWindowPos(ImVec2((f32)PlatformState->WindowWidth - 480.f, 10.f));
 
     ImGui::Begin("Animation Graph");
     RenderAnimationGraphInfo(GameState->Player->Animation);
@@ -250,8 +248,6 @@ RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, ga
 #endif
 
     ImGui::Begin("Debug");
-
-    ImGui::Checkbox("Select All", (bool *)&GameState->SelectAll);
 
     for (u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
     {

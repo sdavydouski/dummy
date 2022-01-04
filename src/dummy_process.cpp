@@ -91,7 +91,7 @@ inline GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
     f32 Green = Random01(&State->RNG);
     f32 Blue = Random01(&State->RNG);
 
-    State->DirectionalColor = vec3(Red, Green, Blue);
+    State->DirectionalLight.Color = vec3(Red, Green, Blue);
 
     EndGameProcess(State, Process->Name);
 }
@@ -134,4 +134,10 @@ inline GAME_PROCESS_ON_UPDATE(CameraLerpProcess)
             EndGameProcess(State, Process->Name);
         }
     }
+}
+
+inline GAME_PROCESS_ON_UPDATE(PlayerControllableProcess)
+{
+    State->Player->Controllable = !State->Player->Controllable;
+    EndGameProcess(State, Process->Name);
 }
