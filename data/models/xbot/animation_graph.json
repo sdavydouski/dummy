@@ -1,7 +1,7 @@
 {
    "version":"0.0.1",
    "graph":{
-      "name":"xBot animation graph",
+      "name":"yBot animation graph",
       "entry":"StandingIdle",
       "nodes":[
          {
@@ -95,15 +95,11 @@
                },
                {
                   "value":0.5,
-                  "clip":"walking_blend"
+                  "clip":"walking_blend_root_motion"
                },
                {
                   "value":1,
-                  "clip":"running_blend"
-               },
-               {
-                  "value":2,
-                  "clip":"sprinting_blend"
+                  "clip":"running_blend_root_motion"
                }
             ],
             "transitions":[
@@ -117,7 +113,7 @@
          {
             "name":"Dancing",
             "type":"Animation",
-            "clip":"hip_hop_dance",
+            "clip":"samba_dance",
             "looping":true,
             "transitions":[
                {
@@ -134,9 +130,15 @@
             "looping":false,
             "transitions":[
                {
-                  "to":"ActionIdle",
-                  "type":"immediate"
-               }
+                 "to": "ActionIdle",
+                 "type": "crossfade",
+                 "blend": 0.1
+               },
+              {
+                 "to": "StandingIdle",
+                 "type": "crossfade",
+                 "blend": 0.4
+              }
             ]
          },
          {
@@ -144,12 +146,18 @@
             "type":"Animation",
             "clip":"action_idle_to_standing_idle",
             "looping":false,
-            "transitions":[
-               {
-                  "to":"StandingIdle",
-                  "type":"immediate"
-               }
-            ]
+            "transitions": [
+              {
+                 "to": "StandingIdle",
+                 "type": "crossfade",
+                 "blend": 0.1
+              },
+              {
+                 "to": "ActionIdle",
+                 "type": "crossfade",
+                 "blend": 0.4
+              }
+          ]
          }
       ]
    }

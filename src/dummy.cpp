@@ -4,9 +4,10 @@
 #include "dummy_memory.h"
 #include "dummy_string.h"
 #include "dummy_container.h"
+#include "dummy_input.h"
+#include "dummy_renderer.h"
 #include "dummy_platform.h"
 #include "dummy_physics.h"
-#include "dummy_renderer.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy.h"
@@ -63,7 +64,7 @@ CreateMaterial(material_type Type, vec4 Color, b32 Wireframe = false)
 }
 
 inline void
-DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose, transform Transform)
+DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose)
 {
     Assert(Model->Skeleton);
     
@@ -174,10 +175,14 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     Model->AnimationCount = Asset->AnimationCount;
     Model->Animations = Asset->Animations;
 
-    if (Model->Skeleton)
+    u32 SkinningMatrixCount = 0;
+
+    if (Model->Skeleton->JointCount > 1)
     {
         Model->SkinningMatrixCount = Model->Skeleton->JointCount;
         Model->SkinningMatrices = PushArray(Arena, Model->SkinningMatrixCount, mat4);
+
+        SkinningMatrixCount = Model->Skeleton->JointCount;
     }
 
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
@@ -187,7 +192,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
         AddMesh(
             RenderCommands, Mesh->Id, Mesh->VertexCount, 
             Mesh->Positions, Mesh->Normals, Mesh->Tangents, Mesh->Bitangents, Mesh->TextureCoords, Mesh->Weights, Mesh->JointIndices, 
-            Mesh->IndexCount, Mesh->Indices, MaxInstanceCount
+            Mesh->IndexCount, Mesh->Indices, SkinningMatrixCount, MaxInstanceCount
         );
 
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
@@ -371,8 +376,15 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
     }
 }
 
+inline vec3
+GetModelHalfSize(model *Model, transform Transform)
+{
+    vec3 Result = Transform.Scale * GetAABBHalfSize(Model->Bounds);
+    return Result;
+}
+
 internal void
-RenderCollisionVolume(render_commands *RenderCommands, game_state *State, game_entity *Entity)
+RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
     model *Cube = GetModelAsset(&State->Assets, "Cube");
 
@@ -390,7 +402,7 @@ RenderCollisionVolume(render_commands *RenderCommands, game_state *State, game_e
     else
     {
         // Mesh Bounds
-        vec3 HalfSize = Entity->Transform.Scale * GetAABBHalfSize(Entity->Model->Bounds);
+        vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
         vec3 Position = Entity->Transform.Translation;
 
         transform Transform = CreateTransform(Position, HalfSize, quat(0.f));
@@ -405,7 +417,7 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
 {
     if (Entity->Model->Skeleton->JointCount > 1)
     {
-        DrawSkinnedModel(RenderCommands, Entity->Model, Entity->Model->Pose, Entity->Transform);
+        DrawSkinnedModel(RenderCommands, Entity->Model, Entity->Model->Pose);
     }
     else
     {
@@ -414,7 +426,7 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
 
     if (Entity->DebugView)
     {
-        RenderCollisionVolume(RenderCommands, State, Entity);
+        RenderBoundingBox(RenderCommands, State, Entity);
 
         if (Entity->Model->Skeleton->JointCount > 1)
         {
@@ -437,7 +449,7 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
 
         if (Entity->DebugView)
         {
-            RenderCollisionVolume(RenderCommands, State, Entity);
+            RenderBoundingBox(RenderCommands, State, Entity);
         }
     }
 }
@@ -735,7 +747,7 @@ GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
         vec2 RoomSize = vec2((f32)RoomWidth, (f32)RoomHeight);
         vec3 RoomOrigin = PrevRoomOrigin;
 
-        u32 Direction = RandomChoice(&State->RNG, 4);
+        u32 Direction = RandomChoice(&State->Entropy, 4);
 
         Assert(Direction < 4);
 
@@ -777,26 +789,38 @@ GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
 }
 
 inline animator_params
-GameInput2AnimatorParams(game_state *State)
+GameInput2AnimatorParams(game_state *State, game_entity *Entity)
 {
     animator_params Result = {};
 
     game_input *Input = &State->Input;
-    b32 Random = Random01(&State->RNG) > 0.5f;
+    b32 Random = Random01(&State->Entropy) > 0.5f;
 
     // todo:
     Result.MaxTime = 5.f;
     Result.Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
     Result.MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
-    Result.ToStateActionIdle = Input->Activate.IsActivated;
-    Result.ToStateStandingIdle = Input->Activate.IsActivated;
-    Result.ToStateActionIdleFromDancing = Input->Crouch.IsActivated;
-    Result.ToStateDancing = Input->Crouch.IsActivated;
-    Result.ToStateIdle = Input->Crouch.IsActivated;
+    Result.ToStateActionIdle = Entity->FutureControllable;
+    Result.ToStateStandingIdle = !Entity->FutureControllable;
+    Result.ToStateActionIdleFromDancing = Input->Dance.IsActivated;
+    Result.ToStateDancing = Input->Dance.IsActivated;
+    Result.ToStateIdle = Input->Dance.IsActivated;
     Result.ToStateActionIdle1 = Random;
     Result.ToStateActionIdle2 = !Random;
     Result.ToStateIdle1 = Random;
     Result.ToStateIdle2 = !Random;
+
+    return Result;
+}
+
+inline animator_params
+GameLogic2AnimatorParams(game_state *State, game_entity *Entity)
+{
+    animator_params Result = {};
+
+    // todo:
+    Result.ToStateActionIdle = Entity->FutureControllable;
+    Result.ToStateStandingIdle = !Entity->FutureControllable;
 
     return Result;
 }
@@ -808,27 +832,34 @@ AnimateEntity(game_state *State, game_entity *Entity, f32 Delta)
 
     animator_params Params = {};
 
-    if (Entity->Controllable)       // todo: ProcessInput happens before AnimateEntity
+    if (Entity->Controllable)
     {
-        Params = GameInput2AnimatorParams(State);
+        Params = GameInput2AnimatorParams(State, Entity);
     }
     else
     {
-        // todo: GameLogic2AnimatorParams ?
+        Params = GameLogic2AnimatorParams(State, Entity);
     }
 
-    AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
-
     skeleton_pose *Pose = Entity->Model->Pose;
+    joint_pose *Root = GetRootLocalJointPose(Pose);
+    joint_pose *Hips = GetRootTranslationLocalJointPose(Pose);
 
-    joint_pose *LocalSpaceOrigin = GetRootLocalJointPose(Pose);
-    LocalSpaceOrigin->Translation = Entity->Transform.Translation;
-    LocalSpaceOrigin->Rotation = Entity->Transform.Rotation;
-    LocalSpaceOrigin->Scale = Entity->Transform.Scale;
-
+    AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
     AnimationGraphPerFrameUpdate(Entity->Animation, Delta);
     CalculateSkeletonPose(Entity->Animation, Pose, &State->PermanentArena);
-    UpdateGlobalJointPoses(Pose, Entity->Transform);
+
+    // Root Motion
+    {
+        Entity->AccRootMotion.x += Pose->RootMotion.x;
+        Entity->AccRootMotion.z += Pose->RootMotion.z;
+    }
+
+    Root->Translation = Entity->Transform.Translation;
+    Root->Rotation = Entity->Transform.Rotation;
+    Root->Scale = Entity->Transform.Scale;
+
+    UpdateGlobalJointPoses(Pose);
 }
 
 DLLExport GAME_INIT(GameInit)
@@ -856,6 +887,7 @@ DLLExport GAME_INIT(GameInit)
     State->Animator.ControllerCount = 31;
     State->Animator.Controllers = PushArray(&State->PermanentArena, State->Animator.ControllerCount, animator_controller);
 
+    // todo: this breaks live code reloading (and StartGameProcess too)
     animator_controller *PelegriniController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *)"Pelegrini");
     PelegriniController->Func = PelegriniAnimatorController;
 
@@ -880,7 +912,7 @@ DLLExport GAME_INIT(GameInit)
     State->DirectionalLight.Color = vec3(1.f);
     State->DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
 
-    State->RNG = RandomSequence(42);
+    State->Entropy = RandomSequence(42);
 
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
@@ -900,7 +932,7 @@ DLLExport GAME_INIT(GameInit)
     State->Pelegrini->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
     AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
-    AddAnimationComponent(State->Pelegrini, "Pelegrini", &State->PermanentArena);
+    AddAnimationComponent(State->Pelegrini, "Bot", &State->PermanentArena);
 
     // xBot
     State->xBot = CreateGameEntity(State);
@@ -927,14 +959,16 @@ DLLExport GAME_INIT(GameInit)
     State->Skulls[1]->Model = GetModelAsset(&State->Assets, "Skull");
 
     // Dummy
-    State->Dummy = CreateGameEntity(State);
-    AddRigidBodyComponent(State->Dummy, vec3(0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), &State->PermanentArena);
+    /*State->Dummy = CreateGameEntity(State);
+    AddRigidBodyComponent(State->Dummy, vec3(0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), &State->PermanentArena);*/
 
     // Player
     //State->Player = State->xBot;
     //State->Player = State->yBot;
-    //State->Player = State->Pelegrini;
-    State->Player = State->Dummy;
+    State->Player = State->Pelegrini;
+    //State->Player = State->Dummy;
+
+    State->Player->FutureControllable = true;
 #if 0
     // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
     GenerateRoom(State, vec3(0.f), vec2(16.f, 10.f), vec3(2.f));
@@ -970,6 +1004,30 @@ DLLExport GAME_INIT(GameInit)
     }
 }
 
+inline game_entity *
+GetPrevHero(game_state *State)
+{
+    game_entity *Result = State->Dummy;
+
+    if (State->Player == State->Pelegrini) Result = State->xBot;
+    if (State->Player == State->yBot) Result = State->Pelegrini;
+    if (State->Player == State->xBot) Result = State->yBot;
+
+    return Result;
+}
+
+inline game_entity *
+GetNextHero(game_state *State)
+{
+    game_entity *Result = State->Dummy;
+
+    if (State->Player == State->Pelegrini) Result = State->yBot;
+    if (State->Player == State->yBot) Result = State->xBot;
+    if (State->Player == State->xBot) Result = State->Pelegrini;
+
+    return Result;
+}
+
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 {
     game_state *State = GetGameState(Memory);
@@ -986,7 +1044,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     vec2 Move = Input->Move.Range;
 
-    if ((Move.x == -1.f || Move.x == 1.f) && (Move.y == -1.f || Move.y == 1.f))
+    if (Abs(Move.x) == 1.f && Abs(Move.y) == 1.f)
     {
         Move = Normalize(Move);
     }
@@ -1008,32 +1066,24 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         State->Advance = true;
     }
 
-    if (Input->ChooseHero1.IsActivated)
+    if (Input->ChoosePrevHero.IsActivated)
     {
-        State->Player->Controllable = false;
-        State->Player = State->yBot;
-        State->Player->Controllable = true;
+        State->Player->FutureControllable = false;
+        State->Player->Body->Acceleration = vec3(0.f);
+
+        State->Player = GetPrevHero(State);
+
+        State->Player->FutureControllable = true;
     }
 
-    if (Input->ChooseHero2.IsActivated)
+    if (Input->ChooseNextHero.IsActivated)
     {
-        State->Player->Controllable = false;
-        State->Player = State->Pelegrini;
-        State->Player->Controllable = true;
-    }
+        State->Player->FutureControllable = false;
+        State->Player->Body->Acceleration = vec3(0.f);
 
-    if (Input->ChooseHero3.IsActivated)
-    {
-        State->Player->Controllable = false;
-        State->Player = State->xBot;
-        State->Player->Controllable = true;
-    }
+        State->Player = GetNextHero(State);
 
-    if (Input->ChooseDummy.IsActivated)
-    {
-        State->Player->Controllable = false;
-        State->Player = State->Dummy;
-        State->Player->Controllable = true;
+        State->Player->FutureControllable = true;
     }
 
     if (Input->LeftClick.IsActivated)
@@ -1054,7 +1104,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
                 vec3 HalfSize = Entity->Body 
                     ? Entity->Body->HalfSize
-                    : Entity->Transform.Scale *GetAABBHalfSize(Entity->Model->Bounds);
+                    : GetModelHalfSize(Entity->Model, Entity->Transform);
 
                 vec3 Center = Entity->Transform.Translation + vec3(0.f, HalfSize.y, 0.f);
                 aabb Box = CreateAABBCenterHalfSize(Center, HalfSize);
@@ -1101,51 +1151,41 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             // Camera
             // https://www.gamasutra.com/blogs/YoannPignole/20150928/249412/Third_person_camera_design_with_free_move_zone.php
-            f32 PlayerCameraSensitivity = 2.f;
+            game_camera *PlayerCamera = &State->PlayerCamera;
 
-            State->PlayerCamera.Pitch -= Input->Camera.Range.y * PlayerCameraSensitivity * Parameters->Delta;
-            State->PlayerCamera.Pitch = Clamp(State->PlayerCamera.Pitch, RADIANS(0.f), RADIANS(89.f));
+            f32 PlayerCameraSensitivity = 0.01f;
 
-            State->PlayerCamera.Yaw += Input->Camera.Range.x * PlayerCameraSensitivity * Parameters->Delta;
-            State->PlayerCamera.Yaw = Mod(State->PlayerCamera.Yaw, 2 * PI);
+            PlayerCamera->Pitch -= Input->Camera.Range.y * PlayerCameraSensitivity;
+            PlayerCamera->Pitch = Clamp(PlayerCamera->Pitch, RADIANS(0.f), RADIANS(89.f));
 
-            State->PlayerCamera.Radius -= Input->ZoomDelta * 250.0f * Parameters->Delta;
-            State->PlayerCamera.Radius = Clamp(State->PlayerCamera.Radius, 10.f, 70.f);
+            PlayerCamera->Yaw += Input->Camera.Range.x * PlayerCameraSensitivity;
+            PlayerCamera->Yaw = Mod(PlayerCamera->Yaw, 2 * PI);
 
-            f32 CameraHeight = Max(0.1f, State->PlayerCamera.Radius * Sin(State->PlayerCamera.Pitch));
+            PlayerCamera->Radius -= Input->ZoomDelta * 1.0f;
+            PlayerCamera->Radius = Clamp(PlayerCamera->Radius, 10.f, 70.f);
+
+            f32 CameraHeight = Max(0.1f, PlayerCamera->Radius * Sin(PlayerCamera->Pitch));
 
             vec3 PlayerPosition = State->Player->Transform.Translation;
-#if 1
-            // todo(continue): smooth translation to player position
-            State->PlayerCamera.Position.x = PlayerPosition.x +
-                Sqrt(Square(State->PlayerCamera.Radius) - Square(CameraHeight)) * Sin(State->PlayerCamera.Yaw);
-            State->PlayerCamera.Position.y = PlayerPosition.y + CameraHeight;
-            State->PlayerCamera.Position.z = PlayerPosition.z -
-                Sqrt(Square(State->PlayerCamera.Radius) - Square(CameraHeight)) * Cos(State->PlayerCamera.Yaw);
 
-            // todo:
-            vec3 CameraLookAtPoint = PlayerPosition + vec3(0.f, 4.f, 0.f);
-#else
-            // Attempt to make camera with free movement radius...
-            f32 Distance = Magnitude(PlayerPosition - State->PlayerCamera.Pivot);
-
-            f32 FreeMoveRadius = 1.f;
-
-            if (Distance > FreeMoveRadius)
+            if (PlayerPosition != PlayerCamera->PivotPosition)
             {
-                SetVec3Lerp(&State->PlayerCamera.PositionLerp, 0.f, 0.25f, State->PlayerCamera.Pivot, PlayerPosition);
-
-                StartGameProcess(State, Stringify(CameraLerpProcess), CameraLerpProcess);
+                f32 Distance = Magnitude(PlayerPosition - PlayerCamera->PivotPosition);
+                f32 Duration = LogisticFunction(0.4f, 0.5f, 5.f, Distance);
+                
+                SetVec3Lerp(&PlayerCamera->PivotPositionLerp, 0.f, Duration, PlayerCamera->PivotPosition, PlayerPosition);
+                StartGameProcess(State, CameraPivotPositionLerpProcess);
             }
 
-            State->PlayerCamera.Position.x = State->PlayerCamera.Pivot.x + Sqrt(Square(State->PlayerCamera.Radius) - Square(CameraHeight)) * Sin(State->PlayerCamera.Yaw);
-            State->PlayerCamera.Position.y = State->PlayerCamera.Pivot.y + CameraHeight;
-            State->PlayerCamera.Position.z = State->PlayerCamera.Pivot.z - Sqrt(Square(State->PlayerCamera.Radius) - Square(CameraHeight)) * Cos(State->PlayerCamera.Yaw);
+            PlayerCamera->Position.x = PlayerCamera->PivotPosition.x +
+                Sqrt(Square(PlayerCamera->Radius) - Square(CameraHeight)) * Sin(PlayerCamera->Yaw);
+            PlayerCamera->Position.y = PlayerCamera->PivotPosition.y + CameraHeight;
+            PlayerCamera->Position.z = PlayerCamera->PivotPosition.z -
+                Sqrt(Square(PlayerCamera->Radius) - Square(CameraHeight)) * Cos(PlayerCamera->Yaw);
 
-            vec3 CameraLookAtPoint = State->PlayerCamera.Pivot; //+ vec3(0.f, 4.f, 0.f);
-#endif
-
-            State->PlayerCamera.Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Position);
+            // todo:
+            vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 4.f, 0.f);
+            PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Position);
             
             /*
 *               todo:
@@ -1154,12 +1194,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             */
 
             game_entity *Player = State->Player;
-
-            if (Input->Activate.IsActivated)
-            {
-                Player->Controllable = !Player->Controllable;
-                //StartGameProcess(State, Stringify(PlayerControllableProcess), PlayerControllableProcess);
-            }
 
             // todo:
             if (Player->Controllable)
@@ -1177,8 +1211,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
                 State->TargetMove = Move;
 
-                Player->Body->Acceleration.x = (xMoveX + xMoveY) * 120.f;
-                Player->Body->Acceleration.z = (zMoveX + zMoveY) * 120.f;
+                //Player->Body->Acceleration.x = (xMoveX + xMoveY) * 120.f;
+                //Player->Body->Acceleration.z = (zMoveX + zMoveY) * 120.f;
 
                 quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
 
@@ -1191,7 +1225,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     // todo: make helper function to generate names for game processes
                     //AttachChildGameProcess(State, Stringify(PlayerOrientationLerpProcess), "PlayerOrientationLerpProcess_DelayProcess", DelayProcess);
                     //AttachChildGameProcess(State, "PlayerOrientationLerpProcess_DelayProcess", "PlayerOrientationLerpProcess_DelayProcess_ChangeBackgroundProcess", ChangeBackgroundProcess);
-                    StartGameProcess(State, Stringify(PlayerOrientationLerpProcess), PlayerOrientationLerpProcess);
+                    StartGameProcess(State, PlayerOrientationLerpProcess);
                 }
                 else
                 {
@@ -1203,30 +1237,31 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
         case GameMode_Edit:
         {
-            f32 FreeCameraSpeed = 40.f;
-            f32 FreeCameraSensitivity = 2.f;
+            game_camera *FreeCamera = &State->FreeCamera;
+
+            f32 FreeCameraSpeed = 30.f;
+            f32 FreeCameraSensitivity = 0.02f;
 
             if (Input->EnableFreeCameraMovement.IsActive)
             {
                 Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-                State->FreeCamera.Pitch += Input->Camera.Range.y * FreeCameraSensitivity * Parameters->Delta;
-                State->FreeCamera.Pitch = Clamp(State->FreeCamera.Pitch, RADIANS(-89.f), RADIANS(89.f));
+                FreeCamera->Pitch += Input->Camera.Range.y * FreeCameraSensitivity;
+                FreeCamera->Pitch = Clamp(FreeCamera->Pitch, RADIANS(-89.f), RADIANS(89.f));
 
-                State->FreeCamera.Yaw += Input->Camera.Range.x * FreeCameraSensitivity * Parameters->Delta;
-                State->FreeCamera.Yaw = Mod(State->FreeCamera.Yaw, 2 * PI);
+                FreeCamera->Yaw += Input->Camera.Range.x * FreeCameraSensitivity;
+                FreeCamera->Yaw = Mod(FreeCamera->Yaw, 2 * PI);
 
-                State->FreeCamera.Direction = CalculateDirectionFromEulerAngles(State->FreeCamera.Pitch, State->FreeCamera.Yaw);
+                FreeCamera->Direction = CalculateDirectionFromEulerAngles(FreeCamera->Pitch, FreeCamera->Yaw);
             }
             else
             {
                 Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
             }
 
-            State->FreeCamera.Position += (
-                    Move.x * (Normalize(Cross(State->FreeCamera.Direction, State->FreeCamera.Up))) +
-                    Move.y * State->FreeCamera.Direction
-                ) * FreeCameraSpeed * Parameters->Delta;
+            FreeCamera->Position += (
+                Move.x * (Normalize(Cross(FreeCamera->Direction, FreeCamera->Up))) +
+                Move.y * FreeCamera->Direction) * FreeCameraSpeed * Parameters->Delta;
 
             break;
         }
@@ -1261,39 +1296,57 @@ DLLExport GAME_UPDATE(GameUpdate)
             aabb PlayerBox = CreateAABBCenterHalfSize(BoxCenter, BoxHalfSize);
 #endif
 
-            //for (u32 RigidBodyIndex = 0; RigidBodyIndex < State->RigidBodiesCount; ++RigidBodyIndex)
+            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
-                rigid_body *Body = State->Player->Body;
+                game_entity *Entity = State->Entities + EntityIndex;
+                rigid_body *Body = Entity->Body;
 
-                //AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
-                Integrate(Body, Parameters->UpdateRate);
+                if (Body)
+                { 
+                    //AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
+                    Integrate(Body, Parameters->UpdateRate);
 
-                aabb BodyAABB = GetRigidBodyAABB(Body);
-
+                    aabb BodyAABB = GetRigidBodyAABB(Body);
 #if 0
-                // todo: dymamic intersection test
-                if (TestAABBPlane(BodyAABB, State->Ground))
-                {
-                    ResolveVelocity(Body, &State->Ground, Parameters->UpdateRate, 0.f);
-
-                    f32 Overlap = GetAABBPlaneMinDistance(BodyAABB, State->Ground);
-                    ResolveIntepenetration(Body, &State->Ground, Overlap);
-                    Body->Acceleration = vec3(0.f);
-                }
-#endif
-
-                /*for (u32 OtherRigidBodyIndex = RigidBodyIndex + 1; OtherRigidBodyIndex < State->RigidBodiesCount; ++OtherRigidBodyIndex)
-                {
-                    rigid_body *OtherBody = State->RigidBodies + OtherRigidBodyIndex;
-
-                    aabb OtherBodyAABB = GetRigidBodyAABB(OtherBody);
-
-                    if (TestAABBAABB(BodyAABB, OtherBodyAABB))
+                    // todo: dymamic intersection test
+                    if (TestAABBPlane(BodyAABB, State->Ground))
                     {
-                        State->BackgroundColor = vec3(1.f, 0.f, 0.f);
+                        ResolveVelocity(Body, &State->Ground, Parameters->UpdateRate, 0.f);
+
+                        f32 Overlap = GetAABBPlaneMinDistance(BodyAABB, State->Ground);
+                        ResolveIntepenetration(Body, &State->Ground, Overlap);
+                        Body->Acceleration = vec3(0.f);
                     }
-                }*/
+#endif
+                    /*for (u32 OtherRigidBodyIndex = RigidBodyIndex + 1; OtherRigidBodyIndex < State->RigidBodiesCount; ++OtherRigidBodyIndex)
+                    {
+                        rigid_body *OtherBody = State->RigidBodies + OtherRigidBodyIndex;
+
+                        aabb OtherBodyAABB = GetRigidBodyAABB(OtherBody);
+
+                        if (TestAABBAABB(BodyAABB, OtherBodyAABB))
+                        {
+                            State->BackgroundColor = vec3(1.f, 0.f, 0.f);
+                        }
+                    }*/
+                }
             }
+        }
+    }
+
+    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+    {
+        game_entity *Entity = State->Entities + EntityIndex;
+
+        if (Entity->Body)
+        {
+            vec3 ScaledRootMotion = Entity->AccRootMotion * Entity->Transform.Scale;
+            vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
+
+            Entity->Body->PrevPosition = Entity->Body->Position;
+            Entity->Body->Position += RotatedScaledRootMotion;
+
+            Entity->AccRootMotion = vec3(0.f);
         }
     }
 }
@@ -1318,10 +1371,6 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_World:
         case GameMode_Edit:
         {
-            vec3 xAxis = vec3(1.f, 0.f, 0.f);
-            vec3 yAxis = vec3(0.f, 1.f, 0.f);
-            vec3 zAxis = vec3(0.f, 0.f, 1.f);
-
             game_camera *Camera = State->Mode == GameMode_World 
                 ? &State->PlayerCamera
                 : &State->FreeCamera;
@@ -1386,7 +1435,7 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
-            // todo: naming
+            // todo: ???
             f32 InterpolationTime = 0.2f;
             vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
             State->CurrentMove += dMove * Parameters->Delta;
@@ -1401,6 +1450,11 @@ DLLExport GAME_RENDER(GameRender)
                 // Rigid bodies movement
                 if (Entity->Body)
                 {
+                    if (Entity->Body->PrevPosition == Entity->Body->Position)
+                    {
+                        int t = 0;
+                    }
+
                     Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Lag, Entity->Body->Position);
                     Entity->Transform.Rotation = Entity->Body->Orientation;
                 }
@@ -1422,6 +1476,8 @@ DLLExport GAME_RENDER(GameRender)
 
                     AddEntityToRenderBatch(Batch, Entity);
                 }
+
+                Entity->Controllable = Entity->FutureControllable;
             }
 
             // Pushing entities into render buffer

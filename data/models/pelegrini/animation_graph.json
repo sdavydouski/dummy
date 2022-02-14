@@ -1,65 +1,83 @@
 {
    "version":"0.0.1",
-   "graph": {
-      "name":"Pelegrini Animation Graph",
-      "entry":"StateIdle",
+   "graph":{
+      "name":"Pelegrini animation graph",
+      "entry":"StandingIdle",
       "nodes":[
          {
-            "name":"StateIdle",
-            "type":"Graph",
-            "entry":"StateIdle_0",
+            "name":"StandingIdle",
+            "type":"Animation",
+            "clip":"standing_idle",
+            "looping":true,
             "transitions":[
                {
-                  "to":"StateWalking",
+                  "to":"ActionIdle",
+                  "type":"transitional",
+                  "through":"StandingIdleToActionIdle"
+               }
+            ]
+         },
+         {
+            "name":"ActionIdle",
+            "type":"Graph",
+            "entry":"ActionIdle_0",
+            "transitions":[
+               {
+                  "to":"StandingIdle",
+                  "type":"transitional",
+                  "through":"ActionIdleToStandingIdle"
+               },
+               {
+                  "to":"Moving",
                   "type":"crossfade",
                   "blend":0.2
                },
                {
-                  "to":"StateDancing",
+                  "to":"Dancing",
                   "type":"crossfade",
                   "blend":0.2
                }
             ],
             "nodes":[
                {
-                  "name":"StateIdle_0",
+                  "name":"ActionIdle_0",
                   "type":"Animation",
-                  "clip":"idle_0",
+                  "clip":"action_idle_0",
                   "looping":true,
                   "transitions":[
                      {
-                        "to":"StateIdle_1",
+                        "to":"ActionIdle_1",
                         "type":"crossfade",
                         "blend":0.2
                      },
                      {
-                        "to":"StateIdle_2",
+                        "to":"ActionIdle_2",
                         "type":"crossfade",
                         "blend":0.2
                      }
                   ]
                },
                {
-                  "name":"StateIdle_1",
+                  "name":"ActionIdle_1",
                   "type":"Animation",
-                  "clip":"idle_1",
+                  "clip":"action_idle_1",
                   "looping":false,
                   "transitions":[
                      {
-                        "to":"StateIdle_0",
+                        "to":"ActionIdle_0",
                         "type":"crossfade",
                         "blend":0.2
                      }
                   ]
                },
                {
-                  "name":"StateIdle_2",
+                  "name":"ActionIdle_2",
                   "type":"Animation",
-                  "clip":"idle_2",
+                  "clip":"action_idle_2",
                   "looping":false,
                   "transitions":[
                      {
-                        "to":"StateIdle_0",
+                        "to":"ActionIdle_0",
                         "type":"crossfade",
                         "blend":0.2
                      }
@@ -67,46 +85,79 @@
                }
             ]
          },
-         {  
-            "name":"StateWalking",
+         {
+            "name":"Moving",
             "type":"Blendspace",
             "values":[
                {
                   "value":0,
-                  "clip":"idle_3",
-                  "looping":true
+                  "clip":"idle_blend"
                },
                {
                   "value":0.5,
-                  "clip":"walking",
-                  "looping":true
+                  "clip":"walking_blend_root_motion"
                },
                {
                   "value":1,
-                  "clip":"running",
-                  "looping":true
+                  "clip":"running_blend_root_motion"
                }
             ],
             "transitions":[
                {
-                  "to":"StateIdle",
+                  "to":"ActionIdle",
                   "type":"crossfade",
                   "blend":0.2
                }
             ]
          },
          {
-            "name":"StateDancing",
+            "name":"Dancing",
             "type":"Animation",
-            "clip":"samba",
+            "clip":"samba_dance",
             "looping":true,
             "transitions":[
                {
-                  "to":"StateIdle",
+                  "to":"ActionIdle",
                   "type":"crossfade",
                   "blend":0.2
                }
             ]
+         },
+         {
+            "name":"StandingIdleToActionIdle",
+            "type":"Animation",
+            "clip":"standing_idle_to_action_idle",
+            "looping":false,
+            "transitions":[
+               {
+                 "to": "ActionIdle",
+                 "type": "crossfade",
+                 "blend": 0.1
+               },
+              {
+                 "to": "StandingIdle",
+                 "type": "crossfade",
+                 "blend": 0.4
+              }
+            ]
+         },
+         {
+            "name":"ActionIdleToStandingIdle",
+            "type":"Animation",
+            "clip":"action_idle_to_standing_idle",
+            "looping":false,
+            "transitions": [
+              {
+                 "to": "StandingIdle",
+                 "type": "crossfade",
+                 "blend": 0.1
+              },
+              {
+                 "to": "ActionIdle",
+                 "type": "crossfade",
+                 "blend": 0.4
+              }
+          ]
          }
       ]
    }

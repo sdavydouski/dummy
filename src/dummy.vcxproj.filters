@@ -19,6 +19,7 @@
     <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_random.h" />
     <ClInclude Include="dummy_container.h" />
+    <ClInclude Include="dummy_input.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_assets.cpp" />

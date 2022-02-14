@@ -88,13 +88,19 @@ struct vec3
         b32 Result = x > Vector.x &&y > Vector.y &&z > Vector.z;
         return Result;
     }
-
-    inline b32 operator ==(vec3 Vector)
-    {
-        b32 Result = x == Vector.x && y == Vector.y && z == Vector.z;
-        return Result;
-    }
 };
+
+inline b32 operator ==(vec3 a, vec3 b)
+{
+    b32 Result = a.x == b.x && a.y == b.y && a.z == b.z;
+    return Result;
+}
+
+inline b32 operator !=(vec3 a, vec3 b)
+{
+    b32 Result = !(a == b);
+    return Result;
+}
 
 inline vec3 &operator +=(vec3 &Dest, vec3 Vector)
 {

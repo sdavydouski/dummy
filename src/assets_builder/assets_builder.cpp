@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <filesystem>
+#include <stdlib.h>
 
 #include "rapidjson/document.h"
 
@@ -593,6 +594,13 @@ WriteAssetFile(const char *FilePath, model_asset *Asset)
 {
     FILE *AssetFile = fopen(FilePath, "wb");
 
+    if (!AssetFile)
+    {
+        errno_t Error;
+        _get_errno(&Error);
+        Assert(!"Panic");
+    }
+
     model_asset_header Header = {};
     Header.MagicValue = 0x451;
     Header.Version = 1;
@@ -918,6 +926,7 @@ i32 main(i32 ArgCount, char **Args)
             FormatString(FilePath, "%s/%s.fbx", DirectoryPath.generic_string().c_str(), DirectoryName.generic_string().c_str());
 
             char AnimationConfigPath[256];
+            // todo: move to yaml configs
             FormatString(AnimationConfigPath, "%s/animation_graph.json", DirectoryPath.generic_string().c_str());
 
             char AnimationClipsPath[256];

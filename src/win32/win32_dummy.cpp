@@ -2,12 +2,13 @@
 #include <xinput.h>
 
 #include "dummy_defs.h"
-#include "dummy_platform.h"
-#include "dummy_string.h"
 #include "dummy_math.h"
+#include "dummy_string.h"
+#include "dummy_memory.h"
+#include "dummy_renderer.h"
+#include "dummy_input.h"
+#include "dummy_platform.h"
 #include "win32_dummy.h"
-
-#define DEBUG_UI 1
 
 inline FILETIME
 Win32GetLastWriteTime(char *FileName)
@@ -25,6 +26,8 @@ Win32GetLastWriteTime(char *FileName)
 
 #include "win32_dummy_opengl.cpp"
 #include "dummy_opengl.cpp"
+
+#define DEBUG_UI 1
 
 #if DEBUG_UI
 #include "dummy_debug.cpp"
@@ -380,7 +383,7 @@ Win32ProcessXboxControllerTrigger(BYTE Trigger)
 internal void
 Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_input_xbox_controller *XboxControllerInput)
 {
-    SavePrevButtonState(&XboxControllerInput->Start);
+    BeginProcessXboxControllerInput(XboxControllerInput);
 
     XINPUT_STATE PrevControllerState = {};
     XINPUT_STATE CurrentControllerState = {};
@@ -403,12 +406,24 @@ Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_in
             XboxControllerInput->LeftTrigger = Win32ProcessXboxControllerTrigger(CurrentControllerState.Gamepad.bLeftTrigger);
             XboxControllerInput->RightTrigger = Win32ProcessXboxControllerTrigger(CurrentControllerState.Gamepad.bRightTrigger);
 
-            XboxControllerInput->Start.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_START) == XINPUT_GAMEPAD_START;
+            XboxControllerInput->DradUp.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP);
+            XboxControllerInput->DradDown.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+            XboxControllerInput->DradLeft.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+            XboxControllerInput->DradRight.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+
+            XboxControllerInput->Start.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_START);
             XboxControllerInput->Back.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_BACK);
+
+            XboxControllerInput->A.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_A);
+            XboxControllerInput->B.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_B);
+            XboxControllerInput->X.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_X);
+            XboxControllerInput->Y.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_Y);
 
             PrevControllerState = CurrentControllerState;
         }
     }
+
+    EndProcessXboxControllerInput(XboxControllerInput);
 }
 
 internal void
@@ -542,8 +557,6 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
             MouseInput->dx = MouseCursorX - WindowCenterX;
             MouseInput->dy = MouseCursorY - WindowCenterY;
 
-            SetCursorPos(PlatformState->WindowPositionX + WindowCenterX, PlatformState->WindowPositionY + WindowCenterY);
-
             break;
         }
         case MouseMode_Cursor:
@@ -559,7 +572,6 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
             break;
         }
     }
-
 }
 
 internal void
@@ -593,6 +605,10 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                 {
                     Win32ProcessMouseInput(MouseInput, PlatformState, &WindowMessage);
                 }
+
+                TranslateMessage(&WindowMessage);
+                DispatchMessage(&WindowMessage);
+
                 break;
             }
             case WM_LBUTTONDOWN:
@@ -639,6 +655,19 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
             }
         }
     }
+
+    //
+    if (PlatformState->MouseMode == MouseMode_Navigation)
+    {
+        i32 WindowCenterX = PlatformState->WindowWidth / 2;
+        i32 WindowCenterY = PlatformState->WindowHeight / 2;
+
+        if (Abs(MouseInput->dx) > 0 || Abs(MouseInput->dy) > 0)
+        {
+            SetCursorPos(PlatformState->WindowPositionX + WindowCenterX, PlatformState->WindowPositionY + WindowCenterY);
+        }
+    }
+    //
 
     EndProcessMouseInput(MouseInput);
     EndProcessKeyboardInput(KeyboardInput);
@@ -727,123 +756,18 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
     return Result;
 }
 
-//
-#include <intrin.h>
-
-#define WriteBarrier _WriteBarrier(); _mm_sfence();
-#define ReadBarrier _ReadBarrier();
-
-struct win32_thread_proc_parameter
-{
-    u32 ThreadIndex;
-    HANDLE Semaphore;
-};
-
-struct work_queue_entry
-{
-    u32 Data;
-};
-
-#define MAX_ENTRY_COUNT 32
-
-global u32 volatile CompletedEntryIndex;
-global u32 volatile NextEntryIndex;
-global u32 volatile CurrentEntryIndex;
-work_queue_entry Entries[MAX_ENTRY_COUNT];
-
-internal void
-PushEntry(u32 Data, HANDLE Semaphore)
-{
-    Assert(CurrentEntryIndex < MAX_ENTRY_COUNT);
-
-    work_queue_entry *Entry = Entries + CurrentEntryIndex;
-    Entry->Data = Data;
-
-    WriteBarrier;
-
-    ++CurrentEntryIndex;
-
-    ReleaseSemaphore(Semaphore, 1, 0);
-}
-
-DWORD WINAPI ThreadProc(_In_ LPVOID lpParameter)
-{
-    win32_thread_proc_parameter *Parameter = (win32_thread_proc_parameter *)lpParameter;
-
-    while (true)
-    {
-        // todo: InterlockedCompareExchange
-        if (NextEntryIndex < CurrentEntryIndex)
-        {
-            u32 EntryIndex = InterlockedIncrement((LONG volatile *)&NextEntryIndex) - 1;
-
-            ReadBarrier;
-
-            work_queue_entry *Entry = Entries + EntryIndex;
-
-            Win32DebugPrintString("Thread %d: Work #%d\n", Parameter->ThreadIndex, Entry->Data);
-
-            InterlockedIncrement((LONG volatile *)&CompletedEntryIndex);
-        }
-        else
-        {
-            WaitForSingleObject(Parameter->Semaphore, INFINITE);
-        }
-    }
-
-    return 0;
-}
-//
-
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
-#if 0
-    // Multithreading playground 
-    SYSTEM_INFO SystemInfo;
-    GetSystemInfo(&SystemInfo);
-
-    u32 ThreadCount = SystemInfo.dwNumberOfProcessors - 1;
-
-    win32_thread_proc_parameter ThreadParameters[32];
-
-    HANDLE Semaphore = CreateSemaphore(0, 0, ThreadCount, 0);
-
-    for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
-    {
-        win32_thread_proc_parameter *ThreadParameter = ThreadParameters + ThreadIndex;
-        ThreadParameter->ThreadIndex = ThreadIndex;
-        ThreadParameter->Semaphore = Semaphore;
-
-        DWORD ThreadId;
-        HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, ThreadParameter, 0, &ThreadId);
-    }
-
-    for (u32 EntryIndex = 0; EntryIndex < 10; ++EntryIndex)
-    {
-        work_queue_entry *Entry = Entries + EntryIndex;
-
-        PushEntry(EntryIndex, Semaphore);
-    }
-
-    //Sleep(1000);
-
-    for (u32 EntryIndex = 0; EntryIndex < 10; ++EntryIndex)
-    {
-        work_queue_entry *Entry = Entries + EntryIndex;
-
-        PushEntry(10 + EntryIndex, Semaphore);
-    }
-
-    while (CurrentEntryIndex != CompletedEntryIndex);
-
-    Win32DebugPrintString("Work has been completed.\n");
-    //
-#endif
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
+#if 1
+    PlatformState.WindowWidth = 3200;
+    PlatformState.WindowHeight = 1800;
+#else
     PlatformState.WindowWidth = 1600;
     PlatformState.WindowHeight = 900;
+#endif
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
@@ -965,6 +889,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         while (PlatformState.IsGameRunning)
         {
             //ImGuiIO &DebugInput = ImGui::GetIO();
+            char WindowTitle[64];
+            FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
+            SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
 
             Win32ProcessWindowMessages(&PlatformState, &KeyboardInput, &MouseInput);
             Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
@@ -1021,9 +948,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             }
 
             win32_platform_state LastPlatformState = PlatformState;
-#if 1
             DEBUG_UI_RENDER(&PlatformState, &GameMemory, &GameParameters);
-#endif
+
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
             {
                 Win32ToggleFullScreen(&PlatformState);
@@ -1062,10 +988,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             GameParameters.Time += GameParameters.Delta;
 
             LastPerformanceCounter = CurrentPerformanceCounter;
-
-            char WindowTitle[64];
-            FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
-            SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
         }
 
         // Cleanup

@@ -5,6 +5,13 @@ GetRootLocalJointPose(skeleton_pose *Pose)
     return Result;
 }
 
+inline joint_pose *
+GetRootTranslationLocalJointPose(skeleton_pose *Pose)
+{
+    joint_pose *Result = Pose->LocalJointPoses + 1;
+    return Result;
+}
+
 inline joint_pose
 Lerp(joint_pose *From, f32 t, joint_pose *To)
 {
@@ -102,61 +109,74 @@ FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime, key_frame **
 
         if (!Found)
         {
-            *Prev = Last(PoseSample->KeyFrames, PoseSample->KeyFrameCount);
-            *Next = First(PoseSample->KeyFrames);
+            *Prev = *Next = Last(PoseSample->KeyFrames, PoseSample->KeyFrameCount);
         }
     }
     else
     {
-        *Prev = First(PoseSample->KeyFrames);
-        *Next = First(PoseSample->KeyFrames);
+        *Prev = *Next = First(PoseSample->KeyFrames);
     }
 }
 
 internal void
-AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_clip *Animation, f32 Time)
+AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_state *Animation)
 {
+    joint_pose *RootTranslationPose = GetRootTranslationLocalJointPose(SkeletonPose);
+
+    vec3 TranslationBefore = Animation->TranslationBefore;
+
     for (u32 JointIndex = 0; JointIndex < SkeletonPose->Skeleton->JointCount; ++JointIndex)
     {
         joint_pose *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
 
-        animation_sample *PoseSample = GetAnimationSampleByJointIndex(Animation, JointIndex);
+        animation_sample *PoseSample = GetAnimationSampleByJointIndex(Animation->Clip, JointIndex);
 
         if (PoseSample)
         {
+            f32 Time = Animation->Time;
+
             key_frame *PrevKeyFrame = 0;
             key_frame *NextKeyFrame = 0;
             FindClosestKeyFrames(PoseSample, Time, &PrevKeyFrame, &NextKeyFrame);
 
             f32 t = 0.f;
 
-            if (PoseSample->KeyFrameCount > 1)
+            if (PoseSample->KeyFrameCount > 1 && PrevKeyFrame != NextKeyFrame)
             {
                 t = (Time - PrevKeyFrame->Time) / (Abs(NextKeyFrame->Time - PrevKeyFrame->Time));
             }
 
-            // todo:
-            //Assert(t >= 0.f && t <= 1.f);
-            if (t >= 0.f && t <= 1.f)
-            {
-                *LocalJointPose = Lerp(&PrevKeyFrame->Pose, t, &NextKeyFrame->Pose);
-            }
+            Assert(t >= 0.f && t <= 1.f);
+            
+            *LocalJointPose = Lerp(&PrevKeyFrame->Pose, t, &NextKeyFrame->Pose);
         }
     }
 
-#if 0   
-    // Root Motion
-    joint_pose *Root = SkeletonPose->LocalJointPoses + 0;
-    joint_pose *Hips = SkeletonPose->LocalJointPoses + 1;
+    vec3 TranslationAfter = RootTranslationPose->Translation;
 
-    vec3 ForwardMotion = Hips->Translation;
-
-    Hips->Translation.x = 0.f;
-    Hips->Translation.z = 0.f;
-
-    //Root->Translation.x = ForwardMotion.x;
-    //Root->Translation.z = ForwardMotion.z;
+    //if (Animation->EnableRootMotion)
+    //if (StringEquals(Animation->Clip->Name, "samba"))
+    {
+        // todo:
+        if (Animation->Time == 0.f)
+        {
+            // todo:
+#if 1
+            SkeletonPose->RootMotion = vec3(0.f);
+#else
+            SkeletonPose->RootMotion = TranslationAfter;
 #endif
+        }
+        else
+        {
+            SkeletonPose->RootMotion = TranslationAfter - TranslationBefore;
+        }
+
+        Animation->TranslationBefore = TranslationAfter;
+
+        RootTranslationPose->Translation.x = 0.f;
+        RootTranslationPose->Translation.z = 0.f;
+    }
 }
 
 inline void
@@ -301,43 +321,61 @@ GetAnimationTransition(animation_node *Node, const char *Name)
     return Result;
 }
 
-// todo: handle transition interruptions (support multiple FadeIn/FadeOut in animation mixer?)
+inline b32
+AllowTransition(animation_graph *Graph, const char *NodeName)
+{
+    b32 Result = true;
+
+    if (Graph->Mixer.FadeIn && Graph->Mixer.FadeOut)
+    {
+        char *FromNodeName = Graph->Mixer.FadeOut->Name;
+        char *ToNodeName = Graph->Mixer.FadeIn->Name;
+
+        Result = StringEquals(NodeName, FromNodeName) || StringEquals(NodeName, ToNodeName);
+    }
+
+    return Result;
+}
+
 internal void
 TransitionToNode(animation_graph *Graph, const char *NodeName)
 {
-    animation_node *FromNode = Graph->Active;
-    animation_transition *Transition = GetAnimationTransition(FromNode, NodeName);
-
-    switch (Transition->Type)
+    if (AllowTransition(Graph, NodeName))
     {
-        case AnimationTransitionType_Immediate:
+        animation_node *FromNode = Graph->Active;
+        animation_transition *Transition = GetAnimationTransition(FromNode, NodeName);
+
+        switch (Transition->Type)
         {
-            animation_node *ToNode = Transition->To;
-            Graph->Active = ToNode;
+            case AnimationTransitionType_Immediate:
+            {
+                animation_node *ToNode = Transition->To;
+                Graph->Active = ToNode;
 
-            DisableAnimationNode(FromNode);
-            EnableAnimationNode(ToNode);
+                DisableAnimationNode(FromNode);
+                EnableAnimationNode(ToNode);
 
-            break;
-        }
-        case AnimationTransitionType_Crossfade:
-        {
-            animation_node *ToNode = Transition->To;
-            Graph->Active = ToNode;
+                break;
+            }
+            case AnimationTransitionType_Crossfade:
+            {
+                animation_node *ToNode = Transition->To;
+                Graph->Active = ToNode;
 
-            CrossFade(&Graph->Mixer, FromNode, ToNode, Transition->Duration);
+                CrossFade(&Graph->Mixer, FromNode, ToNode, Transition->Duration);
 
-            break;
-        }
-        case AnimationTransitionType_Transitional:
-        {
-            animation_node *ToNode = Transition->TransitionNode;
-            Graph->Active = ToNode;
+                break;
+            }
+            case AnimationTransitionType_Transitional:
+            {
+                animation_node *ToNode = Transition->TransitionNode;
+                Graph->Active = ToNode;
 
-            // todo: duration?
-            CrossFade(&Graph->Mixer, FromNode, ToNode, 0.2f);
+                // todo: duration?
+                CrossFade(&Graph->Mixer, FromNode, ToNode, 0.2f);
 
-            break;
+                break;
+            }
         }
     }
 }
@@ -824,15 +862,27 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
             }
         }
 
-        // todo: multithreading?
         // Extracting skeleton pose from each input clip
         for (u32 AnimationIndex = 0; AnimationIndex < ActiveAnimationCount; ++AnimationIndex)
         {
             animation_state *AnimationState = ActiveAnimations[AnimationIndex];
             skeleton_pose *SkeletonPose = SkeletonPoses + AnimationIndex;
 
-            AnimateSkeletonPose(SkeletonPose, AnimationState->Clip, AnimationState->Time);
+            AnimateSkeletonPose(SkeletonPose, AnimationState);
         }
+
+        // Averaging root motion
+        vec3 RootMotion = vec3(0.f);
+
+        for (u32 AnimationIndex = 0; AnimationIndex < ActiveAnimationCount; ++AnimationIndex)
+        {
+            animation_state* AnimationState = ActiveAnimations[AnimationIndex];
+            skeleton_pose* SkeletonPose = SkeletonPoses + AnimationIndex;
+
+            RootMotion = RootMotion + SkeletonPose->RootMotion * AnimationState->Weight;
+        }
+
+        DestPose->RootMotion = RootMotion;
 
         // Lerping between all skeleton poses
         skeleton_pose *Pose = First(SkeletonPoses);
@@ -865,7 +915,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
 }
 
 internal void
-UpdateGlobalJointPoses(skeleton_pose *Pose, transform Transform)
+UpdateGlobalJointPoses(skeleton_pose *Pose)
 {
     for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
     {

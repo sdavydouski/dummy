@@ -42,7 +42,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 }
 
 internal void
@@ -153,7 +153,7 @@ RenderEntityInfo(game_entity *Entity, model *Model)
 internal void
 Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, game_parameters *GameParameters)
 {
-    game_state *GameState = (game_state *)GameMemory->PermanentStorage;
+    game_state *GameState = GetGameState(GameMemory);
 
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
@@ -203,9 +203,9 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
 
     ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters->Delta * 1000.f / PlatformState->TimeRate, PlatformState->TimeRate / GameParameters->Delta);
     ImGui::Text("Window Size: %d, %d", PlatformState->WindowWidth, PlatformState->WindowHeight);
+    ImGui::Text("Time Rate: %.3f", PlatformState->TimeRate);
     ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
     ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
-    ImGui::SliderFloat("Time Rate", &PlatformState->TimeRate, 0.125f, 2.f);
 
     ImGui::End();
 

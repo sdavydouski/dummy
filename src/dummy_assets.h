@@ -280,8 +280,6 @@ struct model_asset_animation_header
 {
     char Name[MAX_ANIMATION_NAME_LENGTH];
     f32 Duration;
-    /*b32 IsLooping;
-    b32 InPlace;*/
     u32 PoseSampleCount;
     u64 PoseSamplesOffset;
 };

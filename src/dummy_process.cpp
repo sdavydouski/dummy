@@ -25,7 +25,7 @@ InitGameProcess(game_process *Process, char *ProcessName, game_process_on_update
 }
 
 internal void
-StartGameProcess(game_state *State, const char *ProcessName, game_process_on_update *OnUpdatePerFrame)
+StartGameProcess_(game_state *State, const char *ProcessName, game_process_on_update *OnUpdatePerFrame)
 {
     game_process *Process = GetGameProcess(State, (char *)ProcessName);
 
@@ -58,6 +58,8 @@ EndGameProcess(game_state *State, const char *ProcessName)
     }
 }
 
+#define StartGameProcess(State, OnUpdatePerFrame) StartGameProcess_(State, #OnUpdatePerFrame, OnUpdatePerFrame)
+
 inline void
 AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildProcessName, game_process_on_update *ChildOnUpdatePerFrame)
 {
@@ -87,9 +89,9 @@ inline GAME_PROCESS_ON_UPDATE(DelayProcess)
 
 inline GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
 {
-    f32 Red = Random01(&State->RNG);
-    f32 Green = Random01(&State->RNG);
-    f32 Blue = Random01(&State->RNG);
+    f32 Red = Random01(&State->Entropy);
+    f32 Green = Random01(&State->Entropy);
+    f32 Blue = Random01(&State->Entropy);
 
     State->DirectionalLight.Color = vec3(Red, Green, Blue);
 
@@ -117,27 +119,21 @@ inline GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
     }
 }
 
-inline GAME_PROCESS_ON_UPDATE(CameraLerpProcess)
+inline GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
 {
-    if (State->PlayerCamera.PositionLerp.Duration > 0.f)
+    if (State->PlayerCamera.PivotPositionLerp.Duration > 0.f)
     {
-        State->PlayerCamera.PositionLerp.Time += Delta;
+        State->PlayerCamera.PivotPositionLerp.Time += Delta;
 
-        f32 t = State->PlayerCamera.PositionLerp.Time / State->PlayerCamera.PositionLerp.Duration;
+        f32 t = State->PlayerCamera.PivotPositionLerp.Time / State->PlayerCamera.PivotPositionLerp.Duration;
 
         if (t <= 1.f)
         {
-            State->PlayerCamera.Pivot = Lerp(State->PlayerCamera.PositionLerp.From, t, State->PlayerCamera.PositionLerp.To);
+            State->PlayerCamera.PivotPosition = Lerp(State->PlayerCamera.PivotPositionLerp.From, t, State->PlayerCamera.PivotPositionLerp.To);
         }
         else
         {
             EndGameProcess(State, Process->Name);
         }
     }
-}
-
-inline GAME_PROCESS_ON_UPDATE(PlayerControllableProcess)
-{
-    State->Player->Controllable = !State->Player->Controllable;
-    EndGameProcess(State, Process->Name);
 }

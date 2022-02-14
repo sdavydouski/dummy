@@ -115,9 +115,9 @@ Win32InitOpenGL(win32_opengl_state *State, HINSTANCE hInstance, HWND WindowHandl
                     WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
                     WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
                     WGL_COLOR_BITS_ARB, 32,
+                    WGL_DEPTH_BITS_ARB, 24,
+                    WGL_STENCIL_BITS_ARB, 8,
                     WGL_ALPHA_BITS_ARB, 8,
-                    WGL_DEPTH_BITS_ARB, 0,
-                    WGL_STENCIL_BITS_ARB, 0,
                     WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
                     WGL_SAMPLES_ARB, 8,
                     0

@@ -185,6 +185,11 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
     }
     else if (StringEquals(Active->Name, "StandingIdleToActionIdle"))
     {
+        if (Params.ToStateStandingIdle)
+        {
+            TransitionToNode(Graph, "StandingIdle");
+        }
+
         if (Active->Animation.Time >= Active->Animation.Clip->Duration)
         {
             TransitionToNode(Graph, "ActionIdle");
@@ -192,6 +197,11 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
     }
     else if (StringEquals(Active->Name, "ActionIdleToStandingIdle"))
     {
+        if (Params.ToStateActionIdle)
+        {
+            TransitionToNode(Graph, "ActionIdle");
+        }
+
         if (Active->Animation.Time >= Active->Animation.Clip->Duration)
         {
             TransitionToNode(Graph, "StandingIdle");

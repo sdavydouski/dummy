@@ -131,3 +131,14 @@ GetRotationMatrix(quat q)
 
     return Result;
 }
+
+inline vec3
+Rotate(vec3 v, quat q)
+{
+    vec3 b = vec3(q.x, q.y, q.z);
+    f32 b2 = Square(b.x) + Square(b.y) + Square(b.z);
+
+    vec3 Result = (v * (Square(q.w) - b2) + b * (Dot(v, b) * 2.f) + Cross(b, v) * q.w * 2.f);
+
+    return Result;
+}

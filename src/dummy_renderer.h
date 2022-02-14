@@ -114,6 +114,7 @@ struct render_command_add_mesh
     u32 IndexCount;
     u32 *Indices;
 
+    u32 SkinningMatrixCount;
     u32 MaxInstanceCount;
 };
 

@@ -136,6 +136,27 @@ OpenGLGetMeshBuffer(opengl_state *State, u32 Id)
     return Result;
 }
 
+inline opengl_skinned_mesh_buffer *
+OpenGLGetSkinnedMeshBuffer(opengl_state *State, u32 Id)
+{
+    opengl_skinned_mesh_buffer *Result = 0;
+
+    for (u32 SkinnedMeshBufferIndex = 0; SkinnedMeshBufferIndex < State->CurrentSkinnedMeshBufferCount; ++SkinnedMeshBufferIndex)
+    {
+        opengl_skinned_mesh_buffer *SkinnedMeshBuffer = State->SkinnedMeshBuffers + SkinnedMeshBufferIndex;
+
+        if (SkinnedMeshBuffer->Buffer->Id == Id)
+        {
+            Result = SkinnedMeshBuffer;
+            break;
+        }
+    }
+
+    Assert(Result);
+
+    return Result;
+}
+
 // todo: use hashtable
 inline opengl_texture *
 OpenGLGetTexture(opengl_state *State, u32 Id)
@@ -344,6 +365,36 @@ OpenGLAddMeshBuffer(
     MeshBuffer->EBO = EBO;
 
     MeshBuffer->BufferSize = BufferSize;
+}
+
+internal void
+OpenGLAddSkinnedMeshBuffer(
+    opengl_state *State,
+    u32 MeshId,
+    u32 VertexCount,
+    vec3 *Positions,
+    vec3 *Normals,
+    vec3 *Tangents,
+    vec3 *Bitangents,
+    vec2 *TextureCoords,
+    vec4 *Weights,
+    i32 *JointIndices,
+    u32 IndexCount,
+    u32 *Indices,
+    u32 SkinningMatrixCount
+)
+{
+    OpenGLAddMeshBuffer(State, MeshId, VertexCount, Positions, Normals, Tangents, Bitangents, TextureCoords, Weights, JointIndices, IndexCount, Indices);
+
+    opengl_skinned_mesh_buffer *SkinnedMeshBuffer = State->SkinnedMeshBuffers + State->CurrentSkinnedMeshBufferCount++;
+    SkinnedMeshBuffer->Buffer = OpenGLGetMeshBuffer(State, MeshId);
+
+    glGenBuffers(1, &SkinnedMeshBuffer->SkinningTBO);
+    glBindBuffer(GL_TEXTURE_BUFFER, SkinnedMeshBuffer->SkinningTBO);
+    glBufferData(GL_TEXTURE_BUFFER, SkinningMatrixCount * sizeof(mat4), 0, GL_STREAM_DRAW);
+    glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+    glGenTextures(1, &SkinnedMeshBuffer->SkinningTBOTexture);
 }
 
 internal void
@@ -941,11 +992,11 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
 
         // todo: use RenderTarget somehow?
-        //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->MultiSampledFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->MultiSampledFBO);
 
-        u32 ShadowMapWidth = 2048;
-        u32 ShadowMapHeight = 2048;
+        u32 ShadowMapWidth = 1024;
+        u32 ShadowMapHeight = 1024;
 
 #if 0
         // todo: if initialized
@@ -998,14 +1049,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 //
 
-                glGenBuffers(1, &State->SkinningTBO);
-                glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
-                // todo: size?
-                glBufferData(GL_TEXTURE_BUFFER, Kilobytes(32), 0, GL_STREAM_DRAW);
-                glBindBuffer(GL_TEXTURE_BUFFER, 0);
-
-                glGenTextures(1, &State->SkinningTBOTexture);
-
                 glGenBuffers(1, &State->ShaderStateUBO);
                 glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
                 glBufferData(GL_UNIFORM_BUFFER, sizeof(opengl_shader_state), NULL, GL_STREAM_DRAW);
@@ -1027,7 +1070,10 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 glCullFace(GL_BACK);
 
                 glFrontFace(GL_CCW);
+
                 glEnable(GL_DEPTH_TEST);
+                glDepthFunc(GL_LESS);
+
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                 glEnable(GL_LINE_SMOOTH);
@@ -1043,13 +1089,21 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_add_mesh *Command = (render_command_add_mesh *)Entry;
 
-                // todo: maybe split into two separate commands (AddMesh/AddMeshInstanced)?
+                // todo: maybe split into two separate commands (AddMesh/AddSkinnedMesh/AddMeshInstanced)?
                 if (Command->MaxInstanceCount > 0)
                 {
                     OpenGLAddMeshBufferInstanced(
                         State, Command->MeshId, Command->VertexCount, 
                         Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices, 
                         Command->IndexCount, Command->Indices, Command->MaxInstanceCount
+                    );
+                }
+                else if (Command->SkinningMatrixCount > 0)
+                {
+                    OpenGLAddSkinnedMeshBuffer(
+                        State, Command->MeshId, Command->VertexCount,
+                        Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices,
+                        Command->IndexCount, Command->Indices, Command->SkinningMatrixCount
                     );
                 }
                 else
@@ -1144,7 +1198,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
 
-                glDisable(GL_DEPTH_TEST);
+                //glDisable(GL_DEPTH_TEST);
 
                 glLineWidth(Command->Thickness);
 
@@ -1166,7 +1220,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                 glLineWidth(1.f);
 
-                glEnable(GL_DEPTH_TEST);
+                //glEnable(GL_DEPTH_TEST);
                 
                 break;
             }
@@ -1348,9 +1402,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             {
                 render_command_draw_skinned_mesh *Command = (render_command_draw_skinned_mesh *)Entry;
 
-                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
+                opengl_skinned_mesh_buffer *SkinnedMeshBuffer = OpenGLGetSkinnedMeshBuffer(State, Command->MeshId);
 
-                glBindVertexArray(MeshBuffer->VAO);
+                glBindVertexArray(SkinnedMeshBuffer->Buffer->VAO);
 
                 switch (Command->Material.Type)
                 {
@@ -1363,13 +1417,13 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                         glUseProgram(Shader->Program);
 
-                        glBindBuffer(GL_TEXTURE_BUFFER, State->SkinningTBO);
+                        glBindBuffer(GL_TEXTURE_BUFFER, SkinnedMeshBuffer->SkinningTBO);
                         glBufferSubData(GL_TEXTURE_BUFFER, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
                         glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
                         glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_BUFFER, State->SkinningTBOTexture);
-                        glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, State->SkinningTBO);
+                        glBindTexture(GL_TEXTURE_BUFFER, SkinnedMeshBuffer->SkinningTBOTexture);
+                        glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, SkinnedMeshBuffer->SkinningTBO);
 
                         glUniform1i(Shader->SkinningMatricesSamplerUniformLocation, 0);
 
@@ -1377,15 +1431,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
                         break;
                     }
-                    case MaterialType_Unlit:
-                    {
-                        Assert(!"Not Implemented");
-
-                        break;
-                    }
                     default:
                     {
-                        Assert(!"Invalid material type");
+                        Assert(!"Not Implemented");
                         break;
                     }
                 }
@@ -1394,7 +1442,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
                 glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);*/
 
-                glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+                glDrawElements(GL_TRIANGLES, SkinnedMeshBuffer->Buffer->IndexCount, GL_UNSIGNED_INT, 0);
 
                 //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
 
@@ -1501,14 +1549,14 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 #else
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, State->MultiSampledFBO);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    // todo: performance
-    glBlitFramebuffer(
-        0, 0, Commands->WindowWidth, Commands->WindowHeight,
-        0, 0, Commands->WindowWidth, Commands->WindowHeight,
-        GL_COLOR_BUFFER_BIT,
-        GL_LINEAR
-    );
+    //glBindFramebuffer(GL_READ_FRAMEBUFFER, State->MultiSampledFBO);
+    //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    //// todo: performance
+    //glBlitFramebuffer(
+    //    0, 0, Commands->WindowWidth, Commands->WindowHeight,
+    //    0, 0, Commands->WindowWidth, Commands->WindowHeight,
+    //    GL_COLOR_BUFFER_BIT,
+    //    GL_LINEAR
+    //);
 #endif
 }

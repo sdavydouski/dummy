@@ -27,6 +27,8 @@ struct skeleton_pose
     skeleton *Skeleton;
     joint_pose *LocalJointPoses;
     mat4 *GlobalJointPoses;
+
+    vec3 RootMotion;
 };
 
 struct joint_weight
@@ -60,11 +62,13 @@ struct animation_clip
 struct animation_state
 {
     f32 Time;
-    // todo: This weight is used to store computed values during final pose computing. 
-    // This of a better name or place it somewhere else?
+    // note: This weight is used to store computed values during final pose computing. 
+    // todo: Think of a better name or place it somewhere else?
     f32 Weight;
 
     b32 IsLooping;
+    b32 EnableRootMotion;
+    vec3 TranslationBefore;
 
     animation_clip *Clip;
 };
@@ -140,16 +144,26 @@ struct animation_mixer
     animation_node *FadeOut;
 };
 
-struct animation_graph_params
-{
-    f32 Move;
-};
-
 struct animation_graph_state
 {
     f32 Time;
 };
 
+struct animation_graph
+{
+    u32 NodeCount;
+    animation_node *Nodes;
+
+    animation_node *Entry;
+    animation_node *Active;
+
+    animation_mixer Mixer;
+    animation_graph_state State;
+
+    char Animator[256];
+};
+
+// todo: better naming
 struct animator_params
 {
     f32 MaxTime;
@@ -166,23 +180,6 @@ struct animator_params
     b32 ToStateActionIdle;
     b32 ToStateActionIdleFromDancing;
     b32 ToStateStandingIdle;
-};
-
-struct game_input;
-
-struct animation_graph
-{
-    u32 NodeCount;
-    animation_node *Nodes;
-
-    animation_node *Entry;
-    animation_node *Active;
-
-    animation_mixer Mixer;
-
-    animation_graph_state State;
-
-    char Animator[256];
 };
 
 #define ANIMATOR_CONTROLLER(name) void name(animation_graph *Graph, animator_params Params, f32 Delta)

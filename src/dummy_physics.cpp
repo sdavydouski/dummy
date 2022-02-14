@@ -1,13 +1,13 @@
 inline void
-Integrate(rigid_body *Body, f32 Duration)
+Integrate(rigid_body *Body, f32 dt)
 {
-    Assert(Duration > 0.f);
+    Assert(dt > 0.f);
 
     Body->PrevPosition = Body->Position;
-    Body->Position += Body->Velocity * Duration + Body->Acceleration * Square(Duration) * 0.5f;
+    Body->Position += Body->Velocity * dt + Body->Acceleration * Square(dt) * 0.5f;
     Body->Acceleration += Body->ForceAccumulator * Body->InverseMass;
-    Body->Velocity += Body->Acceleration * Duration;
-    Body->Velocity *= Power(Body->Damping, Duration);
+    Body->Velocity += Body->Acceleration * dt;
+    Body->Velocity *= Power(Body->Damping, dt);
     Body->ForceAccumulator = vec3(0.f);
 }
 

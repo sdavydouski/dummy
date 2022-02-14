@@ -1,7 +1,5 @@
 #pragma once
 
-// todo: SIMD
-
 #include <cmath>
 #include <cstdarg>
 
@@ -13,8 +11,9 @@ inline f32 Min(f32 a, f32 b);
 inline f32 Max(f32 a, f32 b);
 
 #define EPSILON 0.0001f
-#define PI 3.14159265359f
+#define PI 3.14159f
 #define HALF_PI (PI / 2.f)
+#define EULER 2.71828f
 
 #define RADIANS(Angle) ((Angle) * PI) / 180.f
 #define DEGREES(Angle) ((Angle) * 180.f) / PI
@@ -167,6 +166,13 @@ Atan2(f32 y, f32 x)
     return Result;
 }
 
+inline i32
+Abs(i32 Value)
+{
+    i32 Result = abs(Value);
+    return Result;
+}
+
 inline f32
 Abs(f32 Value)
 {
@@ -195,6 +201,27 @@ Clamp(f32 *Value, f32 Min, f32 Max)
 {
     if (*Value < Min) *Value = Min;
     if (*Value > Max) *Value = Max;
+}
+
+inline f32
+SafeDivide(f32 Numerator, f32 Denominator)
+{
+    f32 Result = 0.f;
+
+    if (Denominator != 0.f)
+    {
+        Result = Numerator / Denominator;
+    }
+
+    return Result;
+}
+
+inline f32
+LogisticFunction(f32 L, f32 k, f32 x0, f32 x)
+{
+    f32 Result = L / (1.f + Power(EULER, -k * (x - x0)));
+
+    return Result;
 }
 
 inline f32
@@ -527,6 +554,8 @@ Slerp(quat A, f32 t, quat B)
     {
         Result = Lerp(NormalizedA, t, NormalizedB);
     }
+
+    Assert(Abs(Magnitude(Result) - 1.f) < EPSILON);
 
     return Result;
 }

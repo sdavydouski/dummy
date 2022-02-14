@@ -45,6 +45,7 @@ AddMesh(
     i32 *JointIndices,
     u32 IndexCount,
     u32 *Indices,
+    u32 SkinningMatrixCount,
     u32 MaxInstanceCount
 )
 {
@@ -60,6 +61,7 @@ AddMesh(
     Command->JointIndices = JointIndices;
     Command->IndexCount = IndexCount;
     Command->Indices = Indices;
+    Command->SkinningMatrixCount = SkinningMatrixCount;
     Command->MaxInstanceCount = MaxInstanceCount;
 }
 

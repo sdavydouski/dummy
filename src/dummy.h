@@ -14,7 +14,7 @@ enum game_mode
 struct game_camera
 {
     vec3 Position;
-    vec3 Pivot;
+    vec3 PivotPosition;
     vec3 Direction;
     vec3 Up;
 
@@ -26,18 +26,23 @@ struct game_camera
     f32 NearClipPlane;
     f32 FarClipPlane;
 
-    vec3_lerp PositionLerp;
+    //vec3_lerp PositionLerp;
+    vec3_lerp PivotPositionLerp;
 };
 
 struct game_entity
 {
     transform Transform;
 
+    // todo:
+    vec3 AccRootMotion;
+
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
 
     b32 Controllable;   // todo: come up with smth better
+    b32 FutureControllable;   // todo: come up with smth better
     b32 DebugView;
 };
 
@@ -113,7 +118,7 @@ struct game_state
     vec2 CurrentMove;
     vec2 TargetMove;
 
-    random_sequence RNG;
+    random_sequence Entropy;
 
     vec3 BackgroundColor;
 
