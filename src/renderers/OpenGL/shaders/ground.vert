@@ -1,3 +1,6 @@
+//! #include "common/version.glsl"
+//! #include "common/math.glsl"
+
 layout(location = 0) in vec3 in_Position;
 
 out VS_OUT

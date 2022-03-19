@@ -160,6 +160,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
+#if 0
     ImGui::Begin("Menu", 0, ImGuiWindowFlags_MenuBar);
 
     if (ImGui::BeginMenuBar())
@@ -198,6 +199,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
     }
 
     ImGui::End();
+#endif
 
     ImGui::Begin("Stats");
 

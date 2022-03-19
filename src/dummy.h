@@ -34,9 +34,6 @@ struct game_entity
 {
     transform Transform;
 
-    // todo:
-    vec3 AccRootMotion;
-
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
@@ -123,7 +120,6 @@ struct game_state
     vec3 BackgroundColor;
 
     b32 IsBackgroundHighlighted;
-    b32 Advance;
 
     // for testing purpuses
     f32 DelayTime;

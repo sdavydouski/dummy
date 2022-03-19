@@ -1,3 +1,5 @@
+//! #include "common/version.glsl"
+
 #define MAX_WEIGHT_COUNT 4
 
 layout(location = 0) in vec3 in_Position;
@@ -8,7 +10,8 @@ layout(location = 4) in vec2 in_TextureCoords;
 layout(location = 5) in vec4 in_Weights;
 layout(location = 6) in ivec4 in_JointIndices;
 
-out VS_OUT {
+out VS_OUT 
+{
     vec3 VertexPosition;
     vec3 Normal;
     vec2 TextureCoords;

@@ -1,3 +1,6 @@
+//! #include "common/version.glsl"
+//! #include "common/blinn_phong.glsl"
+
 in VS_OUT {
     vec3 VertexPosition;
     vec3 Normal;
@@ -22,9 +25,13 @@ uniform directional_light u_DirectionalLight;
 uniform int u_PointLightCount;
 uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
 
+uniform sampler2D u_ShadowMap;
+uniform mat4 u_LightSpaceMatrix;
+
 void main()
 {
-    vec3 AmbientColor = u_Material.AmbientColor;
+    // todo: AmbientColor is always black
+    vec3 AmbientColor = u_Material.AmbientColor + vec3(0.2f);
 
     vec3 DiffuseColor = u_Material.HasDiffuseMap
         ? texture(u_Material.DiffuseMap, fs_in.TextureCoords).rgb
@@ -63,15 +70,17 @@ void main()
         point_light PointLight = u_PointLights[PointLightIndex];
         Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, fs_in.VertexPosition);
     }
+
+    // Shadow
+	vec4 FragPosLightSpace = u_LightSpaceMatrix * vec4(fs_in.VertexPosition, 1.f);
+    vec3 LightDirection = normalize(-u_DirectionalLight.Direction);
+    float Shadow = CalculateInfiniteShadow(FragPosLightSpace, LightDirection, Normal, u_ShadowMap);
+
+    Result *= (1.f - Shadow);    
+    //
 #else
     vec3 Result = DiffuseColor;
 #endif
 
- out_Color = vec4(Result, 1.f);
-
-#if 0
-    // apply gamma correction
-    float gamma = 2.2f;
-    out_Color.rgb = pow(out_Color.rgb, vec3(1.f / gamma));
-#endif
+    out_Color = vec4(Result, 1.f);
 }

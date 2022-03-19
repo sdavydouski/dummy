@@ -1,14 +1,14 @@
 inline joint_pose *
 GetRootLocalJointPose(skeleton_pose *Pose)
 {
-    joint_pose *Result = First(Pose->LocalJointPoses);
+    joint_pose *Result = Pose->LocalJointPoses + ROOT_POSE_INDEX;
     return Result;
 }
 
 inline joint_pose *
 GetRootTranslationLocalJointPose(skeleton_pose *Pose)
 {
-    joint_pose *Result = Pose->LocalJointPoses + 1;
+    joint_pose *Result = Pose->LocalJointPoses + ROOT_TRANSLATION_POSE_INDEX;
     return Result;
 }
 
@@ -155,22 +155,26 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_state *Animation)
     vec3 TranslationAfter = RootTranslationPose->Translation;
 
     //if (Animation->EnableRootMotion)
-    //if (StringEquals(Animation->Clip->Name, "samba"))
     {
-        // todo:
-        if (Animation->Time == 0.f)
+        vec3 RootMotion = TranslationAfter - TranslationBefore;
+
+        // Loop case
+        if ((Animation->Time - Animation->PrevTime) < 0.f)
         {
-            // todo:
-#if 1
-            SkeletonPose->RootMotion = vec3(0.f);
-#else
-            SkeletonPose->RootMotion = TranslationAfter;
-#endif
+            animation_sample* PoseSample = GetAnimationSampleByJointIndex(Animation->Clip, ROOT_TRANSLATION_POSE_INDEX);
+            key_frame* FirstKeyFrame = First(PoseSample->KeyFrames);
+            key_frame* LastKeyFrame = Last(PoseSample->KeyFrames, PoseSample->KeyFrameCount);
+
+            vec3 FirstTranslation = FirstKeyFrame->Pose.Translation;
+            vec3 LastTranslation = LastKeyFrame->Pose.Translation;
+
+            vec3 d1 = LastTranslation - TranslationBefore;
+            vec3 d2 = TranslationAfter - FirstTranslation;
+
+            RootMotion = d1 + d2;
         }
-        else
-        {
-            SkeletonPose->RootMotion = TranslationAfter - TranslationBefore;
-        }
+
+        SkeletonPose->RootMotion = RootMotion;
 
         Animation->TranslationBefore = TranslationAfter;
 
@@ -383,13 +387,14 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
 internal void
 AnimationStatePerFrameUpdate(animation_state *AnimationState, f32 Delta)
 {
+    AnimationState->PrevTime = AnimationState->Time;
     AnimationState->Time += Delta;
 
     if (AnimationState->Time > AnimationState->Clip->Duration)
     {
         if (AnimationState->IsLooping)
         {
-            AnimationState->Time = 0.f;
+            AnimationState->Time = AnimationState->Time - AnimationState->Clip->Duration;
         }
         else
         {
@@ -453,7 +458,7 @@ AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 Delta)
 
     if (BlendSpace->NormalizedTime > 1.f)
     {
-        BlendSpace->NormalizedTime = 0.f;
+        BlendSpace->NormalizedTime = BlendSpace->NormalizedTime - 1.f;
     }
 
     for (u32 AnimationIndex = 0; AnimationIndex < BlendSpace->ValueCount; ++AnimationIndex)
@@ -463,6 +468,7 @@ AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 Delta)
         if (Value->Weight > 0.f)
         {
             animation_state *AnimationState = &Value->AnimationState;
+            AnimationState->PrevTime = AnimationState->Time;
             AnimationState->Time = BlendSpace->NormalizedTime * AnimationState->Clip->Duration;
         }
     }
@@ -804,7 +810,7 @@ GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, 
                         {
                             animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
                             *ActiveAnimationState = &Value->AnimationState;
-                            (*ActiveAnimationState)->Weight = GraphWeight * Node->Weight * Value->Weight;
+                            (*ActiveAnimationState)->Weight = GraphWeight * Value->Weight * Node->Weight;
                         }
                     }
 

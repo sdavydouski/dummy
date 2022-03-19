@@ -1,3 +1,5 @@
+//! #include "common/version.glsl"
+
 out vec4 out_Color;
 
 layout (std140, binding = 0) uniform State

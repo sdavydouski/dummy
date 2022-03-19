@@ -26,12 +26,6 @@ PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type
 #define PushRenderCommand(Buffer, Struct, Type, RenderTarget) (Struct *)PushRenderCommand_(Buffer, sizeof(Struct), Type, RenderTarget)
 
 inline void
-InitRenderer(render_commands *Commands)
-{
-    render_command_init_renderer *Command = PushRenderCommand(Commands, render_command_init_renderer, RenderCommand_InitRenderer, 0);
-}
-
-inline void
 AddMesh(
     render_commands *Commands,
     u32 MeshId,

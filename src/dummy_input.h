@@ -17,6 +17,7 @@ struct platform_input_keyboard
     platform_button_state Z;
     platform_button_state C;
     platform_button_state E;
+    platform_button_state R;
 
     platform_button_state Tab;
     platform_button_state Ctrl;
@@ -95,7 +96,7 @@ struct game_input
 
     game_input_range Camera;
     game_input_action Menu;
-    game_input_action Advance;
+    game_input_action Reset;
     game_input_state HighlightBackground;
 
     f32 ZoomDelta;
@@ -220,6 +221,7 @@ BeginProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
     SavePrevButtonState(&KeyboardInput->C);
     SavePrevButtonState(&KeyboardInput->Z);
     SavePrevButtonState(&KeyboardInput->E);
+    SavePrevButtonState(&KeyboardInput->R);
     SavePrevButtonState(&KeyboardInput->Tab);
     SavePrevButtonState(&KeyboardInput->Space);
     SavePrevButtonState(&KeyboardInput->Enter);
@@ -237,6 +239,7 @@ EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
     UpdateToggleButtonState(&KeyboardInput->C);
     UpdateToggleButtonState(&KeyboardInput->Z);
     UpdateToggleButtonState(&KeyboardInput->E);
+    UpdateToggleButtonState(&KeyboardInput->R);
     UpdateToggleButtonState(&KeyboardInput->Tab);
     UpdateToggleButtonState(&KeyboardInput->Space);
     UpdateToggleButtonState(&KeyboardInput->Enter);
@@ -304,8 +307,8 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
 
     ProcessInputAction(&GameInput->Dance, &KeyboardInput->C);
     ProcessInputAction(&GameInput->Activate, &KeyboardInput->E);
+    ProcessInputAction(&GameInput->Reset, &KeyboardInput->R);
     ProcessInputAction(&GameInput->Menu, &KeyboardInput->Enter);
-    ProcessInputAction(&GameInput->Advance, &KeyboardInput->Space);
     ProcessInputAction(&GameInput->EditMode, &KeyboardInput->Tab);
     ProcessInputAction(&GameInput->ChoosePrevHero, &KeyboardInput->One);
     ProcessInputAction(&GameInput->ChooseNextHero, &KeyboardInput->Two);

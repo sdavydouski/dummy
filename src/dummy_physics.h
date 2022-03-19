@@ -4,7 +4,6 @@ struct rigid_body
 {
     vec3 HalfSize;
     
-    // todo: ?
     vec3 PrevPosition;
     vec3 Position;
 
@@ -18,6 +17,7 @@ struct rigid_body
 
     f32 InverseMass;
     f32 Damping;
+    b32 RootMotionEnabled;
 };
 
 inline void
@@ -60,13 +60,14 @@ GetRigidBodyAABB(rigid_body *Body)
 }
 
 inline void
-BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, vec3 HalfSize)
+BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, vec3 HalfSize, b32 RootMotionEnabled)
 {
     Body->PrevPosition = Position;
     Body->Position = Position;
     Body->Orientation = Orientation;
     Body->HalfSize = HalfSize;
-    
+    Body->RootMotionEnabled = RootMotionEnabled;
+
     // todo: don't use at the moment? (except in Integrate)
     Body->Damping = 0.0001f;
     Body->InverseMass = 1.f / 100.f;

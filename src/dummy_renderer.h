@@ -61,7 +61,6 @@ struct render_instance
 
 enum render_command_type
 {
-    RenderCommand_InitRenderer,
     RenderCommand_AddMesh,
     RenderCommand_AddTexture,
 
@@ -74,7 +73,6 @@ enum render_command_type
     RenderCommand_SetPointLights,
 
     RenderCommand_Clear,
-    
     RenderCommand_DrawLine,
     RenderCommand_DrawRectangle,
     RenderCommand_DrawGround,
@@ -88,11 +86,6 @@ struct render_command_header
     render_command_type Type;
     u32 RenderTarget;
     u32 Size;
-};
-
-struct render_command_init_renderer
-{
-    render_command_header Header;
 };
 
 struct render_command_add_mesh

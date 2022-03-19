@@ -3,6 +3,9 @@
 #define MAX_JOINT_NAME_LENGTH 256
 #define MAX_ANIMATION_NAME_LENGTH 256
 
+#define ROOT_POSE_INDEX 0
+#define ROOT_TRANSLATION_POSE_INDEX 1
+
 #define joint_pose transform
 
 struct random_sequence;
@@ -67,7 +70,10 @@ struct animation_state
     f32 Weight;
 
     b32 IsLooping;
+
+    // todo:
     b32 EnableRootMotion;
+    f32 PrevTime;
     vec3 TranslationBefore;
 
     animation_clip *Clip;
@@ -161,6 +167,7 @@ struct animation_graph
     animation_graph_state State;
 
     char Animator[256];
+    vec3 AccRootMotion;
 };
 
 // todo: better naming

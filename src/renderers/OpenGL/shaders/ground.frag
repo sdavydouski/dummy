@@ -1,3 +1,6 @@
+//! #include "common/version.glsl"
+//! #include "common/blinn_phong.glsl"
+
 in VS_OUT
 {
     vec3 NearPlanePosition;
@@ -19,10 +22,13 @@ uniform directional_light u_DirectionalLight;
 uniform int u_PointLightCount;
 uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
 
+uniform sampler2D u_ShadowMap;
+uniform mat4 u_LightSpaceMatrix;
+
 // computes Z-buffer depth value, and converts the range.
 float ComputeDepth(vec3 p, mat4 View, mat4 Projection) {
 	// get the clip-space coordinates
-	vec4 ClipSpacePosition = Projection * View * vec4(p.xyz, 1.f);
+	vec4 ClipSpacePosition = Projection * View * vec4(p, 1.f);
 
 	// get the depth value in normalized device coordinates
 	float ClipSpaceDepth = ClipSpacePosition.z / ClipSpacePosition.w;
@@ -40,6 +46,9 @@ float ComputeDepth(vec3 p, mat4 View, mat4 Projection) {
 void main()
 {
     float t = -fs_in.NearPlanePosition.y / (fs_in.FarPlanePosition.y - fs_in.NearPlanePosition.y);
+
+    if (t < 0.f) discard;
+
     vec3 GroundPoint = fs_in.NearPlanePosition + t * (fs_in.FarPlanePosition - fs_in.NearPlanePosition);
 
     float DistanceFromCamera = length(u_CameraPosition.xz - GroundPoint.xz);
@@ -68,9 +77,15 @@ void main()
         point_light PointLight = u_PointLights[PointLightIndex];
         Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, GroundPoint);
     }
+
+	// Shadow
+	vec4 FragPosLightSpace = u_LightSpaceMatrix * vec4(GroundPoint, 1.f);
+    vec3 LightDirection = normalize(-u_DirectionalLight.Direction);
+    float Shadow = CalculateInfiniteShadow(FragPosLightSpace, LightDirection, Normal, u_ShadowMap);
+
+    Result *= (1.f - Shadow);    
     //
 
-	// todo: very expensive
 	gl_FragDepth = ComputeDepth(GroundPoint, u_View, u_Projection);
 	out_Color = vec4(Result, 1.f - Opacity);
 }

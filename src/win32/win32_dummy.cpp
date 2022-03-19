@@ -476,6 +476,11 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
                 KeyboardInput->E.IsPressed = IsKeyPressed;
                 break;
             }
+            case 'R':
+            {
+                KeyboardInput->R.IsPressed = IsKeyPressed;
+                break;
+            }
             case VK_TAB:
             {
                 KeyboardInput->Tab.IsPressed = IsKeyPressed;
@@ -849,7 +854,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         Win32OpenGLState.OpenGL.Platform = &PlatformApi;
 
-        Win32InitOpenGL(&Win32OpenGLState, hInstance, PlatformState.WindowHandle);
+        Win32InitOpenGL(&Win32OpenGLState, &PlatformState, hInstance);
         Win32OpenGLSetVSync(&Win32OpenGLState, PlatformState.VSync);
 
         PlatformState.WindowPositionX = PlatformState.ScreenWidth / 2 - PlatformState.WindowWidth / 2;

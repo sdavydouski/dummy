@@ -84,6 +84,10 @@ struct opengl_shader
 
     GLint ScreenTextureUniformLocation;
     GLint BlinkUniformLocation;
+
+
+    GLint ShadowMapUniformLocation;
+    GLint LightSpaceMatrixUniformLocation;
 };
 
 struct opengl_shader_state
@@ -92,6 +96,11 @@ struct opengl_shader_state
     mat4 View;
     vec3 CameraPosition;
     f32 Time;
+};
+
+struct opengl_render_options
+{
+    b32 RenderShadowMap;
 };
 
 struct opengl_state
@@ -134,4 +143,7 @@ struct opengl_state
 
     u32 CurrentShaderCount;
     opengl_shader Shaders[OPENGL_MAX_SHADER_COUNT];
+
+    u32 ShadowMapWidth;
+    u32 ShadowMapHeight;
 };

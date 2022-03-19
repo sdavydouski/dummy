@@ -4,6 +4,8 @@
 
 #include "dummy_opengl.h"
 
+internal void OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight);
+
 #define GladLoadGLLoader gladLoadGLLoader
 
 #ifdef NDEBUG
@@ -60,10 +62,10 @@ Win32OpenGLSetVSync(win32_opengl_state *State, b32 VSync)
 }
 
 void internal
-Win32InitOpenGL(win32_opengl_state *State, HINSTANCE hInstance, HWND WindowHandle)
+Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, HINSTANCE hInstance)
 {
     RECT WindowRect;
-    GetClientRect(WindowHandle, &WindowRect);
+    GetClientRect(PlatformState->WindowHandle, &WindowRect);
 
     State->OpenGL.WindowWidth = WindowRect.right - WindowRect.left;
     State->OpenGL.WindowHeight = WindowRect.bottom - WindowRect.top;
@@ -101,7 +103,7 @@ Win32InitOpenGL(win32_opengl_state *State, HINSTANCE hInstance, HWND WindowHandl
             {
                 // OpenGL 1.1 is initialized
 
-                HDC WindowDC = GetDC(WindowHandle);
+                HDC WindowDC = GetDC(PlatformState->WindowHandle);
 
                 PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
                 PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
@@ -155,10 +157,7 @@ Win32InitOpenGL(win32_opengl_state *State, HINSTANCE hInstance, HWND WindowHandl
                         GladLoadGLLoader((GLADloadproc)Win32GetOpenGLFuncAddress);
                         GladSetPostCallback(Win32GladPostCallback);
 
-                        State->OpenGL.Vendor = (char *)glGetString(GL_VENDOR);
-                        State->OpenGL.Renderer = (char *)glGetString(GL_RENDERER);
-                        State->OpenGL.Version = (char *)glGetString(GL_VERSION);
-                        State->OpenGL.ShadingLanguageVersion = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
+                        OpenGLInitRenderer(&State->OpenGL, PlatformState->WindowWidth, PlatformState->WindowHeight);
                     }
                 }
             }

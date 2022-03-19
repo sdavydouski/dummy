@@ -493,11 +493,12 @@ AddModelComponent(game_entity *Entity, game_assets *Assets, const char *ModelNam
     Entity->Model = GetModelAsset(Assets, ModelName);
 }
 
+// todo: pack params into struct
 inline void
-AddRigidBodyComponent(game_entity *Entity, vec3 Position, quat Orientation, vec3 HalfSize, memory_arena *Arena)
+AddRigidBodyComponent(game_entity *Entity, vec3 Position, quat Orientation, vec3 HalfSize, b32 RootMotionEnabled, memory_arena *Arena)
 {
     Entity->Body = PushType(Arena, rigid_body);
-    BuildRigidBody(Entity->Body, Position, Orientation, HalfSize);
+    BuildRigidBody(Entity->Body, Position, Orientation, HalfSize, RootMotionEnabled);
 }
 
 inline void
@@ -850,10 +851,8 @@ AnimateEntity(game_state *State, game_entity *Entity, f32 Delta)
     CalculateSkeletonPose(Entity->Animation, Pose, &State->PermanentArena);
 
     // Root Motion
-    {
-        Entity->AccRootMotion.x += Pose->RootMotion.x;
-        Entity->AccRootMotion.z += Pose->RootMotion.z;
-    }
+    Entity->Animation->AccRootMotion.x += Pose->RootMotion.x;
+    Entity->Animation->AccRootMotion.z += Pose->RootMotion.z;
 
     Root->Translation = Entity->Transform.Translation;
     Root->Rotation = Entity->Transform.Rotation;
@@ -916,7 +915,6 @@ DLLExport GAME_INIT(GameInit)
 
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
-    InitRenderer(RenderCommands);
 
     InitGameAssets(&State->Assets, Platform, RenderCommands, &State->PermanentArena);
 
@@ -929,25 +927,26 @@ DLLExport GAME_INIT(GameInit)
 
     // Pelegrini
     State->Pelegrini = CreateGameEntity(State);
-    State->Pelegrini->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
-    AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
+    AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->Pelegrini, "Bot", &State->PermanentArena);
 
     // xBot
     State->xBot = CreateGameEntity(State);
-    State->xBot->Transform = CreateTransform(vec3(6.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->xBot, &State->Assets, "xBot");
-    AddRigidBodyComponent(State->xBot, vec3(6.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
+    AddRigidBodyComponent(State->xBot, vec3(8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->xBot, "Bot", &State->PermanentArena);
 
     // yBot
     State->yBot = CreateGameEntity(State);
-    State->yBot->Transform = CreateTransform(vec3(-6.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->yBot->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->yBot, &State->Assets, "yBot");
-    AddRigidBodyComponent(State->yBot, vec3(-6.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), &State->PermanentArena);
+    AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->yBot, "Bot", &State->PermanentArena);
 
+#if 0
     // Skull 0
     State->Skulls[0] = CreateGameEntity(State);
     State->Skulls[0]->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
@@ -957,6 +956,7 @@ DLLExport GAME_INIT(GameInit)
     State->Skulls[1] = CreateGameEntity(State);
     State->Skulls[1]->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
     State->Skulls[1]->Model = GetModelAsset(&State->Assets, "Skull");
+#endif
 
     // Dummy
     /*State->Dummy = CreateGameEntity(State);
@@ -1061,11 +1061,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
     }
 
-    if (Input->Advance.IsActivated)
-    {
-        State->Advance = true;
-    }
-
     if (Input->ChoosePrevHero.IsActivated)
     {
         State->Player->FutureControllable = false;
@@ -1082,6 +1077,24 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         State->Player->Body->Acceleration = vec3(0.f);
 
         State->Player = GetNextHero(State);
+
+        State->Player->FutureControllable = true;
+    }
+
+    if (Input->Reset.IsActivated)
+    {
+        State->Player->FutureControllable = false;
+
+        State->Pelegrini->Body->Position = vec3(0.f);
+        State->Pelegrini->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+
+        State->xBot->Body->Position = vec3(8.f, 0.f, 0.f);
+        State->xBot->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+
+        State->yBot->Body->Position = vec3(-8.f, 0.f, 0.f);
+        State->yBot->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+
+        State->Player = State->Pelegrini;
 
         State->Player->FutureControllable = true;
     }
@@ -1187,12 +1200,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 4.f, 0.f);
             PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Position);
             
-            /*
-*               todo:
-                Rotate the characters towards their desired lookat vector, and then take the speed of the character + 
-                their relative angle between their velocity and their current forward vector to feed into a 360 motion locomotion blendspace.
-            */
-
             game_entity *Player = State->Player;
 
             // todo:
@@ -1211,8 +1218,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
                 State->TargetMove = Move;
 
-                //Player->Body->Acceleration.x = (xMoveX + xMoveY) * 120.f;
-                //Player->Body->Acceleration.z = (zMoveX + zMoveY) * 120.f;
+                Player->Body->Acceleration.x = (xMoveX + xMoveY) * 120.f;
+                Player->Body->Acceleration.z = (zMoveX + zMoveY) * 120.f;
 
                 quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
 
@@ -1279,74 +1286,47 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 DLLExport GAME_UPDATE(GameUpdate)
 {
     game_state *State = GetGameState(Memory);
+    game_entity *Player = State->Player;
 
-    //if (State->Advance)
+    if (Player->Body)
     {
-        State->Advance = false;
+        aabb PlayerBox = GetRigidBodyAABB(Player->Body);
 
-        game_entity *Player = State->Player;
-
-        if (Player->Body)
+        for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
         {
-#if 1
-            aabb PlayerBox = GetRigidBodyAABB(Player->Body);
-#else
-            vec3 BoxCenter = Player->Transform.Translation;
-            vec3 BoxHalfSize = Player->Transform.Scale * GetAABBHalfSize(Player->MeshBounds);
-            aabb PlayerBox = CreateAABBCenterHalfSize(BoxCenter, BoxHalfSize);
-#endif
+            game_entity *Entity = State->Entities + EntityIndex;
+            rigid_body *Body = Entity->Body;
 
-            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
-            {
-                game_entity *Entity = State->Entities + EntityIndex;
-                rigid_body *Body = Entity->Body;
+            if (Body)
+            { 
+                if (Body->RootMotionEnabled)
+                {
+                    Assert(Entity->Animation);
 
-                if (Body)
-                { 
-                    //AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
-                    Integrate(Body, Parameters->UpdateRate);
+                    vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
+                    vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
 
-                    aabb BodyAABB = GetRigidBodyAABB(Body);
-#if 0
-                    // todo: dymamic intersection test
-                    if (TestAABBPlane(BodyAABB, State->Ground))
-                    {
-                        ResolveVelocity(Body, &State->Ground, Parameters->UpdateRate, 0.f);
+                    Entity->Body->PrevPosition = Entity->Body->Position;
+                    Entity->Body->Position += RotatedScaledRootMotion;
 
-                        f32 Overlap = GetAABBPlaneMinDistance(BodyAABB, State->Ground);
-                        ResolveIntepenetration(Body, &State->Ground, Overlap);
-                        Body->Acceleration = vec3(0.f);
-                    }
-#endif
-                    /*for (u32 OtherRigidBodyIndex = RigidBodyIndex + 1; OtherRigidBodyIndex < State->RigidBodiesCount; ++OtherRigidBodyIndex)
-                    {
-                        rigid_body *OtherBody = State->RigidBodies + OtherRigidBodyIndex;
-
-                        aabb OtherBodyAABB = GetRigidBodyAABB(OtherBody);
-
-                        if (TestAABBAABB(BodyAABB, OtherBodyAABB))
-                        {
-                            State->BackgroundColor = vec3(1.f, 0.f, 0.f);
-                        }
-                    }*/
+                    Entity->Animation->AccRootMotion = vec3(0.f);
                 }
+                else
+                {
+                    Integrate(Body, Parameters->UpdateRate);
+                }
+#if 0
+                // todo: dymamic intersection test
+                if (TestAABBPlane(BodyAABB, State->Ground))
+                {
+                    ResolveVelocity(Body, &State->Ground, Parameters->UpdateRate, 0.f);
+
+                    f32 Overlap = GetAABBPlaneMinDistance(BodyAABB, State->Ground);
+                    ResolveIntepenetration(Body, &State->Ground, Overlap);
+                    Body->Acceleration = vec3(0.f);
+                }
+#endif
             }
-        }
-    }
-
-    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
-    {
-        game_entity *Entity = State->Entities + EntityIndex;
-
-        if (Entity->Body)
-        {
-            vec3 ScaledRootMotion = Entity->AccRootMotion * Entity->Transform.Scale;
-            vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
-
-            Entity->Body->PrevPosition = Entity->Body->Position;
-            Entity->Body->Position += RotatedScaledRootMotion;
-
-            Entity->AccRootMotion = vec3(0.f);
         }
     }
 }
@@ -1414,10 +1394,11 @@ DLLExport GAME_RENDER(GameRender)
             PointLight2->Position = PointLight2Position;
 
             // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
-            SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
+            //SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
 
             // Flying skulls
             // todo: get entity by id ?
+#if 0
             if (State->Player->Body)
             {
                 {
@@ -1434,6 +1415,7 @@ DLLExport GAME_RENDER(GameRender)
                     Skull->Transform.Rotation = State->Player->Body->Orientation;
                 }
             }
+#endif
 
             // todo: ???
             f32 InterpolationTime = 0.2f;
@@ -1450,11 +1432,6 @@ DLLExport GAME_RENDER(GameRender)
                 // Rigid bodies movement
                 if (Entity->Body)
                 {
-                    if (Entity->Body->PrevPosition == Entity->Body->Position)
-                    {
-                        int t = 0;
-                    }
-
                     Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Lag, Entity->Body->Position);
                     Entity->Transform.Rotation = Entity->Body->Orientation;
                 }

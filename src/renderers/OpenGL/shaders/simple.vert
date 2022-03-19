@@ -1,3 +1,5 @@
+//! #include "common/version.glsl"
+
 layout(location = 0) in vec3 in_Position;
 
 layout (std140, binding = 0) uniform State
