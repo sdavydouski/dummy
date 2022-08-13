@@ -187,6 +187,20 @@ Abs(vec3 Value)
     return Result;
 }
 
+inline i32
+Ceil(f32 Value)
+{
+    i32 Result = (i32)ceil(Value);
+    return Result;
+}
+
+inline i32 
+Floor(f32 Value)
+{
+    i32 Result = (i32)floor(Value);
+    return Result;
+}
+
 inline f32
 Clamp(f32 Value, f32 Min, f32 Max)
 {
@@ -409,16 +423,16 @@ Perspective(f32 FovY, f32 AspectRatio, f32 Near, f32 Far)
 }
 
 inline mat4
-LookAt(vec3 CameraPosition, vec3 Target, vec3 WorldUp)
+LookAt(vec3 Eye, vec3 Target, vec3 WorldUp)
 {
-    vec3 zAxis = Normalize(CameraPosition - Target);
+    vec3 zAxis = Normalize(Eye - Target);
     vec3 xAxis = Normalize(Cross(WorldUp, zAxis));
     vec3 yAxis = Normalize(Cross(zAxis, xAxis));
 
     mat4 Result = mat4(
-        vec4(xAxis, -Dot(xAxis, CameraPosition)),
-        vec4(yAxis, -Dot(yAxis, CameraPosition)),
-        vec4(zAxis, -Dot(zAxis, CameraPosition)),
+        vec4(xAxis, -Dot(xAxis, Eye)),
+        vec4(yAxis, -Dot(yAxis, Eye)),
+        vec4(zAxis, -Dot(zAxis, Eye)),
         vec4(0.f, 0.f, 0.f, 1.f)
     );
 
@@ -642,5 +656,12 @@ ComputePlane(vec3 a, vec3 b, vec3 c)
     Result.Normal = Normalize(Cross(b - a, c - a));
     Result.d = Dot(Result.Normal, a);
 
+    return Result;
+}
+
+inline f32
+Dot(plane Plane, vec3 Point)
+{
+    f32 Result = Dot(Plane.Normal, Point) + Plane.d;
     return Result;
 }

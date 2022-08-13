@@ -102,11 +102,11 @@ SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Ne
 }
 
 inline void
-SetCamera(render_commands *Commands, vec3 Position, vec3 Target, vec3 Up, u32 RenderTarget = 0)
+SetCamera(render_commands *Commands, vec3 Position, vec3 Direction, vec3 Up, u32 RenderTarget = 0)
 {
     render_command_set_camera *Command = PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera, RenderTarget);
     Command->Position = Position;
-    Command->Target = Target;
+    Command->Direction = Direction;
     Command->Up = Up;
 }
 

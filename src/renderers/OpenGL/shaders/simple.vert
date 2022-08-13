@@ -1,14 +1,7 @@
 //! #include "common/version.glsl"
+//! #include "common/uniform.glsl"
 
 layout(location = 0) in vec3 in_Position;
-
-layout (std140, binding = 0) uniform State
-{
-    mat4 u_Projection;
-    mat4 u_View;
-    vec3 u_CameraPosition;
-    float u_Time;
-};
 
 uniform mat4 u_Model;
 

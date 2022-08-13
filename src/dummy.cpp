@@ -738,8 +738,8 @@ GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
     for (u32 RoomIndex = 1; RoomIndex < RoomCount; ++RoomIndex)
     {
 #if 0
-        u32 RoomWidth = RandomBetween(&State->RNG, 6, 12);
-        u32 RoomHeight = RandomBetween(&State->RNG, 6, 12);
+        u32 RoomWidth = RandomBetween(&State->Entropy, 4, 12);
+        u32 RoomHeight = RandomBetween(&State->Entropy, 4, 12);
 #else
         u32 RoomWidth = 8;
         u32 RoomHeight = 6;
@@ -900,8 +900,8 @@ DLLExport GAME_INIT(GameInit)
     State->Mode = GameMode_World;
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
-    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 0.f, 0.f));
+    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), 0.1f, 320.f, vec3(0.f, 16.f, 32.f));
+    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), 0.1f, 320.f, vec3(0.f, 0.f, 0.f));
     // todo:
     State->PlayerCamera.Radius = 16.f;
 
@@ -958,6 +958,41 @@ DLLExport GAME_INIT(GameInit)
     State->Skulls[1]->Model = GetModelAsset(&State->Assets, "Skull");
 #endif
 
+#if 1
+    // Cubes
+    State->Cubes[0] = CreateGameEntity(State);
+    State->Cubes[0]->Transform = CreateTransform(vec3(-20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
+    State->Cubes[0]->Model = GetModelAsset(&State->Assets, "Cube");
+
+    State->Cubes[1] = CreateGameEntity(State);
+    State->Cubes[1]->Transform = CreateTransform(vec3(20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
+    State->Cubes[1]->Model = GetModelAsset(&State->Assets, "Cube");
+
+    State->Cubes[2] = CreateGameEntity(State);
+    State->Cubes[2]->Transform = CreateTransform(vec3(-40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
+    State->Cubes[2]->Model = GetModelAsset(&State->Assets, "Cube");
+
+    State->Cubes[3] = CreateGameEntity(State);
+    State->Cubes[3]->Transform = CreateTransform(vec3(40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
+    State->Cubes[3]->Model = GetModelAsset(&State->Assets, "Cube");
+
+    State->Cubes[4] = CreateGameEntity(State);
+    State->Cubes[4]->Transform = CreateTransform(vec3(-20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
+    State->Cubes[4]->Model = GetModelAsset(&State->Assets, "Cube");
+
+    State->Cubes[5] = CreateGameEntity(State);
+    State->Cubes[5]->Transform = CreateTransform(vec3(20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
+    State->Cubes[5]->Model = GetModelAsset(&State->Assets, "Cube");
+
+    State->Cubes[6] = CreateGameEntity(State);
+    State->Cubes[6]->Transform = CreateTransform(vec3(-40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
+    State->Cubes[6]->Model = GetModelAsset(&State->Assets, "Cube");
+
+    State->Cubes[7] = CreateGameEntity(State);
+    State->Cubes[7]->Transform = CreateTransform(vec3(40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
+    State->Cubes[7]->Model = GetModelAsset(&State->Assets, "Cube");
+#endif
+
     // Dummy
     /*State->Dummy = CreateGameEntity(State);
     AddRigidBodyComponent(State->Dummy, vec3(0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), &State->PermanentArena);*/
@@ -1002,6 +1037,8 @@ DLLExport GAME_INIT(GameInit)
         PointLight->Attenuation.Linear = 0.09f;
         PointLight->Attenuation.Quadratic = 0.032f;
     }
+
+    State->Options = {};
 }
 
 inline game_entity *
@@ -1376,9 +1413,15 @@ DLLExport GAME_RENDER(GameRender)
 
             f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
             SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
-            SetCamera(RenderCommands, Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
+            SetCamera(RenderCommands, Camera->Position, Camera->Direction, Camera->Up);
+
+            RenderCommands->ShowCascades = State->Options.ShowCascades;
+            RenderCommands->Camera = Camera;
+            RenderCommands->DirectionalLight = &State->DirectionalLight;
 
             // Scene lighting
+            //State->DirectionalLight.Direction = Normalize(vec3(Cos(Parameters->Time * 0.5f), -1.f, Sin(Parameters->Time * 0.5f)));
+
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
 
             f32 PointLightRadius = 4.f;

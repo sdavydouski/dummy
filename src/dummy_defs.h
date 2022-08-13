@@ -42,4 +42,5 @@
 #define wchar wchar_t
 
 #define U32_MAX UINT32_MAX;
+#define F32_MIN FLT_MIN
 #define F32_MAX FLT_MAX

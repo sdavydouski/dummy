@@ -8,6 +8,11 @@ float Saturate(float Value)
     return clamp(Value, 0.f, 1.f);
 }
 
+vec3 Saturate(vec3 Value)
+{
+    return clamp(Value, 0.f, 1.f);
+}
+
 vec3 UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
 {
     mat4 ViewInv = inverse(View);
@@ -16,4 +21,9 @@ vec3 UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
     vec3 Result = UnprojectedPoint.xyz / UnprojectedPoint.w;
     
     return Result;
+}
+
+float Lerp(float From, float To, float t)
+{
+    return mix(From, To, t);
 }

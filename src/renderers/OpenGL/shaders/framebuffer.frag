@@ -1,4 +1,5 @@
 //! #include "common/version.glsl"
+//! #include "common/uniform.glsl"
 
 in VS_OUT
 {
@@ -7,18 +8,10 @@ in VS_OUT
 
 out vec4 out_Color;
 
-layout (std140, binding = 0) uniform State
-{
-    mat4 u_Projection;
-    mat4 u_View;
-    vec3 u_CameraPosition;
-    float u_Time;
-};
-
 uniform sampler2D u_ScreenTexture;
 
 float zNear = 0.1f;    // TODO: Replace by the zNear of your perspective projection
-float zFar  = 1.f; // TODO: Replace by the zFar  of your perspective projection
+float zFar  = 320.f; // TODO: Replace by the zFar  of your perspective projection
 
 float LinearizeDepth(float Depth)
 {

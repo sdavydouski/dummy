@@ -11,25 +11,6 @@ enum game_mode
     GameMode_Edit
 };
 
-struct game_camera
-{
-    vec3 Position;
-    vec3 PivotPosition;
-    vec3 Direction;
-    vec3 Up;
-
-    f32 Pitch;
-    f32 Yaw;
-    f32 FovY;
-
-    f32 Radius;
-    f32 NearClipPlane;
-    f32 FarClipPlane;
-
-    //vec3_lerp PositionLerp;
-    vec3_lerp PivotPositionLerp;
-};
-
 struct game_entity
 {
     transform Transform;
@@ -67,6 +48,11 @@ struct game_assets
 {
     u32 ModelCount;
     model *Models;
+};
+
+struct game_options
+{
+    b32 ShowCascades;
 };
 
 struct game_state
@@ -111,6 +97,7 @@ struct game_state
     game_entity *yBot;
     game_entity *Skulls[2];
     game_entity *Dummy;
+    game_entity *Cubes[16];
 
     vec2 CurrentMove;
     vec2 TargetMove;
@@ -124,4 +111,6 @@ struct game_state
     // for testing purpuses
     f32 DelayTime;
     f32 DelayDuration;
+
+    game_options Options;
 };

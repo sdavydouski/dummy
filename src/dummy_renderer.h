@@ -54,6 +54,25 @@ struct spot_light
     light_attenuation Attenuation;
 };
 
+struct game_camera
+{
+    vec3 Position;
+    vec3 PivotPosition;
+    vec3 Direction;
+    vec3 Up;
+
+    f32 Pitch;
+    f32 Yaw;
+    f32 FovY;
+
+    f32 Radius;
+    f32 NearClipPlane;
+    f32 FarClipPlane;
+
+    //vec3_lerp PositionLerp;
+    vec3_lerp PivotPositionLerp;
+};
+
 struct render_instance
 {
     mat4 Model;
@@ -162,7 +181,7 @@ struct render_command_set_camera
     render_command_header Header;
 #if 1
     vec3 Position;
-    vec3 Target;
+    vec3 Direction;
     vec3 Up;
 #else
     mat4 View;
@@ -265,4 +284,7 @@ struct render_commands
     i32 PrevWindowHeight;
 
     f32 Time;
+    b32 ShowCascades;
+    game_camera *Camera;
+    directional_light *DirectionalLight;
 };

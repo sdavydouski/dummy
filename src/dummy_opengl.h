@@ -84,23 +84,37 @@ struct opengl_shader
 
     GLint ScreenTextureUniformLocation;
     GLint BlinkUniformLocation;
-
-
-    GLint ShadowMapUniformLocation;
-    GLint LightSpaceMatrixUniformLocation;
 };
 
 struct opengl_shader_state
 {
     mat4 Projection;
     mat4 View;
-    vec3 CameraPosition;
+    alignas(16) vec3 CameraPosition;
+    alignas(16) vec3 CameraDirection;
     f32 Time;
+    f32 RenderShadowMap;
 };
 
 struct opengl_render_options
 {
     b32 RenderShadowMap;
+    b32 ShowCascades;
+    mat4 CascadeView;
+    mat4 CascadeProjection;
+    u32 CascadeIndex;
+};
+
+#define CASCADE_COUNT 4
+
+struct cascaded_shadow_maps
+{
+    vec4 ShadowOffset[2];
+    vec3 CascadeScale[3];
+    vec3 CascadeOffset[3];
+    vec2 CascadeBounds[4];
+    mat4 CascadeViewProjection[4];
+    mat4 CascadeViewTexture0;
 };
 
 struct opengl_state
@@ -124,8 +138,8 @@ struct opengl_state
     GLuint SingleSampledColorTexture;
     GLuint SingleSampledDepthTexture;
 
-    GLuint DepthMapFBO;
-    GLuint DepthMapTexture;
+    GLuint ShadowMapFBO;
+    GLuint ShadowMapTextures[4];
 
     GLuint LineVAO;
     GLuint RectangleVAO;
@@ -144,6 +158,6 @@ struct opengl_state
     u32 CurrentShaderCount;
     opengl_shader Shaders[OPENGL_MAX_SHADER_COUNT];
 
-    u32 ShadowMapWidth;
-    u32 ShadowMapHeight;
+    u32 ShadowMapSize;
+    cascaded_shadow_maps Csm;
 };

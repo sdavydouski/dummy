@@ -51,6 +51,13 @@ inline void *
 Win32AllocateMemory(void *BaseAddress, umm Size)
 {
     void *Result = VirtualAlloc(BaseAddress, Size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+    if (!Result)
+    {
+        DWORD Error = GetLastError();
+        Assert(!"VirtualAlloc failed");
+    }
+
     return Result;
 }
 
@@ -795,11 +802,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     GameMemory.RenderCommandsStorageSize = Megabytes(4);
     GameMemory.Platform = &PlatformApi;
 
-#if NDEBUG
     void *BaseAddress = 0;
-#else
-    void *BaseAddress = (void *)Terabytes(2);
-#endif
     PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize;
     PlatformState.GameMemoryBlock = Win32AllocateMemory(BaseAddress, PlatformState.GameMemoryBlockSize);
 
