@@ -1,6 +1,7 @@
 //! #include "common/version.glsl"
+//! #include "common/math.glsl"
 //! #include "common/uniform.glsl"
-//! #include "common/blinn_phong.glsl"
+//! #include "common/shadows.glsl"
 
 layout(location = 0) in vec3 in_Position;
 layout(location = 1) in vec3 in_Normal;
@@ -17,7 +18,6 @@ layout(location = 11) in unsigned int in_Highlight;
 out VS_OUT {
     vec3 VertexPosition;
     vec3 Normal;
-    vec3 CascadeCoord0;
     vec3 CascadeBlend;
     vec2 TextureCoords;
     mat3 TBN;
@@ -63,7 +63,6 @@ void main()
     u.y = dot(f2, p);
     u.z = dot(f3, p);
 
-    vs_out.CascadeCoord0 = (u_CascadeViewTexture0 * p).xyz;
     vs_out.CascadeBlend = u;
 
     gl_Position = u_Projection * u_View * p;

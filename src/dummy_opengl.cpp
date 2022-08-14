@@ -613,7 +613,7 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 {
     u32 Size = InitialSize + 256;
     char *Result = PushString(Arena, Size);
-    FormatString_(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT, CASCADE_COUNT);
+    FormatString_(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT);
 
     return Result;
 }
@@ -632,7 +632,11 @@ OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Coun
     char *UniformShaderSource = (char *) UniformShaderFile.Contents;
 
     read_file_result BlinnPhongShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl", Arena, true);
+    // todo: ?
     char *BlinnPhongShaderSource = OpenGLPreprocessShader((char *)BlinnPhongShaderFile.Contents, BlinnPhongShaderFile.Size, Arena);
+
+    read_file_result ShadowsShaderFile = State->Platform->ReadFile((char *) "..\\src\\renderers\\OpenGL\\shaders\\common\\shadows.glsl", Arena, true);
+    char *ShadowsShaderSource = (char *) ShadowsShaderFile.Contents;
     //
 
     read_file_result ShaderFile = State->Platform->ReadFile(ShaderFileName, Arena, true);
@@ -645,7 +649,8 @@ OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Coun
     Sources[1] = MathShaderSource;
     Sources[2] = UniformShaderSource;
     Sources[3] = BlinnPhongShaderSource;
-    Sources[4] = ShaderSource;
+    Sources[4] = ShadowsShaderSource;
+    Sources[5] = ShaderSource;
 
     return Sources;
 }
@@ -658,7 +663,7 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
     scoped_memory ScopedMemory(&State->Arena);
 
     // todo:
-    u32 Count = 5;
+    u32 Count = 6;
     char **VertexSource = OpenGLLoadShaderFile(State, Id, VertexShaderFileName, Count, ScopedMemory.Arena);
     char **FragmentSource = OpenGLLoadShaderFile(State, Id, FragmentShaderFileName, Count, ScopedMemory.Arena);
 
@@ -818,9 +823,6 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
         GLint ShowCascadesUniformLocation = glGetUniformLocation(Shader->Program, "u_ShowCascades");
         glUniform1i(ShowCascadesUniformLocation, Options->ShowCascades);
 
-        GLint M_shadow_0UniformLocation = glGetUniformLocation(Shader->Program, "u_CascadeViewTexture0");
-        glUniformMatrix4fv(M_shadow_0UniformLocation, 1, GL_TRUE, (f32 *) State->Csm.CascadeViewTexture0.Elements);
-
         // Shadow offset
         vec4 ShadowOffset0 = State->Csm.ShadowOffset[0];
         vec4 ShadowOffset1 = State->Csm.ShadowOffset[1];
@@ -830,32 +832,6 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
         glUniform4f(ShadowOffset0UniformLocation, ShadowOffset0.x, ShadowOffset0.y, ShadowOffset0.z, ShadowOffset0.w);
         glUniform4f(ShadowOffset1UniformLocation, ShadowOffset1.x, ShadowOffset1.y, ShadowOffset1.z, ShadowOffset1.w);
-
-        // Cascade scale
-        vec3 CascadeScale0 = State->Csm.CascadeScale[0];
-        vec3 CascadeScale1 = State->Csm.CascadeScale[1];
-        vec3 CascadeScale2 = State->Csm.CascadeScale[2];
-
-        GLint CascadeScale0UniformLocation = glGetUniformLocation(Shader->Program, "u_CascadeScale[0]");
-        GLint CascadeScale1UniformLocation = glGetUniformLocation(Shader->Program, "u_CascadeScale[1]");
-        GLint CascadeScale2UniformLocation = glGetUniformLocation(Shader->Program, "u_CascadeScale[2]");
-
-        glUniform3f(CascadeScale0UniformLocation, CascadeScale0.x, CascadeScale0.y, CascadeScale0.z);
-        glUniform3f(CascadeScale1UniformLocation, CascadeScale1.x, CascadeScale1.y, CascadeScale1.z);
-        glUniform3f(CascadeScale2UniformLocation, CascadeScale2.x, CascadeScale2.y, CascadeScale2.z);
-
-        // Cascade offset
-        vec3 CascadeOffset0 = State->Csm.CascadeOffset[0];
-        vec3 CascadeOffset1 = State->Csm.CascadeOffset[1];
-        vec3 CascadeOffset2 = State->Csm.CascadeOffset[2];
-
-        GLint CascadeOffset0UniformLocation = glGetUniformLocation(Shader->Program, "u_CascadeOffset[0]");
-        GLint CascadeOffset1UniformLocation = glGetUniformLocation(Shader->Program, "u_CascadeOffset[1]");
-        GLint CascadeOffset2UniformLocation = glGetUniformLocation(Shader->Program, "u_CascadeOffset[2]");
-
-        glUniform3f(CascadeOffset0UniformLocation, CascadeOffset0.x, CascadeOffset0.y, CascadeOffset0.z);
-        glUniform3f(CascadeOffset1UniformLocation, CascadeOffset1.x, CascadeOffset1.y, CascadeOffset1.z);
-        glUniform3f(CascadeOffset2UniformLocation, CascadeOffset2.x, CascadeOffset2.y, CascadeOffset2.z);
     }
 
     if (MeshMaterial)
@@ -1075,10 +1051,12 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
         glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[TextureIndex]);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, State->ShadowMapSize, State->ShadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 
         vec4 BorderColor = vec4(1.f);
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, BorderColor.Elements);
@@ -1683,11 +1661,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
     mat4 LightM = LookAt(LightPosition, LightPosition + LightDirection, LightUp);
 
-    i32 d0 = 0;
-    f32 zMin0 = 0.f;
-    f32 zMax0 = 0.f;
-    vec3 LightPosition0 = vec3(0.f);
-
     for (u32 CascadeIndex = 0; CascadeIndex < CASCADE_COUNT; ++CascadeIndex)
     {
         vec2 CascadeBounds = -State->Csm.CascadeBounds[CascadeIndex];
@@ -1729,13 +1702,11 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         // could be calculated one time and saved
         i32 d = Ceil(Max(Magnitude(CameraSpaceFrustrumCorners[1] - CameraSpaceFrustrumCorners[6]), Magnitude(CameraSpaceFrustrumCorners[5] - CameraSpaceFrustrumCorners[6])));
 
-        f32 theta = 0.f;
-
         mat4 CascadeProjection = mat4(
             2.f / d, 0.f, 0.f, 0.f,
             0.f, 2.f / d, 0.f, 0.f,
             // todo: minus? theta?
-            0.f, 0.f, -1.f / (zMax - zMin), theta,
+            0.f, 0.f, -1.f / (zMax - zMin), 0.f,
             0.f, 0.f, 0.f, 1.f
         );
 
@@ -1752,47 +1723,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
         State->Csm.CascadeViewProjection[CascadeIndex] = CascadeProjection * CascadeView;
 
-        mat4 P = mat4(
-            vec4(1.f / d, 0.f, 0.f, 0.5f),
-            vec4(0.f, 1.f / d, 0.f, 0.5f),
-            // todo: minus?
-            vec4(0.f, 0.f, -1.f / (zMax - zMin), 0.f),
-            vec4(0.f, 0.f, 0.f, 1.f)
-        );
-
-        if (CascadeIndex == 0)
-        {
-            d0 = d;
-            zMin0 = zMin;
-            zMax0 = zMax;
-            LightPosition0 = LightPosition;
-
-            State->Csm.CascadeViewTexture0 = P * CascadeView;
-
-            f32 r = 1.f / State->ShadowMapSize;
-            f32 Offset = 3.f / 16.f * r;
-            vec4 ShadowOffset0 = vec4(-Offset, -3.f * Offset, 3.f * Offset, -Offset);
-            vec4 ShadowOffset1 = vec4(Offset, 3.f * Offset, -3.f * Offset, Offset);
-
-            State->Csm.ShadowOffset[0] = ShadowOffset0;
-            State->Csm.ShadowOffset[1] = ShadowOffset1;
-        }
-        else
-        {
-            vec3 CascadeScale;
-            CascadeScale.x = (f32) d0 / (f32) d;
-            CascadeScale.y = (f32) d0 / (f32) d;
-            CascadeScale.z = (zMax0 - zMin0) / (zMax - zMin);
-
-            vec3 CascadeOffset;
-            CascadeOffset.x = (LightPosition0.x - LightPosition.x) / d - d0 / (2.f * d) + 0.5f;
-            CascadeOffset.y = (LightPosition0.y - LightPosition.y) / d - d0 / (2.f * d) + 0.5f;
-            CascadeOffset.z = (LightPosition0.z - LightPosition.z) / (zMax - zMin);
-
-            State->Csm.CascadeScale[CascadeIndex - 1] = CascadeScale;
-            State->Csm.CascadeOffset[CascadeIndex - 1] = CascadeOffset;
-        }
-        
         opengl_render_options RenderOptions = {};
         RenderOptions.RenderShadowMap = true;
         RenderOptions.CascadeIndex = CascadeIndex;
@@ -1806,7 +1736,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     RenderOptions.ShowCascades = Commands->ShowCascades;
     OpenGLRenderScene(State, Commands, &RenderOptions);
 
-#if 1
+#if 0
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     opengl_shader* Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);

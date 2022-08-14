@@ -110,11 +110,8 @@ struct opengl_render_options
 struct cascaded_shadow_maps
 {
     vec4 ShadowOffset[2];
-    vec3 CascadeScale[3];
-    vec3 CascadeOffset[3];
     vec2 CascadeBounds[4];
     mat4 CascadeViewProjection[4];
-    mat4 CascadeViewTexture0;
 };
 
 struct opengl_state

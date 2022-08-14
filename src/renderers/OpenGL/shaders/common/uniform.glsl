@@ -1,3 +1,5 @@
+//? #include "version.glsl"
+
 layout(std140, binding = 0) uniform State
 {
     mat4 u_Projection;

@@ -23,7 +23,4 @@ vec3 UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
     return Result;
 }
 
-float Lerp(float From, float To, float t)
-{
-    return mix(From, To, t);
-}
+#define Lerp mix

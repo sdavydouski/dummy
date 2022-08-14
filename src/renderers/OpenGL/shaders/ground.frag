@@ -1,6 +1,8 @@
 //! #include "common/version.glsl"
+//! #include "common/math.glsl"
+//! #include "common/uniform.glsl"
 //! #include "common/blinn_phong.glsl"
-//! #include "common/uniform.glsl" 
+//! #include "common/shadows.glsl"
 
 in VS_OUT
 {
@@ -95,11 +97,10 @@ void main()
     u.y = dot(f2, p);
     u.z = dot(f3, p);
 
-    vec3 CascadeCoord0 = (u_CascadeViewTexture0 * p).xyz;
     vec3 CascadeBlend = u;
     //
 
-    vec4 ShadowResult = CalculateInfiniteShadow(CascadeCoord0, CascadeBlend);
+    vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, p);
 
     float Shadow = ShadowResult.x;
     int CascadeIndex1 = int(ShadowResult.y);
