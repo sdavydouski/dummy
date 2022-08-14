@@ -5,11 +5,12 @@
 #include "dummy_string.h"
 #include "dummy_container.h"
 #include "dummy_input.h"
-#include "dummy_renderer.h"
-#include "dummy_platform.h"
+#include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
+#include "dummy_renderer.h"
+#include "dummy_platform.h"
 #include "dummy.h"
 
 #include "dummy_assets.cpp"
@@ -911,7 +912,7 @@ DLLExport GAME_INIT(GameInit)
     State->DirectionalLight.Color = vec3(1.f);
     State->DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
 
-    State->Entropy = RandomSequence(42);
+    State->Entropy = RandomSequence(451);
 
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
@@ -1375,9 +1376,9 @@ DLLExport GAME_RENDER(GameRender)
 
     ClearMemoryArena(&State->TransientArena);
 
-    RenderCommands->WindowWidth = Parameters->WindowWidth;
-    RenderCommands->WindowHeight = Parameters->WindowHeight;
-    RenderCommands->Time = Parameters->Time;
+    RenderCommands->Settings.WindowWidth = Parameters->WindowWidth;
+    RenderCommands->Settings.WindowHeight = Parameters->WindowHeight;
+    RenderCommands->Settings.Time = Parameters->Time;
 
     f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
@@ -1415,9 +1416,9 @@ DLLExport GAME_RENDER(GameRender)
             SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Position, Camera->Direction, Camera->Up);
 
-            RenderCommands->ShowCascades = State->Options.ShowCascades;
-            RenderCommands->Camera = Camera;
-            RenderCommands->DirectionalLight = &State->DirectionalLight;
+            RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
+            RenderCommands->Settings.Camera = Camera;
+            RenderCommands->Settings.DirectionalLight = &State->DirectionalLight;
 
             // Scene lighting
             //State->DirectionalLight.Direction = Normalize(vec3(Cos(Parameters->Time * 0.5f), -1.f, Sin(Parameters->Time * 0.5f)));

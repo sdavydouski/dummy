@@ -5,7 +5,7 @@
 //! #include "common/shadows.glsl"
 
 in VS_OUT {
-    vec3 VertexPosition;
+    vec3 WorldPosition;
     vec3 Normal;
     vec3 CascadeBlend;
     vec2 TextureCoords;
@@ -55,19 +55,17 @@ void main()
     }
     Normal = normalize(Normal);
 
-    vec3 EyeDirection = normalize(u_CameraPosition - fs_in.VertexPosition);
+    vec3 EyeDirection = normalize(u_CameraPosition - fs_in.WorldPosition);
     
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
 
     for (int PointLightIndex = 0; PointLightIndex < u_PointLightCount; ++PointLightIndex)
     {
         point_light PointLight = u_PointLights[PointLightIndex];
-        Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, fs_in.VertexPosition);
+        Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, fs_in.WorldPosition);
     }
 
     // Shadow
-    vec4 WorldPosition = vec4(fs_in.VertexPosition, 1.f);
-
     vec3 CascadeBlend = fs_in.CascadeBlend;
 
 #if 1
@@ -76,7 +74,7 @@ void main()
     float Bias = clamp(0.005 * tan(acos(CosTheta)), 0.f, 0.01f);
 #endif
 
-    vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, WorldPosition, Bias);
+    vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, fs_in.WorldPosition, Bias);
 
     float Shadow = ShadowResult.x;
     int CascadeIndex1 = int(ShadowResult.y);

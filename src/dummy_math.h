@@ -49,12 +49,6 @@ struct ray
     vec3 Direction;
 };
 
-struct aabb
-{
-    vec3 Min;
-    vec3 Max;
-};
-
 struct transform
 {
     quat Rotation;

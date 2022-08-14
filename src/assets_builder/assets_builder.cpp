@@ -1,9 +1,19 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#include <string>
+#include <vector>
+#include <unordered_map>
 #include <filesystem>
 #include <stdlib.h>
 
 #include "rapidjson/document.h"
+
+#include "dummy_defs.h"
+#include "dummy_math.h"
+#include "dummy_string.h"
+#include "dummy_collision.h"
+#include "dummy_animation.h"
+#include "dummy_assets.h"
 
 #include "assets_utils.cpp"
 

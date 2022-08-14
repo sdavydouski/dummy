@@ -1,9 +1,3 @@
-#include "dummy_random.h"
-#include "dummy_physics.h"
-#include "dummy_animation.h"
-#include "dummy_assets.h"
-#include "dummy.h"
-
 //#pragma warning(push, 0)
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -215,21 +209,26 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
 
     ImGui::Text("Entity Count: %d", GameState->EntityCount);
 
-    ImGui::Text("Player:");
-
     if (GameState->Player->Body)
     {
-        ImGui::Text("Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
+        ImGui::Text("Player Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
     }
 
-    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", GameState->PlayerCamera.Position.x, GameState->PlayerCamera.Position.y, GameState->PlayerCamera.Position.z);
+    game_camera *Camera = GameState->Mode == GameMode_World
+        ? &GameState->PlayerCamera
+        : &GameState->FreeCamera;
 
-    ImGui::ColorEdit3("Dir Color", (f32 *)&GameState->DirectionalLight.Color);
-    ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
+    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Position.x, Camera->Position.y, Camera->Position.z);
+
+    ImGui::End();
+
+    ImGui::Begin("Render Settings");
+    
+    ImGui::ColorEdit3("Dir Color", (f32 *) &GameState->DirectionalLight.Color);
+    ImGui::SliderFloat3("Dir Direction", (f32 *) &GameState->DirectionalLight.Direction, -1.f, 1.f);
     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
     ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
-
     ImGui::End();
 
     ImGui::Begin("Animation Graph");

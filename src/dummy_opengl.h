@@ -105,15 +105,6 @@ struct opengl_render_options
     u32 CascadeIndex;
 };
 
-#define CASCADE_COUNT 4
-
-struct cascaded_shadow_maps
-{
-    vec4 ShadowOffset[2];
-    vec2 CascadeBounds[4];
-    mat4 CascadeViewProjection[4];
-};
-
 struct opengl_state
 {
     char *Vendor;
@@ -135,9 +126,6 @@ struct opengl_state
     GLuint SingleSampledColorTexture;
     GLuint SingleSampledDepthTexture;
 
-    GLuint ShadowMapFBO;
-    GLuint ShadowMapTextures[4];
-
     GLuint LineVAO;
     GLuint RectangleVAO;
 
@@ -155,6 +143,9 @@ struct opengl_state
     u32 CurrentShaderCount;
     opengl_shader Shaders[OPENGL_MAX_SHADER_COUNT];
 
-    u32 ShadowMapSize;
-    cascaded_shadow_maps Csm;
+    u32 CascadeShadowMapSize;
+    GLuint CascadeShadowMapFBO;
+    GLuint CascadeShadowMaps[4];
+    vec2 CascadeBounds[4];
+    mat4 CascadeViewProjection[4];
 };

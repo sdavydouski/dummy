@@ -1,5 +1,5 @@
-//! #include "common/version.glsl"
-//! #include "common/uniform.glsl"
+//? #include "common/version.glsl"
+//? #include "common/uniform.glsl"
 
 in VS_OUT
 {
@@ -9,12 +9,14 @@ in VS_OUT
 out vec4 out_Color;
 
 uniform sampler2D u_ScreenTexture;
-
-float zNear = 0.1f;    // TODO: Replace by the zNear of your perspective projection
-float zFar  = 320.f; // TODO: Replace by the zFar  of your perspective projection
+uniform float u_zNear;
+uniform float u_zFar;
 
 float LinearizeDepth(float Depth)
 {
+    float zNear = u_zNear;
+    float zFar = u_zFar;
+
     float z = Depth * 2.0 - 1.0; // Back to NDC 
     return (2.0 * zNear) / (zFar + zNear - z * (zFar - zNear));
 }

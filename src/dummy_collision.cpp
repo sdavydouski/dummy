@@ -133,9 +133,9 @@ TestAABBPlane(aabb Box, plane Plane)
 }
 
 /*
-Fast Ray-Box Intersection
-by Andrew Woo
-from "Graphics Gems", Academic Press, 1990
+    Fast Ray-Box Intersection
+    by Andrew Woo
+    from "Graphics Gems", Academic Press, 1990
 */
 
 #define NUMDIM	3
@@ -157,7 +157,7 @@ b32 HitBoundingBox(ray Ray, aabb Box, vec3 &Coord)
     char quadrant[NUMDIM];
 
     /* Find candidate planes; this loop can be avoided if
-    rays cast all from the eye(assume perpsective view) */
+       rays cast all from the eye(assume perpsective view) */
     for (u32 i = 0; i < NUMDIM; i++)
     {
         if (origin[i] < minB[i])
@@ -232,7 +232,7 @@ b32 HitBoundingBox(ray Ray, aabb Box, vec3 &Coord)
         }
     }
 
-    return (1);				/* ray hits box */
+    return (1);     /* ray hits box */
 }
 
 // todo: wrong!

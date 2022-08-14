@@ -608,6 +608,7 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
     Shader->BlinkUniformLocation = glGetUniformLocation(Program, "u_Blink");
 }
 
+// todo: make generic
 inline char *
 OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 {
@@ -632,7 +633,6 @@ OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Coun
     char *UniformShaderSource = (char *) UniformShaderFile.Contents;
 
     read_file_result BlinnPhongShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl", Arena, true);
-    // todo: ?
     char *BlinnPhongShaderSource = OpenGLPreprocessShader((char *)BlinnPhongShaderFile.Contents, BlinnPhongShaderFile.Size, Arena);
 
     read_file_result ShadowsShaderFile = State->Platform->ReadFile((char *) "..\\src\\renderers\\OpenGL\\shaders\\common\\shadows.glsl", Arena, true);
@@ -663,7 +663,8 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
     scoped_memory ScopedMemory(&State->Arena);
 
     // todo:
-    u32 Count = 6;
+    u32 CommonCount = 5;
+    u32 Count = CommonCount + 1;
     char **VertexSource = OpenGLLoadShaderFile(State, Id, VertexShaderFileName, Count, ScopedMemory.Arena);
     char **FragmentSource = OpenGLLoadShaderFile(State, Id, FragmentShaderFileName, Count, ScopedMemory.Arena);
 
@@ -775,20 +776,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
     glActiveTexture(GL_TEXTURE0 + 0);
     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-    if (Options->RenderShadowMap)
-    {
-        u32 CascadeIndex = Options->CascadeIndex;
-        u32 TextureIndex = CascadeIndex + 16;
-
-        char ShadowMapUniformName[64];
-        FormatString(ShadowMapUniformName, "u_ShadowMaps[%d]", CascadeIndex);
-        GLint ShadowMapUniformLocation = glGetUniformLocation(Shader->Program, ShadowMapUniformName);
-
-        glActiveTexture(GL_TEXTURE0 + TextureIndex);
-        glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[CascadeIndex]);
-        glUniform1i(ShadowMapUniformLocation, TextureIndex);
-    }
-    else
+    if (!Options->RenderShadowMap)
     {
         for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
         {
@@ -796,11 +784,11 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
             // Cascasde Shadow Map
             char ShadowMapUniformName[64];
-            FormatString(ShadowMapUniformName, "u_ShadowMaps[%d]", CascadeIndex);
+            FormatString(ShadowMapUniformName, "u_CascadeShadowMaps[%d]", CascadeIndex);
             GLint ShadowMapUniformLocation = glGetUniformLocation(Shader->Program, ShadowMapUniformName);
 
             glActiveTexture(GL_TEXTURE0 + TextureIndex);
-            glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[CascadeIndex]);
+            glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[CascadeIndex]);
             glUniform1i(ShadowMapUniformLocation, TextureIndex);
 
             // Cascade Bounds
@@ -808,7 +796,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
             FormatString(CascadeBoundsUniformName, "u_CascadeBounds[%d]", CascadeIndex);
             GLint CascadeBoundsUniformLocation = glGetUniformLocation(Shader->Program, CascadeBoundsUniformName);
 
-            vec2 CascadeBounds = State->Csm.CascadeBounds[CascadeIndex];
+            vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
             glUniform2f(CascadeBoundsUniformLocation, CascadeBounds.x, CascadeBounds.y);
 
             // Cascade View Projection
@@ -816,22 +804,12 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
             FormatString(CascadeViewProjectionUniformName, "u_CascadeViewProjection[%d]", CascadeIndex);
             GLint CascadeViewProjectionUniformLocation = glGetUniformLocation(Shader->Program, CascadeViewProjectionUniformName);
 
-            mat4 CascadeViewProjection = State->Csm.CascadeViewProjection[CascadeIndex];
+            mat4 CascadeViewProjection = State->CascadeViewProjection[CascadeIndex];
             glUniformMatrix4fv(CascadeViewProjectionUniformLocation, 1, GL_TRUE, (f32 *) CascadeViewProjection.Elements);
         }
 
         GLint ShowCascadesUniformLocation = glGetUniformLocation(Shader->Program, "u_ShowCascades");
         glUniform1i(ShowCascadesUniformLocation, Options->ShowCascades);
-
-        // Shadow offset
-        vec4 ShadowOffset0 = State->Csm.ShadowOffset[0];
-        vec4 ShadowOffset1 = State->Csm.ShadowOffset[1];
-
-        GLint ShadowOffset0UniformLocation = glGetUniformLocation(Shader->Program, "u_ShadowOffset[0]");
-        GLint ShadowOffset1UniformLocation = glGetUniformLocation(Shader->Program, "u_ShadowOffset[1]");
-
-        glUniform4f(ShadowOffset0UniformLocation, ShadowOffset0.x, ShadowOffset0.y, ShadowOffset0.z, ShadowOffset0.w);
-        glUniform4f(ShadowOffset1UniformLocation, ShadowOffset1.x, ShadowOffset1.y, ShadowOffset1.z, ShadowOffset1.w);
     }
 
     if (MeshMaterial)
@@ -1028,12 +1006,11 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
     State->Version = (char*)glGetString(GL_VERSION);
     State->ShadingLanguageVersion = (char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    State->ShadowMapSize = 4096;
-    State->Csm = {};
-    State->Csm.CascadeBounds[0] = vec2(-0.1f, -20.f);
-    State->Csm.CascadeBounds[1] = vec2(-15.f, -50.f);
-    State->Csm.CascadeBounds[2] = vec2(-40.f, -120.f);
-    State->Csm.CascadeBounds[3] = vec2(-100.f, -320.f);
+    State->CascadeShadowMapSize = 4096;
+    State->CascadeBounds[0] = vec2(-0.1f, -20.f);
+    State->CascadeBounds[1] = vec2(-15.f, -50.f);
+    State->CascadeBounds[2] = vec2(-40.f, -120.f);
+    State->CascadeBounds[3] = vec2(-100.f, -320.f);
 
     OpenGLInitLine(State);
     OpenGLInitRectangle(State);
@@ -1041,15 +1018,15 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
     OpenGLInitFramebuffers(State, WindowWidth, WindowHeight);
 
     // Shadow Map Configuration
-    glGenFramebuffers(1, &State->ShadowMapFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, State->ShadowMapFBO);
+    glGenFramebuffers(1, &State->CascadeShadowMapFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, State->CascadeShadowMapFBO);
 
-    glGenTextures(CASCADE_COUNT, State->ShadowMapTextures);
+    glGenTextures(4, State->CascadeShadowMaps);
 
-    for (u32 TextureIndex = 0; TextureIndex < ArrayCount(State->ShadowMapTextures); ++TextureIndex)
+    for (u32 TextureIndex = 0; TextureIndex < ArrayCount(State->CascadeShadowMaps); ++TextureIndex)
     {
-        glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[TextureIndex]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, State->ShadowMapSize, State->ShadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[TextureIndex]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, State->CascadeShadowMapSize, State->CascadeShadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1062,7 +1039,7 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, BorderColor.Elements);
     }
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->ShadowMapTextures[0], 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[0], 0);
 
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
@@ -1090,8 +1067,8 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     OpenGLAddTexture(State, 0, &WhiteTexture);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
+    //glEnable(GL_CULL_FACE);
+    //glCullFace(GL_BACK);
 
     glFrontFace(GL_CCW);
 
@@ -1176,24 +1153,20 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
         if (Options->RenderShadowMap)
         {
-            glViewport(0, 0, State->ShadowMapSize, State->ShadowMapSize);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->ShadowMapFBO);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->ShadowMapTextures[Options->CascadeIndex], 0);
-
+            glViewport(0, 0, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->CascadeShadowMapFBO);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[Options->CascadeIndex], 0);
             glEnable(GL_DEPTH_CLAMP);
-            //glCullFace(GL_FRONT);
         }
         else
         {
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
             glDisable(GL_DEPTH_CLAMP);
-            //glCullFace(GL_BACK);
         }
 
         if (Options->RenderShadowMap)
         {
-            glViewport(0, 0, State->ShadowMapSize, State->ShadowMapSize);
+            glViewport(0, 0, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
 
             mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
             mat4 TransposeLightView = Transpose(Options->CascadeView);
@@ -1473,9 +1446,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glUniform1i(Shader->BlinkUniformLocation, true);
                 }
 
-                //glDisable(GL_DEPTH_TEST);
                 glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
-                //glEnable(GL_DEPTH_TEST);
 
                 glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -1640,44 +1611,46 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     }
 #endif
 
-    if (State->WindowWidth != Commands->WindowWidth || State->WindowHeight != Commands->WindowHeight)
+    render_commands_settings *RenderSettings = &Commands->Settings;
+
+    if (State->WindowWidth != RenderSettings->WindowWidth || RenderSettings->WindowHeight != RenderSettings->WindowHeight)
     {
-        OpenGLOnWindowResize(State, Commands->WindowWidth, Commands->WindowHeight);
+        OpenGLOnWindowResize(State, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
     }
 
     OpenGLPrepareScene(State, Commands);
 
-    game_camera *Camera = Commands->Camera;
+    game_camera *Camera = RenderSettings->Camera;
 
     f32 FocalLength = 1.f / Tan(Camera->FovY * 0.5f);
-    f32 AspectRatio = (f32) Commands->WindowWidth / (f32) Commands->WindowHeight;
+    f32 AspectRatio = (f32) RenderSettings->WindowWidth / (f32) RenderSettings->WindowHeight;
 
     mat4 CameraM = LookAt(Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
     mat4 CameraMInv = Inverse(CameraM);
 
     vec3 LightPosition = vec3(0.f);
-    vec3 LightDirection = Normalize(Commands->DirectionalLight->Direction);
+    vec3 LightDirection = Normalize(RenderSettings->DirectionalLight->Direction);
     vec3 LightUp = vec3(0.f, 1.f, 0.f);
 
     mat4 LightM = LookAt(LightPosition, LightPosition + LightDirection, LightUp);
 
-    for (u32 CascadeIndex = 0; CascadeIndex < CASCADE_COUNT; ++CascadeIndex)
+    for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
     {
-        vec2 CascadeBounds = -State->Csm.CascadeBounds[CascadeIndex];
+        vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
 
         f32 Near = CascadeBounds.x;
         f32 Far = CascadeBounds.y;
 
         vec4 CameraSpaceFrustrumCorners[8] = {
-            vec4(-Near * AspectRatio / FocalLength, -Near / FocalLength, -Near, 1.f),
-            vec4(Near * AspectRatio / FocalLength, -Near / FocalLength, -Near, 1.f),
-            vec4(-Near * AspectRatio / FocalLength, Near / FocalLength, -Near, 1.f),
-            vec4(Near * AspectRatio / FocalLength, Near / FocalLength, -Near, 1.f),
+            vec4(-Near * AspectRatio / FocalLength, -Near / FocalLength, Near, 1.f),
+            vec4(Near * AspectRatio / FocalLength, -Near / FocalLength, Near, 1.f),
+            vec4(-Near * AspectRatio / FocalLength, Near / FocalLength, Near, 1.f),
+            vec4(Near * AspectRatio / FocalLength, Near / FocalLength, Near, 1.f),
 
-            vec4(-Far * AspectRatio / FocalLength, -Far / FocalLength, -Far, 1.f),
-            vec4(Far * AspectRatio / FocalLength, -Far / FocalLength, -Far, 1.f),
-            vec4(-Far * AspectRatio / FocalLength, Far / FocalLength, -Far, 1.f),
-            vec4(Far * AspectRatio / FocalLength, Far / FocalLength, -Far, 1.f),
+            vec4(-Far * AspectRatio / FocalLength, -Far / FocalLength, Far, 1.f),
+            vec4(Far * AspectRatio / FocalLength, -Far / FocalLength, Far, 1.f),
+            vec4(-Far * AspectRatio / FocalLength, Far / FocalLength, Far, 1.f),
+            vec4(Far * AspectRatio / FocalLength, Far / FocalLength, Far, 1.f),
         };
 
         f32 xMin = F32_MAX;
@@ -1699,18 +1672,17 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             zMax = Max(zMax, LightSpaceFrustrumCorner.z);
         }
 
-        // could be calculated one time and saved
+        // todo: could be calculated one time and saved
         i32 d = Ceil(Max(Magnitude(CameraSpaceFrustrumCorners[1] - CameraSpaceFrustrumCorners[6]), Magnitude(CameraSpaceFrustrumCorners[5] - CameraSpaceFrustrumCorners[6])));
 
         mat4 CascadeProjection = mat4(
             2.f / d, 0.f, 0.f, 0.f,
             0.f, 2.f / d, 0.f, 0.f,
-            // todo: minus? theta?
             0.f, 0.f, -1.f / (zMax - zMin), 0.f,
             0.f, 0.f, 0.f, 1.f
         );
 
-        f32 T = (f32)d / (f32)State->ShadowMapSize;
+        f32 T = (f32)d / (f32)State->CascadeShadowMapSize;
 
         vec3 LightPosition = vec3(Floor((xMax + xMin) / (2.f * T)) * T, Floor((yMax + yMin) / (2.f * T)) * T, zMin);
 
@@ -1721,7 +1693,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
             vec4(0.f, 0.f, 0.f, 1.f)
         );
 
-        State->Csm.CascadeViewProjection[CascadeIndex] = CascadeProjection * CascadeView;
+        State->CascadeViewProjection[CascadeIndex] = CascadeProjection * CascadeView;
 
         opengl_render_options RenderOptions = {};
         RenderOptions.RenderShadowMap = true;
@@ -1732,36 +1704,45 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     }
 
     opengl_render_options RenderOptions = {};
-    RenderOptions.RenderShadowMap = false;
-    RenderOptions.ShowCascades = Commands->ShowCascades;
+    RenderOptions.ShowCascades = RenderSettings->ShowCascades;
     OpenGLRenderScene(State, Commands, &RenderOptions);
 
 #if 0
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    opengl_shader* Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
+    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
 
     glBindVertexArray(State->RectangleVAO);
     glUseProgram(Shader->Program);
 
+    {
+        GLint UniformLocation = glGetUniformLocation(Shader->Program, "u_zNear");
+        glUniform1f(UniformLocation, State->CascadeBounds[0].x);
+    }
+
+    {
+        GLint UniformLocation = glGetUniformLocation(Shader->Program, "u_zFar");
+        glUniform1f(UniformLocation, State->CascadeBounds[3].y);
+    }
+
     glViewport(512 * 0, 0, 512, 512);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[0]);
+    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[0]);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     glViewport(512 * 1 + 10, 0, 512, 512);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[1]);
+    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[1]);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     glViewport(512 * 2 + 20, 0, 512, 512);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[2]);
+    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[2]);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     glViewport(512 * 3 + 30, 0, 512, 512);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->ShadowMapTextures[3]);
+    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[3]);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 #endif
 }

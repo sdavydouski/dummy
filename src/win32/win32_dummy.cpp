@@ -3,10 +3,15 @@
 
 #include "dummy_defs.h"
 #include "dummy_math.h"
-#include "dummy_string.h"
+#include "dummy_random.h"
 #include "dummy_memory.h"
-#include "dummy_renderer.h"
+#include "dummy_string.h"
 #include "dummy_input.h"
+#include "dummy_collision.h"
+#include "dummy_physics.h"
+#include "dummy_animation.h"
+#include "dummy_assets.h"
+#include "dummy_renderer.h"
 #include "dummy_platform.h"
 #include "win32_dummy.h"
 
@@ -30,6 +35,7 @@ Win32GetLastWriteTime(char *FileName)
 #define DEBUG_UI 1
 
 #if DEBUG_UI
+#include "dummy.h"
 #include "dummy_debug.cpp"
 
 #define DEBUG_UI_INIT(...) Win32InitImGui(__VA_ARGS__)

@@ -1,7 +1,3 @@
-#include <string>
-#include <vector>
-#include <unordered_map>
-
 #include <assimp/cimport.h>        // Plain-C interface
 #include <assimp/scene.h>          // Output data structure
 #include <assimp/postprocess.h>    // Post processing flags
@@ -10,12 +6,6 @@
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
-
-#include "dummy_defs.h"
-#include "dummy_math.h"
-#include "dummy_string.h"
-#include "dummy_animation.h"
-#include "dummy_assets.h"
 
 // todo: some models have weird bone transformations
 // https://github.com/assimp/assimp/issues/1974

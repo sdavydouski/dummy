@@ -1,3 +1,5 @@
+#pragma once
+
 // Closed hash table with linear (for now) probing
 template <typename T>
 inline b32

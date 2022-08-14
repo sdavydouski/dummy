@@ -71,36 +71,8 @@ void main()
     }
 
 	// Shadow
-
-    // Ideally this should be in the vertex shader
-    vec4 p = vec4(GroundPoint, 1.f);
-    vec3 n = u_CameraDirection;
-    vec3 c = u_CameraPosition;
-
-    vec4 f1;
-    f1.xyz = n;
-    f1.w = -dot(n, c) - u_CascadeBounds[1].x;
-    f1 *= (1.f / (u_CascadeBounds[0].y - u_CascadeBounds[1].x));
-
-    vec4 f2;
-    f2.xyz = n;
-    f2.w = -dot(n, c) - u_CascadeBounds[2].x;
-    f2 *= (1.f / (u_CascadeBounds[1].y - u_CascadeBounds[2].x));
-
-    vec4 f3;
-    f3.xyz = n;
-    f3.w = -dot(n, c) - u_CascadeBounds[3].x;
-    f3 *= (1.f / (u_CascadeBounds[2].y - u_CascadeBounds[3].x));
-
-    vec3 u;
-    u.x = dot(f1, p);
-    u.y = dot(f2, p);
-    u.z = dot(f3, p);
-
-    vec3 CascadeBlend = u;
-    //
-
-    vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, p);
+    vec3 CascadeBlend = CalculateCascadeBlend(GroundPoint, u_CameraDirection, u_CameraPosition);
+    vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, GroundPoint);
 
     float Shadow = ShadowResult.x;
     int CascadeIndex1 = int(ShadowResult.y);

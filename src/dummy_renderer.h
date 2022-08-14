@@ -1,10 +1,5 @@
 #pragma once
 
-#include "dummy_defs.h"
-#include "dummy_math.h"
-#include "dummy_animation.h"
-#include "dummy_assets.h"
-
 enum material_type
 {
     MaterialType_BlinnPhong,
@@ -271,12 +266,8 @@ struct render_command_draw_mesh_instanced
     material Material;
 };
 
-struct render_commands
+struct render_commands_settings
 {
-    u32 MaxRenderCommandsBufferSize;
-    u32 RenderCommandsBufferSize;
-    void *RenderCommandsBuffer;
-
     i32 WindowWidth;
     i32 WindowHeight;
 
@@ -287,4 +278,13 @@ struct render_commands
     b32 ShowCascades;
     game_camera *Camera;
     directional_light *DirectionalLight;
+};
+
+struct render_commands
+{
+    u32 MaxRenderCommandsBufferSize;
+    u32 RenderCommandsBufferSize;
+    void *RenderCommandsBuffer;
+
+    render_commands_settings Settings;
 };
