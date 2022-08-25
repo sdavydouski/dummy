@@ -229,6 +229,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
     ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
+    ImGui::Checkbox("Show Rigid Bodies", (bool *) &GameState->Options.ShowRigidBodies);
     ImGui::End();
 
     ImGui::Begin("Animation Graph");

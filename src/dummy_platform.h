@@ -23,12 +23,16 @@ typedef PLATFORM_READ_FILE(platform_read_file);
 #define PLATFORM_DEBUG_PRINT_STRING(name) i32 name(const char *String, ...)
 typedef PLATFORM_DEBUG_PRINT_STRING(platform_debug_print_string);
 
+#define PLATFORM_LOAD_FUNCTION(name) void * name(void *PlatformHandle, char *FunctionName)
+typedef PLATFORM_LOAD_FUNCTION(platform_load_function);
+
 struct platform_api
 {
     void *PlatformHandle;
     platform_set_mouse_mode *SetMouseMode;
     platform_read_file *ReadFile;
     platform_debug_print_string *DebugPrintString;
+    platform_load_function *LoadFunction;
 };
 
 struct game_memory
@@ -82,6 +86,9 @@ struct game_parameters
 
 #define GAME_INIT(name) void name(game_memory *Memory)
 typedef GAME_INIT(game_init);
+
+#define GAME_RELOAD(name) void name(game_memory *Memory)
+typedef GAME_RELOAD(game_reload);
 
 #define GAME_PROCESS_INPUT(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
 typedef GAME_PROCESS_INPUT(game_process_input);

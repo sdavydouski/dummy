@@ -44,6 +44,7 @@ struct opengl_texture
 };
 
 #define MAX_SHADER_FILE_PATH 64
+#define OPENGL_COMMON_SHADER_FILE_COUNT 5
 
 struct opengl_shader
 {

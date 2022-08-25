@@ -136,6 +136,7 @@ OpenGLGetMeshBuffer(opengl_state *State, u32 Id)
     return Result;
 }
 
+// todo: use hashtable
 inline opengl_skinned_mesh_buffer *
 OpenGLGetSkinnedMeshBuffer(opengl_state *State, u32 Id)
 {
@@ -608,9 +609,8 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
     Shader->BlinkUniformLocation = glGetUniformLocation(Program, "u_Blink");
 }
 
-// todo: make generic
 inline char *
-OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
+OpenGLPreprocessBlinnPhongShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 {
     u32 Size = InitialSize + 256;
     char *Result = PushString(Arena, Size);
@@ -622,35 +622,27 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 internal char **
 OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Count, memory_arena *Arena)
 {
+    char **Sources = PushArray(Arena, Count, char *);
+
     // Common
     read_file_result VersionShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\version.glsl", Arena, true);
-    char *VersionShaderSource = (char *)VersionShaderFile.Contents;
+    Sources[0] = (char *)VersionShaderFile.Contents;
 
     read_file_result MathShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\math.glsl", Arena, true);
-    char *MathShaderSource = (char *)MathShaderFile.Contents;
+    Sources[1] = (char *)MathShaderFile.Contents;
 
     read_file_result UniformShaderFile = State->Platform->ReadFile((char *) "..\\src\\renderers\\OpenGL\\shaders\\common\\uniform.glsl", Arena, true);
-    char *UniformShaderSource = (char *) UniformShaderFile.Contents;
+    Sources[2] = (char *) UniformShaderFile.Contents;
 
     read_file_result BlinnPhongShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl", Arena, true);
-    char *BlinnPhongShaderSource = OpenGLPreprocessShader((char *)BlinnPhongShaderFile.Contents, BlinnPhongShaderFile.Size, Arena);
+    Sources[3] = OpenGLPreprocessBlinnPhongShader((char *)BlinnPhongShaderFile.Contents, BlinnPhongShaderFile.Size, Arena);
 
     read_file_result ShadowsShaderFile = State->Platform->ReadFile((char *) "..\\src\\renderers\\OpenGL\\shaders\\common\\shadows.glsl", Arena, true);
-    char *ShadowsShaderSource = (char *) ShadowsShaderFile.Contents;
+    Sources[4] = (char *) ShadowsShaderFile.Contents;
     //
 
     read_file_result ShaderFile = State->Platform->ReadFile(ShaderFileName, Arena, true);
-    char *ShaderSource = (char *)ShaderFile.Contents;
-
-    char **Sources = PushArray(Arena, Count, char *);
-
-    // todo:
-    Sources[0] = VersionShaderSource;
-    Sources[1] = MathShaderSource;
-    Sources[2] = UniformShaderSource;
-    Sources[3] = BlinnPhongShaderSource;
-    Sources[4] = ShadowsShaderSource;
-    Sources[5] = ShaderSource;
+    Sources[5] = (char *)ShaderFile.Contents;
 
     return Sources;
 }
@@ -662,9 +654,7 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
 
     scoped_memory ScopedMemory(&State->Arena);
 
-    // todo:
-    u32 CommonCount = 5;
-    u32 Count = CommonCount + 1;
+    u32 Count = OPENGL_COMMON_SHADER_FILE_COUNT + 1;
     char **VertexSource = OpenGLLoadShaderFile(State, Id, VertexShaderFileName, Count, ScopedMemory.Arena);
     char **FragmentSource = OpenGLLoadShaderFile(State, Id, FragmentShaderFileName, Count, ScopedMemory.Arena);
 
@@ -694,7 +684,7 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
 
     scoped_memory ScopedMemory(&State->Arena);
 
-    u32 Count = 4;
+    u32 Count = OPENGL_COMMON_SHADER_FILE_COUNT + 1;
     char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShaderFileName, Count, ScopedMemory.Arena);
     char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShaderFileName, Count, ScopedMemory.Arena);
 
@@ -1151,22 +1141,15 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
     {
         render_command_header *Entry = (render_command_header*)((u8*)Commands->RenderCommandsBuffer + BaseAddress);
 
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glDisable(GL_DEPTH_CLAMP);
+
         if (Options->RenderShadowMap)
         {
             glViewport(0, 0, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->CascadeShadowMapFBO);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[Options->CascadeIndex], 0);
             glEnable(GL_DEPTH_CLAMP);
-        }
-        else
-        {
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-            glDisable(GL_DEPTH_CLAMP);
-        }
-
-        if (Options->RenderShadowMap)
-        {
-            glViewport(0, 0, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
 
             mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
             mat4 TransposeLightView = Transpose(Options->CascadeView);
@@ -1181,7 +1164,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
         {
             case RenderCommand_SetViewport:
             {
-                render_command_set_viewport* Command = (render_command_set_viewport*)Entry;
+                render_command_set_viewport *Command = (render_command_set_viewport *)Entry;
 
                 glViewport(Command->x, Command->y, Command->Width, Command->Height);
 
@@ -1189,7 +1172,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_SetOrthographicProjection:
             {
-                render_command_set_orthographic_projection* Command = (render_command_set_orthographic_projection*)Entry;
+                render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *)Entry;
 
                 mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
                 mat4 TransposeProjection = Transpose(Projection);
@@ -1202,7 +1185,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_SetPerspectiveProjection:
             {
-                render_command_set_perspective_projection* Command = (render_command_set_perspective_projection*)Entry;
+                render_command_set_perspective_projection *Command = (render_command_set_perspective_projection *)Entry;
 
                 mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
                 mat4 TransposeProjection = Transpose(Projection);
@@ -1308,7 +1291,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             // Actual render commands (prepass-safe)
             case RenderCommand_Clear:
             {
-                render_command_clear* Command = (render_command_clear*)Entry;
+                render_command_clear *Command = (render_command_clear *)Entry;
 
                 glClearColor(Command->Color.x, Command->Color.y, Command->Color.z, Command->Color.w);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1317,7 +1300,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawLine:
             {
-                render_command_draw_line* Command = (render_command_draw_line*)Entry;
+                render_command_draw_line *Command = (render_command_draw_line *)Entry;
 
                 opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
 
@@ -1345,7 +1328,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawRectangle:
             {
-                render_command_draw_rectangle* Command = (render_command_draw_rectangle*)Entry;
+                render_command_draw_rectangle *Command = (render_command_draw_rectangle *)Entry;
 
                 opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
 
@@ -1394,64 +1377,67 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawMesh:
             {
-                render_command_draw_mesh* Command = (render_command_draw_mesh*)Entry;
+                render_command_draw_mesh *Command = (render_command_draw_mesh *)Entry;
 
-                opengl_mesh_buffer* MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
-
-                glBindVertexArray(MeshBuffer->VAO);
-
-                switch (Command->Material.Type)
+                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
                 {
-                    case MaterialType_BlinnPhong:
+                    opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
+
+                    glBindVertexArray(MeshBuffer->VAO);
+
+                    switch (Command->Material.Type)
                     {
-                        mesh_material* MeshMaterial = Command->Material.MeshMaterial;
+                        case MaterialType_BlinnPhong:
+                        {
+                            mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
-                        opengl_shader* Shader = OpenGLGetShader(State, OPENGL_PHONG_SHADING_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SHADING_SHADER_ID);
 
-                        glUseProgram(Shader->Program);
+                            glUseProgram(Shader->Program);
 
-                        mat4 Model = Transform(Command->Transform);
-                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32*)Model.Elements);
+                            mat4 Model = Transform(Command->Transform);
+                            glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
 
-                        OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
-                        break;
+                            break;
+                        }
+                        case MaterialType_Unlit:
+                        {
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+
+                            glUseProgram(Shader->Program);
+
+                            mat4 Model = Transform(Command->Transform);
+                            material Material = Command->Material;
+
+                            glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                            glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
+
+                            break;
+                        }
+                        default:
+                        {
+                            Assert(!"Invalid material type");
+                            break;
+                        }
                     }
-                    case MaterialType_Unlit:
+
+                    if (Command->Material.Wireframe)
                     {
-                        opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-                        glUseProgram(Shader->Program);
-
-                        mat4 Model = Transform(Command->Transform);
-                        material Material = Command->Material;
-
-                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32*)Model.Elements);
-                        glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
-
-                        break;
+                        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                        glUniform1i(Shader->BlinkUniformLocation, true);
                     }
-                    default:
-                    {
-                        Assert(!"Invalid material type");
-                        break;
-                    }
+
+                    glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
+
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+                    glUseProgram(0);
+                    glBindVertexArray(0);
                 }
-
-                if (Command->Material.Wireframe)
-                {
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-                    opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
-                    glUniform1i(Shader->BlinkUniformLocation, true);
-                }
-
-                glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
-
-                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-                glUseProgram(0);
-                glBindVertexArray(0);
 
                 break;
             }
@@ -1459,114 +1445,120 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             {
                 render_command_draw_skinned_mesh* Command = (render_command_draw_skinned_mesh*)Entry;
 
-                opengl_skinned_mesh_buffer* SkinnedMeshBuffer = OpenGLGetSkinnedMeshBuffer(State, Command->MeshId);
-
-                glBindVertexArray(SkinnedMeshBuffer->Buffer->VAO);
-
-                switch (Command->Material.Type)
+                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
                 {
-                    // todo: organize materials (https://threejs.org/docs/#api/en/materials/MeshPhongMaterial)
-                    case MaterialType_BlinnPhong:
+                    opengl_skinned_mesh_buffer *SkinnedMeshBuffer = OpenGLGetSkinnedMeshBuffer(State, Command->MeshId);
+
+                    glBindVertexArray(SkinnedMeshBuffer->Buffer->VAO);
+
+                    switch (Command->Material.Type)
                     {
-                        mesh_material* MeshMaterial = Command->Material.MeshMaterial;
+                        // todo: organize materials (https://threejs.org/docs/#api/en/materials/MeshPhongMaterial)
+                        case MaterialType_BlinnPhong:
+                        {
+                            mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
-                        opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SKINNED_PHONG_SHADING_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKINNED_PHONG_SHADING_SHADER_ID);
 
-                        glUseProgram(Shader->Program);
+                            glUseProgram(Shader->Program);
 
-                        glBindBuffer(GL_TEXTURE_BUFFER, SkinnedMeshBuffer->SkinningTBO);
-                        glBufferSubData(GL_TEXTURE_BUFFER, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
-                        glBindBuffer(GL_TEXTURE_BUFFER, 0);
+                            glBindBuffer(GL_TEXTURE_BUFFER, SkinnedMeshBuffer->SkinningTBO);
+                            glBufferSubData(GL_TEXTURE_BUFFER, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
+                            glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_BUFFER, SkinnedMeshBuffer->SkinningTBOTexture);
-                        glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, SkinnedMeshBuffer->SkinningTBO);
+                            glActiveTexture(GL_TEXTURE0);
+                            glBindTexture(GL_TEXTURE_BUFFER, SkinnedMeshBuffer->SkinningTBOTexture);
+                            glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, SkinnedMeshBuffer->SkinningTBO);
 
-                        glUniform1i(Shader->SkinningMatricesSamplerUniformLocation, 0);
+                            glUniform1i(Shader->SkinningMatricesSamplerUniformLocation, 0);
 
-                        OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
-                        break;
+                            break;
+                        }
+                        default:
+                        {
+                            Assert(!"Not Implemented");
+                            break;
+                        }
                     }
-                    default:
-                    {
-                        Assert(!"Not Implemented");
-                        break;
-                    }
+
+                    /*GLint PrevPolygonMode[2];
+                    glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
+                    glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);*/
+
+                    glDrawElements(GL_TRIANGLES, SkinnedMeshBuffer->Buffer->IndexCount, GL_UNSIGNED_INT, 0);
+
+                    //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
+
+                    glUseProgram(0);
+                    glBindVertexArray(0);
                 }
-
-                /*GLint PrevPolygonMode[2];
-                glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
-                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);*/
-
-                glDrawElements(GL_TRIANGLES, SkinnedMeshBuffer->Buffer->IndexCount, GL_UNSIGNED_INT, 0);
-
-                //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
-
-                glUseProgram(0);
-                glBindVertexArray(0);
 
                 break;
             }
             case RenderCommand_DrawMeshInstanced:
             {
-                render_command_draw_mesh_instanced* Command = (render_command_draw_mesh_instanced*)Entry;
+                render_command_draw_mesh_instanced *Command = (render_command_draw_mesh_instanced *)Entry;
 
-                opengl_mesh_buffer* MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
-
-                glBindVertexArray(MeshBuffer->VAO);
-                glBindBuffer(GL_ARRAY_BUFFER, MeshBuffer->VBO);
-                glBufferSubData(GL_ARRAY_BUFFER, MeshBuffer->BufferSize, Command->InstanceCount * sizeof(render_instance), Command->Instances);
-
-                switch (Command->Material.Type)
+                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
                 {
-                    case MaterialType_BlinnPhong:
+                    opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
+
+                    glBindVertexArray(MeshBuffer->VAO);
+                    glBindBuffer(GL_ARRAY_BUFFER, MeshBuffer->VBO);
+                    glBufferSubData(GL_ARRAY_BUFFER, MeshBuffer->BufferSize, Command->InstanceCount * sizeof(render_instance), Command->Instances);
+
+                    switch (Command->Material.Type)
                     {
-                        mesh_material* MeshMaterial = Command->Material.MeshMaterial;
+                        case MaterialType_BlinnPhong:
+                        {
+                            mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
-                        opengl_shader* Shader = OpenGLGetShader(State, OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID);
 
-                        glUseProgram(Shader->Program);
+                            glUseProgram(Shader->Program);
 
-                        OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
-                        break;
+                            break;
+                        }
+                        case MaterialType_Unlit:
+                        {
+                            Assert(!"Not Implemented");
+#if 0
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+
+                            glUseProgram(Shader->Program);
+
+                            mat4 Model = Transform(Command->Transform);
+                            material Material = Command->Material;
+
+                            glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                            glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
+#endif
+
+                            break;
+                        }
+                        default:
+                        {
+                            Assert(!"Invalid material type");
+                            break;
+                        }
                     }
-                    case MaterialType_Unlit:
-                    {
-                        Assert(!"Not Implemented");
-        #if 0
-                        opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
 
-                        glUseProgram(Shader->Program);
+                    // todo: make polygon mode that operates globally and not on per-command basis
+                   /* GLint PrevPolygonMode[2];
+                    glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
+                    glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);*/
 
-                        mat4 Model = Transform(Command->Transform);
-                        material Material = Command->Material;
+                    glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
 
-                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32*)Model.Elements);
-                        glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
-        #endif
+                    //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
 
-                        break;
-                    }
-                    default:
-                    {
-                        Assert(!"Invalid material type");
-                        break;
-                    }
+                    glUseProgram(0);
+                    glBindVertexArray(0);
                 }
-
-                // todo: make polygon mode that operates globally and not on per-command basis
-               /* GLint PrevPolygonMode[2];
-                glGetIntegerv(GL_POLYGON_MODE, PrevPolygonMode);
-                glPolygonMode(GL_FRONT_AND_BACK, Command->Material.IsWireframe ? GL_LINE : GL_FILL);*/
-
-                glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
-
-                //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
-
-                glUseProgram(0);
-                glBindVertexArray(0);
 
                 break;
             }
@@ -1634,6 +1626,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
     mat4 LightM = LookAt(LightPosition, LightPosition + LightDirection, LightUp);
 
+#if 1
     for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
     {
         vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
@@ -1702,6 +1695,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         RenderOptions.CascadeView = CascadeView;
         OpenGLRenderScene(State, Commands, &RenderOptions);
     }
+#endif
 
     opengl_render_options RenderOptions = {};
     RenderOptions.ShowCascades = RenderSettings->ShowCascades;

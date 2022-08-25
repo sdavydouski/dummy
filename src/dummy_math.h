@@ -659,3 +659,10 @@ Dot(plane Plane, vec3 Point)
     f32 Result = Dot(Plane.Normal, Point) + Plane.d;
     return Result;
 }
+
+inline vec3
+Project(vec3 a, vec3 b)
+{
+    vec3 Result = b * (Dot(a, b) / Dot(b, b));
+    return Result;
+}

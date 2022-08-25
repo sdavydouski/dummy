@@ -31,8 +31,8 @@ GetRigidBodyAABB(rigid_body *Body)
 {
     aabb Result = {};
 
-    Result.Min = vec3(Body->Position - Body->HalfSize);
-    Result.Max = vec3(Body->Position + Body->HalfSize);
+    Result.Min = vec3(Body->Position - vec3(Body->HalfSize.x, 0.f, Body->HalfSize.z));
+    Result.Max = vec3(Body->Position + vec3(Body->HalfSize.x, 2.f * Body->HalfSize.y, Body->HalfSize.z));
 
     return Result;
 }

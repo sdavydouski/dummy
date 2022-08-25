@@ -46,11 +46,15 @@ Win32GetLastWriteTime(char *FileName)
     ImGui::DestroyContext();
 
 #define DEBUG_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
+#define DEBUG_UI_CAPTURE_KEYBOARD ImGui::GetIO().WantCaptureKeyboard
+#define DEBUG_UI_CAPTURE_MOUSE ImGui::GetIO().WantCaptureMouse
 #else
 #define DEBUG_UI_INIT(...)
 #define DEBUG_UI_RENDER(...)
 #define DEBUG_UI_SHUTDOWN(...)
 #define DEBUG_UI_WND_PROC_HANDLER(...)
+#define DEBUG_UI_CAPTURE_KEYBOARD false
+#define DEBUG_UI_CAPTURE_MOUSE false
 #endif
 
 inline void *
@@ -178,6 +182,21 @@ Win32HideMouseCursor()
     }
 }
 
+internal PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
+{
+    win32_platform_state *PlatformState = (win32_platform_state *)PlatformHandle;
+
+    wchar GameCodeDLLFullPath[WIN32_FILE_PATH];
+    ConcatenateStrings(PlatformState->EXEDirectoryFullPath, L"dummy_temp.dll", GameCodeDLLFullPath);
+
+    HMODULE GameDLL = GetModuleHandle(GameCodeDLLFullPath);
+    void *Result = GetProcAddress(GameDLL, FunctionName);
+
+    Assert(Result);
+
+    return Result;
+}
+
 internal win32_game_code
 Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
 {
@@ -194,11 +213,12 @@ Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
         if (Result.GameDLL)
         {
             Result.Init = (game_init *)GetProcAddress(Result.GameDLL, "GameInit");
+            Result.Reload = (game_init *)GetProcAddress(Result.GameDLL, "GameReload");
             Result.ProcessInput = (game_process_input *)GetProcAddress(Result.GameDLL, "GameProcessInput");
             Result.Update = (game_update *)GetProcAddress(Result.GameDLL, "GameUpdate");
             Result.Render = (game_render *)GetProcAddress(Result.GameDLL, "GameRender");
 
-            if (Result.Init && Result.ProcessInput && Result.Update && Result.Render)
+            if (Result.Init && Result.Reload && Result.ProcessInput && Result.Update && Result.Render)
             {
                 Result.IsValid = true;
             }
@@ -219,6 +239,7 @@ Win32UnloadGameCode(win32_game_code *GameCode)
 
     GameCode->IsValid = false;
     GameCode->Init = 0;
+    GameCode->Reload = 0;
     GameCode->ProcessInput = 0;
     GameCode->Update = 0;
     GameCode->Render = 0;
@@ -801,6 +822,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformApi.SetMouseMode = Win32SetMouseMode;
     PlatformApi.ReadFile = Win32ReadFile;
     PlatformApi.DebugPrintString = Win32DebugPrintString;
+    PlatformApi.LoadFunction = Win32LoadFunction;
 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
@@ -902,7 +924,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         // Game Loop
         while (PlatformState.IsGameRunning)
         {
-            //ImGuiIO &DebugInput = ImGui::GetIO();
             char WindowTitle[64];
             FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
             SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
@@ -915,6 +936,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             {
                 Win32UnloadGameCode(&GameCode);
                 GameCode = Win32LoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath, GameCodeLockFullPath);
+
+                if (GameCode.IsValid)
+                {
+                    GameCode.Reload(&GameMemory);
+                }
             }
 
             if (GameCode.IsValid)
@@ -927,12 +953,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                 XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
-                //if (!DebugInput.WantCaptureKeyboard)
+                if (!DEBUG_UI_CAPTURE_KEYBOARD)
                 {
                     KeyboardInput2GameInput(&KeyboardInput, &GameInput);
                 }
 
-                //if (!DebugInput.WantCaptureMouse)
+                if (!DEBUG_UI_CAPTURE_MOUSE)
                 {
                     MouseInput2GameInput(&MouseInput, &GameInput);
                 }
@@ -979,7 +1005,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
-            //if (!DebugInput.WantCaptureKeyboard)
+            //if (!DEBUG_UI_CAPTURE_KEYBOARD)
             {
                 if (IsButtonActivated(&KeyboardInput.Plus))
                 {

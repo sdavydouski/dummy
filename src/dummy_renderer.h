@@ -14,6 +14,7 @@ struct material
     // todo: Remove this?
     vec4 Color;
     b32 Wireframe;
+    b32 CastShadow;
 };
 
 struct light_attenuation

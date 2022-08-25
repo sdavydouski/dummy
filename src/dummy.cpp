@@ -48,17 +48,19 @@ CreateMaterial(material_type Type, mesh_material *MeshMaterial)
 
     Result.Type = Type;
     Result.MeshMaterial = MeshMaterial;
+    Result.CastShadow = true;
 
     return Result;
 }
 
 inline material
-CreateMaterial(material_type Type, vec4 Color, b32 Wireframe = false)
+CreateMaterial(material_type Type, vec4 Color, b32 CastShadow, b32 Wireframe)
 {
     material Result = {};
 
     Result.Type = Type;
     Result.Color = Color;
+    Result.CastShadow = CastShadow;
     Result.Wireframe = Wireframe;
 
     return Result;
@@ -361,7 +363,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
         transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), quat(0.f));
-        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 1.f, 0.f, 1.f));
+        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 1.f, 0.f, 1.f), false, false);
 
         DrawModel(RenderCommands, GetModelAsset(&State->Assets, "Cube"), Transform, Material);
 
@@ -394,9 +396,10 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
         // Rigid Body
         vec3 HalfSize = Entity->Body->HalfSize;
         vec3 Position = Entity->Transform.Translation;
+        quat Rotation = Entity->Transform.Rotation;
 
-        transform Transform = CreateTransform(Position, HalfSize, quat(0.f));
-        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 0.f, 0.f, 1.f), true);
+        transform Transform = CreateTransform(Position, HalfSize, Rotation);
+        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 0.f, 0.f, 1.f), false, true);
 
         DrawModel(RenderCommands, Cube, Transform, Material);
     }
@@ -405,9 +408,10 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
         // Mesh Bounds
         vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
         vec3 Position = Entity->Transform.Translation;
+        quat Rotation = Entity->Transform.Rotation;
 
-        transform Transform = CreateTransform(Position, HalfSize, quat(0.f));
-        material Material = CreateMaterial(MaterialType_Unlit, vec4(0.f, 1.f, 1.f, 1.f), true);
+        transform Transform = CreateTransform(Position, HalfSize, Rotation);
+        material Material = CreateMaterial(MaterialType_Unlit, vec4(0.f, 1.f, 1.f, 1.f), false, true);
 
         DrawModel(RenderCommands, Cube, Transform, Material);
     }
@@ -425,13 +429,13 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
         DrawModel(RenderCommands, Entity->Model, Entity->Transform);
     }
 
-    if (Entity->DebugView)
+    if (Entity->DebugView || State->Options.ShowRigidBodies)
     {
         RenderBoundingBox(RenderCommands, State, Entity);
 
         if (Entity->Model->Skeleton->JointCount > 1)
         {
-            DrawSkeleton(RenderCommands, State, Entity->Model->Pose);
+            //DrawSkeleton(RenderCommands, State, Entity->Model->Pose);
         }
     }
 }
@@ -448,7 +452,7 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
         game_entity *Entity = Batch->Entities[EntityIndex];
         //render_instance *Instance = Batch->Instances + EntityIndex;
 
-        if (Entity->DebugView)
+        if (Entity->DebugView || State->Options.ShowRigidBodies)
         {
             RenderBoundingBox(RenderCommands, State, Entity);
         }
@@ -887,7 +891,6 @@ DLLExport GAME_INIT(GameInit)
     State->Animator.ControllerCount = 31;
     State->Animator.Controllers = PushArray(&State->PermanentArena, State->Animator.ControllerCount, animator_controller);
 
-    // todo: this breaks live code reloading (and StartGameProcess too)
     animator_controller *PelegriniController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *)"Pelegrini");
     PelegriniController->Func = PelegriniAnimatorController;
 
@@ -964,45 +967,55 @@ DLLExport GAME_INIT(GameInit)
     State->Cubes[0] = CreateGameEntity(State);
     State->Cubes[0]->Transform = CreateTransform(vec3(-20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
     State->Cubes[0]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[0], vec3(-20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[1] = CreateGameEntity(State);
     State->Cubes[1]->Transform = CreateTransform(vec3(20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
     State->Cubes[1]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[1], vec3(20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[2] = CreateGameEntity(State);
     State->Cubes[2]->Transform = CreateTransform(vec3(-40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
     State->Cubes[2]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[2], vec3(-40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 
     State->Cubes[3] = CreateGameEntity(State);
     State->Cubes[3]->Transform = CreateTransform(vec3(40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
     State->Cubes[3]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[3], vec3(40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 
     State->Cubes[4] = CreateGameEntity(State);
     State->Cubes[4]->Transform = CreateTransform(vec3(-20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
     State->Cubes[4]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[4], vec3(-20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[5] = CreateGameEntity(State);
     State->Cubes[5]->Transform = CreateTransform(vec3(20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
     State->Cubes[5]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[5], vec3(20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[6] = CreateGameEntity(State);
     State->Cubes[6]->Transform = CreateTransform(vec3(-40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
     State->Cubes[6]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[6], vec3(-40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 
     State->Cubes[7] = CreateGameEntity(State);
     State->Cubes[7]->Transform = CreateTransform(vec3(40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
     State->Cubes[7]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddRigidBodyComponent(State->Cubes[7], vec3(40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 #endif
 
     // Dummy
-    /*State->Dummy = CreateGameEntity(State);
-    AddRigidBodyComponent(State->Dummy, vec3(0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), &State->PermanentArena);*/
+    State->Dummy = CreateGameEntity(State);
+    // todo: rigid bodies are not visible without assigned model
+    //AddRigidBodyComponent(State->Dummy, vec3(0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
 
     // Player
     //State->Player = State->xBot;
     //State->Player = State->yBot;
     State->Player = State->Pelegrini;
     //State->Player = State->Dummy;
+    //State->Player = State->Cubes[7];
 
     State->Player->FutureControllable = true;
 #if 0
@@ -1040,6 +1053,35 @@ DLLExport GAME_INIT(GameInit)
     }
 
     State->Options = {};
+}
+
+DLLExport GAME_RELOAD(GameReload)
+{
+    game_state *State = GetGameState(Memory);
+    platform_api *Platform = Memory->Platform;
+
+    // Restarting game processes
+    game_process *GameProcess = State->ProcessSentinel.Next;
+
+    while (GameProcess->OnUpdatePerFrame)
+    {
+        char ProcessName[256];
+        CopyString(GameProcess->Name, ProcessName);
+
+        game_process_on_update *OnUpdatePerFrame = (game_process_on_update *) Platform->LoadFunction(Platform->PlatformHandle, ProcessName);
+
+        EndGameProcess(State, ProcessName);
+        StartGameProcess_(State, ProcessName, OnUpdatePerFrame);
+
+        GameProcess = GameProcess->Next;
+    }
+
+    // Reloading animators
+    animator_controller *PelegriniController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *) "Pelegrini");
+    PelegriniController->Func = PelegriniAnimatorController;
+
+    animator_controller *BotController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *) "Bot");
+    BotController->Func = BotAnimatorController;
 }
 
 inline game_entity *
@@ -1324,46 +1366,47 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 DLLExport GAME_UPDATE(GameUpdate)
 {
     game_state *State = GetGameState(Memory);
-    game_entity *Player = State->Player;
 
-    if (Player->Body)
+    // todo: lovely O(n^2)
+    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount - 1; ++EntityIndex)
     {
-        aabb PlayerBox = GetRigidBodyAABB(Player->Body);
+        game_entity *Entity = State->Entities + EntityIndex;
+        rigid_body *Body = Entity->Body;
 
-        for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+        if (Body)
         {
-            game_entity *Entity = State->Entities + EntityIndex;
-            rigid_body *Body = Entity->Body;
+            if (Body->RootMotionEnabled)
+            {
+                Assert(Entity->Animation);
 
-            if (Body)
-            { 
-                if (Body->RootMotionEnabled)
+                vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
+                vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
+
+                Entity->Body->PrevPosition = Entity->Body->Position;
+                Entity->Body->Position += RotatedScaledRootMotion;
+
+                Entity->Animation->AccRootMotion = vec3(0.f);
+            }
+            else
+            {
+                Integrate(Body, Parameters->UpdateRate);
+            }
+
+            for (u32 AnotherEntityIndex = EntityIndex + 1; AnotherEntityIndex < State->EntityCount; ++AnotherEntityIndex)
+            {
+                game_entity *AnotherEntity = State->Entities + AnotherEntityIndex;
+                rigid_body *AnotherBody = AnotherEntity->Body;
+
+                if (AnotherBody)
                 {
-                    Assert(Entity->Animation);
-
-                    vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
-                    vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
-
-                    Entity->Body->PrevPosition = Entity->Body->Position;
-                    Entity->Body->Position += RotatedScaledRootMotion;
-
-                    Entity->Animation->AccRootMotion = vec3(0.f);
+                    // Collision detection and resolution
+                    vec3 mtv;
+                    if (TestAABBAABB(GetRigidBodyAABB(Entity->Body), GetRigidBodyAABB(AnotherBody), &mtv))
+                    //if (TestOBBOBB(GetRigidBodyOBB(Entity->Body), GetRigidBodyOBB(AnotherBody), &mtv))
+                    {
+                        Entity->Body->Position += mtv;
+                    }
                 }
-                else
-                {
-                    Integrate(Body, Parameters->UpdateRate);
-                }
-#if 0
-                // todo: dymamic intersection test
-                if (TestAABBPlane(BodyAABB, State->Ground))
-                {
-                    ResolveVelocity(Body, &State->Ground, Parameters->UpdateRate, 0.f);
-
-                    f32 Overlap = GetAABBPlaneMinDistance(BodyAABB, State->Ground);
-                    ResolveIntepenetration(Body, &State->Ground, Overlap);
-                    Body->Acceleration = vec3(0.f);
-                }
-#endif
             }
         }
     }

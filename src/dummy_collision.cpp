@@ -28,7 +28,7 @@ GetAABBHalfSize(aabb Box)
 }
 
 internal b32
-TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 &mtvAxis, f32 &mtvDistance)
+TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *mtvDistance)
 {
     // [Separating Axis Theorem]
     // • Two convex shapes only overlap if they overlap on all axes of separation
@@ -66,17 +66,17 @@ TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 &mtvAxis, f32 &
     f32 SepLengthSquared = Dot(Sep, Sep);
 
     // If that vector is smaller than our computed Minimum Translation Distance use that vector as our current MTV distance
-    if (SepLengthSquared < mtvDistance)
+    if (SepLengthSquared < *mtvDistance)
     {
-        mtvDistance = SepLengthSquared;
-        mtvAxis = Sep;
+        *mtvDistance = SepLengthSquared;
+        *mtvAxis = Sep;
     }
 
     return true;
 }
 
 internal b32
-TestAABBAABB(aabb a, aabb b, vec3 &mtv, f32 &Penetration)
+TestAABBAABB(aabb a, aabb b, vec3 *mtv)
 {
     // [Minimum Translation Vector]
     f32 mtvDistance = F32_MAX;              // Set current minimum distance (max float value so next value is always less)
@@ -88,29 +88,29 @@ TestAABBAABB(aabb a, aabb b, vec3 &mtv, f32 &Penetration)
     vec3 zAxis = vec3(0.f, 0.f, 1.f);
 
     // [X Axis]
-    if (!TestAxis(xAxis, a.Min.x, a.Max.x, b.Min.x, b.Max.x, mtvAxis, mtvDistance))
+    if (!TestAxis(xAxis, a.Min.x, a.Max.x, b.Min.x, b.Max.x, &mtvAxis, &mtvDistance))
     {
         return false;
     }
 
     // [Y Axis]
-    if (!TestAxis(yAxis, a.Min.y, a.Max.y, b.Min.y, b.Max.y, mtvAxis, mtvDistance))
+    if (!TestAxis(yAxis, a.Min.y, a.Max.y, b.Min.y, b.Max.y, &mtvAxis, &mtvDistance))
     {
         return false;
     }
 
     // [Z Axis]
-    if (!TestAxis(zAxis, a.Min.z, a.Max.z, b.Min.z, b.Max.z, mtvAxis, mtvDistance))
+    if (!TestAxis(zAxis, a.Min.z, a.Max.z, b.Min.z, b.Max.z, &mtvAxis, &mtvDistance))
     {
         return false;
     }
 
-    // Calculate Minimum Translation Vector (MTV) [normal * penetration]
-    mtv = Normalize(mtvAxis);
-
     // Multiply the penetration depth by itself plus a small increment
     // When the penetration is resolved using the MTV, it will no longer intersect
-    Penetration = Sqrt(mtvDistance) * 1.001f;
+    f32 Penetration = Sqrt(mtvDistance) * 1.001f;
+
+    // Calculate Minimum Translation Vector (MTV) [normal * penetration]
+    *mtv = Normalize(mtvAxis) * Penetration;
 
     return true;
 }

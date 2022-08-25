@@ -96,13 +96,13 @@ Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, 
 
     if (FakePixelFormatIndex)
     {
-        if (SetPixelFormat(FakeWindowDC, FakePixelFormatIndex, &FakePFD)) {
+        if (SetPixelFormat(FakeWindowDC, FakePixelFormatIndex, &FakePFD))
+        {
             HGLRC FakeRC = wglCreateContext(FakeWindowDC);
 
             if (wglMakeCurrent(FakeWindowDC, FakeRC))
             {
                 // OpenGL 1.1 is initialized
-
                 HDC WindowDC = GetDC(PlatformState->WindowHandle);
 
                 PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
@@ -159,8 +159,33 @@ Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, 
 
                         OpenGLInitRenderer(&State->OpenGL, PlatformState->WindowWidth, PlatformState->WindowHeight);
                     }
+                    else
+                    {
+                        DWORD Error = GetLastError();
+                        Assert(!"wglMakeCurrent failed");
+                    }
+                }
+                else
+                {
+                    DWORD Error = GetLastError();
+                    Assert(!"SetPixelFormat failed");
                 }
             }
+            else
+            {
+                DWORD Error = GetLastError();
+                Assert(!"wglMakeCurrent failed");
+            }
         }
+        else
+        {
+            DWORD Error = GetLastError();
+            Assert(!"SetPixelFormat failed");
+        }
+    }
+    else
+    {
+        DWORD Error = GetLastError();
+        Assert(!"ChoosePixelFormat failed");
     }
 }

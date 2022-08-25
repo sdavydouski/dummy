@@ -43,6 +43,7 @@ struct win32_game_code
     FILETIME LastWriteTime;
 
     game_init *Init;
+    game_reload *Reload;
     game_process_input *ProcessInput;
     game_update *Update;
     game_render *Render;

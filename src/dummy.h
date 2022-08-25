@@ -53,6 +53,7 @@ struct game_assets
 struct game_options
 {
     b32 ShowCascades;
+    b32 ShowRigidBodies;
 };
 
 struct game_state

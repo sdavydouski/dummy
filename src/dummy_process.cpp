@@ -75,7 +75,7 @@ AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildPr
     ParentProcess->Child = ChildProcess;
 }
 
-inline GAME_PROCESS_ON_UPDATE(DelayProcess)
+DLLExport GAME_PROCESS_ON_UPDATE(DelayProcess)
 {
     State->DelayTime += Delta;
 
@@ -87,7 +87,7 @@ inline GAME_PROCESS_ON_UPDATE(DelayProcess)
     }
 }
 
-inline GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
+DLLExport GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
 {
     f32 Red = Random01(&State->Entropy);
     f32 Green = Random01(&State->Entropy);
@@ -98,7 +98,7 @@ inline GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
     EndGameProcess(State, Process->Name);
 }
 
-inline GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
+DLLExport GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
 {
     rigid_body *PlayerBody = State->Player->Body;
 
@@ -119,7 +119,7 @@ inline GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
     }
 }
 
-inline GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
+DLLExport GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
 {
     if (State->PlayerCamera.PivotPositionLerp.Duration > 0.f)
     {
