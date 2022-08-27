@@ -1,7 +1,7 @@
 internal game_process *
 GetGameProcess(game_state *State, char *Name)
 {
-    game_process *Result = HashTableLookup(State->MaxProcessCount, State->Processes, Name);
+    game_process *Result = HashTableLookup(&State->Processes, Name);
     return Result;
 }
 

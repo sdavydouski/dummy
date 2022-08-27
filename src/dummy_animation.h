@@ -200,7 +200,5 @@ struct animator_controller
 
 struct animator
 {
-    // HashTable
-    u32 ControllerCount;
-    animator_controller *Controllers;
+    hash_table<animator_controller> Controllers;
 };

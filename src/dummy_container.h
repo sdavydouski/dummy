@@ -1,6 +1,13 @@
 #pragma once
 
-// Closed hash table with linear (for now) probing
+// Closed hash table with quadratic probing
+template <typename T>
+struct hash_table
+{
+    u32 Count;
+    T *Values;
+};
+
 template <typename T>
 inline b32
 IsSlotEmpty(T *Value)
@@ -11,29 +18,22 @@ IsSlotEmpty(T *Value)
 
 template <typename T>
 internal T *
-HashTableLookup(u32 Count, T *Values, char *Name)
+HashTableLookup(hash_table<T> *HashTable, char *Name)
 {
     u64 HashValue = Hash(Name);
-    u32 HashSlot = HashValue % Count;
+    u32 HashSlot = HashValue % HashTable->Count;
 
-    T *Result = Values + HashSlot;
+    T *Result = HashTable->Values + HashSlot;
 
-    // Linear probing
-    // todo: eventually do round-robin or quadratic
-    u32 ProbIndex = (HashSlot + 1) % Count;
     u32 IterationCount = 0;
 
-    // todo: better conditions
     while (!(IsSlotEmpty(Result) || StringEquals(Result->Name, Name)))
     {
-        Result = Values + ProbIndex++;
+        // todo: round-robin?
+        u32 ProbIndex = (HashSlot + Square(IterationCount + 1)) % HashTable->Count;
+        Result = HashTable->Values + ProbIndex;
 
-        if (ProbIndex >= Count)
-        {
-            ProbIndex = 0;
-        }
-
-        if (IterationCount++ >= Count)
+        if (IterationCount++ >= HashTable->Count)
         {
             Assert(!"HashTable is full!");
         }

@@ -16,6 +16,18 @@
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 8
 
+#define MAX_SHADER_FILE_PATH 256
+
+const char *OpenGLCommonShaders[] = {
+    "..\\src\\renderers\\OpenGL\\shaders\\common\\version.glsl",
+    "..\\src\\renderers\\OpenGL\\shaders\\common\\math.glsl",
+    "..\\src\\renderers\\OpenGL\\shaders\\common\\uniform.glsl",
+    "..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl",
+    "..\\src\\renderers\\OpenGL\\shaders\\common\\shadows.glsl"
+};
+
+#define OPENGL_COMMON_SHADER_COUNT ArrayCount(OpenGLCommonShaders)
+
 struct opengl_mesh_buffer
 {
     u32 Id;
@@ -43,20 +55,23 @@ struct opengl_texture
     GLuint Handle;
 };
 
-#define MAX_SHADER_FILE_PATH 64
-#define OPENGL_COMMON_SHADER_FILE_COUNT 5
+#if WIN32_RELOADABLE_SHADERS
+struct win32_shader_file
+{
+    char FileName[MAX_SHADER_FILE_PATH];
+    FILETIME LastWriteTime;
+};
+#endif
 
 struct opengl_shader
 {
     u32 Id;
     GLuint Program;
 
-    char VertexShaderFileName[MAX_SHADER_FILE_PATH];
-    char FragmentShaderFileName[MAX_SHADER_FILE_PATH];
-
 #if WIN32_RELOADABLE_SHADERS
-    FILETIME LastVertexShaderWriteTime;
-    FILETIME LastFragmentShaderWriteTime;
+    win32_shader_file CommonShaders[OPENGL_COMMON_SHADER_COUNT];
+    win32_shader_file VertexShader;
+    win32_shader_file FragmentShader;
 #endif
 
     GLint ModelUniformLocation;
@@ -94,7 +109,6 @@ struct opengl_shader_state
     alignas(16) vec3 CameraPosition;
     alignas(16) vec3 CameraDirection;
     f32 Time;
-    f32 RenderShadowMap;
 };
 
 struct opengl_render_options
@@ -143,6 +157,13 @@ struct opengl_state
 
     u32 CurrentShaderCount;
     opengl_shader Shaders[OPENGL_MAX_SHADER_COUNT];
+
+#if 0
+    hash_table<opengl_mesh_buffer> MeshBuffers;
+    hash_table<opengl_skinned_mesh_buffer> SkinnedMeshBuffers;
+    hash_table<opengl_texture> Textures;
+    hash_table<opengl_shader> Shaders;
+#endif
 
     u32 CascadeShadowMapSize;
     GLuint CascadeShadowMapFBO;

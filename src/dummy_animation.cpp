@@ -936,7 +936,7 @@ UpdateGlobalJointPoses(skeleton_pose *Pose)
 internal void
 AnimatorPerFrameUpdate(animator *Animator, animation_graph *Animation, animator_params Params, f32 Delta)
 {
-    animator_controller *Controller = HashTableLookup(Animator->ControllerCount, Animator->Controllers, Animation->Animator);
+    animator_controller *Controller = HashTableLookup(&Animator->Controllers, Animation->Animator);
 
     if (Controller->Func)
     {

@@ -251,14 +251,14 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
 internal model *
 GetModelAsset(game_assets *Assets, const char *Name)
 {
-    model *Result = HashTableLookup(Assets->ModelCount, Assets->Models, (char *)Name);
+    model *Result = HashTableLookup(&Assets->Models, (char *)Name);
     return Result;
 }
 
 internal entity_render_batch *
 GetEntityBatch(game_state *State, char *Name)
 {
-    entity_render_batch *Result = HashTableLookup(State->EntityBatchCount, State->EntityBatches, Name);
+    entity_render_batch *Result = HashTableLookup(&State->EntityBatches, Name);
     return Result;
 }
 
@@ -267,8 +267,8 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
 {
     // Using a prime table size in conjunction with quadratic probing tends to yield 
     // the best coverage of the available table slots with minimal clustering
-    Assets->ModelCount = 31;
-    Assets->Models = PushArray(Arena, Assets->ModelCount, model);
+    Assets->Models.Count = 31;
+    Assets->Models.Values = PushArray(Arena, Assets->Models.Count, model);
 
     u32 ModelIndex = 0;
 
@@ -883,18 +883,18 @@ DLLExport GAME_INIT(GameInit)
     CopyString("Sentinel", Sentinel->Name);
     Sentinel->Next = Sentinel->Prev = Sentinel;
 
-    State->MaxProcessCount = 31;
-    State->Processes = PushArray(&State->PermanentArena, State->MaxProcessCount, game_process);
+    State->Processes.Count = 31;
+    State->Processes.Values = PushArray(&State->PermanentArena, State->Processes.Count, game_process);
 
     // Animator Setup
     State->Animator = {};
-    State->Animator.ControllerCount = 31;
-    State->Animator.Controllers = PushArray(&State->PermanentArena, State->Animator.ControllerCount, animator_controller);
+    State->Animator.Controllers.Count = 31;
+    State->Animator.Controllers.Values = PushArray(&State->PermanentArena, State->Animator.Controllers.Count, animator_controller);
 
-    animator_controller *PelegriniController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *)"Pelegrini");
+    animator_controller *PelegriniController = HashTableLookup(&State->Animator.Controllers, (char *)"Pelegrini");
     PelegriniController->Func = PelegriniAnimatorController;
 
-    animator_controller *BotController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *)"Bot");
+    animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *)"Bot");
     BotController->Func = BotAnimatorController;
     //
 
@@ -1077,10 +1077,10 @@ DLLExport GAME_RELOAD(GameReload)
     }
 
     // Reloading animators
-    animator_controller *PelegriniController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *) "Pelegrini");
+    animator_controller *PelegriniController = HashTableLookup(&State->Animator.Controllers, (char *) "Pelegrini");
     PelegriniController->Func = PelegriniAnimatorController;
 
-    animator_controller *BotController = HashTableLookup(State->Animator.ControllerCount, State->Animator.Controllers, (char *) "Bot");
+    animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *) "Bot");
     BotController->Func = BotAnimatorController;
 }
 
@@ -1509,8 +1509,8 @@ DLLExport GAME_RENDER(GameRender)
             vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
             State->CurrentMove += dMove * Parameters->Delta;
 
-            State->EntityBatchCount = 32;
-            State->EntityBatches = PushArray(&State->TransientArena, State->EntityBatchCount, entity_render_batch);
+            State->EntityBatches.Count = 32;
+            State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
 
             for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
@@ -1545,9 +1545,9 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             // Pushing entities into render buffer
-            for (u32 EntityBatchIndex = 0; EntityBatchIndex < State->EntityBatchCount; ++EntityBatchIndex)
+            for (u32 EntityBatchIndex = 0; EntityBatchIndex < State->EntityBatches.Count; ++EntityBatchIndex)
             {
-                entity_render_batch *Batch = State->EntityBatches + EntityBatchIndex;
+                entity_render_batch *Batch = State->EntityBatches.Values + EntityBatchIndex;
 
                 u32 BatchThreshold = 1;
 

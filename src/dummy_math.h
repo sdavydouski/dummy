@@ -111,6 +111,13 @@ Square(f32 Value)
     return Result;
 }
 
+inline u32
+Square(u32 Value)
+{
+    u32 Result = Value * Value;
+    return Result;
+}
+
 inline f32
 Power(f32 Value, f32 Power)
 {

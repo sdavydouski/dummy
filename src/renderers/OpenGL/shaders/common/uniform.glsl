@@ -7,5 +7,4 @@ layout(std140, binding = 0) uniform State
     vec3 u_CameraPosition;
     vec3 u_CameraDirection;
     float u_Time;
-    float u_RenderShadowMap;
 };

@@ -6,6 +6,7 @@
 #include "dummy_random.h"
 #include "dummy_memory.h"
 #include "dummy_string.h"
+#include "dummy_container.h"
 #include "dummy_input.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"

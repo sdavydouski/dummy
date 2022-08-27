@@ -1,6 +1,7 @@
 //? #include "version.glsl"
 //? #include "math.glsl"
 
+// todo: put all configurable settings into separate file
 #define MAX_POINT_LIGHT_COUNT %d
 //! #undef MAX_POINT_LIGHT_COUNT
 //! #define MAX_POINT_LIGHT_COUNT 32

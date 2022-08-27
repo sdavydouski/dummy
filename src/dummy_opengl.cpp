@@ -610,7 +610,7 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
 }
 
 inline char *
-OpenGLPreprocessBlinnPhongShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
+OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 {
     u32 Size = InitialSize + 256;
     char *Result = PushString(Arena, Size);
@@ -624,25 +624,14 @@ OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Coun
 {
     char **Sources = PushArray(Arena, Count, char *);
 
-    // Common
-    read_file_result VersionShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\version.glsl", Arena, true);
-    Sources[0] = (char *)VersionShaderFile.Contents;
-
-    read_file_result MathShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\math.glsl", Arena, true);
-    Sources[1] = (char *)MathShaderFile.Contents;
-
-    read_file_result UniformShaderFile = State->Platform->ReadFile((char *) "..\\src\\renderers\\OpenGL\\shaders\\common\\uniform.glsl", Arena, true);
-    Sources[2] = (char *) UniformShaderFile.Contents;
-
-    read_file_result BlinnPhongShaderFile = State->Platform->ReadFile((char *)"..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl", Arena, true);
-    Sources[3] = OpenGLPreprocessBlinnPhongShader((char *)BlinnPhongShaderFile.Contents, BlinnPhongShaderFile.Size, Arena);
-
-    read_file_result ShadowsShaderFile = State->Platform->ReadFile((char *) "..\\src\\renderers\\OpenGL\\shaders\\common\\shadows.glsl", Arena, true);
-    Sources[4] = (char *) ShadowsShaderFile.Contents;
-    //
+    for (u32 FileIndex = 0; FileIndex < OPENGL_COMMON_SHADER_COUNT; ++FileIndex)
+    {
+        read_file_result CommonShaderFile = State->Platform->ReadFile((char *) OpenGLCommonShaders[FileIndex], Arena, true);
+        Sources[FileIndex] = OpenGLPreprocessShader((char *) CommonShaderFile.Contents, CommonShaderFile.Size, Arena);
+    }
 
     read_file_result ShaderFile = State->Platform->ReadFile(ShaderFileName, Arena, true);
-    Sources[5] = (char *)ShaderFile.Contents;
+    Sources[OPENGL_COMMON_SHADER_COUNT] = (char *) ShaderFile.Contents;
 
     return Sources;
 }
@@ -654,7 +643,7 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
 
     scoped_memory ScopedMemory(&State->Arena);
 
-    u32 Count = OPENGL_COMMON_SHADER_FILE_COUNT + 1;
+    u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
     char **VertexSource = OpenGLLoadShaderFile(State, Id, VertexShaderFileName, Count, ScopedMemory.Arena);
     char **FragmentSource = OpenGLLoadShaderFile(State, Id, FragmentShaderFileName, Count, ScopedMemory.Arena);
 
@@ -665,18 +654,26 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
     Shader->Id = Id;
     Shader->Program = Program;
 
-    CopyString(VertexShaderFileName, Shader->VertexShaderFileName);
-    CopyString(FragmentShaderFileName, Shader->FragmentShaderFileName);
-
 #if WIN32_RELOADABLE_SHADERS
-    // todo: changes in common files are not detected!
-    Shader->LastVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShaderFileName);
-    Shader->LastFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShaderFileName);
+    for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
+    {
+        win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
+
+        CopyString(OpenGLCommonShaders[FileIndex], CommonShader->FileName);
+        CommonShader->LastWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
+    }
+
+    CopyString(VertexShaderFileName, Shader->VertexShader.FileName);
+    Shader->VertexShader.LastWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
+
+    CopyString(FragmentShaderFileName, Shader->FragmentShader.FileName);
+    Shader->FragmentShader.LastWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
 #endif
 
     OpenGLLoadShaderUniforms(Shader);
 }
 
+#if WIN32_RELOADABLE_SHADERS
 internal void
 OpenGLReloadShader(opengl_state *State, u32 Id)
 {
@@ -684,9 +681,9 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
 
     scoped_memory ScopedMemory(&State->Arena);
 
-    u32 Count = OPENGL_COMMON_SHADER_FILE_COUNT + 1;
-    char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShaderFileName, Count, ScopedMemory.Arena);
-    char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShaderFileName, Count, ScopedMemory.Arena);
+    u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
+    char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
+    char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
 
     GLuint VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource, false);
     GLuint FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource, false);
@@ -706,6 +703,7 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
         OpenGLLoadShaderUniforms(Shader);
     }
 }
+#endif
 
 internal void
 OpenGLInitShaders(opengl_state *State)
@@ -756,6 +754,8 @@ OpenGLInitShaders(opengl_state *State)
 internal void
 OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, mesh_material *MeshMaterial)
 {
+    if (Options->RenderShadowMap) return;
+
     glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, false);
     glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, false);
     glUniform1i(Shader->MaterialHasShininessMapUniformLocation, false);
@@ -1013,6 +1013,7 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     glGenTextures(4, State->CascadeShadowMaps);
 
+    // todo: use Array Texture
     for (u32 TextureIndex = 0; TextureIndex < ArrayCount(State->CascadeShadowMaps); ++TextureIndex)
     {
         glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[TextureIndex]);
@@ -1136,155 +1137,173 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 internal void
 OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_options *Options)
 {
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glDisable(GL_DEPTH_CLAMP);
+
+    if (Options->RenderShadowMap)
+    {
+        glViewport(0, 0, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->CascadeShadowMapFBO);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[Options->CascadeIndex], 0);
+        glEnable(GL_DEPTH_CLAMP);
+
+        mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
+        mat4 TransposeLightView = Transpose(Options->CascadeView);
+
+        glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+        glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeLightProjection);
+        glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeLightView);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
     // todo: move commands to buckets (based on shader?)
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
         render_command_header *Entry = (render_command_header*)((u8*)Commands->RenderCommandsBuffer + BaseAddress);
 
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glDisable(GL_DEPTH_CLAMP);
-
-        if (Options->RenderShadowMap)
-        {
-            glViewport(0, 0, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->CascadeShadowMapFBO);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[Options->CascadeIndex], 0);
-            glEnable(GL_DEPTH_CLAMP);
-
-            mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
-            mat4 TransposeLightView = Transpose(Options->CascadeView);
-
-            glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-            glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeLightProjection);
-            glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeLightView);
-            glBindBuffer(GL_UNIFORM_BUFFER, 0);
-        }
-
         switch (Entry->Type)
         {
             case RenderCommand_SetViewport:
             {
-                render_command_set_viewport *Command = (render_command_set_viewport *)Entry;
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_set_viewport *Command = (render_command_set_viewport *) Entry;
 
-                glViewport(Command->x, Command->y, Command->Width, Command->Height);
+                    glViewport(Command->x, Command->y, Command->Width, Command->Height);
+                }
 
                 break;
             }
             case RenderCommand_SetOrthographicProjection:
             {
-                render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *)Entry;
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *) Entry;
 
-                mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
-                mat4 TransposeProjection = Transpose(Projection);
+                    mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
+                    mat4 TransposeProjection = Transpose(Projection);
 
-                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
+                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                }
 
                 break;
             }
             case RenderCommand_SetPerspectiveProjection:
             {
-                render_command_set_perspective_projection *Command = (render_command_set_perspective_projection *)Entry;
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_set_perspective_projection *Command = (render_command_set_perspective_projection *) Entry;
 
-                mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
-                mat4 TransposeProjection = Transpose(Projection);
+                    mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
+                    mat4 TransposeProjection = Transpose(Projection);
 
-                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
+                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                }
 
                 break;
             }
             case RenderCommand_SetCamera:
             {
-                render_command_set_camera* Command = (render_command_set_camera*)Entry;
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_set_camera *Command = (render_command_set_camera *) Entry;
 
-                vec3 Target = Command->Position + Command->Direction;
-                vec3 Direction = -Command->Direction;
+                    vec3 Target = Command->Position + Command->Direction;
+                    vec3 Direction = -Command->Direction;
 
-                mat4 View = LookAt(Command->Position, Target, Command->Up);
-                mat4 TransposeView = Transpose(View);
+                    mat4 View = LookAt(Command->Position, Target, Command->Up);
+                    mat4 TransposeView = Transpose(View);
 
-                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeView);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, CameraPosition), sizeof(vec3), &Command->Position);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, CameraDirection), sizeof(vec3), &Direction);
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-                break;
-            }
-            case RenderCommand_SetTime:
-            {
-                render_command_set_time* Command = (render_command_set_time*)Entry;
-
-                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Time), sizeof(f32), &Command->Time);
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeView);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, CameraPosition), sizeof(vec3), &Command->Position);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, CameraDirection), sizeof(vec3), &Direction);
+                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                }
 
                 break;
             }
             case RenderCommand_SetDirectionalLight:
             {
-                render_command_set_directional_light* Command = (render_command_set_directional_light*)Entry;
-
-                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+                if (!Options->RenderShadowMap)
                 {
-                    opengl_shader* Shader = State->Shaders + ShaderIndex;
+                    render_command_set_directional_light *Command = (render_command_set_directional_light *) Entry;
 
-                    glUseProgram(Shader->Program);
-                    glUniform3f(Shader->DirectionalLightDirectionUniformLocation, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
-                    glUniform3f(Shader->DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
-                    glUseProgram(0);
+                    for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+                    {
+                        opengl_shader *Shader = State->Shaders + ShaderIndex;
+
+                        glUseProgram(Shader->Program);
+                        glUniform3f(Shader->DirectionalLightDirectionUniformLocation, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
+                        glUniform3f(Shader->DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
+                        glUseProgram(0);
+                    }
                 }
 
                 break;
             }
             case RenderCommand_SetPointLights:
             {
-                render_command_set_point_lights* Command = (render_command_set_point_lights*)Entry;
-
-                for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+                if (!Options->RenderShadowMap)
                 {
-                    opengl_shader* Shader = State->Shaders + ShaderIndex;
+                    render_command_set_point_lights *Command = (render_command_set_point_lights *) Entry;
 
-                    glUseProgram(Shader->Program);
-
-                    glUniform1i(Shader->PointLightCountUniformLocation, Command->PointLightCount);
-
-                    for (u32 PointLightIndex = 0; PointLightIndex < Command->PointLightCount; ++PointLightIndex)
+                    for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
                     {
-                        point_light* PointLight = Command->PointLights + PointLightIndex;
+                        opengl_shader *Shader = State->Shaders + ShaderIndex;
 
-                        char PositionUniformName[64];
-                        FormatString(PositionUniformName, "u_PointLights[%d].Position", PointLightIndex);
-                        GLint PositionUniformLocation = glGetUniformLocation(Shader->Program, PositionUniformName);
+                        glUseProgram(Shader->Program);
 
-                        char ColorUniformName[64];
-                        FormatString(ColorUniformName, "u_PointLights[%d].Color", PointLightIndex);
-                        GLint ColorUniformLocation = glGetUniformLocation(Shader->Program, ColorUniformName);
+                        glUniform1i(Shader->PointLightCountUniformLocation, Command->PointLightCount);
 
-                        char AttenuationConstantUniformName[64];
-                        FormatString(AttenuationConstantUniformName, "u_PointLights[%d].Attenuation.Constant", PointLightIndex);
-                        GLint AttenuationConstantUniformLocation = glGetUniformLocation(Shader->Program, AttenuationConstantUniformName);
+                        for (u32 PointLightIndex = 0; PointLightIndex < Command->PointLightCount; ++PointLightIndex)
+                        {
+                            point_light *PointLight = Command->PointLights + PointLightIndex;
 
-                        char AttenuationLinearUniformName[64];
-                        FormatString(AttenuationLinearUniformName, "u_PointLights[%d].Attenuation.Linear", PointLightIndex);
-                        GLint AttenuationLinearUniformLocation = glGetUniformLocation(Shader->Program, AttenuationLinearUniformName);
+                            char PositionUniformName[64];
+                            FormatString(PositionUniformName, "u_PointLights[%d].Position", PointLightIndex);
+                            GLint PositionUniformLocation = glGetUniformLocation(Shader->Program, PositionUniformName);
 
-                        char AttenuationQuadraticUniformName[64];
-                        FormatString(AttenuationQuadraticUniformName, "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
-                        GLint AttenuationQuadraticUniformLocation = glGetUniformLocation(Shader->Program, AttenuationQuadraticUniformName);
+                            char ColorUniformName[64];
+                            FormatString(ColorUniformName, "u_PointLights[%d].Color", PointLightIndex);
+                            GLint ColorUniformLocation = glGetUniformLocation(Shader->Program, ColorUniformName);
 
-                        glUniform3f(PositionUniformLocation, PointLight->Position.x, PointLight->Position.y, PointLight->Position.z);
-                        glUniform3f(ColorUniformLocation, PointLight->Color.r, PointLight->Color.g, PointLight->Color.b);
-                        glUniform1f(AttenuationConstantUniformLocation, PointLight->Attenuation.Constant);
-                        glUniform1f(AttenuationLinearUniformLocation, PointLight->Attenuation.Linear);
-                        glUniform1f(AttenuationQuadraticUniformLocation, PointLight->Attenuation.Quadratic);
+                            char AttenuationConstantUniformName[64];
+                            FormatString(AttenuationConstantUniformName, "u_PointLights[%d].Attenuation.Constant", PointLightIndex);
+                            GLint AttenuationConstantUniformLocation = glGetUniformLocation(Shader->Program, AttenuationConstantUniformName);
+
+                            char AttenuationLinearUniformName[64];
+                            FormatString(AttenuationLinearUniformName, "u_PointLights[%d].Attenuation.Linear", PointLightIndex);
+                            GLint AttenuationLinearUniformLocation = glGetUniformLocation(Shader->Program, AttenuationLinearUniformName);
+
+                            char AttenuationQuadraticUniformName[64];
+                            FormatString(AttenuationQuadraticUniformName, "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
+                            GLint AttenuationQuadraticUniformLocation = glGetUniformLocation(Shader->Program, AttenuationQuadraticUniformName);
+
+                            glUniform3f(PositionUniformLocation, PointLight->Position.x, PointLight->Position.y, PointLight->Position.z);
+                            glUniform3f(ColorUniformLocation, PointLight->Color.r, PointLight->Color.g, PointLight->Color.b);
+                            glUniform1f(AttenuationConstantUniformLocation, PointLight->Attenuation.Constant);
+                            glUniform1f(AttenuationLinearUniformLocation, PointLight->Attenuation.Linear);
+                            glUniform1f(AttenuationQuadraticUniformLocation, PointLight->Attenuation.Quadratic);
+                        }
+
+                        glUseProgram(0);
                     }
-
-                    glUseProgram(0);
                 }
+                
+                break;
+            }
+            case RenderCommand_SetTime:
+            {
+                render_command_set_time *Command = (render_command_set_time *) Entry;
+
+                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Time), sizeof(f32), &Command->Time);
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
                 break;
             }
@@ -1358,13 +1377,13 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     // http://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
                     // https://github.com/martin-pr/possumwood/wiki/Infinite-ground-plane-using-GLSL-shaders
-                    render_command_draw_ground *Command = (render_command_draw_ground *)Entry;
+                    render_command_draw_ground *Command = (render_command_draw_ground *) Entry;
 
                     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_GROUND_SHADER_ID);
 
                     glBindVertexArray(State->RectangleVAO);
                     glUseProgram(Shader->Program);
-                    
+
                     OpenGLBlinnPhongShading(State, Options, Shader, 0);
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -1582,17 +1601,29 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
         b32 ShouldReload = false;
 
-        FILETIME NewVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShaderFileName);
-        if (CompareFileTime(&NewVertexShaderWriteTime, &Shader->LastVertexShaderWriteTime) != 0)
+        for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
         {
-            Shader->LastVertexShaderWriteTime = NewVertexShaderWriteTime;
+            win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
+
+            FILETIME NewCommonShaderWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
+            if (CompareFileTime(&NewCommonShaderWriteTime, &CommonShader->LastWriteTime) != 0)
+            {
+                CommonShader->LastWriteTime = NewCommonShaderWriteTime;
+                ShouldReload = true;
+            }
+        }
+
+        FILETIME NewVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
+        if (CompareFileTime(&NewVertexShaderWriteTime, &Shader->VertexShader.LastWriteTime) != 0)
+        {
+            Shader->VertexShader.LastWriteTime = NewVertexShaderWriteTime;
             ShouldReload = true;
         }
 
-        FILETIME NewFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShaderFileName);
-        if (CompareFileTime(&NewFragmentShaderWriteTime, &Shader->LastFragmentShaderWriteTime) != 0)
+        FILETIME NewFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
+        if (CompareFileTime(&NewFragmentShaderWriteTime, &Shader->FragmentShader.LastWriteTime) != 0)
         {
-            Shader->LastFragmentShaderWriteTime = NewFragmentShaderWriteTime;
+            Shader->FragmentShader.LastWriteTime = NewFragmentShaderWriteTime;
             ShouldReload = true;
         }
 
@@ -1701,7 +1732,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     RenderOptions.ShowCascades = RenderSettings->ShowCascades;
     OpenGLRenderScene(State, Commands, &RenderOptions);
 
-#if 0
+#if 1
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);

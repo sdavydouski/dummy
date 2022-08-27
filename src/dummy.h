@@ -46,8 +46,7 @@ struct game_process
 
 struct game_assets
 {
-    u32 ModelCount;
-    model *Models;
+    hash_table<model> Models;
 };
 
 struct game_options
@@ -78,8 +77,7 @@ struct game_state
     u32 MaxEntityCount;
     game_entity *Entities;
 
-    u32 EntityBatchCount;
-    entity_render_batch *EntityBatches;
+    hash_table<entity_render_batch> EntityBatches;
 
     u32 PointLightCount;
     point_light *PointLights;
@@ -87,8 +85,7 @@ struct game_state
     directional_light DirectionalLight;
 
     // hashtable (for storage)
-    u32 MaxProcessCount;
-    game_process *Processes;
+    hash_table<game_process> Processes;
     // linked-list (for efficient adding/removal and traversing)
     game_process ProcessSentinel;
 
