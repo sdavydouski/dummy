@@ -55,6 +55,14 @@ struct game_options
     b32 ShowRigidBodies;
 };
 
+struct game_menu_quad
+{
+    vec4 Color;
+    u32 Corner;
+    f32 Move;
+};
+
+// todo(continue): frustrum culling
 struct game_state
 {
     memory_arena PermanentArena;
@@ -67,6 +75,8 @@ struct game_state
 
     game_camera FreeCamera;
     game_camera PlayerCamera;
+
+    polyhedron Frustrum;
 
     plane Ground;
 
@@ -111,4 +121,5 @@ struct game_state
     f32 DelayDuration;
 
     game_options Options;
+    game_menu_quad MenuQuads[4];
 };

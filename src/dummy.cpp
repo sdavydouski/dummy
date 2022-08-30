@@ -7,6 +7,7 @@
 #include "dummy_input.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"
+#include "dummy_visibility.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy_renderer.h"
@@ -20,6 +21,7 @@
 #include "dummy_animation.cpp"
 #include "dummy_entity.cpp"
 #include "dummy_process.cpp"
+#include "dummy_visibility.cpp"
 
 inline vec3
 NormalizeRGB(vec3 RGB)
@@ -383,6 +385,68 @@ inline vec3
 GetModelHalfSize(model *Model, transform Transform)
 {
     vec3 Result = Transform.Scale * GetAABBHalfSize(Model->Bounds);
+    return Result;
+}
+
+internal void
+RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
+{
+    // Draw edges
+    for (u32 EdgeIndex = 0; EdgeIndex < Frustrum->EdgeCount; ++EdgeIndex)
+    {
+        edge Edge = Frustrum->Edges[EdgeIndex];
+
+        vec3 LineStart = Frustrum->Vertices[Edge.VertexIndex[0]];
+        vec3 LineEnd = Frustrum->Vertices[Edge.VertexIndex[1]];
+        DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 4.f);
+    }
+
+#if 0
+    // Draw inward normals
+    for (u32 PlaneIndex = 0; PlaneIndex < Frustrum->FaceCount; ++PlaneIndex)
+    {
+        plane Plane = Frustrum->Planes[PlaneIndex];
+        face Face = Frustrum->Faces[PlaneIndex];
+
+        vec3 MiddleEdgePoints[4];
+
+        for (u32 FaceEdgeIndex = 0; FaceEdgeIndex < Face.EdgeCount; ++FaceEdgeIndex)
+        {
+            u32 EdgeIndex = Face.EdgeIndex[FaceEdgeIndex];
+            edge Edge = Frustrum->Edges[EdgeIndex];
+
+            vec3 Vertex0 = Frustrum->Vertices[Edge.VertexIndex[0]];
+            vec3 Vertex1 = Frustrum->Vertices[Edge.VertexIndex[1]];
+
+            vec3 MiddleEdgePoint = (Vertex0 + Vertex1) / 2.f;
+
+            MiddleEdgePoints[FaceEdgeIndex] = MiddleEdgePoint;
+        }
+
+        vec3 LineStart = (MiddleEdgePoints[0] + MiddleEdgePoints[1] + MiddleEdgePoints[2] + MiddleEdgePoints[3]) / 4.f;
+        vec3 LineEnd = LineStart + Plane.Normal * 5.f;
+        DrawLine(RenderCommands, LineStart, LineEnd, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
+    }
+#endif
+}
+
+internal aabb
+GetEntityBoundingBox(game_entity *Entity)
+{
+    aabb Result = {};
+
+    if (Entity->Body)
+    {
+        Result = GetRigidBodyAABB(Entity->Body);
+    }
+    else if (Entity->Model)
+    {
+        vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
+        vec3 Center = Entity->Transform.Translation + vec3(0.f, HalfSize.y, 0.f);
+
+        Result = CreateAABBCenterHalfSize(Center, HalfSize);
+    }
+
     return Result;
 }
 
@@ -866,6 +930,26 @@ AnimateEntity(game_state *State, game_entity *Entity, f32 Delta)
     UpdateGlobalJointPoses(Pose);
 }
 
+internal void
+InitGameMenu(game_state *State)
+{
+    State->MenuQuads[0].Corner = 0;
+    State->MenuQuads[0].Move = 0.f;
+    State->MenuQuads[0].Color = vec4(1.f, 0.f, 0.f, 1.f);
+
+    State->MenuQuads[1].Corner = 1;
+    State->MenuQuads[1].Move = 0.f;
+    State->MenuQuads[1].Color = vec4(0.f, 1.f, 0.f, 1.f);
+
+    State->MenuQuads[2].Corner = 2;
+    State->MenuQuads[2].Move = 0.f;
+    State->MenuQuads[2].Color = vec4(0.f, 0.f, 1.f, 1.f);
+
+    State->MenuQuads[3].Corner = 3;
+    State->MenuQuads[3].Move = 0.f;
+    State->MenuQuads[3].Color = vec4(1.f, 1.f, 0.f, 1.f);
+}
+
 DLLExport GAME_INIT(GameInit)
 {
     game_state *State = GetGameState(Memory);
@@ -904,7 +988,7 @@ DLLExport GAME_INIT(GameInit)
     State->Mode = GameMode_World;
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), 0.1f, 320.f, vec3(0.f, 16.f, 32.f));
+    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
     InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), 0.1f, 320.f, vec3(0.f, 0.f, 0.f));
     // todo:
     State->PlayerCamera.Radius = 16.f;
@@ -966,42 +1050,42 @@ DLLExport GAME_INIT(GameInit)
     // Cubes
     State->Cubes[0] = CreateGameEntity(State);
     State->Cubes[0]->Transform = CreateTransform(vec3(-20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
-    State->Cubes[0]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[0], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[0], vec3(-20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[1] = CreateGameEntity(State);
     State->Cubes[1]->Transform = CreateTransform(vec3(20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
-    State->Cubes[1]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[1], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[1], vec3(20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[2] = CreateGameEntity(State);
     State->Cubes[2]->Transform = CreateTransform(vec3(-40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
-    State->Cubes[2]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[2], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[2], vec3(-40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 
     State->Cubes[3] = CreateGameEntity(State);
     State->Cubes[3]->Transform = CreateTransform(vec3(40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
-    State->Cubes[3]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[3], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[3], vec3(40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 
     State->Cubes[4] = CreateGameEntity(State);
     State->Cubes[4]->Transform = CreateTransform(vec3(-20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
-    State->Cubes[4]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[4], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[4], vec3(-20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[5] = CreateGameEntity(State);
     State->Cubes[5]->Transform = CreateTransform(vec3(20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
-    State->Cubes[5]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[5], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[5], vec3(20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
 
     State->Cubes[6] = CreateGameEntity(State);
     State->Cubes[6]->Transform = CreateTransform(vec3(-40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
-    State->Cubes[6]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[6], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[6], vec3(-40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 
     State->Cubes[7] = CreateGameEntity(State);
     State->Cubes[7]->Transform = CreateTransform(vec3(40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
-    State->Cubes[7]->Model = GetModelAsset(&State->Assets, "Cube");
+    AddModelComponent(State->Cubes[7], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[7], vec3(40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 #endif
 
@@ -1053,6 +1137,8 @@ DLLExport GAME_INIT(GameInit)
     }
 
     State->Options = {};
+
+    InitGameMenu(State);
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1138,6 +1224,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         else if (State->Mode == GameMode_World)
         {
             State->Mode = GameMode_Menu;
+            InitGameMenu(State);
         }
     }
 
@@ -1432,9 +1519,8 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_World:
         case GameMode_Edit:
         {
-            game_camera *Camera = State->Mode == GameMode_World 
-                ? &State->PlayerCamera
-                : &State->FreeCamera;
+            game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->FreeCamera;
+            b32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
             if (State->IsBackgroundHighlighted)
             {
@@ -1458,6 +1544,17 @@ DLLExport GAME_RENDER(GameRender)
             f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
             SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Position, Camera->Direction, Camera->Up);
+
+            f32 FocalLength = 1.f / Tan(Camera->FovY * 0.5f);
+            f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
+            BuildFrustrumPolyhedron(&State->PlayerCamera, FocalLength, AspectRatio, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
+
+            if (State->Mode == GameMode_Edit)
+            {
+                RenderFrustrum(RenderCommands, &State->Frustrum);
+            }
+
+            //State->PlayerCamera.Direction = Normalize(vec3(Cos(Parameters->Time * 0.5f), 0.f, Sin(Parameters->Time * 0.5f)));
 
             RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
             RenderCommands->Settings.Camera = Camera;
@@ -1516,6 +1613,8 @@ DLLExport GAME_RENDER(GameRender)
             {
                 game_entity *Entity = State->Entities + EntityIndex;
 
+                aabb BoundingBox = GetEntityBoundingBox(Entity);
+                
                 // Rigid bodies movement
                 if (Entity->Body)
                 {
@@ -1528,19 +1627,29 @@ DLLExport GAME_RENDER(GameRender)
                     AnimateEntity(State, Entity, Parameters->Delta);
                 }
 
-                // Grouping entities into render batches
-                if (Entity->Model)
+                // todo: come up with some visualization of non-culled entities
+#if 1
+                Entity->DebugView = !EnableFrustrumCulling && AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox);
+#endif
+
+                // Frustrum culling
+                if (!EnableFrustrumCulling || AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox))
                 {
-                    entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
-
-                    if (StringEquals(Batch->Name, ""))
+                    // Grouping entities into render batches
+                    if (Entity->Model)
                     {
-                        InitRenderBatch(Batch, Entity->Model, 256, &State->TransientArena);
-                    }
+                        entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
 
-                    AddEntityToRenderBatch(Batch, Entity);
+                        if (StringEquals(Batch->Name, ""))
+                        {
+                            InitRenderBatch(Batch, Entity->Model, 256, &State->TransientArena);
+                        }
+
+                        AddEntityToRenderBatch(Batch, Entity);
+                    }
                 }
 
+                // todo:
                 Entity->Controllable = Entity->FutureControllable;
             }
 
@@ -1585,26 +1694,67 @@ DLLExport GAME_RENDER(GameRender)
                 -10.f, 10.f
             );
 
-            DrawRectangle(
-                RenderCommands, 
-                CreateTransform(vec3(-2.f, 2.f, 0.f) * vec3(Cos(Parameters->Time), 1.f, 0.f), vec3(0.5f), quat(0.f)), 
-                vec4(1.f, 0.f, 0.f, 1.f)
-            );
-            DrawRectangle(
-                RenderCommands, 
-                CreateTransform(vec3(2.f, 2.f, 0.f) *vec3(1.f, Cos(Parameters->Time), 0.f), vec3(0.5f), quat(0.f)), 
-                vec4(0.f, 1.f, 0.f, 1.f)
-            );
-            DrawRectangle(
-                RenderCommands, 
-                CreateTransform(vec3(2.f, -2.f, 0.f) * vec3(-Cos(Parameters->Time + PI), 1.f, 0.f), vec3(0.5f), quat(0.f)),
-                vec4(0.f, 0.f, 1.f, 1.f)
-            );
-            DrawRectangle(
-                RenderCommands, 
-                CreateTransform(vec3(-2.f, -2.f, 0.f) * vec3(1.f, Cos(Parameters->Time), 0.f), vec3(0.5f), quat(0.f)), 
-                vec4(1.f, 1.f, 0.f, 1.f)
-            );
+            vec3 TopLeft = vec3(-2.f, 2.f, 0.f);
+            vec3 TopRight = vec3(2.f, 2.f, 0.f);
+            vec3 BottomRight = vec3(2.f, -2.f, 0.f);
+            vec3 BottomLeft = vec3(-2.f, -2.f, 0.f);
+
+            f32 MoveSpeed = 0.5f;
+
+            for (u32 QuadIndex = 0; QuadIndex < ArrayCount(State->MenuQuads); ++QuadIndex)
+            {
+                game_menu_quad *Quad = State->MenuQuads + QuadIndex;
+
+                Quad->Move += Parameters->Delta * MoveSpeed;
+
+                if (Quad->Move >= 1.f)
+                {
+                    Quad->Move = 0.f;
+                    Quad->Corner = (Quad->Corner + 1) % 4;
+                }
+
+                vec3 From;
+                vec3 To;
+
+                switch (Quad->Corner)
+                {
+                    case 0:
+                    {
+                        From = TopLeft;
+                        To = TopRight;
+                        break;
+                    }
+                    case 1:
+                    {
+                        From = TopRight;
+                        To = BottomRight;
+                        break;
+                    }
+                    case 2:
+                    {
+                        From = BottomRight;
+                        To = BottomLeft;
+                        break;
+                    }
+                    case 3:
+                    {
+                        From = BottomLeft;
+                        To = TopLeft;
+                        break;
+                    }
+                    default:
+                    {
+                        Assert(!"Wrong side");
+                        break;
+                    }
+                }
+
+                DrawRectangle(
+                    RenderCommands,
+                    CreateTransform(Lerp(From, Quad->Move, To), vec3(0.5f), quat(0.f)),
+                    Quad->Color
+                );
+            }
 
             break;
         }

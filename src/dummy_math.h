@@ -23,12 +23,7 @@ inline f32 Max(f32 a, f32 b);
 #include "dummy_vec4.h"
 #include "dummy_mat4.h"
 #include "dummy_quat.h"
-
-struct plane
-{
-    vec3 Normal;
-    f32 d;
-};
+#include "dummy_plane.h"
 
 struct triangle
 {
@@ -177,7 +172,7 @@ Abs(i32 Value)
 inline f32
 Abs(f32 Value)
 {
-    f32 Result = abs(Value);
+    f32 Result = fabs(Value);
     return Result;
 }
 
@@ -575,20 +570,6 @@ Slerp(quat A, f32 t, quat B)
     return Result;
 }
 
-inline vec3
-Projection(vec3 Vector, plane Plane)
-{
-    vec3 Result = Vector - Dot(Vector, Plane.Normal) * Plane.Normal;
-    return Result;
-}
-
-inline vec3
-Orthogonal(vec3 Vector, plane Plane)
-{
-    vec3 Result = Cross(Vector, Plane.Normal);
-    return Result;
-}
-
 /**
 * Computes barycentric coordinates (u, v, w) for
 * point p with respect to triangle (a, b, c)
@@ -648,23 +629,6 @@ Hash(char *String)
     }
 
     return Hash;
-}
-
-inline plane
-ComputePlane(vec3 a, vec3 b, vec3 c)
-{
-    plane Result;
-    Result.Normal = Normalize(Cross(b - a, c - a));
-    Result.d = Dot(Result.Normal, a);
-
-    return Result;
-}
-
-inline f32
-Dot(plane Plane, vec3 Point)
-{
-    f32 Result = Dot(Plane.Normal, Point) + Plane.d;
-    return Result;
 }
 
 inline vec3

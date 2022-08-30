@@ -22,6 +22,8 @@
     <ClInclude Include="dummy.h" />
     <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_assets.h" />
+    <ClInclude Include="dummy_plane.h" />
+    <ClInclude Include="dummy_visibility.h" />
     <None Include="dummy_collision.cpp" />
     <ClInclude Include="dummy_collision.h" />
     <ClInclude Include="dummy_container.h" />
@@ -43,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_visibility.cpp" />
     <None Include="dummy_entity.cpp" />
     <None Include="dummy_process.cpp" />
     <None Include="dummy_physics.cpp" />

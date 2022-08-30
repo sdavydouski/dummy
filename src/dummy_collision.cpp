@@ -27,6 +27,13 @@ GetAABBHalfSize(aabb Box)
     return Result;
 }
 
+inline vec3
+GetAABBCenter(aabb Box)
+{
+    vec3 Result = Box.Min + GetAABBHalfSize(Box);
+    return Result;
+}
+
 internal b32
 TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *mtvDistance)
 {
@@ -124,7 +131,7 @@ TestAABBPlane(aabb Box, plane Plane)
     // Compute the projection interval radius of AABB onto L(t) = BoxCenter + t * Plane.Normal
     f32 Radius = Dot(BoxExtents, Abs(Plane.Normal));
     // Compute distance of AABB center from plane
-    f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.d;
+    f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.Distance;
     
     // Intersection occurs when distance falls within [-Radius, +Radius] interval
     b32 Result = Abs(Distance) <= Radius;
@@ -301,7 +308,7 @@ GetAABBPlaneMinDistance(aabb Box, plane Plane)
     vec3 BoxExtents = Box.Max - BoxCenter;
 
     f32 Radius = Dot(BoxExtents, Abs(Plane.Normal));
-    f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.d;
+    f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.Distance;
 
     f32 Result = Distance - Radius;
 

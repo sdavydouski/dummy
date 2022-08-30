@@ -10,6 +10,7 @@
 #include "dummy_input.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"
+#include "dummy_visibility.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy_renderer.h"
@@ -828,7 +829,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
     GameMemory.TransientStorageSize = Megabytes(256);
-    GameMemory.RenderCommandsStorageSize = Megabytes(4);
+    GameMemory.RenderCommandsStorageSize = Megabytes(64);
     GameMemory.Platform = &PlatformApi;
 
     void *BaseAddress = 0;

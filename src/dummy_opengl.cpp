@@ -1058,8 +1058,8 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     OpenGLAddTexture(State, 0, &WhiteTexture);
 
-    //glEnable(GL_CULL_FACE);
-    //glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     glFrontFace(GL_CCW);
 
@@ -1319,55 +1319,61 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawLine:
             {
-                render_command_draw_line *Command = (render_command_draw_line *)Entry;
-
-                opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
-
-                glLineWidth(Command->Thickness);
-
-                glBindVertexArray(State->LineVAO);
-                glUseProgram(Shader->Program);
+                if (!Options->RenderShadowMap)
                 {
-                    mat4 T = Translate(Command->Start);
-                    mat4 S = Scale(Command->End - Command->Start);
-                    mat4 Model = T * S;
+                    render_command_draw_line *Command = (render_command_draw_line *) Entry;
 
-                    glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32*)Model.Elements);
-                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+
+                    glLineWidth(Command->Thickness);
+
+                    glBindVertexArray(State->LineVAO);
+                    glUseProgram(Shader->Program);
+                    {
+                        mat4 T = Translate(Command->Start);
+                        mat4 S = Scale(Command->End - Command->Start);
+                        mat4 Model = T * S;
+
+                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                        glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    }
+
+                    glDrawArrays(GL_LINES, 0, 2);
+
+                    glUseProgram(0);
+                    glBindVertexArray(0);
+
+                    glLineWidth(1.f);
                 }
-
-                glDrawArrays(GL_LINES, 0, 2);
-
-                glUseProgram(0);
-                glBindVertexArray(0);
-
-                glLineWidth(1.f);
 
                 break;
             }
             case RenderCommand_DrawRectangle:
             {
-                render_command_draw_rectangle *Command = (render_command_draw_rectangle *)Entry;
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_draw_rectangle *Command = (render_command_draw_rectangle *) Entry;
 
-                opengl_shader* Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
 
-                glBindVertexArray(State->RectangleVAO);
-                glUseProgram(Shader->Program);
+                    glBindVertexArray(State->RectangleVAO);
+                    glUseProgram(Shader->Program);
 
-                mat4 Model = Transform(Command->Transform);
-                mat4 View = mat4(1.f);
+                    mat4 Model = Transform(Command->Transform);
+                    mat4 View = mat4(1.f);
 
-                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
+                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-                glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32*)Model.Elements);
-                glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
-                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-                glUseProgram(0);
-                glBindVertexArray(0);
+                    glUseProgram(0);
+                    glBindVertexArray(0);
+                }
 
                 break;
             }
@@ -1732,7 +1738,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     RenderOptions.ShowCascades = RenderSettings->ShowCascades;
     OpenGLRenderScene(State, Commands, &RenderOptions);
 
-#if 1
+#if 0
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
