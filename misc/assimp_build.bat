@@ -7,20 +7,19 @@ exit /b 0
 set build_dir=".\build\external\assimp"
 set libs_dir=".\build\external\libs"
 
+call :build_assimp Debug
+call :build_assimp Release
+
 if not exist %libs_dir% mkdir %libs_dir%
 pushd %libs_dir%
-copy ..\assimp\code\Debug\assimp-vc143-mtd.lib .\
-copy ..\assimp\code\Release\assimp-vc143-mt.lib .\
-
-copy ..\assimp\contrib\irrXML\Debug\IrrXMLd.lib .\
-copy ..\assimp\contrib\irrXML\Release\IrrXML.lib .\
+copy ..\assimp\lib\Debug\assimp-vc143-mtd.lib .\
+copy ..\assimp\lib\Release\assimp-vc143-mt.lib .\
 
 copy ..\assimp\contrib\zlib\Debug\zlibstaticd.lib .\
 copy ..\assimp\contrib\zlib\Release\zlibstatic.lib .\
 
-copy ..\assimp\code\Debug\assimp-vc143-mtd.pdb .\
+copy ..\assimp\lib\Debug\assimp-vc143-mtd.pdb .\
 copy ..\assimp\contrib\zlib\Debug\zlibstaticd.pdb .\
-copy ..\assimp\contrib\irrXML\Debug\IrrXMLd.pdb .\
 popd
 exit /b 0
 

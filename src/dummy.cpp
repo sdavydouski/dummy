@@ -487,6 +487,7 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
     if (Entity->Model->Skeleton->JointCount > 1)
     {
         DrawSkinnedModel(RenderCommands, Entity->Model, Entity->Model->Pose);
+        //DrawSkeleton(RenderCommands, State, Entity->Model->Pose);
     }
     else
     {
