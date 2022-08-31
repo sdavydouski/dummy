@@ -101,6 +101,7 @@ struct game_state
 
     game_entity *Player;
     game_entity *Pelegrini;
+    game_entity *MarkerMan;
     game_entity *xBot;
     game_entity *yBot;
     game_entity *Skulls[2];

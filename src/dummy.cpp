@@ -281,6 +281,15 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         InitModel(Asset, Model, Name, Arena, RenderCommands);
     }
 
+#if 0
+    {
+        char Name[32] = "MarkerMan";
+        model *Model = GetModelAsset(Assets, Name);
+        model_asset *Asset = LoadModelAsset(Platform, (char *) "assets\\marker_man.asset", Arena);
+        InitModel(Asset, Model, Name, Arena, RenderCommands);
+    }
+#endif
+
     {
         char Name[32] = "xBot";
         model *Model = GetModelAsset(Assets, Name);
@@ -1021,6 +1030,15 @@ DLLExport GAME_INIT(GameInit)
     AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->Pelegrini, "Bot", &State->PermanentArena);
 
+    // Marker Man
+#if 0
+    State->MarkerMan = CreateGameEntity(State);
+    State->MarkerMan->Transform = CreateTransform(vec3(16.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    AddModelComponent(State->MarkerMan, &State->Assets, "MarkerMan");
+    AddRigidBodyComponent(State->MarkerMan, vec3(16.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddAnimationComponent(State->MarkerMan, "Bot", &State->PermanentArena);
+#endif
+
     // xBot
     State->xBot = CreateGameEntity(State);
     State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
@@ -1099,6 +1117,7 @@ DLLExport GAME_INIT(GameInit)
     //State->Player = State->xBot;
     //State->Player = State->yBot;
     State->Player = State->Pelegrini;
+    //State->Player = State->MarkerMan;
     //State->Player = State->Dummy;
     //State->Player = State->Cubes[7];
 
@@ -1629,7 +1648,7 @@ DLLExport GAME_RENDER(GameRender)
                 }
 
                 // todo: come up with some visualization of non-culled entities
-#if 1
+#if 0
                 Entity->DebugView = !EnableFrustrumCulling && AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox);
 #endif
 

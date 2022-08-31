@@ -225,7 +225,7 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
     #if 0
                     char FileName[64];
-                    FormatString(FileName, ArrayCount(FileName), "Diffuse - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+                    FormatString(FileName, "Diffuse - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
     #endif
@@ -243,7 +243,7 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
     #if 0
                     char FileName[64];
-                    FormatString(FileName, ArrayCount(FileName), "Specular - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+                    FormatString(FileName, "Specular - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
     #endif
@@ -261,7 +261,7 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
     #if 0
                     char FileName[64];
-                    FormatString(FileName, ArrayCount(FileName), "Shininess - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+                    FormatString(FileName, "Shininess - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
     #endif
@@ -279,7 +279,7 @@ ReadAssetFile(const char *FilePath, model_asset *Asset, model_asset *OriginalAss
 
     #if 0
                     char FileName[64];
-                    FormatString(FileName, ArrayCount(FileName), "Normal - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+                    FormatString(FileName, "Normal - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
 
                     stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
     #endif
