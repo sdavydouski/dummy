@@ -68,7 +68,6 @@ struct model
 
     skeleton *Skeleton;
     skeleton_pose *BindPose;
-    skeleton_pose *Pose;
     animation_graph_asset *AnimationGraph;
 
     aabb Bounds;
@@ -81,9 +80,6 @@ struct model
 
     u32 AnimationCount;
     animation_clip *Animations;
-
-    u32 SkinningMatrixCount;
-    mat4 *SkinningMatrices;
 };
 
 // Animation Graph Asset

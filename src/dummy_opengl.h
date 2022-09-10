@@ -3,7 +3,7 @@
 #define WIN32_RELOADABLE_SHADERS 1
 
 #define OPENGL_MAX_MESH_BUFFER_COUNT 256
-#define OPENGL_MAX_SKINNED_MESH_BUFFER_COUNT 32
+#define OPENGL_MAX_SKINNING_BUFFER_COUNT 256
 #define OPENGL_MAX_TEXTURE_COUNT 64
 #define OPENGL_MAX_SHADER_COUNT 64
 
@@ -42,10 +42,9 @@ struct opengl_mesh_buffer
     u32 BufferSize;
 };
 
-struct opengl_skinned_mesh_buffer
+struct opengl_skinning_buffer
 {
-    opengl_mesh_buffer *Buffer;
-
+    u32 Id;
     GLuint SkinningTBO;
     GLuint SkinningTBOTexture;
 };
@@ -150,8 +149,8 @@ struct opengl_state
     u32 CurrentMeshBufferCount;
     opengl_mesh_buffer MeshBuffers[OPENGL_MAX_MESH_BUFFER_COUNT];
 
-    u32 CurrentSkinnedMeshBufferCount;
-    opengl_skinned_mesh_buffer SkinnedMeshBuffers[OPENGL_MAX_SKINNED_MESH_BUFFER_COUNT];
+    u32 CurrentSkinningBufferCount;
+    opengl_skinning_buffer SkinningBuffers[OPENGL_MAX_SKINNING_BUFFER_COUNT];
 
     u32 CurrentTextureCount;
     opengl_texture Textures[OPENGL_MAX_TEXTURE_COUNT];

@@ -39,7 +39,6 @@ AddMesh(
     i32 *JointIndices,
     u32 IndexCount,
     u32 *Indices,
-    u32 SkinningMatrixCount,
     u32 MaxInstanceCount
 )
 {
@@ -55,7 +54,6 @@ AddMesh(
     Command->JointIndices = JointIndices;
     Command->IndexCount = IndexCount;
     Command->Indices = Indices;
-    Command->SkinningMatrixCount = SkinningMatrixCount;
     Command->MaxInstanceCount = MaxInstanceCount;
 }
 
@@ -65,6 +63,15 @@ AddTexture(render_commands *Commands, u32 Id, bitmap *Bitmap)
     render_command_add_texture *Command = PushRenderCommand(Commands, render_command_add_texture, RenderCommand_AddTexture, 0);
     Command->Id = Id;
     Command->Bitmap = Bitmap;
+}
+
+inline void
+AddSkinningBuffer(render_commands *Commands, u32 SkinningBufferId, u32 SkinningMatrixCount)
+{
+    render_command_add_skinning_buffer *Command = PushRenderCommand(Commands, render_command_add_skinning_buffer, RenderCommand_AddSkinningBuffer, 0);
+
+    Command->SkinningBufferId = SkinningBufferId;
+    Command->SkinningMatrixCount = SkinningMatrixCount;
 }
 
 inline void
@@ -169,6 +176,7 @@ DrawSkinnedMesh(
     u32 MeshId,
     transform Transform,
     material Material,
+    u32 SkinningBufferId,
     u32 SkinningMatrixCount,
     mat4 *SkinningMatrices,
     u32 RenderTarget = 0
@@ -179,6 +187,7 @@ DrawSkinnedMesh(
     Command->MeshId = MeshId;
     Command->Transform = Transform;
     Command->Material = Material;
+    Command->SkinningBufferId = SkinningBufferId;
     Command->SkinningMatrixCount = SkinningMatrixCount;
     Command->SkinningMatrices = SkinningMatrices;
 }

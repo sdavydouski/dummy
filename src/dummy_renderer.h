@@ -85,12 +85,23 @@ GetCameraTransform(game_camera *Camera)
 struct render_instance
 {
     mat4 Model;
+    vec3 Color;
+};
+
+// todo(continue): try to instance render skinned meshes?
+struct render_skinning
+{
+    skeleton_pose *Pose;
+    u32 SkinningBufferId;
+    u32 SkinningMatrixCount;
+    mat4 *SkinningMatrices;
 };
 
 enum render_command_type
 {
     RenderCommand_AddMesh,
     RenderCommand_AddTexture,
+    RenderCommand_AddSkinningBuffer,
 
     RenderCommand_SetViewport,
     RenderCommand_SetOrthographicProjection,
@@ -135,7 +146,6 @@ struct render_command_add_mesh
     u32 IndexCount;
     u32 *Indices;
 
-    u32 SkinningMatrixCount;
     u32 MaxInstanceCount;
 };
 
@@ -146,6 +156,14 @@ struct render_command_add_texture
     u32 Id;
     bitmap *Bitmap;
     // todo: filtering, wrapping, mipmapping...
+};
+
+struct render_command_add_skinning_buffer
+{
+    render_command_header Header;
+
+    u32 SkinningBufferId;
+    u32 SkinningMatrixCount;
 };
 
 struct render_command_set_viewport
@@ -252,6 +270,7 @@ struct render_command_draw_skinned_mesh
     transform Transform;
     material Material;
 
+    u32 SkinningBufferId;
     u32 SkinningMatrixCount;
     mat4 *SkinningMatrices;
 };

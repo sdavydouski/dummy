@@ -18,10 +18,12 @@ struct game_entity
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
+    render_skinning *Skinning;
 
     b32 Controllable;   // todo: come up with smth better
     b32 FutureControllable;   // todo: come up with smth better
     b32 DebugView;
+    vec3 Color;
 };
 
 struct entity_render_batch
@@ -52,7 +54,6 @@ struct game_asset
     u32 MaxInstanceCount;
 };
 
-
 struct game_assets
 {
     hash_table<model> Models;
@@ -62,6 +63,7 @@ struct game_options
 {
     b32 ShowCascades;
     b32 ShowRigidBodies;
+    b32 ShowCamera;
 };
 
 struct game_menu_quad

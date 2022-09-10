@@ -9,14 +9,15 @@ struct job
 {
     job_entry_point *EntryPoint;
     void *Params;
+    // todo(continue)
+    memory_arena Arena;
 };
 
 struct job_queue
 {
     // sync primitives
-    void *Master;
-    void *Worker;
-    void *QueueEmpty;
+    void *Before;
+    void *After;
     void *QueueNotEmpty;
 
     u32 volatile CurrentJobCount;
@@ -24,15 +25,6 @@ struct job_queue
 
     job Jobs[256];
 };
-
-inline void
-InitJobQueue(job_queue *JobQueue)
-{
-    *JobQueue = {};
-
-    JobQueue->CurrentJobIndex = -1;
-    JobQueue->CurrentJobCount = 0;
-}
 
 // Must be atomic!
 inline job *

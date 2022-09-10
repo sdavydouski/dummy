@@ -75,7 +75,7 @@ CreateMaterial(material_type Type, vec4 Color, b32 CastShadow, b32 Wireframe)
 }
 
 inline void
-DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose)
+DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose, render_skinning *Skinning)
 {
     Assert(Model->Skeleton);
     
@@ -83,7 +83,7 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
     {
         joint *Joint = Model->Skeleton->Joints + JointIndex;
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
-        mat4 *SkinningMatrix = Model->SkinningMatrices + JointIndex;
+        mat4 *SkinningMatrix = Skinning->SkinningMatrices + JointIndex;
 
         *SkinningMatrix = *GlobalJointPose * Joint->InvBindTranform;
     }
@@ -96,7 +96,7 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
 
         DrawSkinnedMesh(
             RenderCommands, Mesh->Id, {}, Material,
-            Model->SkinningMatrixCount, Model->SkinningMatrices
+            Skinning->SkinningBufferId, Skinning->SkinningMatrixCount, Skinning->SkinningMatrices
         );
     }
 }
@@ -156,6 +156,15 @@ GenerateTextureId()
     return TextureId++;
 }
 
+// todo:
+inline u32
+GenerateSkinningBufferId()
+{
+    persist u32 SkinnningBufferId = 0;
+
+    return SkinnningBufferId++;
+}
+
 inline void
 InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Arena, render_commands *RenderCommands, u32 MaxInstanceCount = 0)
 {
@@ -164,20 +173,6 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     CopyString(Name, Model->Name);
     Model->Skeleton = &Asset->Skeleton;
     Model->BindPose = &Asset->BindPose;
-    
-    Model->Pose = PushType(Arena, skeleton_pose);
-    Model->Pose->Skeleton = Model->Skeleton;
-    Model->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, joint_pose);
-    Model->Pose->GlobalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, mat4);
-
-    for (u32 JointIndex = 0; JointIndex < Model->BindPose->Skeleton->JointCount; ++JointIndex)
-    {
-        joint_pose *SourceLocalJointPose = Model->BindPose->LocalJointPoses + JointIndex;
-        joint_pose *DestLocalJointPose = Model->Pose->LocalJointPoses + JointIndex;
-
-        *DestLocalJointPose = *SourceLocalJointPose;
-    }
-
     Model->AnimationGraph = &Asset->AnimationGraph;
     Model->MeshCount = Asset->MeshCount;
     Model->Meshes = Asset->Meshes;
@@ -186,16 +181,6 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     Model->AnimationCount = Asset->AnimationCount;
     Model->Animations = Asset->Animations;
 
-    u32 SkinningMatrixCount = 0;
-
-    if (Model->Skeleton->JointCount > 1)
-    {
-        Model->SkinningMatrixCount = Model->Skeleton->JointCount;
-        Model->SkinningMatrices = PushArray(Arena, Model->SkinningMatrixCount, mat4);
-
-        SkinningMatrixCount = Model->Skeleton->JointCount;
-    }
-
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
@@ -203,7 +188,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
         AddMesh(
             RenderCommands, Mesh->Id, Mesh->VertexCount, 
             Mesh->Positions, Mesh->Normals, Mesh->Tangents, Mesh->Bitangents, Mesh->TextureCoords, Mesh->Weights, Mesh->JointIndices, 
-            Mesh->IndexCount, Mesh->Indices, SkinningMatrixCount, MaxInstanceCount
+            Mesh->IndexCount, Mesh->Indices, MaxInstanceCount
         );
 
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
@@ -227,6 +212,33 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     }
 
     Model->Bounds = CalculateAxisAlignedBoundingBox(Model);
+}
+
+inline void
+InitSkinningBuffer(render_skinning *SkinningBuffer, model *Model, memory_arena *Arena, render_commands *RenderCommands)
+{
+    *SkinningBuffer = {};
+
+    SkinningBuffer->Pose = PushType(Arena, skeleton_pose);
+    SkinningBuffer->Pose->Skeleton = Model->Skeleton;
+    SkinningBuffer->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, joint_pose);
+    SkinningBuffer->Pose->GlobalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, mat4, 16);
+
+    for (u32 JointIndex = 0; JointIndex < Model->BindPose->Skeleton->JointCount; ++JointIndex)
+    {
+        joint_pose *SourceLocalJointPose = Model->BindPose->LocalJointPoses + JointIndex;
+        joint_pose *DestLocalJointPose = SkinningBuffer->Pose->LocalJointPoses + JointIndex;
+
+        *DestLocalJointPose = *SourceLocalJointPose;
+    }
+
+    u32 SkinningMatrixCount = Model->Skeleton->JointCount;
+
+    SkinningBuffer->SkinningMatrixCount = Model->Skeleton->JointCount;
+    SkinningBuffer->SkinningMatrices = PushArray(Arena, SkinningMatrixCount, mat4, 16);
+    SkinningBuffer->SkinningBufferId = GenerateSkinningBufferId();
+
+    AddSkinningBuffer(RenderCommands, SkinningBuffer->SkinningBufferId, SkinningBuffer->SkinningMatrixCount);
 }
 
 inline ray
@@ -293,17 +305,17 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         {
             "Cube",
             "assets\\cube.asset",
-            256
+            4096
         },
         {
             "Sphere",
             "assets\\sphere.asset",
-            256
+            4096
         },
         {
             "Skull",
             "assets\\skull.asset",
-            256
+            4096
         },
         {
             "Floor",
@@ -323,12 +335,12 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         {
             "Column",
             "assets\\column.asset",
-            256
+            4096
         },
         {
             "Banner Wall",
             "assets\\banner_wall.asset",
-            256
+            4096
         }
     };
 
@@ -473,8 +485,8 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
 {
     if (Entity->Model->Skeleton->JointCount > 1)
     {
-        DrawSkinnedModel(RenderCommands, Entity->Model, Entity->Model->Pose);
-        //DrawSkeleton(RenderCommands, State, Entity->Model->Pose);
+        DrawSkinnedModel(RenderCommands, Entity->Model, Entity->Skinning->Pose, Entity->Skinning);
+        //DrawSkeleton(RenderCommands, State, Entity->Skinning->Pose);
     }
     else
     {
@@ -532,6 +544,7 @@ AddEntityToRenderBatch(entity_render_batch *Batch, game_entity *Entity)
 
     *NextFreeEntity = Entity;
     NextFreeInstance->Model = Transform(Entity->Transform);
+    NextFreeInstance->Color = Entity->Color;
 
     Batch->EntityCount++;
 }
@@ -540,6 +553,9 @@ inline game_entity *
 CreateGameEntity(game_state *State)
 {
     game_entity *Entity = State->Entities + State->EntityCount++;
+
+    // todo:
+    Entity->Color = vec3(1.f);
 
     return Entity;
 }
@@ -559,10 +575,13 @@ AddRigidBodyComponent(game_entity *Entity, vec3 Position, quat Orientation, vec3
 }
 
 inline void
-AddAnimationComponent(game_entity *Entity, const char *Animator, memory_arena *Arena)
+AddAnimationComponent(game_entity *Entity, const char *Animator, render_commands *RenderCommands, memory_arena *Arena)
 {
     Entity->Animation = PushType(Arena, animation_graph);
     BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Animator, Arena);
+
+    Entity->Skinning = PushType(Arena, render_skinning);
+    InitSkinningBuffer(Entity->Skinning, Entity->Model, Arena, RenderCommands);
 }
 
 internal void
@@ -884,7 +903,7 @@ GameLogic2AnimatorParams(game_state *State, game_entity *Entity)
 }
 
 internal void
-AnimateEntity(game_state *State, game_entity *Entity, f32 Delta)
+AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 Delta)
 {
     Assert(Entity->Animation);
 
@@ -899,13 +918,13 @@ AnimateEntity(game_state *State, game_entity *Entity, f32 Delta)
         Params = GameLogic2AnimatorParams(State, Entity);
     }
 
-    skeleton_pose *Pose = Entity->Model->Pose;
+    skeleton_pose *Pose = Entity->Skinning->Pose;
     joint_pose *Root = GetRootLocalJointPose(Pose);
     joint_pose *Hips = GetRootTranslationLocalJointPose(Pose);
 
     AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
     AnimationGraphPerFrameUpdate(Entity->Animation, Delta);
-    CalculateSkeletonPose(Entity->Animation, Pose, &State->PermanentArena);
+    CalculateSkeletonPose(Entity->Animation, Pose, Arena);
 
     // Root Motion
     Entity->Animation->AccRootMotion.x += Pose->RootMotion.x;
@@ -916,6 +935,20 @@ AnimateEntity(game_state *State, game_entity *Entity, f32 Delta)
     Root->Scale = Entity->Transform.Scale;
 
     UpdateGlobalJointPoses(Pose);
+}
+
+struct animate_entity_job
+{
+    game_state *State;
+    game_entity *Entity;
+    memory_arena Arena;
+    f32 Delta;
+};
+
+JOB_ENTRY_POINT(AnimateEntityJob)
+{
+    animate_entity_job *Data = (animate_entity_job *) Params;
+    AnimateEntity(Data->State, Data->Entity, &Data->Arena, Data->Delta);
 }
 
 internal void
@@ -1010,7 +1043,7 @@ DLLExport GAME_INIT(GameInit)
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
 
-#if 1
+#if 0
     init_game_assets_job_data JobParams = {};
     JobParams.Assets = &State->Assets;
     JobParams.Platform = Platform;
@@ -1039,7 +1072,7 @@ DLLExport GAME_INIT(GameInit)
     State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
     AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->Pelegrini, "Bot", &State->PermanentArena);
+    AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->PermanentArena);
 
     // Marker Man
 #if 0
@@ -1055,14 +1088,31 @@ DLLExport GAME_INIT(GameInit)
     State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->xBot, &State->Assets, "xBot");
     AddRigidBodyComponent(State->xBot, vec3(8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->xBot, "Bot", &State->PermanentArena);
+    AddAnimationComponent(State->xBot, "Bot", RenderCommands, &State->PermanentArena);
 
     // yBot
     State->yBot = CreateGameEntity(State);
     State->yBot->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->yBot, &State->Assets, "yBot");
     AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->yBot, "Bot", &State->PermanentArena);
+    AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->PermanentArena);
+
+#if 1
+    // temp:
+    u32 Count = 1000;
+    while(Count--)
+    {
+        game_entity *Entity = CreateGameEntity(State);
+        vec3 Position = vec3(RandomBetween(&State->Entropy, -150.f, 150.f), RandomBetween(&State->Entropy, 1.f, 2.f), RandomBetween(&State->Entropy, -150.f, 150.f));
+        Entity->Transform = CreateTransform(Position, vec3(1.5f), quat(0.f, 0.f, 0.f, 1.f));
+        AddModelComponent(Entity, &State->Assets, "Sphere");
+        AddRigidBodyComponent(Entity, Position, quat(0.f, 0.f, 0.f, 1.f), vec3(1.5f), false, &State->PermanentArena);
+        //AddAnimationComponent(Entity, "Bot", RenderCommands, &State->PermanentArena);
+        Entity->Color = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+    }
+#endif
+
+    //
 
 #if 0
     // Skull 0
@@ -1512,6 +1562,7 @@ DLLExport GAME_UPDATE(GameUpdate)
                 Integrate(Body, Parameters->UpdateRate);
             }
 
+#if 0
             for (u32 AnotherEntityIndex = EntityIndex + 1; AnotherEntityIndex < State->EntityCount; ++AnotherEntityIndex)
             {
                 game_entity *AnotherEntity = State->Entities + AnotherEntityIndex;
@@ -1527,6 +1578,7 @@ DLLExport GAME_UPDATE(GameUpdate)
                     }
                 }
             }
+#endif
         }
     }
 }
@@ -1535,6 +1587,7 @@ DLLExport GAME_RENDER(GameRender)
 {
     game_state *State = GetGameState(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
+    platform_api *Platform = Memory->Platform;
 
     ClearMemoryArena(&State->TransientArena);
 
@@ -1579,7 +1632,7 @@ DLLExport GAME_RENDER(GameRender)
 
             BuildFrustrumPolyhedron(&State->PlayerCamera, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
 
-            if (State->Mode == GameMode_Edit)
+            if (State->Options.ShowCamera)
             {
                 RenderFrustrum(RenderCommands, &State->Frustrum);
 
@@ -1654,12 +1707,17 @@ DLLExport GAME_RENDER(GameRender)
             State->EntityBatches.Count = 32;
             State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
 
+#if 1
+            // Animation
+            u32 MaxJobCount = State->EntityCount;
+            job *Jobs = PushArray(&State->TransientArena, MaxJobCount, job);
+            animate_entity_job *JobParams = PushArray(&State->TransientArena, MaxJobCount, animate_entity_job);
+
+            u32 JobCount = 0;
             for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
                 game_entity *Entity = State->Entities + EntityIndex;
 
-                aabb BoundingBox = GetEntityBoundingBox(Entity);
-                
                 // Rigid bodies movement
                 if (Entity->Body)
                 {
@@ -1669,8 +1727,44 @@ DLLExport GAME_RENDER(GameRender)
 
                 if (Entity->Animation)
                 {
-                    AnimateEntity(State, Entity, Parameters->Delta);
+                    job *Job = Jobs + JobCount;
+                    animate_entity_job *JobData = JobParams + JobCount;
+
+                    ++JobCount;
+
+                    JobData->State = State;
+                    JobData->Entity = Entity;
+                    JobData->Arena = SubMemoryArena(&State->TransientArena, Megabytes(2));
+                    JobData->Delta = Parameters->Delta;
+                    
+                    Job->EntryPoint = AnimateEntityJob;
+                    Job->Params = JobData;
                 }
+            }
+
+            Platform->KickJobsAndWait(State->JobQueue, JobCount, Jobs);
+#endif
+            //
+
+            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+            {
+                game_entity *Entity = State->Entities + EntityIndex;
+
+                aabb BoundingBox = GetEntityBoundingBox(Entity);
+
+#if 0
+                // Rigid bodies movement
+                if (Entity->Body)
+                {
+                    Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Lag, Entity->Body->Position);
+                    Entity->Transform.Rotation = Entity->Body->Orientation;
+                }
+
+                if (Entity->Animation)
+                {
+                    AnimateEntity(State, Entity, &State->TransientArena, Parameters->Delta);
+                }
+#endif
 
                 // todo: come up with some visualization of non-culled entities
 #if 0
@@ -1698,14 +1792,15 @@ DLLExport GAME_RENDER(GameRender)
                 Entity->Controllable = Entity->FutureControllable;
             }
 
+#if 1
             // Pushing entities into render buffer
             for (u32 EntityBatchIndex = 0; EntityBatchIndex < State->EntityBatches.Count; ++EntityBatchIndex)
             {
                 entity_render_batch *Batch = State->EntityBatches.Values + EntityBatchIndex;
 
-                u32 BatchThreshold = 1;
+                u32 BatchThreshold = 0;
 
-                if (Batch->EntityCount > BatchThreshold)
+                if (Batch->EntityCount > BatchThreshold && Batch->Model->AnimationCount == 0)
                 {
                     // todo: need to add mesh instanced first :(
                     RenderEntityBatch(RenderCommands, State, Batch);
@@ -1720,6 +1815,7 @@ DLLExport GAME_RENDER(GameRender)
                     }
                 }
             }
+#endif
 
             DrawGround(RenderCommands);
 

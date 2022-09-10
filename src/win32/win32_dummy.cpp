@@ -824,34 +824,14 @@ PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
 {
     Win32KickJob(JobQueue, Job);
 
-    CRITICAL_SECTION *Master = (CRITICAL_SECTION *) JobQueue->Master;
-    CONDITION_VARIABLE *QueueEmpty = (CONDITION_VARIABLE *) JobQueue->QueueEmpty;
-
-    EnterCriticalSection(Master);
-
-    while (JobQueue->CurrentJobCount > 0)
-    {
-        SleepConditionVariableCS(QueueEmpty, Master, INFINITE);
-    }
-
-    LeaveCriticalSection(Master);
+    while (JobQueue->CurrentJobCount > 0) {}
 }
 
 PLATFORM_KICK_JOBS_AND_WAIT(Win32KickJobsAndWait)
 {
     Win32KickJobs(JobQueue, JobCount, Jobs);
 
-    CRITICAL_SECTION *Master = (CRITICAL_SECTION *) JobQueue->Master;
-    CONDITION_VARIABLE *QueueEmpty = (CONDITION_VARIABLE *) JobQueue->QueueEmpty;
-
-    EnterCriticalSection(Master);
-
-    while (JobQueue->CurrentJobCount > 0)
-    {
-        SleepConditionVariableCS(QueueEmpty, Master, INFINITE);
-    }
-
-    LeaveCriticalSection(Master);
+    while (JobQueue->CurrentJobCount > 0) {}
 }
 
 DWORD WINAPI WorkerThreadProc(LPVOID lpParam)
@@ -862,28 +842,29 @@ DWORD WINAPI WorkerThreadProc(LPVOID lpParam)
 
     job_queue *JobQueue = Thread->JobQueue;
 
-    CRITICAL_SECTION *Worker = (CRITICAL_SECTION *) JobQueue->Worker;
-    CONDITION_VARIABLE *QueueEmpty = (CONDITION_VARIABLE *) JobQueue->QueueEmpty;
+    CRITICAL_SECTION *Before = (CRITICAL_SECTION *) JobQueue->Before;
+    CRITICAL_SECTION *After = (CRITICAL_SECTION *) JobQueue->After;
     CONDITION_VARIABLE *QueueNotEmpty = (CONDITION_VARIABLE *) JobQueue->QueueNotEmpty;
 
     while (true)
     {
-        EnterCriticalSection(Worker);
+        EnterCriticalSection(Before);
 
         while (JobQueue->CurrentJobIndex == -1)
         {
-            WakeConditionVariable(QueueEmpty);
-            SleepConditionVariableCS(QueueNotEmpty, Worker, INFINITE);
+            SleepConditionVariableCS(QueueNotEmpty, Before, INFINITE);
         }
 
         job *Job = GetNextJobFromQueue(JobQueue);
 
-        LeaveCriticalSection(Worker);
+        LeaveCriticalSection(Before);
 
         Job->EntryPoint(JobQueue, Job->Params);
 
-        JobQueue->CurrentJobCount = InterlockedDecrement(&JobQueue->CurrentJobCount);
+        EnterCriticalSection(After);
+        JobQueue->CurrentJobCount -= 1;
         Assert(JobQueue->CurrentJobCount >= 0);
+        LeaveCriticalSection(After);
     }
 
     return 0;
@@ -901,24 +882,21 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     win32_thread *Threads = (win32_thread *) Win32AllocateMemory(0, MaxThreadCount * sizeof(win32_thread));
 
-    CRITICAL_SECTION Master;
-    InitializeCriticalSectionAndSpinCount(&Master, 0x00004000);
+    CRITICAL_SECTION Before;
+    InitializeCriticalSectionAndSpinCount(&Before, 0x0000400);
 
-    CRITICAL_SECTION Worker;
-    InitializeCriticalSectionAndSpinCount(&Worker, 0x00000400);
-
-    CONDITION_VARIABLE QueueEmpty;
-    InitializeConditionVariable(&QueueEmpty);
+    CRITICAL_SECTION After;
+    InitializeCriticalSectionAndSpinCount(&After, 0x00000400);
 
     CONDITION_VARIABLE QueueNotEmpty;
     InitializeConditionVariable(&QueueNotEmpty);
 
     job_queue JobQueue;
-    InitJobQueue(&JobQueue);
 
-    JobQueue.Master = &Master;
-    JobQueue.Worker = &Worker;
-    JobQueue.QueueEmpty = &QueueEmpty;
+    JobQueue.CurrentJobIndex = -1;
+    JobQueue.CurrentJobCount = 0;
+    JobQueue.Before = &Before;
+    JobQueue.After = &After;
     JobQueue.QueueNotEmpty = &QueueNotEmpty;
 
     for (u32 ThreadIndex = 0; ThreadIndex < MaxThreadCount; ++ThreadIndex)
@@ -963,7 +941,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
-    GameMemory.TransientStorageSize = Megabytes(256);
+    GameMemory.TransientStorageSize = Megabytes(512);
     GameMemory.RenderCommandsStorageSize = Megabytes(64);
     GameMemory.Platform = &PlatformApi;
     GameMemory.JobQueue = &JobQueue;

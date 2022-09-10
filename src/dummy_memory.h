@@ -10,6 +10,7 @@
 inline void
 ClearMemory(void *Memory, umm Size)
 {
+    // todo: abysmally slow
     memset(Memory, 0, Size);
 }
 
@@ -66,7 +67,7 @@ ClearMemoryArena(memory_arena *Arena)
 }
 
 inline void *
-PushSize(memory_arena *Arena, umm Size, umm Alignment = 4)
+PushSize(memory_arena *Arena, umm Size, umm Alignment = 4, b32 Clear = true)
 {
     umm RawAddress = (umm)Arena->Base + Arena->Used;
     umm AlignedAddress = AlignAddress(RawAddress, Alignment);
@@ -80,7 +81,22 @@ PushSize(memory_arena *Arena, umm Size, umm Alignment = 4)
     Arena->Used += ActualSize;
 
     // todo: control flags
-    ClearMemory(Result, ActualSize);
+    if (Clear)
+    {
+        ClearMemory(Result, ActualSize);
+    }
+
+    return Result;
+}
+
+inline memory_arena
+SubMemoryArena(memory_arena *Arena, umm Size)
+{
+    memory_arena Result = {};
+
+    Result.Size = Size;
+    // todo:
+    Result.Base = PushSize(Arena, Size, 4, false);
 
     return Result;
 }
