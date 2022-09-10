@@ -1,12 +1,15 @@
 internal void
-BuildFrustrumPolyhedron(game_camera *Camera, f32 FocalLength, f32 AspectRatio, f32 Near, f32 Far, polyhedron *Polyhedron)
+BuildFrustrumPolyhedron(game_camera *Camera, f32 Near, f32 Far, polyhedron *Polyhedron)
 {
     Polyhedron->VertexCount = 8;
     Polyhedron->EdgeCount = 12;
     Polyhedron->FaceCount = 6;
 
-    mat4 WorldToCamera = LookAt(Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
+    mat4 WorldToCamera = GetCameraTransform(Camera);
     mat4 CameraToWorld = Inverse(WorldToCamera);
+
+    f32 FocalLength = Camera->FocalLength;
+    f32 AspectRatio = Camera->AspectRatio;
 
     // Generate vertices for the near side
     f32 y = Near / FocalLength;

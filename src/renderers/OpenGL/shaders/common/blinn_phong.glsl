@@ -68,7 +68,8 @@ vec3 CalculateDiffuseReflection(
 {
     vec3 DirectColor = LightColor * Saturate(dot(Normal, LightDirection));
     
-    return ((AmbientColor + DirectColor) * DiffuseColor);
+    //return ((AmbientColor + DirectColor) * DiffuseColor);
+    return (DirectColor) * DiffuseColor;
 }
 
 vec3 CalculateSpecularReflection(

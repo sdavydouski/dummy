@@ -606,7 +606,6 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
     Shader->PointLightCountUniformLocation = glGetUniformLocation(Program, "u_PointLightCount");
 
     Shader->ScreenTextureUniformLocation = glGetUniformLocation(Program, "u_ScreenTexture");
-    Shader->BlinkUniformLocation = glGetUniformLocation(Program, "u_Blink");
 }
 
 inline char *
@@ -754,7 +753,13 @@ OpenGLInitShaders(opengl_state *State)
 internal void
 OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, mesh_material *MeshMaterial)
 {
-    if (Options->RenderShadowMap) return;
+    GLint RenderShadowMapUniformLocation = glGetUniformLocation(Shader->Program, "u_RenderShadowMap");
+    glUniform1i(RenderShadowMapUniformLocation, Options->RenderShadowMap);
+
+    if (Options->RenderShadowMap)
+    {
+        return;
+    }
 
     glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, false);
     glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, false);
@@ -804,6 +809,11 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
     if (MeshMaterial)
     {
+        // default values
+        vec3 DefaultAmbient = vec3(0.4f);
+        glUniform3f(Shader->MaterialAmbientColorUniformLocation, DefaultAmbient.x, DefaultAmbient.y, DefaultAmbient.z);
+        glUniform1f(Shader->MaterialSpecularShininessUniformLocation, 1.f);
+
         for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
         {
             material_property *MaterialProperty = MeshMaterial->Properties + MaterialPropertyIndex;
@@ -817,6 +827,11 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 }
                 case MaterialProperty_Color_Ambient:
                 {
+                    if (MaterialProperty->Color.x == 0.f && MaterialProperty->Color.y == 0.f && MaterialProperty->Color.z == 0.f)
+                    {
+                        MaterialProperty->Color.rgb = DefaultAmbient;
+                    }
+
                     glUniform3f(
                         Shader->MaterialAmbientColorUniformLocation,
                         MaterialProperty->Color.r,
@@ -1058,8 +1073,8 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     OpenGLAddTexture(State, 0, &WhiteTexture);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
+    //glEnable(GL_CULL_FACE);
+    //glCullFace(GL_BACK);
 
     glFrontFace(GL_CCW);
 
@@ -1139,6 +1154,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glDisable(GL_DEPTH_CLAMP);
+    //glDisable(GL_POLYGON_OFFSET_POINT);
+    //glDisable(GL_POLYGON_OFFSET_LINE);
+    //glDisable(GL_POLYGON_OFFSET_FILL);
+    //glEnable(GL_CULL_FACE);
+    //glCullFace(GL_BACK);
 
     if (Options->RenderShadowMap)
     {
@@ -1146,6 +1166,12 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->CascadeShadowMapFBO);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[Options->CascadeIndex], 0);
         glEnable(GL_DEPTH_CLAMP);
+        //glEnable(GL_POLYGON_OFFSET_POINT);
+        //glEnable(GL_POLYGON_OFFSET_LINE);
+        //glEnable(GL_POLYGON_OFFSET_FILL);
+        //glPolygonOffset(1.f, 1.f);
+        //glCullFace(GL_FRONT);
+        //glDisable(GL_CULL_FACE);
 
         mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
         mat4 TransposeLightView = Transpose(Options->CascadeView);
@@ -1451,9 +1477,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     if (Command->Material.Wireframe)
                     {
                         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-                        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
-                        glUniform1i(Shader->BlinkUniformLocation, true);
                     }
 
                     glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
@@ -1651,10 +1674,10 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
     game_camera *Camera = RenderSettings->Camera;
 
-    f32 FocalLength = 1.f / Tan(Camera->FovY * 0.5f);
-    f32 AspectRatio = (f32) RenderSettings->WindowWidth / (f32) RenderSettings->WindowHeight;
+    f32 FocalLength = Camera->FocalLength;
+    f32 AspectRatio = Camera->AspectRatio;
 
-    mat4 CameraM = LookAt(Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
+    mat4 CameraM = GetCameraTransform(Camera);
     mat4 CameraMInv = Inverse(CameraM);
 
     vec3 LightPosition = vec3(0.f);

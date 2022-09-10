@@ -7,6 +7,7 @@
 #define OPENGL_MAX_TEXTURE_COUNT 64
 #define OPENGL_MAX_SHADER_COUNT 64
 
+// todo: could do better
 #define OPENGL_SIMPLE_SHADER_ID 0x1
 #define OPENGL_PHONG_SHADING_SHADER_ID 0x2
 #define OPENGL_SKINNED_PHONG_SHADING_SHADER_ID 0x3
@@ -14,7 +15,7 @@
 #define OPENGL_GROUND_SHADER_ID 0x5
 #define OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID 0x6
 
-#define OPENGL_MAX_POINT_LIGHT_COUNT 8
+#define OPENGL_MAX_POINT_LIGHT_COUNT 32
 
 #define MAX_SHADER_FILE_PATH 256
 
@@ -73,7 +74,8 @@ struct opengl_shader
     win32_shader_file VertexShader;
     win32_shader_file FragmentShader;
 #endif
-
+    
+    // Uniform locations
     GLint ModelUniformLocation;
     GLint SkinningMatricesSamplerUniformLocation;
 
@@ -99,7 +101,6 @@ struct opengl_shader
     GLint PointLightCountUniformLocation;
 
     GLint ScreenTextureUniformLocation;
-    GLint BlinkUniformLocation;
 };
 
 struct opengl_shader_state

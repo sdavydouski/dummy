@@ -20,7 +20,6 @@ out VS_OUT
     vec3 CascadeBlend;
     vec2 TextureCoords;
     mat3 TBN;
-    unsigned int Highlight;
 } vs_out;
 
 uniform samplerBuffer u_SkinningMatricesSampler;
@@ -52,7 +51,6 @@ void main()
     vs_out.WorldPosition = WorldPosition.xyz;
     vs_out.Normal = mat3(transpose(inverse(Model))) * in_Normal;
     vs_out.TextureCoords = in_TextureCoords;
-    vs_out.Highlight = 0;
     vs_out.TBN = mat3(T, B, N);
     vs_out.CascadeBlend = CalculateCascadeBlend(WorldPosition.xyz, u_CameraDirection, u_CameraPosition);
 

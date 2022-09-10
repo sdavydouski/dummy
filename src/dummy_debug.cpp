@@ -218,7 +218,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
         ? &GameState->PlayerCamera
         : &GameState->FreeCamera;
 
-    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Position.x, Camera->Position.y, Camera->Position.z);
+    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Transform.Translation.x, Camera->Transform.Translation.y, Camera->Transform.Translation.z);
 
     ImGui::End();
 

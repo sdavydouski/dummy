@@ -11,6 +11,7 @@
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy_renderer.h"
+#include "dummy_job.h"
 #include "dummy_platform.h"
 #include "dummy.h"
 
@@ -31,16 +32,21 @@ NormalizeRGB(vec3 RGB)
 }
 
 inline void
-InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FovY, f32 NearClipPlane, f32 FarClipPlane, vec3 Position, vec3 Up = vec3(0.f, 1.f, 0.f))
+InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FieldOfView, f32 AspectRatio, f32 NearClipPlane, f32 FarClipPlane, vec3 Position, vec3 Up = vec3(0.f, 1.f, 0.f))
 {
     Camera->Pitch = Pitch;
     Camera->Yaw = Yaw;
-    Camera->FovY = FovY;
+
+    Camera->Transform.Translation = Position;
+    Camera->Transform.Rotation = Euler2Quat(Yaw, Pitch, 0.f);
+    Camera->Direction = Euler2Direction(Pitch, Yaw);
+    Camera->Up = Up;
+
+    Camera->FieldOfView = FieldOfView;
+    Camera->FocalLength = 1.f / Tan(FieldOfView * 0.5f);
+    Camera->AspectRatio = AspectRatio;
     Camera->NearClipPlane = NearClipPlane;
     Camera->FarClipPlane = FarClipPlane;
-    Camera->Position = Position;
-    Camera->Up = Up;
-    Camera->Direction = CalculateDirectionFromEulerAngles(Camera->Pitch, Camera->Yaw);
 }
 
 inline material
@@ -232,11 +238,10 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
         -1.f, 1.f
     );
 
-    // todo: pass view and projection matrices to the renderer?
-    mat4 View = LookAt(Camera->Position, Camera->Position + Camera->Direction, Camera->Up);
+    mat4 View = GetCameraTransform(Camera);
 
     f32 Aspect = (f32)ScreenSize.x / (f32)ScreenSize.y;
-    mat4 Projection = Perspective(Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
+    mat4 Projection = Perspective(Camera->FieldOfView, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
 
     vec4 CameraRay = Inverse(Projection) * ClipRay;
     CameraRay = vec4(CameraRay.xy, -1.f, 0.f);
@@ -244,7 +249,7 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
     vec3 WorldRay = (Inverse(View) * CameraRay).xyz;
 
     ray Result = {};
-    Result.Origin = Camera->Position;
+    Result.Origin = Camera->Transform.Translation;
     Result.Direction = Normalize(WorldRay);
 
     return Result;
@@ -272,95 +277,68 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
     Assets->Models.Count = 31;
     Assets->Models.Values = PushArray(Arena, Assets->Models.Count, model);
 
-    u32 ModelIndex = 0;
+    game_asset GameAssets[] = {
+        {
+            "Pelegrini",
+            "assets\\pelegrini.asset"
+        },
+        {
+            "xBot",
+            "assets\\xbot.asset"
+        },
+        {
+            "yBot",
+            "assets\\ybot.asset"
+        },
+        {
+            "Cube",
+            "assets\\cube.asset",
+            256
+        },
+        {
+            "Sphere",
+            "assets\\sphere.asset",
+            256
+        },
+        {
+            "Skull",
+            "assets\\skull.asset",
+            256
+        },
+        {
+            "Floor",
+            "assets\\floor.asset",
+            4096
+        },
+        {
+            "Wall",
+            "assets\\wall.asset",
+            4096
+        },
+        {
+            "Wall_90",
+            "assets\\wall_90.asset",
+            4096
+        },
+        {
+            "Column",
+            "assets\\column.asset",
+            256
+        },
+        {
+            "Banner Wall",
+            "assets\\banner_wall.asset",
+            256
+        }
+    };
 
+    for (u32 GameAssetIndex = 0; GameAssetIndex < ArrayCount(GameAssets); ++GameAssetIndex)
     {
-        char Name[32] = "Pelegrini";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\pelegrini.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands);
-    }
+        game_asset *GameAsset = GameAssets + GameAssetIndex;
 
-#if 0
-    {
-        char Name[32] = "MarkerMan";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *) "assets\\marker_man.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands);
-    }
-#endif
-
-    {
-        char Name[32] = "xBot";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\xbot.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands);
-    }
-
-    {
-        char Name[32] = "yBot";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\ybot.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands);
-    }
-
-    // todo: sRGB?
-    {
-        char Name[32] = "Cube";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\cube.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
-    }
-
-    {
-        char Name[32] = "Sphere";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\sphere.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
-    }
-
-    {
-        char Name[32] = "Skull";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\skull.asset", Arena);
-        // todo: increasing MaxInstanceCount causes crash in Release mode.
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
-    }
-
-    {
-        char Name[32] = "Floor";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\floor.asset", Arena);
-        // todo: render instance count?
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 4096);
-    }
-
-    {
-        char Name[32] = "Wall";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\wall.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 4096);
-    }
-
-    {
-        char Name[32] = "Wall_90";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\wall_90.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 4096);
-    }
-
-    {
-        char Name[32] = "Column";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\column.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
-    }
-
-    {
-        char Name[32] = "Banner Wall";
-        model *Model = GetModelAsset(Assets, Name);
-        model_asset *Asset = LoadModelAsset(Platform, (char *)"assets\\banner_wall.asset", Arena);
-        InitModel(Asset, Model, Name, Arena, RenderCommands, 256);
+        model *Model = GetModelAsset(Assets, GameAsset->Name);
+        model_asset *Asset = LoadModelAsset(Platform, GameAsset->Path, Arena);
+        InitModel(Asset, Model, GameAsset->Name, Arena, RenderCommands, GameAsset->MaxInstanceCount);
     }
 }
 
@@ -960,6 +938,20 @@ InitGameMenu(game_state *State)
     State->MenuQuads[3].Color = vec4(1.f, 1.f, 0.f, 1.f);
 }
 
+struct init_game_assets_job_data
+{
+    game_assets *Assets;
+    platform_api *Platform;
+    render_commands *RenderCommands;
+    memory_arena *Arena;
+};
+
+JOB_ENTRY_POINT(InitGameAssetsJob)
+{
+    init_game_assets_job_data *Data = (init_game_assets_job_data *)Params;
+    InitGameAssets(Data->Assets, Data->Platform, Data->RenderCommands, Data->Arena);
+}
+
 DLLExport GAME_INIT(GameInit)
 {
     game_state *State = GetGameState(Memory);
@@ -972,6 +964,8 @@ DLLExport GAME_INIT(GameInit)
     umm TransientArenaSize = Memory->TransientStorageSize;
     u8 *TransientArenaBase = (u8 *)Memory->TransientStorage;
     InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
+
+    State->JobQueue = Memory->JobQueue;
 
     game_process *Sentinel = &State->ProcessSentinel;
     CopyString("Sentinel", Sentinel->Name);
@@ -998,8 +992,10 @@ DLLExport GAME_INIT(GameInit)
     State->Mode = GameMode_World;
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
-    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), 0.1f, 320.f, vec3(0.f, 0.f, 0.f));
+    // todo: should depend on the screen aspect ratio
+    f32 AspectRatio = 16.f / 9.f;
+    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
+    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f));
     // todo:
     State->PlayerCamera.Radius = 16.f;
 
@@ -1014,7 +1010,22 @@ DLLExport GAME_INIT(GameInit)
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
 
+#if 1
+    init_game_assets_job_data JobParams = {};
+    JobParams.Assets = &State->Assets;
+    JobParams.Platform = Platform;
+    JobParams.RenderCommands = RenderCommands;
+    JobParams.Arena = &State->PermanentArena;
+
+    job Job = {};
+    Job.EntryPoint = InitGameAssetsJob;
+    Job.Params = &JobParams;
+
+    // todo: KickJob
+    Platform->KickJobAndWait(State->JobQueue, Job);
+#else
     InitGameAssets(&State->Assets, Platform, RenderCommands, &State->PermanentArena);
+#endif
 
     State->CurrentMove = vec2(0.f);
     State->TargetMove = vec2(0.f);
@@ -1312,7 +1323,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 vec3 IntersectionPoint;
                 if (HitBoundingBox(Ray, Box, IntersectionPoint))
                 {
-                    f32 Distance = Magnitude(IntersectionPoint - State->FreeCamera.Position);
+                    f32 Distance = Magnitude(IntersectionPoint - State->FreeCamera.Transform.Translation);
 
                     if (Distance < MinDistance)
                     {
@@ -1343,7 +1354,9 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
     }
 
+#if 0
     State->IsBackgroundHighlighted = Input->HighlightBackground.IsActive;
+#endif
 
     switch (State->Mode)
     {
@@ -1377,15 +1390,15 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 StartGameProcess(State, CameraPivotPositionLerpProcess);
             }
 
-            PlayerCamera->Position.x = PlayerCamera->PivotPosition.x +
+            PlayerCamera->Transform.Translation.x = PlayerCamera->PivotPosition.x +
                 Sqrt(Square(PlayerCamera->Radius) - Square(CameraHeight)) * Sin(PlayerCamera->Yaw);
-            PlayerCamera->Position.y = PlayerCamera->PivotPosition.y + CameraHeight;
-            PlayerCamera->Position.z = PlayerCamera->PivotPosition.z -
+            PlayerCamera->Transform.Translation.y = PlayerCamera->PivotPosition.y + CameraHeight;
+            PlayerCamera->Transform.Translation.z = PlayerCamera->PivotPosition.z -
                 Sqrt(Square(PlayerCamera->Radius) - Square(CameraHeight)) * Cos(PlayerCamera->Yaw);
 
             // todo:
             vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 4.f, 0.f);
-            PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Position);
+            PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Transform.Translation);
             
             game_entity *Player = State->Player;
 
@@ -1446,14 +1459,14 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 FreeCamera->Yaw += Input->Camera.Range.x * FreeCameraSensitivity;
                 FreeCamera->Yaw = Mod(FreeCamera->Yaw, 2 * PI);
 
-                FreeCamera->Direction = CalculateDirectionFromEulerAngles(FreeCamera->Pitch, FreeCamera->Yaw);
+                FreeCamera->Direction = Euler2Direction(FreeCamera->Pitch, FreeCamera->Yaw);
             }
             else
             {
                 Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
             }
 
-            FreeCamera->Position += (
+            FreeCamera->Transform.Translation += (
                 Move.x * (Normalize(Cross(FreeCamera->Direction, FreeCamera->Up))) +
                 Move.y * FreeCamera->Direction) * FreeCameraSpeed * Parameters->Delta;
 
@@ -1509,7 +1522,6 @@ DLLExport GAME_UPDATE(GameUpdate)
                     // Collision detection and resolution
                     vec3 mtv;
                     if (TestAABBAABB(GetRigidBodyAABB(Entity->Body), GetRigidBodyAABB(AnotherBody), &mtv))
-                    //if (TestOBBOBB(GetRigidBodyOBB(Entity->Body), GetRigidBodyOBB(AnotherBody), &mtv))
                     {
                         Entity->Body->Position += mtv;
                     }
@@ -1562,16 +1574,29 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
-            SetPerspectiveProjection(RenderCommands, Camera->FovY, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
-            SetCamera(RenderCommands, Camera->Position, Camera->Direction, Camera->Up);
+            SetPerspectiveProjection(RenderCommands, Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
+            SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
 
-            f32 FocalLength = 1.f / Tan(Camera->FovY * 0.5f);
-            f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
-            BuildFrustrumPolyhedron(&State->PlayerCamera, FocalLength, AspectRatio, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
+            BuildFrustrumPolyhedron(&State->PlayerCamera, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
 
             if (State->Mode == GameMode_Edit)
             {
                 RenderFrustrum(RenderCommands, &State->Frustrum);
+
+                // Render camera axes
+                game_camera *Camera = &State->PlayerCamera;
+                mat4 CameraTransform = GetCameraTransform(Camera);
+
+                vec3 xAxis = CameraTransform[0].xyz;
+                vec3 yAxis = CameraTransform[1].xyz;
+                vec3 zAxis = CameraTransform[2].xyz;
+
+                vec3 Origin = Camera->Transform.Translation;
+                f32 AxisLength = 3.f;
+
+                DrawLine(RenderCommands, Origin, Origin + xAxis * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
+                DrawLine(RenderCommands, Origin, Origin + yAxis * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
+                DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
             }
 
             //State->PlayerCamera.Direction = Normalize(vec3(Cos(Parameters->Time * 0.5f), 0.f, Sin(Parameters->Time * 0.5f)));

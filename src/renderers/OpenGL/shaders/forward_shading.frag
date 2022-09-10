@@ -10,7 +10,6 @@ in VS_OUT {
     vec3 CascadeBlend;
     vec2 TextureCoords;
     mat3 TBN;
-    flat unsigned int Highlight;
 } fs_in; 
 
 out vec4 out_Color;
@@ -23,36 +22,42 @@ uniform directional_light u_DirectionalLight;
 uniform int u_PointLightCount;
 uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
 
+uniform bool u_RenderShadowMap;
+
+vec3 GetMaterial(bool HasMap, sampler2D Map, vec3 Fallback)
+{
+    vec3 Result = HasMap 
+        ? texture(Map, fs_in.TextureCoords).rgb 
+        : Fallback;
+
+    return Result;
+}
+
+float GetMaterial(bool HasMap, sampler2D Map, float Fallback)
+{
+    float Result = HasMap 
+        ? texture(Map, fs_in.TextureCoords).r
+        : Fallback;
+
+    return Result;
+}
+
 void main()
 {
-    // todo: AmbientColor is always black
-    vec3 AmbientColor = u_Material.AmbientColor;// + vec3(0.2f);
+    vec3 AmbientColor = u_Material.AmbientColor;
+    vec3 DiffuseColor = GetMaterial(u_Material.HasDiffuseMap, u_Material.DiffuseMap, u_Material.DiffuseColor);
+    vec3 SpecularColor = GetMaterial(u_Material.HasSpecularMap, u_Material.SpecularMap, u_Material.SpecularColor);
+    float SpecularShininess = GetMaterial(u_Material.HasShininessMap, u_Material.ShininessMap, u_Material.SpecularShininess);
+   
+    vec3 Normal = GetMaterial(u_Material.HasNormalMap, u_Material.NormalMap, fs_in.Normal);
 
-    vec3 DiffuseColor = u_Material.HasDiffuseMap
-        ? texture(u_Material.DiffuseMap, fs_in.TextureCoords).rgb
-        : u_Material.DiffuseColor;
-
-    vec3 SpecularColor = u_Material.HasSpecularMap
-        ? texture(u_Material.SpecularMap, fs_in.TextureCoords).rgb
-        : u_Material.SpecularColor;
-
-    float SpecularShininess = u_Material.HasShininessMap
-        ? u_Material.SpecularShininess * texture(u_Material.ShininessMap, fs_in.TextureCoords).r
-        : u_Material.SpecularShininess;
-
-    vec3 Normal;
     if (u_Material.HasNormalMap)
     {
-        Normal = texture(u_Material.NormalMap, fs_in.TextureCoords).rgb;
         Normal = Normal * 2.f - 1.f;
         // todo: optimize   
         Normal = fs_in.TBN * Normal;
     }
-    else
-    {
-        // todo: should I multiple by TBN here?
-        Normal = fs_in.Normal;
-    }
+    
     Normal = normalize(Normal);
 
     vec3 EyeDirection = normalize(u_CameraPosition - fs_in.WorldPosition);
@@ -79,9 +84,9 @@ void main()
     float Shadow = ShadowResult.x;
     int CascadeIndex1 = int(ShadowResult.y);
     int CascadeIndex2 = int(ShadowResult.z);
-    //
 
-    Result *= Shadow;
+    vec3 Ambient = AmbientColor * DiffuseColor;
+    Result = Ambient + Result * Shadow;
 
     if (u_ShowCascades)
     {

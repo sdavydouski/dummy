@@ -21,8 +21,6 @@
 #define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
 #endif
 
-#define InvalidCodePath Assert(!"Invalid code path")
-
 #define i8 int8_t
 #define u8 uint8_t
 #define i16 int16_t

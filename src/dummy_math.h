@@ -436,7 +436,7 @@ LookAt(vec3 Eye, vec3 Target, vec3 WorldUp)
 }
 
 inline vec3
-CalculateDirectionFromEulerAngles(f32 Pitch, f32 Yaw)
+Euler2Direction(f32 Pitch, f32 Yaw)
 {
     vec3 Result = vec3(1.f);
 
@@ -445,6 +445,26 @@ CalculateDirectionFromEulerAngles(f32 Pitch, f32 Yaw)
     Result.z = Sin(Yaw) * Cos(Pitch);
 
     Result = Normalize(Result);
+
+    return Result;
+}
+
+// Yaw (Z), Pitch (Y), Roll (X)
+inline quat
+Euler2Quat(f32 Yaw, f32 Pitch, f32 Roll)
+{
+    f32 cy = Cos(Yaw * 0.5f);
+    f32 sy = Sin(Yaw * 0.5f);
+    f32 cp = Cos(Pitch * 0.5f);
+    f32 sp = Sin(Pitch * 0.5f);
+    f32 cr = Cos(Roll * 0.5f);
+    f32 sr = Sin(Roll * 0.5f);
+
+    quat Result;
+    Result.x = sr * cp * cy - cr * sp * sy;
+    Result.y = cr * sp * cy + sr * cp * sy;
+    Result.z = cr * cp * sy - sr * sp * cy;
+    Result.w = cr * cp * cy + sr * sp * sy;
 
     return Result;
 }

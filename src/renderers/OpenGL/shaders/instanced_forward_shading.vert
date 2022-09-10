@@ -13,7 +13,6 @@ layout(location = 5) in ivec4 in_JointIndices;
 layout(location = 6) in vec4 in_Weights;
 // --
 layout(location = 7) in mat4 in_InstanceModel;
-layout(location = 11) in unsigned int in_Highlight;
 
 out VS_OUT {
     vec3 WorldPosition;
@@ -21,7 +20,6 @@ out VS_OUT {
     vec3 CascadeBlend;
     vec2 TextureCoords;
     mat3 TBN;
-    unsigned int Highlight;
 } vs_out; 
 
 void main()
@@ -37,7 +35,6 @@ void main()
     vs_out.WorldPosition = (InstanceModel * vec4(in_Position, 1.f)).xyz;
     vs_out.Normal = mat3(transpose(inverse(InstanceModel))) * in_Normal;
     vs_out.TextureCoords = in_TextureCoords;
-    vs_out.Highlight = in_Highlight;
     vs_out.TBN = mat3(T, B, N);
     vs_out.CascadeBlend = CalculateCascadeBlend(WorldPosition.xyz, u_CameraDirection, u_CameraPosition);
 

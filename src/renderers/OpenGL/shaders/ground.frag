@@ -78,7 +78,8 @@ void main()
     int CascadeIndex1 = int(ShadowResult.y);
     int CascadeIndex2 = int(ShadowResult.z);
 
-    Result *= Shadow;
+    vec3 Ambient = AmbientColor * DiffuseColor;
+    Result = Ambient + Result * Shadow;
 
     if (u_ShowCascades)
     {

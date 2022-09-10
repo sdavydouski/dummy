@@ -44,6 +44,15 @@ struct game_process
     game_process *Next;
 };
 
+struct game_asset
+{
+    char Name[32];
+    char Path[32];
+    // todo:
+    u32 MaxInstanceCount;
+};
+
+
 struct game_assets
 {
     hash_table<model> Models;
@@ -62,11 +71,12 @@ struct game_menu_quad
     f32 Move;
 };
 
-// todo(continue): frustrum culling
 struct game_state
 {
     memory_arena PermanentArena;
     memory_arena TransientArena;
+
+    job_queue *JobQueue;
 
     game_mode Mode;
     game_input Input;
@@ -94,7 +104,6 @@ struct game_state
 
     directional_light DirectionalLight;
 
-    // hashtable (for storage)
     hash_table<game_process> Processes;
     // linked-list (for efficient adding/removal and traversing)
     game_process ProcessSentinel;

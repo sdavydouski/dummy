@@ -55,3 +55,8 @@ struct win32_file_attributes
 {
     FILETIME LastWriteTime;
 };
+
+struct win32_thread
+{
+    job_queue *JobQueue;
+};

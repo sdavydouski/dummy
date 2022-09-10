@@ -26,6 +26,18 @@ typedef PLATFORM_DEBUG_PRINT_STRING(platform_debug_print_string);
 #define PLATFORM_LOAD_FUNCTION(name) void * name(void *PlatformHandle, char *FunctionName)
 typedef PLATFORM_LOAD_FUNCTION(platform_load_function);
 
+#define PLATFORM_KICK_JOB(name) void name(job_queue *JobQueue, job Job)
+typedef PLATFORM_KICK_JOB(platform_kick_job);
+
+#define PLATFORM_KICK_JOBS(name) void name(job_queue *JobQueue, u32 JobCount, job *Jobs)
+typedef PLATFORM_KICK_JOBS(platform_kick_jobs);
+
+#define PLATFORM_KICK_JOB_AND_WAIT(name) void name(job_queue *JobQueue, job Job)
+typedef PLATFORM_KICK_JOB_AND_WAIT(platform_kick_job_and_wait);
+
+#define PLATFORM_KICK_JOBS_AND_WAIT(name) void name(job_queue *JobQueue, u32 JobCount, job *Jobs)
+typedef PLATFORM_KICK_JOBS_AND_WAIT(platform_kick_jobs_and_wait);
+
 struct platform_api
 {
     void *PlatformHandle;
@@ -33,6 +45,11 @@ struct platform_api
     platform_read_file *ReadFile;
     platform_debug_print_string *DebugPrintString;
     platform_load_function *LoadFunction;
+
+    platform_kick_job *KickJob;
+    platform_kick_jobs *KickJobs;
+    platform_kick_job_and_wait *KickJobAndWait;
+    platform_kick_jobs_and_wait *KickJobsAndWait;
 };
 
 struct game_memory
@@ -48,6 +65,7 @@ struct game_memory
     void *RenderCommandsStorage;
 
     platform_api *Platform;
+    job_queue *JobQueue;
 };
 
 inline game_state *
