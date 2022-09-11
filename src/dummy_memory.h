@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstring>
+#include <memory.h>
 
 #define Kilobytes(Bytes) (Bytes * 1024LL)
 #define Megabytes(Bytes) (Kilobytes(Bytes) * 1024LL)
@@ -40,6 +40,12 @@ struct memory_arena
     void *Base;
 };
 
+struct memory_arena_push_options
+{
+    umm Alignment;
+    b32 Clear;
+};
+
 struct scoped_memory
 {
     memory_arena *Arena;
@@ -51,6 +57,59 @@ struct scoped_memory
         Arena->Used = Used;
     }
 };
+
+inline memory_arena_push_options
+DefaultArenaPushOptions()
+{
+    memory_arena_push_options Result;
+    
+    Result.Alignment = 4;
+    Result.Clear = true;
+
+    return Result;
+}
+
+inline memory_arena_push_options
+AlignNoClear(umm Alignment)
+{
+    memory_arena_push_options Result = DefaultArenaPushOptions();
+
+    Result.Alignment = Alignment;
+    Result.Clear = false;
+
+    return Result;
+}
+
+inline memory_arena_push_options
+AlignClear(umm Alignment)
+{
+    memory_arena_push_options Result = DefaultArenaPushOptions();
+
+    Result.Alignment = Alignment;
+    Result.Clear = true;
+
+    return Result;
+}
+
+inline memory_arena_push_options
+Align(umm Alignment)
+{
+    memory_arena_push_options Result = DefaultArenaPushOptions();
+
+    Result.Alignment = Alignment;
+
+    return Result;
+}
+
+inline memory_arena_push_options
+NoClear()
+{
+    memory_arena_push_options Result = DefaultArenaPushOptions();
+
+    Result.Clear = false;
+
+    return Result;
+}
 
 inline void
 InitMemoryArena(memory_arena *Arena, void *Memory, umm Size)
@@ -67,8 +126,11 @@ ClearMemoryArena(memory_arena *Arena)
 }
 
 inline void *
-PushSize(memory_arena *Arena, umm Size, umm Alignment = 4, b32 Clear = true)
+PushSize(memory_arena *Arena, umm Size, memory_arena_push_options Options = DefaultArenaPushOptions())
 {
+    umm Alignment = Options.Alignment;
+    b32 Clear = Options.Clear;
+
     umm RawAddress = (umm)Arena->Base + Arena->Used;
     umm AlignedAddress = AlignAddress(RawAddress, Alignment);
     umm AlignmentOffset = AlignedAddress - RawAddress;
@@ -80,7 +142,6 @@ PushSize(memory_arena *Arena, umm Size, umm Alignment = 4, b32 Clear = true)
     void *Result = (void *)AlignedAddress;
     Arena->Used += ActualSize;
 
-    // todo: control flags
     if (Clear)
     {
         ClearMemory(Result, ActualSize);
@@ -90,13 +151,12 @@ PushSize(memory_arena *Arena, umm Size, umm Alignment = 4, b32 Clear = true)
 }
 
 inline memory_arena
-SubMemoryArena(memory_arena *Arena, umm Size)
+SubMemoryArena(memory_arena *Arena, umm Size, memory_arena_push_options Options = DefaultArenaPushOptions())
 {
     memory_arena Result = {};
 
     Result.Size = Size;
-    // todo:
-    Result.Base = PushSize(Arena, Size, 4, false);
+    Result.Base = PushSize(Arena, Size, Options);
 
     return Result;
 }

@@ -18,7 +18,7 @@ struct game_entity
     model *Model;
     rigid_body *Body;
     animation_graph *Animation;
-    render_skinning *Skinning;
+    skinning_data *Skinning;
 
     b32 Controllable;   // todo: come up with smth better
     b32 FutureControllable;   // todo: come up with smth better
@@ -48,15 +48,27 @@ struct game_process
 
 struct game_asset
 {
-    char Name[32];
-    char Path[32];
+    char Name[64];
+    char Path[64];
     // todo:
     u32 MaxInstanceCount;
+};
+
+struct game_asset_model
+{
+    game_asset GameAsset;
+    model_asset *ModelAsset;
 };
 
 struct game_assets
 {
     hash_table<model> Models;
+
+    u32 ModelAssetCount;
+    game_asset_model *ModelAssets;
+
+    // todo: so cheesy
+    b32 Loaded;
 };
 
 struct game_options

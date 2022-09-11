@@ -77,7 +77,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 #else
     joint *Joints = (joint *)(Buffer + SkeletonHeader->JointsOffset);
 
-    Result->Skeleton.Joints = PushArray(Arena, Result->Skeleton.JointCount, joint, 16);
+    Result->Skeleton.Joints = PushArray(Arena, Result->Skeleton.JointCount, joint, Align(16));
 
     for (u32 JointIndex = 0; JointIndex < Result->Skeleton.JointCount; ++JointIndex)
     {
@@ -95,7 +95,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 #if 0
     Result->BindPose.GlobalJointPoses = (mat4 *)(Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
 #else
-    Result->BindPose.GlobalJointPoses = PushArray(Arena, Result->Skeleton.JointCount, mat4, 16);
+    Result->BindPose.GlobalJointPoses = PushArray(Arena, Result->Skeleton.JointCount, mat4, Align(16));
 #endif
 
     // Animation Graph

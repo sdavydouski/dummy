@@ -88,8 +88,7 @@ struct render_instance
     vec3 Color;
 };
 
-// todo(continue): try to instance render skinned meshes?
-struct render_skinning
+struct skinning_data
 {
     skeleton_pose *Pose;
     u32 SkinningBufferId;

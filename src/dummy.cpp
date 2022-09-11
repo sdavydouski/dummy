@@ -75,7 +75,7 @@ CreateMaterial(material_type Type, vec4 Color, b32 CastShadow, b32 Wireframe)
 }
 
 inline void
-DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose, render_skinning *Skinning)
+DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *Pose, skinning_data *Skinning)
 {
     Assert(Model->Skeleton);
     
@@ -139,10 +139,14 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
 }
 
 // todo:
+//global u32 GlobalMeshId = 0;
+//global u32 GlobalTextureId = 0;
+//global u32 GlobalSkinningBufferId = 0;
+
 inline u32
 GenerateMeshId()
 {
-    persist u32 MeshId = 0;
+    persist u32 MeshId = 1;
 
     return MeshId++;
 }
@@ -160,7 +164,7 @@ GenerateTextureId()
 inline u32
 GenerateSkinningBufferId()
 {
-    persist u32 SkinnningBufferId = 0;
+    persist u32 SkinnningBufferId = 1;
 
     return SkinnningBufferId++;
 }
@@ -215,30 +219,30 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
 }
 
 inline void
-InitSkinningBuffer(render_skinning *SkinningBuffer, model *Model, memory_arena *Arena, render_commands *RenderCommands)
+InitSkinningBuffer(skinning_data *Skinning, model *Model, memory_arena *Arena, render_commands *RenderCommands)
 {
-    *SkinningBuffer = {};
+    *Skinning = {};
 
-    SkinningBuffer->Pose = PushType(Arena, skeleton_pose);
-    SkinningBuffer->Pose->Skeleton = Model->Skeleton;
-    SkinningBuffer->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, joint_pose);
-    SkinningBuffer->Pose->GlobalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, mat4, 16);
+    Skinning->Pose = PushType(Arena, skeleton_pose);
+    Skinning->Pose->Skeleton = Model->Skeleton;
+    Skinning->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, joint_pose);
+    Skinning->Pose->GlobalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, mat4, Align(16));
 
     for (u32 JointIndex = 0; JointIndex < Model->BindPose->Skeleton->JointCount; ++JointIndex)
     {
         joint_pose *SourceLocalJointPose = Model->BindPose->LocalJointPoses + JointIndex;
-        joint_pose *DestLocalJointPose = SkinningBuffer->Pose->LocalJointPoses + JointIndex;
+        joint_pose *DestLocalJointPose = Skinning->Pose->LocalJointPoses + JointIndex;
 
         *DestLocalJointPose = *SourceLocalJointPose;
     }
 
     u32 SkinningMatrixCount = Model->Skeleton->JointCount;
 
-    SkinningBuffer->SkinningMatrixCount = Model->Skeleton->JointCount;
-    SkinningBuffer->SkinningMatrices = PushArray(Arena, SkinningMatrixCount, mat4, 16);
-    SkinningBuffer->SkinningBufferId = GenerateSkinningBufferId();
+    Skinning->SkinningMatrixCount = Model->Skeleton->JointCount;
+    Skinning->SkinningMatrices = PushArray(Arena, SkinningMatrixCount, mat4, Align(16));
+    Skinning->SkinningBufferId = GenerateSkinningBufferId();
 
-    AddSkinningBuffer(RenderCommands, SkinningBuffer->SkinningBufferId, SkinningBuffer->SkinningMatrixCount);
+    AddSkinningBuffer(RenderCommands, Skinning->SkinningBufferId, Skinning->SkinningMatrixCount);
 }
 
 inline ray
@@ -282,13 +286,8 @@ GetEntityBatch(game_state *State, char *Name)
 }
 
 internal void
-InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *RenderCommands, memory_arena *Arena)
+LoadGameAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 {
-    // Using a prime table size in conjunction with quadratic probing tends to yield 
-    // the best coverage of the available table slots with minimal clustering
-    Assets->Models.Count = 31;
-    Assets->Models.Values = PushArray(Arena, Assets->Models.Count, model);
-
     game_asset GameAssets[] = {
         {
             "Pelegrini",
@@ -301,6 +300,10 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         {
             "yBot",
             "assets\\ybot.asset"
+        },
+        {
+            "MarkerMan",
+            "assets\\marker_man.asset"
         },
         {
             "Cube",
@@ -344,13 +347,50 @@ InitGameAssets(game_assets *Assets, platform_api *Platform, render_commands *Ren
         }
     };
 
+    Assets->ModelAssetCount = ArrayCount(GameAssets);
+    Assets->ModelAssets = PushArray(Arena, Assets->ModelAssetCount, game_asset_model );
+
     for (u32 GameAssetIndex = 0; GameAssetIndex < ArrayCount(GameAssets); ++GameAssetIndex)
     {
-        game_asset *GameAsset = GameAssets + GameAssetIndex;
+        game_asset GameAsset = GameAssets[GameAssetIndex];
+        game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetIndex;
 
-        model *Model = GetModelAsset(Assets, GameAsset->Name);
-        model_asset *Asset = LoadModelAsset(Platform, GameAsset->Path, Arena);
-        InitModel(Asset, Model, GameAsset->Name, Arena, RenderCommands, GameAsset->MaxInstanceCount);
+        model_asset *LoadedAsset = LoadModelAsset(Platform, GameAsset.Path, Arena);
+
+        GameAssetModel->GameAsset = GameAsset;
+        GameAssetModel->ModelAsset = LoadedAsset;
+    }
+
+    Assets->Loaded = true;
+}
+
+struct load_game_assets_job
+{
+    game_assets *Assets;
+    platform_api *Platform;
+    memory_arena *Arena;
+};
+
+JOB_ENTRY_POINT(LoadGameAssetsJob)
+{
+    load_game_assets_job *Data = (load_game_assets_job *) Params;
+    LoadGameAssets(Data->Assets, Data->Platform, Data->Arena);
+}
+
+internal void
+InitGameAssets(game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
+{
+    // Using a prime table size in conjunction with quadratic probing tends to yield 
+    // the best coverage of the available table slots with minimal clustering
+    Assets->Models.Count = 31;
+    Assets->Models.Values = PushArray(Arena, Assets->Models.Count, model);
+
+    for (u32 GameAssetModelIndex = 0; GameAssetModelIndex < Assets->ModelAssetCount; ++GameAssetModelIndex)
+    {
+        game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetModelIndex;
+
+        model *Model = GetModelAsset(Assets, GameAssetModel->GameAsset.Name);
+        InitModel(GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, Arena, RenderCommands, GameAssetModel->GameAsset.MaxInstanceCount);
     }
 }
 
@@ -580,7 +620,7 @@ AddAnimationComponent(game_entity *Entity, const char *Animator, render_commands
     Entity->Animation = PushType(Arena, animation_graph);
     BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Animator, Arena);
 
-    Entity->Skinning = PushType(Arena, render_skinning);
+    Entity->Skinning = PushType(Arena, skinning_data);
     InitSkinningBuffer(Entity->Skinning, Entity->Model, Arena, RenderCommands);
 }
 
@@ -971,117 +1011,15 @@ InitGameMenu(game_state *State)
     State->MenuQuads[3].Color = vec4(1.f, 1.f, 0.f, 1.f);
 }
 
-struct init_game_assets_job_data
+internal void
+InitGameEntities(game_state *State, render_commands *RenderCommands)
 {
-    game_assets *Assets;
-    platform_api *Platform;
-    render_commands *RenderCommands;
-    memory_arena *Arena;
-};
-
-JOB_ENTRY_POINT(InitGameAssetsJob)
-{
-    init_game_assets_job_data *Data = (init_game_assets_job_data *)Params;
-    InitGameAssets(Data->Assets, Data->Platform, Data->RenderCommands, Data->Arena);
-}
-
-DLLExport GAME_INIT(GameInit)
-{
-    game_state *State = GetGameState(Memory);
-    platform_api *Platform = Memory->Platform;
-
-    umm PermanentArenaSize = Memory->PermanentStorageSize - sizeof(game_state);
-    u8 *PermanentArenaBase = (u8 *)Memory->PermanentStorage + sizeof(game_state);
-    InitMemoryArena(&State->PermanentArena, PermanentArenaBase, PermanentArenaSize);
-
-    umm TransientArenaSize = Memory->TransientStorageSize;
-    u8 *TransientArenaBase = (u8 *)Memory->TransientStorage;
-    InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
-
-    State->JobQueue = Memory->JobQueue;
-
-    game_process *Sentinel = &State->ProcessSentinel;
-    CopyString("Sentinel", Sentinel->Name);
-    Sentinel->Next = Sentinel->Prev = Sentinel;
-
-    State->Processes.Count = 31;
-    State->Processes.Values = PushArray(&State->PermanentArena, State->Processes.Count, game_process);
-
-    // Animator Setup
-    State->Animator = {};
-    State->Animator.Controllers.Count = 31;
-    State->Animator.Controllers.Values = PushArray(&State->PermanentArena, State->Animator.Controllers.Count, animator_controller);
-
-    animator_controller *PelegriniController = HashTableLookup(&State->Animator.Controllers, (char *)"Pelegrini");
-    PelegriniController->Func = PelegriniAnimatorController;
-
-    animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *)"Bot");
-    BotController->Func = BotAnimatorController;
-    //
-
-    State->DelayTime = 0.f;
-    State->DelayDuration = 0.5f;
-
-    State->Mode = GameMode_World;
-    Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
-
-    // todo: should depend on the screen aspect ratio
-    f32 AspectRatio = 16.f / 9.f;
-    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
-    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f));
-    // todo:
-    State->PlayerCamera.Radius = 16.f;
-
-    State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
-    State->BackgroundColor = vec3(0.f, 0.f, 0.f);
-    State->DirectionalLight = {};
-    State->DirectionalLight.Color = vec3(1.f);
-    State->DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
-
-    State->Entropy = RandomSequence(451);
-
-    ClearRenderCommands(Memory);
-    render_commands *RenderCommands = GetRenderCommands(Memory);
-
-#if 0
-    init_game_assets_job_data JobParams = {};
-    JobParams.Assets = &State->Assets;
-    JobParams.Platform = Platform;
-    JobParams.RenderCommands = RenderCommands;
-    JobParams.Arena = &State->PermanentArena;
-
-    job Job = {};
-    Job.EntryPoint = InitGameAssetsJob;
-    Job.Params = &JobParams;
-
-    // todo: KickJob
-    Platform->KickJobAndWait(State->JobQueue, Job);
-#else
-    InitGameAssets(&State->Assets, Platform, RenderCommands, &State->PermanentArena);
-#endif
-
-    State->CurrentMove = vec2(0.f);
-    State->TargetMove = vec2(0.f);
-
-    State->EntityCount = 0;
-    State->MaxEntityCount = 4096;
-    State->Entities = PushArray(&State->PermanentArena, State->MaxEntityCount, game_entity);
-
     // Pelegrini
     State->Pelegrini = CreateGameEntity(State);
     State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
     AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->PermanentArena);
-
-    // Marker Man
-#if 0
-    State->MarkerMan = CreateGameEntity(State);
-    State->MarkerMan->Transform = CreateTransform(vec3(16.f, 0.f, 0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->MarkerMan, &State->Assets, "MarkerMan");
-    AddRigidBodyComponent(State->MarkerMan, vec3(16.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->MarkerMan, "Bot", &State->PermanentArena);
-#endif
 
     // xBot
     State->xBot = CreateGameEntity(State);
@@ -1097,10 +1035,17 @@ DLLExport GAME_INIT(GameInit)
     AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->PermanentArena);
 
+    // Marker Man
+    State->MarkerMan = CreateGameEntity(State);
+    State->MarkerMan->Transform = CreateTransform(vec3(0.f, 0.f, -20.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    AddModelComponent(State->MarkerMan, &State->Assets, "MarkerMan");
+    AddRigidBodyComponent(State->MarkerMan, vec3(0.f, 0.f, -20.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddAnimationComponent(State->MarkerMan, "Bot", RenderCommands, &State->PermanentArena);
+
 #if 1
     // temp:
-    u32 Count = 1000;
-    while(Count--)
+    u32 Count = 100;
+    while (Count--)
     {
         game_entity *Entity = CreateGameEntity(State);
         vec3 Position = vec3(RandomBetween(&State->Entropy, -150.f, 150.f), RandomBetween(&State->Entropy, 1.f, 2.f), RandomBetween(&State->Entropy, -150.f, 150.f));
@@ -1169,11 +1114,6 @@ DLLExport GAME_INIT(GameInit)
     AddRigidBodyComponent(State->Cubes[7], vec3(40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
 #endif
 
-    // Dummy
-    State->Dummy = CreateGameEntity(State);
-    // todo: rigid bodies are not visible without assigned model
-    //AddRigidBodyComponent(State->Dummy, vec3(0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
-
     // Player
     //State->Player = State->xBot;
     //State->Player = State->yBot;
@@ -1181,8 +1121,6 @@ DLLExport GAME_INIT(GameInit)
     //State->Player = State->MarkerMan;
     //State->Player = State->Dummy;
     //State->Player = State->Cubes[7];
-
-    State->Player->FutureControllable = true;
 #if 0
     // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
     GenerateRoom(State, vec3(0.f), vec2(16.f, 10.f), vec3(2.f));
@@ -1191,6 +1129,70 @@ DLLExport GAME_INIT(GameInit)
 #else
     //GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
 #endif
+}
+
+DLLExport GAME_INIT(GameInit)
+{
+    game_state *State = GetGameState(Memory);
+    platform_api *Platform = Memory->Platform;
+
+    umm PermanentArenaSize = Memory->PermanentStorageSize - sizeof(game_state);
+    u8 *PermanentArenaBase = (u8 *)Memory->PermanentStorage + sizeof(game_state);
+    InitMemoryArena(&State->PermanentArena, PermanentArenaBase, PermanentArenaSize);
+
+    umm TransientArenaSize = Memory->TransientStorageSize;
+    u8 *TransientArenaBase = (u8 *)Memory->TransientStorage;
+    InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
+
+    scoped_memory ScopedMemory(&State->TransientArena);
+
+    State->JobQueue = Memory->JobQueue;
+
+    game_process *Sentinel = &State->ProcessSentinel;
+    CopyString("Sentinel", Sentinel->Name);
+    Sentinel->Next = Sentinel->Prev = Sentinel;
+
+    State->Processes.Count = 31;
+    State->Processes.Values = PushArray(&State->PermanentArena, State->Processes.Count, game_process);
+
+    // Animator Setup
+    State->Animator = {};
+    State->Animator.Controllers.Count = 31;
+    State->Animator.Controllers.Values = PushArray(&State->PermanentArena, State->Animator.Controllers.Count, animator_controller);
+
+    animator_controller *PelegriniController = HashTableLookup(&State->Animator.Controllers, (char *)"Pelegrini");
+    PelegriniController->Func = PelegriniAnimatorController;
+
+    animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *)"Bot");
+    BotController->Func = BotAnimatorController;
+    //
+
+    State->DelayTime = 0.f;
+    State->DelayDuration = 0.5f;
+
+    State->Mode = GameMode_World;
+    Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
+
+    // todo: should depend on the screen aspect ratio
+    f32 AspectRatio = 16.f / 9.f;
+    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
+    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f));
+    // todo:
+    State->PlayerCamera.Radius = 16.f;
+
+    State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
+    State->BackgroundColor = vec3(0.f, 0.f, 0.f);
+    State->DirectionalLight = {};
+    State->DirectionalLight.Color = vec3(1.f);
+    State->DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
+
+    State->Entropy = RandomSequence(451);
+
+    ClearRenderCommands(Memory);
+    render_commands *RenderCommands = GetRenderCommands(Memory);
+
+    State->CurrentMove = vec2(0.f);
+    State->TargetMove = vec2(0.f);
 
     State->PointLightCount = 2;
     State->PointLights = PushArray(&State->PermanentArena, State->PointLightCount, point_light);
@@ -1220,6 +1222,38 @@ DLLExport GAME_INIT(GameInit)
     State->Options = {};
 
     InitGameMenu(State);
+
+    State->EntityCount = 0;
+    State->MaxEntityCount = 4096;
+    State->Entities = PushArray(&State->PermanentArena, State->MaxEntityCount, game_entity);
+
+    // Dummy
+    State->Dummy = CreateGameEntity(State);
+    // todo: rigid bodies are not visible without assigned model
+    AddRigidBodyComponent(State->Dummy, vec3(0.f, 0.f, -20.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
+
+#if 0
+    // todo:
+    //LoadGameAssets(&State->Assets, Platform, ScopedMemory.Arena);
+    LoadGameAssets(&State->Assets, Platform, &State->PermanentArena);
+    InitGameAssets(&State->Assets, RenderCommands, &State->PermanentArena);
+    InitGameEntities(State, RenderCommands);
+#else
+    load_game_assets_job *JobParams = PushType(&State->PermanentArena, load_game_assets_job);
+    JobParams->Assets = &State->Assets;
+    JobParams->Platform = Platform;
+    // todo: use ScopedMemory.Arena
+    JobParams->Arena = &State->PermanentArena;
+
+    job Job = {};
+    Job.EntryPoint = LoadGameAssetsJob;
+    Job.Params = JobParams;
+
+    Platform->KickJob(State->JobQueue, Job);
+#endif
+    
+    State->Player = State->Dummy;
+    State->Player->FutureControllable = true;
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1256,7 +1290,8 @@ GetPrevHero(game_state *State)
 {
     game_entity *Result = State->Dummy;
 
-    if (State->Player == State->Pelegrini) Result = State->xBot;
+    if (State->Player == State->MarkerMan) Result = State->xBot;
+    if (State->Player == State->Pelegrini) Result = State->MarkerMan;
     if (State->Player == State->yBot) Result = State->Pelegrini;
     if (State->Player == State->xBot) Result = State->yBot;
 
@@ -1268,9 +1303,10 @@ GetNextHero(game_state *State)
 {
     game_entity *Result = State->Dummy;
 
+    if (State->Player == State->MarkerMan) Result = State->Pelegrini;
     if (State->Player == State->Pelegrini) Result = State->yBot;
     if (State->Player == State->yBot) Result = State->xBot;
-    if (State->Player == State->xBot) Result = State->Pelegrini;
+    if (State->Player == State->xBot) Result = State->MarkerMan;
 
     return Result;
 }
@@ -1453,7 +1489,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             game_entity *Player = State->Player;
 
             // todo:
-            if (Player->Controllable)
+            if (Player->Controllable && Player->Body)
             {
                 vec3 yMoveAxis = Normalize(Projection(State->PlayerCamera.Direction, State->Ground));
                 vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
@@ -1538,7 +1574,7 @@ DLLExport GAME_UPDATE(GameUpdate)
     game_state *State = GetGameState(Memory);
 
     // todo: lovely O(n^2)
-    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount - 1; ++EntityIndex)
+    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
     {
         game_entity *Entity = State->Entities + EntityIndex;
         rigid_body *Body = Entity->Body;
@@ -1562,7 +1598,7 @@ DLLExport GAME_UPDATE(GameUpdate)
                 Integrate(Body, Parameters->UpdateRate);
             }
 
-#if 0
+#if 1
             for (u32 AnotherEntityIndex = EntityIndex + 1; AnotherEntityIndex < State->EntityCount; ++AnotherEntityIndex)
             {
                 game_entity *AnotherEntity = State->Entities + AnotherEntityIndex;
@@ -1588,6 +1624,18 @@ DLLExport GAME_RENDER(GameRender)
     game_state *State = GetGameState(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
     platform_api *Platform = Memory->Platform;
+
+    // todo: add loading message
+    if (State->Assets.Loaded)
+    {
+        InitGameAssets(&State->Assets, RenderCommands, &State->PermanentArena);
+        InitGameEntities(State, RenderCommands);
+
+        State->Player = State->MarkerMan;
+        State->Player->FutureControllable = true;
+
+        State->Assets.Loaded = false;
+    }
 
     ClearMemoryArena(&State->TransientArena);
 
@@ -1707,7 +1755,9 @@ DLLExport GAME_RENDER(GameRender)
             State->EntityBatches.Count = 32;
             State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
 
-#if 1
+#define MULTITHREADED_ANIMATION 1
+
+#if MULTITHREADED_ANIMATION
             // Animation
             u32 MaxJobCount = State->EntityCount;
             job *Jobs = PushArray(&State->TransientArena, MaxJobCount, job);
@@ -1734,7 +1784,7 @@ DLLExport GAME_RENDER(GameRender)
 
                     JobData->State = State;
                     JobData->Entity = Entity;
-                    JobData->Arena = SubMemoryArena(&State->TransientArena, Megabytes(2));
+                    JobData->Arena = SubMemoryArena(&State->TransientArena, Megabytes(2), NoClear());
                     JobData->Delta = Parameters->Delta;
                     
                     Job->EntryPoint = AnimateEntityJob;
@@ -1752,7 +1802,7 @@ DLLExport GAME_RENDER(GameRender)
 
                 aabb BoundingBox = GetEntityBoundingBox(Entity);
 
-#if 0
+#if !MULTITHREADED_ANIMATION
                 // Rigid bodies movement
                 if (Entity->Body)
                 {

@@ -255,120 +255,6 @@ GetMeshVerticesSize(
 }
 
 internal void
-OpenGLAddMeshBuffer(
-    opengl_state *State, 
-    u32 MeshId, 
-    u32 VertexCount, 
-    vec3 *Positions,
-    vec3 *Normals,
-    vec3 *Tangents,
-    vec3 *Bitangents,
-    vec2 *TextureCoords,
-    vec4 *Weights,
-    i32 *JointIndices,
-    u32 IndexCount, 
-    u32 *Indices
-)
-{
-    Assert(State->CurrentMeshBufferCount < OPENGL_MAX_MESH_BUFFER_COUNT);
-
-    GLuint VAO;
-    GLuint VBO;
-    GLuint EBO;
-
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
-
-    u32 BufferSize = GetMeshVerticesSize(VertexCount, Positions, Normals, Tangents, Bitangents, TextureCoords, Weights, JointIndices);
-
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, BufferSize, 0, GL_STATIC_DRAW);
-
-    // per-vertex attributes
-    u64 Offset = 0;
-    if (Positions)
-    {
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
-
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Positions);
-        Offset += VertexCount * sizeof(vec3);
-    }
-
-    if (Normals)
-    {
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
-
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Normals);
-        Offset += VertexCount * sizeof(vec3);
-    }
-
-    if (Tangents)
-    {
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
-
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Tangents);
-        Offset += VertexCount * sizeof(vec3);
-    }
-
-    if (Bitangents)
-    {
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
-
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Bitangents);
-        Offset += VertexCount * sizeof(vec3);
-    }
-
-    if (TextureCoords)
-    {
-        glEnableVertexAttribArray(4);
-        glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), (GLvoid *)Offset);
-
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec2), TextureCoords);
-        Offset += VertexCount * sizeof(vec2);
-    }
-
-    if (Weights)
-    {
-        glEnableVertexAttribArray(5);
-        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(vec4), (GLvoid *)Offset);
-
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec4), Weights);
-        Offset += VertexCount * sizeof(vec4);
-    }
-
-    if (JointIndices)
-    {
-        glEnableVertexAttribArray(6);
-        glVertexAttribIPointer(6, 4, GL_UNSIGNED_INT, sizeof(i32) * 4, (GLvoid *)Offset);
-
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(i32) * 4, JointIndices);
-        Offset += VertexCount * sizeof(i32) * 4;
-    }
-    //
-
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u32), Indices, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + State->CurrentMeshBufferCount++;
-    MeshBuffer->Id = MeshId;
-    MeshBuffer->VertexCount = VertexCount;
-    MeshBuffer->IndexCount = IndexCount;
-    MeshBuffer->VAO = VAO;
-    MeshBuffer->VBO = VBO;
-    MeshBuffer->EBO = EBO;
-
-    MeshBuffer->BufferSize = BufferSize;
-}
-
-internal void
 OpenGLAddSkinningBuffer(opengl_state *State, u32 BufferId, u32 SkinningMatrixCount)
 {
     opengl_skinning_buffer *SkinningBuffer = State->SkinningBuffers + State->CurrentSkinningBufferCount++;
@@ -383,7 +269,7 @@ OpenGLAddSkinningBuffer(opengl_state *State, u32 BufferId, u32 SkinningMatrixCou
 }
 
 internal void
-OpenGLAddMeshBufferInstanced(
+OpenGLAddMeshBuffer(
     opengl_state *State, 
     u32 MeshId, 
     u32 VertexCount, 
@@ -479,32 +365,29 @@ OpenGLAddMeshBufferInstanced(
         Offset += VertexCount * sizeof(i32) * 4;
     }
 
-    // per-instance attributes
-    glEnableVertexAttribArray(7);
-    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + 0));
-    glVertexAttribDivisor(7, 1);
+    if (MaxInstanceCount > 0)
+    {
+        // per-instance attributes
+        glEnableVertexAttribArray(7);
+        glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + 0));
+        glVertexAttribDivisor(7, 1);
 
-    glEnableVertexAttribArray(8);
-    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + sizeof(vec4)));
-    glVertexAttribDivisor(8, 1);
+        glEnableVertexAttribArray(8);
+        glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + sizeof(vec4)));
+        glVertexAttribDivisor(8, 1);
 
-    glEnableVertexAttribArray(9);
-    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
-    glVertexAttribDivisor(9, 1);
+        glEnableVertexAttribArray(9);
+        glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
+        glVertexAttribDivisor(9, 1);
 
-    glEnableVertexAttribArray(10);
-    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *)(BufferSize + StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
-    glVertexAttribDivisor(10, 1);
+        glEnableVertexAttribArray(10);
+        glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
+        glVertexAttribDivisor(10, 1);
 
-    glEnableVertexAttribArray(11);
-    glVertexAttribPointer(11, 3, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Color)));
-    glVertexAttribDivisor(11, 1);
-
-#if 0
-    glEnableVertexAttribArray(11);
-    glVertexAttribIPointer(11, 1, GL_UNSIGNED_INT, sizeof(render_instance), (void *)(VertexCount * sizeof(skinned_vertex) + StructOffset(render_instance, Flags)));
-    glVertexAttribDivisor(11, 1);
-#endif
+        glEnableVertexAttribArray(11);
+        glVertexAttribPointer(11, 3, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Color)));
+        glVertexAttribDivisor(11, 1);
+    }
 
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -1089,25 +972,13 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
         {
             case RenderCommand_AddMesh:
             {
-                render_command_add_mesh *Command = (render_command_add_mesh *)Entry;
+                render_command_add_mesh *Command = (render_command_add_mesh *) Entry;
 
-                // todo: maybe split into two separate commands (AddMesh/AddMeshInstanced)?
-                if (Command->MaxInstanceCount > 0)
-                {
-                    OpenGLAddMeshBufferInstanced(
-                        State, Command->MeshId, Command->VertexCount,
-                        Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices,
-                        Command->IndexCount, Command->Indices, Command->MaxInstanceCount
-                    );
-                }
-                else
-                {
-                    OpenGLAddMeshBuffer(
-                        State, Command->MeshId, Command->VertexCount,
-                        Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices,
-                        Command->IndexCount, Command->Indices
-                    );
-                }
+                OpenGLAddMeshBuffer(
+                    State, Command->MeshId, Command->VertexCount,
+                    Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices,
+                    Command->IndexCount, Command->Indices, Command->MaxInstanceCount
+                );
 
                 break;
             }
@@ -1479,7 +1350,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawSkinnedMesh:
             {
-                render_command_draw_skinned_mesh *Command = (render_command_draw_skinned_mesh*)Entry;
+                render_command_draw_skinned_mesh *Command = (render_command_draw_skinned_mesh *) Entry;
 
                 if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
                 {

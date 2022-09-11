@@ -16,8 +16,7 @@
 #define Stringify(Arg) #Arg
 
 #ifdef NDEBUG
-//#define Assert(...)
-#define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
+#define Assert(...)
 #else
 #define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
 #endif
