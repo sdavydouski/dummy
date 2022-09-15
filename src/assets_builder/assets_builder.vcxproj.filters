@@ -5,5 +5,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assets_utils.cpp" />
+    <None Include="assets_fonts.cpp" />
+    <None Include="assets_models.cpp" />
   </ItemGroup>
 </Project>

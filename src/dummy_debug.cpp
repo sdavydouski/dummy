@@ -40,6 +40,14 @@ Win32InitImGui(win32_platform_state *PlatformState)
 }
 
 internal void
+Win32ShutdownImGui()
+{
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+}
+
+internal void
 RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 {
     if (!Graph) return;
@@ -231,6 +239,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
     ImGui::Checkbox("Show Camera", (bool *) &GameState->Options.ShowCamera);
     ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
     ImGui::Checkbox("Show Rigid Bodies", (bool *) &GameState->Options.ShowRigidBodies);
+    ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
     ImGui::End();
 
     ImGui::Begin("Animation Graph");

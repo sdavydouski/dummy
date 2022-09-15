@@ -2,22 +2,19 @@
 
 struct job_queue;
 
-#define JOB_ENTRY_POINT(name) void name(job_queue *Queue, void *Params)
+#define JOB_ENTRY_POINT(name) void name(job_queue *Queue, void *Parameters)
 typedef JOB_ENTRY_POINT(job_entry_point);
 
 struct job
 {
     job_entry_point *EntryPoint;
-    void *Params;
-    // todo(continue)
-    memory_arena Arena;
+    void *Parameters;
 };
 
 struct job_queue
 {
-    // sync primitives
-    void *Before;
-    void *After;
+    // platform-specific sync primitives
+    void *CriticalSection;
     void *QueueNotEmpty;
 
     u32 volatile CurrentJobCount;
@@ -26,7 +23,6 @@ struct job_queue
     job Jobs[256];
 };
 
-// Must be atomic!
 inline job *
 GetNextJobFromQueue(job_queue *JobQueue)
 {
@@ -39,7 +35,6 @@ GetNextJobFromQueue(job_queue *JobQueue)
     return Job;
 }
 
-// This must be called only from master thread!
 inline void
 PutJobIntoQueue(job_queue *JobQueue, job *Job)
 {
@@ -49,12 +44,12 @@ PutJobIntoQueue(job_queue *JobQueue, job *Job)
     Assert(JobQueue->CurrentJobIndex < ArrayCount(JobQueue->Jobs));
     Assert(JobQueue->CurrentJobCount <= ArrayCount(JobQueue->Jobs));
 
-    job *DestJob = &JobQueue->Jobs[JobQueue->CurrentJobIndex];
+    job *DestJob = JobQueue->Jobs + JobQueue->CurrentJobIndex;
+
     DestJob->EntryPoint = Job->EntryPoint;
-    DestJob->Params = Job->Params;
+    DestJob->Parameters = Job->Parameters;
 }
 
-// This must be called only from master thread!
 inline void
 PutJobsIntoQueue(job_queue *JobQueue, u32 JobCount, job *Jobs)
 {

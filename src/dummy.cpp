@@ -1,4 +1,4 @@
-#include "dummy_defs.h"
+﻿#include "dummy_defs.h"
 #include "dummy_math.h"
 #include "dummy_random.h"
 #include "dummy_memory.h"
@@ -16,6 +16,7 @@
 #include "dummy.h"
 
 #include "dummy_assets.cpp"
+#include "dummy_text.cpp"
 #include "dummy_collision.cpp"
 #include "dummy_physics.cpp"
 #include "dummy_renderer.cpp"
@@ -218,6 +219,25 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     Model->Bounds = CalculateAxisAlignedBoundingBox(Model);
 }
 
+internal void
+InitFont(font_asset *Asset, font *Font, const char *Name, render_commands *RenderCommands)
+{
+    CopyString(Name, Font->Name);
+    Font->TextureAtlas = Asset->TextureAtlas;
+    Font->VerticalAdvance = Asset->VerticalAdvance;
+    Font->Ascent = Asset->Ascent;
+    Font->Descent = Asset->Descent;
+    Font->CodepointsRangeCount = Asset->CodepointsRangeCount;
+    Font->CodepointsRanges = Asset->CodepointsRanges;
+    Font->HorizontalAdvanceTableCount = Asset->HorizontalAdvanceTableCount;
+    Font->HorizontalAdvanceTable = Asset->HorizontalAdvanceTable;
+    Font->GlyphCount = Asset->GlyphCount;
+    Font->Glyphs = Asset->Glyphs;
+    Font->TextureId = GenerateTextureId();
+
+    AddTexture(RenderCommands, Font->TextureId, &Font->TextureAtlas);
+}
+
 inline void
 InitSkinningBuffer(skinning_data *Skinning, model *Model, memory_arena *Arena, render_commands *RenderCommands)
 {
@@ -278,6 +298,13 @@ GetModelAsset(game_assets *Assets, const char *Name)
     return Result;
 }
 
+internal font *
+GetFontAsset(game_assets *Assets, const char *Name)
+{
+    font *Result = HashTableLookup(&Assets->Fonts, (char *) Name);
+    return Result;
+}
+
 internal entity_render_batch *
 GetEntityBatch(game_state *State, char *Name)
 {
@@ -286,9 +313,9 @@ GetEntityBatch(game_state *State, char *Name)
 }
 
 internal void
-LoadGameAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 {
-    game_asset GameAssets[] = {
+    game_asset ModelAssets[] = {
         {
             "Pelegrini",
             "assets\\pelegrini.asset"
@@ -347,21 +374,64 @@ LoadGameAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
         }
     };
 
-    Assets->ModelAssetCount = ArrayCount(GameAssets);
-    Assets->ModelAssets = PushArray(Arena, Assets->ModelAssetCount, game_asset_model );
+    Assets->ModelAssetCount = ArrayCount(ModelAssets);
+    Assets->ModelAssets = PushArray(Arena, Assets->ModelAssetCount, game_asset_model);
 
-    for (u32 GameAssetIndex = 0; GameAssetIndex < ArrayCount(GameAssets); ++GameAssetIndex)
+    for (u32 ModelAssetIndex = 0; ModelAssetIndex < ArrayCount(ModelAssets); ++ModelAssetIndex)
     {
-        game_asset GameAsset = GameAssets[GameAssetIndex];
-        game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetIndex;
+        game_asset GameAsset = ModelAssets[ModelAssetIndex];
+        game_asset_model *GameAssetModel = Assets->ModelAssets + ModelAssetIndex;
 
         model_asset *LoadedAsset = LoadModelAsset(Platform, GameAsset.Path, Arena);
 
         GameAssetModel->GameAsset = GameAsset;
         GameAssetModel->ModelAsset = LoadedAsset;
     }
+}
 
-    Assets->Loaded = true;
+internal void
+LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+{
+    game_asset FontAssets[] = {
+        {
+            "Arial",
+            "assets\\arial.asset"
+        },
+        {
+            "SF Atarian System",
+            "assets\\SF Atarian System.asset"
+        },
+        {
+            "Nasalization",
+            "assets\\nasalization-rg.asset"
+        }
+    };
+
+    Assets->FontAssetCount = ArrayCount(FontAssets);
+    Assets->FontAssets = PushArray(Arena, Assets->FontAssetCount, game_asset_font);
+
+    for (u32 FontAssetIndex = 0; FontAssetIndex < ArrayCount(FontAssets); ++FontAssetIndex)
+    {
+        game_asset GameAsset = FontAssets[FontAssetIndex];
+        
+        game_asset_font *GameAssetFont = Assets->FontAssets + FontAssetIndex;
+
+        font_asset *LoadedAsset = LoadFontAsset(Platform, GameAsset.Path, Arena);
+
+        GameAssetFont->GameAsset = GameAsset;
+        GameAssetFont->FontAsset = LoadedAsset;
+    }
+}
+
+internal void
+LoadGameAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+{
+    // todo:
+    Assets->State = GameAssetsState_Unloaded;
+
+    LoadModelAssets(Assets, Platform, Arena);
+
+    Assets->State = GameAssetsState_Loaded;
 }
 
 struct load_game_assets_job
@@ -373,17 +443,19 @@ struct load_game_assets_job
 
 JOB_ENTRY_POINT(LoadGameAssetsJob)
 {
-    load_game_assets_job *Data = (load_game_assets_job *) Params;
+    load_game_assets_job *Data = (load_game_assets_job *) Parameters;
     LoadGameAssets(Data->Assets, Data->Platform, Data->Arena);
 }
 
 internal void
-InitGameAssets(game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
+InitGameModelAssets(game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
 {
     // Using a prime table size in conjunction with quadratic probing tends to yield 
     // the best coverage of the available table slots with minimal clustering
-    Assets->Models.Count = 31;
+    Assets->Models.Count = 251;
     Assets->Models.Values = PushArray(Arena, Assets->Models.Count, model);
+
+    Assert(Assets->Models.Count > Assets->ModelAssetCount);
 
     for (u32 GameAssetModelIndex = 0; GameAssetModelIndex < Assets->ModelAssetCount; ++GameAssetModelIndex)
     {
@@ -391,6 +463,23 @@ InitGameAssets(game_assets *Assets, render_commands *RenderCommands, memory_aren
 
         model *Model = GetModelAsset(Assets, GameAssetModel->GameAsset.Name);
         InitModel(GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, Arena, RenderCommands, GameAssetModel->GameAsset.MaxInstanceCount);
+    }
+}
+
+internal void
+InitGameFontAssets(game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
+{
+    Assets->Fonts.Count = 11;
+    Assets->Fonts.Values = PushArray(Arena, Assets->Fonts.Count, font);
+
+    Assert(Assets->Fonts.Count > Assets->FontAssetCount);
+
+    for (u32 GameAssetFontIndex = 0; GameAssetFontIndex < Assets->FontAssetCount; ++GameAssetFontIndex)
+    {
+        game_asset_font *GameAssetFont = Assets->FontAssets + GameAssetFontIndex;
+
+        font *Font = GetFontAsset(Assets, GameAssetFont->GameAsset.Name);
+        InitFont(GameAssetFont->FontAsset, Font, GameAssetFont->GameAsset.Name, RenderCommands);
     }
 }
 
@@ -525,8 +614,14 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
 {
     if (Entity->Model->Skeleton->JointCount > 1)
     {
-        DrawSkinnedModel(RenderCommands, Entity->Model, Entity->Skinning->Pose, Entity->Skinning);
-        //DrawSkeleton(RenderCommands, State, Entity->Skinning->Pose);
+        if (State->Options.ShowSkeletons)
+        {
+            DrawSkeleton(RenderCommands, State, Entity->Skinning->Pose);
+        }
+        else
+        {
+            DrawSkinnedModel(RenderCommands, Entity->Model, Entity->Skinning->Pose, Entity->Skinning);
+        }
     }
     else
     {
@@ -987,7 +1082,7 @@ struct animate_entity_job
 
 JOB_ENTRY_POINT(AnimateEntityJob)
 {
-    animate_entity_job *Data = (animate_entity_job *) Params;
+    animate_entity_job *Data = (animate_entity_job *) Parameters;
     AnimateEntity(Data->State, Data->Entity, &Data->Arena, Data->Delta);
 }
 
@@ -1037,9 +1132,9 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 
     // Marker Man
     State->MarkerMan = CreateGameEntity(State);
-    State->MarkerMan->Transform = CreateTransform(vec3(0.f, 0.f, -20.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->MarkerMan->Transform = CreateTransform(vec3(0.f, 0.f, -25.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->MarkerMan, &State->Assets, "MarkerMan");
-    AddRigidBodyComponent(State->MarkerMan, vec3(0.f, 0.f, -20.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddRigidBodyComponent(State->MarkerMan, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->MarkerMan, "Bot", RenderCommands, &State->PermanentArena);
 
 #if 1
@@ -1232,22 +1327,20 @@ DLLExport GAME_INIT(GameInit)
     // todo: rigid bodies are not visible without assigned model
     AddRigidBodyComponent(State->Dummy, vec3(0.f, 0.f, -20.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
 
+    LoadFontAssets(&State->Assets, Platform, &State->PermanentArena);
+    InitGameFontAssets(&State->Assets, RenderCommands, &State->PermanentArena);
+
 #if 0
-    // todo:
-    //LoadGameAssets(&State->Assets, Platform, ScopedMemory.Arena);
     LoadGameAssets(&State->Assets, Platform, &State->PermanentArena);
-    InitGameAssets(&State->Assets, RenderCommands, &State->PermanentArena);
-    InitGameEntities(State, RenderCommands);
 #else
     load_game_assets_job *JobParams = PushType(&State->PermanentArena, load_game_assets_job);
     JobParams->Assets = &State->Assets;
     JobParams->Platform = Platform;
-    // todo: use ScopedMemory.Arena
     JobParams->Arena = &State->PermanentArena;
 
     job Job = {};
     Job.EntryPoint = LoadGameAssetsJob;
-    Job.Params = JobParams;
+    Job.Parameters = JobParams;
 
     Platform->KickJob(State->JobQueue, Job);
 #endif
@@ -1625,18 +1718,6 @@ DLLExport GAME_RENDER(GameRender)
     render_commands *RenderCommands = GetRenderCommands(Memory);
     platform_api *Platform = Memory->Platform;
 
-    // todo: add loading message
-    if (State->Assets.Loaded)
-    {
-        InitGameAssets(&State->Assets, RenderCommands, &State->PermanentArena);
-        InitGameEntities(State, RenderCommands);
-
-        State->Player = State->MarkerMan;
-        State->Player->FutureControllable = true;
-
-        State->Assets.Loaded = false;
-    }
-
     ClearMemoryArena(&State->TransientArena);
 
     RenderCommands->Settings.WindowWidth = Parameters->WindowWidth;
@@ -1645,6 +1726,19 @@ DLLExport GAME_RENDER(GameRender)
 
     f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
+    // todo: add loading message
+    if (State->Assets.State == GameAssetsState_Loaded)
+    {
+        // todo: render commands buffer is not multithread-safe!
+        InitGameModelAssets(&State->Assets, RenderCommands, &State->PermanentArena);
+        InitGameEntities(State, RenderCommands);
+
+        State->Player = State->MarkerMan;
+        State->Player->FutureControllable = true;
+
+        State->Assets.State = GameAssetsState_Ready;
+    }
+
     SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
     
     switch (State->Mode)
@@ -1652,6 +1746,8 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_World:
         case GameMode_Edit:
         {
+            SetTime(RenderCommands, Parameters->Time);
+
             game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->FreeCamera;
             b32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
@@ -1663,8 +1759,6 @@ DLLExport GAME_RENDER(GameRender)
             {
                 Clear(RenderCommands, vec4(State->BackgroundColor, 1.f));
             }
-
-            SetTime(RenderCommands, Parameters->Time);
 
             game_process *GameProcess = State->ProcessSentinel.Next;
 
@@ -1699,8 +1793,6 @@ DLLExport GAME_RENDER(GameRender)
                 DrawLine(RenderCommands, Origin, Origin + yAxis * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
                 DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
             }
-
-            //State->PlayerCamera.Direction = Normalize(vec3(Cos(Parameters->Time * 0.5f), 0.f, Sin(Parameters->Time * 0.5f)));
 
             RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
             RenderCommands->Settings.Camera = Camera;
@@ -1784,11 +1876,11 @@ DLLExport GAME_RENDER(GameRender)
 
                     JobData->State = State;
                     JobData->Entity = Entity;
-                    JobData->Arena = SubMemoryArena(&State->TransientArena, Megabytes(2), NoClear());
+                    JobData->Arena = SubMemoryArena(&State->TransientArena, Megabytes(1), NoClear());
                     JobData->Delta = Parameters->Delta;
                     
                     Job->EntryPoint = AnimateEntityJob;
-                    Job->Params = JobData;
+                    Job->Parameters = JobData;
                 }
             }
 
@@ -1869,6 +1961,28 @@ DLLExport GAME_RENDER(GameRender)
 
             DrawGround(RenderCommands);
 
+#if 1
+            if (State->Assets.State != GameAssetsState_Ready)
+            {
+                // todo:
+                f32 FrustrumWidthInUnits = 20.f;
+                f32 PixelsPerUnit = (f32) Parameters->WindowWidth / FrustrumWidthInUnits;
+                f32 FrustrumHeightInUnits = (f32) Parameters->WindowHeight / PixelsPerUnit;
+
+                f32 Left = -FrustrumWidthInUnits / 2.f;
+                f32 Right = FrustrumWidthInUnits / 2.f;
+                f32 Bottom = -FrustrumHeightInUnits / 2.f;
+                f32 Top = FrustrumHeightInUnits / 2.f;
+                f32 Near = -10.f;
+                f32 Far = 10.f;
+
+                font *Font = GetFontAsset(&State->Assets, "Nasalization");
+                mat4 Projection = Orthographic(Left, Right, Bottom, Top, Near, Far);
+
+                DrawTextLine(RenderCommands, L"Loading assets...", Font, Projection, vec3(-3.f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f));
+            }
+#endif
+
             break;
         }
         case GameMode_Menu:
@@ -1879,16 +1993,19 @@ DLLExport GAME_RENDER(GameRender)
             f32 PixelsPerUnit = (f32)Parameters->WindowWidth / FrustrumWidthInUnits;
             f32 FrustrumHeightInUnits = (f32)Parameters->WindowHeight / PixelsPerUnit;
 
-            SetOrthographicProjection(RenderCommands,
-                -FrustrumWidthInUnits / 2.f, FrustrumWidthInUnits / 2.f,
-                -FrustrumHeightInUnits / 2.f, FrustrumHeightInUnits / 2.f,
-                -10.f, 10.f
-            );
+            f32 Left = -FrustrumWidthInUnits / 2.f;
+            f32 Right = FrustrumWidthInUnits / 2.f;
+            f32 Bottom = -FrustrumHeightInUnits / 2.f;
+            f32 Top = FrustrumHeightInUnits / 2.f;
+            f32 Near = -10.f;
+            f32 Far = 10.f;
 
-            vec3 TopLeft = vec3(-2.f, 2.f, 0.f);
-            vec3 TopRight = vec3(2.f, 2.f, 0.f);
-            vec3 BottomRight = vec3(2.f, -2.f, 0.f);
-            vec3 BottomLeft = vec3(-2.f, -2.f, 0.f);
+            SetOrthographicProjection(RenderCommands, Left, Right, Bottom, Top, Near, Far);
+
+            vec3 TopLeft = vec3(-3.f, 3.f, 0.f);
+            vec3 TopRight = vec3(3.f, 3.f, 0.f);
+            vec3 BottomRight = vec3(3.f, -3.f, 0.f);
+            vec3 BottomLeft = vec3(-3.f, -3.f, 0.f);
 
             f32 MoveSpeed = 0.5f;
 
@@ -1946,6 +2063,12 @@ DLLExport GAME_RENDER(GameRender)
                     Quad->Color
                 );
             }
+
+            font *Font = GetFontAsset(&State->Assets, "Nasalization");
+            // todo:
+            mat4 Projection = Orthographic(Left, Right, Bottom, Top, Near, Far);
+
+            DrawTextLine(RenderCommands, L"Dummy", Font, Projection, vec3(-1.5f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f));
 
             break;
         }

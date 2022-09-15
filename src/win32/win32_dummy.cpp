@@ -32,6 +32,7 @@ Win32GetLastWriteTime(char *FileName)
     return LastWriteTime;
 }
 
+#include "dummy_text.cpp"
 #include "win32_dummy_opengl.cpp"
 #include "dummy_opengl.cpp"
 
@@ -43,10 +44,7 @@ Win32GetLastWriteTime(char *FileName)
 
 #define DEBUG_UI_INIT(...) Win32InitImGui(__VA_ARGS__)
 #define DEBUG_UI_RENDER(...) Win32RenderDebugInfo(__VA_ARGS__)
-#define DEBUG_UI_SHUTDOWN(...)    \
-    ImGui_ImplOpenGL3_Shutdown(); \
-    ImGui_ImplWin32_Shutdown();   \
-    ImGui::DestroyContext();
+#define DEBUG_UI_SHUTDOWN(...) Win32ShutdownImGui(__VA_ARGS__)
 
 #define DEBUG_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
 #define DEBUG_UI_CAPTURE_KEYBOARD ImGui::GetIO().WantCaptureKeyboard
@@ -73,6 +71,7 @@ Win32AllocateMemory(void *BaseAddress, umm Size)
 
     return Result;
 }
+
 
 inline void
 Win32DeallocateMemory(void *Address)
@@ -806,7 +805,7 @@ PLATFORM_KICK_JOB(Win32KickJob)
     _ReadWriteBarrier();
 
     CONDITION_VARIABLE *QueueNotEmpty = (CONDITION_VARIABLE *) JobQueue->QueueNotEmpty;
-    WakeAllConditionVariable(QueueNotEmpty);
+    WakeConditionVariable(QueueNotEmpty);
 }
 
 PLATFORM_KICK_JOBS(Win32KickJobs)
@@ -838,79 +837,73 @@ DWORD WINAPI WorkerThreadProc(LPVOID lpParam)
 {
     Win32DebugPrintString("Worker Thread Id: 0x%x\n", GetCurrentThreadId());
 
-    win32_thread *Thread = (win32_thread *) lpParam;
+    win32_worker_thread *Thread = (win32_worker_thread *) lpParam;
 
     job_queue *JobQueue = Thread->JobQueue;
 
-    CRITICAL_SECTION *Before = (CRITICAL_SECTION *) JobQueue->Before;
-    CRITICAL_SECTION *After = (CRITICAL_SECTION *) JobQueue->After;
+    CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
     CONDITION_VARIABLE *QueueNotEmpty = (CONDITION_VARIABLE *) JobQueue->QueueNotEmpty;
 
     while (true)
     {
-        EnterCriticalSection(Before);
+        EnterCriticalSection(CriticalSection);
 
         while (JobQueue->CurrentJobIndex == -1)
         {
-            SleepConditionVariableCS(QueueNotEmpty, Before, INFINITE);
+            SleepConditionVariableCS(QueueNotEmpty, CriticalSection, INFINITE);
         }
 
         job *Job = GetNextJobFromQueue(JobQueue);
 
-        LeaveCriticalSection(Before);
+        LeaveCriticalSection(CriticalSection);
 
-        Job->EntryPoint(JobQueue, Job->Params);
+        Job->EntryPoint(JobQueue, Job->Parameters);
 
-        EnterCriticalSection(After);
-        JobQueue->CurrentJobCount -= 1;
+        InterlockedDecrement(&JobQueue->CurrentJobCount);
         Assert(JobQueue->CurrentJobCount >= 0);
-        LeaveCriticalSection(After);
     }
 
     return 0;
+}
+
+internal void
+Win32MakeJobQueue(job_queue *JobQueue, u32 WorkerThreadCount, win32_job_queue_sync *JobQueueSync)
+{
+    win32_worker_thread *WorkerThreads = (win32_worker_thread *) Win32AllocateMemory(0, WorkerThreadCount * sizeof(win32_worker_thread));
+
+    InitializeCriticalSectionAndSpinCount(&JobQueueSync->CriticalSection, 0x00000400);
+    InitializeConditionVariable(&JobQueueSync->QueueNotEmpty);
+
+    JobQueue->CurrentJobIndex = -1;
+    JobQueue->CurrentJobCount = 0;
+    JobQueue->CriticalSection = &JobQueueSync->CriticalSection;
+    JobQueue->QueueNotEmpty = &JobQueueSync->QueueNotEmpty;
+
+    for (u32 WorkerThreadIndex = 0; WorkerThreadIndex < WorkerThreadCount; ++WorkerThreadIndex)
+    {
+        win32_worker_thread *WorkerThread = WorkerThreads + WorkerThreadIndex;
+
+        WorkerThread->JobQueue = JobQueue;
+
+        HANDLE ThreadHandle = CreateThread(0, 0, WorkerThreadProc, WorkerThread, 0, 0);
+        CloseHandle(ThreadHandle);
+    }
 }
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
     SetProcessDPIAware();
 
-    //
+    win32_platform_state PlatformState = {};
+    
     SYSTEM_INFO SystemInfo;
     GetSystemInfo(&SystemInfo);
 
-    u32 MaxThreadCount = SystemInfo.dwNumberOfProcessors - 1;
+    u32 MaxWorkerThreadCount = SystemInfo.dwNumberOfProcessors - 1;
 
-    win32_thread *Threads = (win32_thread *) Win32AllocateMemory(0, MaxThreadCount * sizeof(win32_thread));
+    job_queue JobQueue = {};
+    Win32MakeJobQueue(&JobQueue, MaxWorkerThreadCount, &PlatformState.JobQueueSync);
 
-    CRITICAL_SECTION Before;
-    InitializeCriticalSectionAndSpinCount(&Before, 0x0000400);
-
-    CRITICAL_SECTION After;
-    InitializeCriticalSectionAndSpinCount(&After, 0x00000400);
-
-    CONDITION_VARIABLE QueueNotEmpty;
-    InitializeConditionVariable(&QueueNotEmpty);
-
-    job_queue JobQueue;
-
-    JobQueue.CurrentJobIndex = -1;
-    JobQueue.CurrentJobCount = 0;
-    JobQueue.Before = &Before;
-    JobQueue.After = &After;
-    JobQueue.QueueNotEmpty = &QueueNotEmpty;
-
-    for (u32 ThreadIndex = 0; ThreadIndex < MaxThreadCount; ++ThreadIndex)
-    {
-        win32_thread *Thread = Threads + ThreadIndex;
-
-        Thread->JobQueue = &JobQueue;
-
-        HANDLE ThreadHandle = CreateThread(0, 0, WorkerThreadProc, Thread, 0, 0);
-        CloseHandle(ThreadHandle);
-    }
-    //
-
-    win32_platform_state PlatformState = {};
 #if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
@@ -941,8 +934,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
-    GameMemory.TransientStorageSize = Megabytes(512);
-    GameMemory.RenderCommandsStorageSize = Megabytes(64);
+    GameMemory.TransientStorageSize = Megabytes(256);
+    GameMemory.RenderCommandsStorageSize = Megabytes(32);
     GameMemory.Platform = &PlatformApi;
     GameMemory.JobQueue = &JobQueue;
 

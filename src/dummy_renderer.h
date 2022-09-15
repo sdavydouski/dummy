@@ -113,6 +113,7 @@ enum render_command_type
     RenderCommand_Clear,
     RenderCommand_DrawLine,
     RenderCommand_DrawRectangle,
+    RenderCommand_DrawTextLine,
     RenderCommand_DrawGround,
     RenderCommand_DrawMesh,
     RenderCommand_DrawSkinnedMesh,
@@ -242,6 +243,21 @@ struct render_command_draw_rectangle
 {
     render_command_header Header;
     transform Transform;
+    vec4 Color;
+};
+
+struct render_command_draw_text_line
+{
+    render_command_header Header;
+
+    wchar Text[256];
+    font *Font;
+
+    // todo:
+    mat4 Projection;
+    // Bottom left
+    vec3 Position;
+    f32 Scale;
     vec4 Color;
 };
 

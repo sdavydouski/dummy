@@ -60,21 +60,38 @@ struct game_asset_model
     model_asset *ModelAsset;
 };
 
+struct game_asset_font
+{
+    game_asset GameAsset;
+    font_asset *FontAsset;
+};
+
+enum game_assets_state
+{
+    GameAssetsState_Unloaded,
+    GameAssetsState_Loaded,
+    GameAssetsState_Ready,
+};
+
 struct game_assets
 {
     hash_table<model> Models;
+    hash_table<font> Fonts;
 
     u32 ModelAssetCount;
     game_asset_model *ModelAssets;
 
-    // todo: so cheesy
-    b32 Loaded;
+    u32 FontAssetCount;
+    game_asset_font *FontAssets;
+
+    game_assets_state State;
 };
 
 struct game_options
 {
     b32 ShowCascades;
     b32 ShowRigidBodies;
+    b32 ShowSkeletons;
     b32 ShowCamera;
 };
 

@@ -89,10 +89,18 @@ OpenGLInitRectangle(opengl_state *State)
     f32 RectangleVertices[] = 
     {
         // potisions     // uvs
-        -1.f, -1.f, 0.f, 0.f, 0.f,
-        1.f, -1.f, 0.f,  1.f, 0.f,
-        -1.f, 1.f, 0.f,  0.f, 1.f,
-        1.f, 1.f, 0.f,   1.f, 1.f
+#if 1
+        // todo: flipped uvs!
+        -1.f, -1.f, 0.f, 0.f, 1.f,
+        1.f, -1.f, 0.f,  1.f, 1.f,
+        -1.f, 1.f, 0.f,  0.f, 0.f,
+        1.f, 1.f, 0.f,   1.f, 0.f
+#else
+        0.f, 0.f, 0.f,  0.f, 1.f,
+        0.f, 1.f, 0.f,  0.f, 0.f,
+        1.f, 0.f, 0.f,  1.f, 1.f,
+        1.f, 1.f, 0.f,  1.f, 0.f
+#endif
     };
 
     GLsizei Stride = sizeof(vec3) + sizeof(vec2);
@@ -618,6 +626,13 @@ OpenGLInitShaders(opengl_state *State)
         OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID,
         (char *)"..\\src\\renderers\\OpenGL\\shaders\\instanced_forward_shading.vert",
         (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+    );
+
+    OpenGLLoadShader(
+        State,
+        OPENGL_TEXT_SHADER_ID,
+        (char *) "..\\src\\renderers\\OpenGL\\shaders\\text.vert",
+        (char *) "..\\src\\renderers\\OpenGL\\shaders\\text.frag"
     );
 }
 
@@ -1256,6 +1271,82 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+                    glUseProgram(0);
+                    glBindVertexArray(0);
+                }
+
+                break;
+            }
+            case RenderCommand_DrawTextLine:
+            {
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_draw_text_line *Command = (render_command_draw_text_line *) Entry;
+
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_TEXT_SHADER_ID);
+
+                    glBindVertexArray(State->RectangleVAO);
+                    glUseProgram(Shader->Program);
+                    glDisable(GL_DEPTH_TEST);
+
+                    mat4 View = mat4(1.f);
+                    mat4 Projection = Command->Projection;
+
+                    font *Font = Command->Font;
+
+                    glUniformMatrix4fv(glGetUniformLocation(Shader->Program, "u_TextView"), 1, GL_TRUE, (f32 *) View.Elements);
+                    glUniformMatrix4fv(glGetUniformLocation(Shader->Program, "u_TextProjection"), 1, GL_TRUE, (f32 *) Projection.Elements);
+
+                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+
+                    opengl_texture *Texture = OpenGLGetTexture(State, Font->TextureId);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+
+                    f32 AtX = Command->Position.x;
+                    f32 AtY = Command->Position.y;
+                    f32 TextScale = Command->Scale;
+
+                    // todo:
+                    f32 PixelsPerUnit = 160.f;
+                    f32 UnitsPerPixel = 1.f / PixelsPerUnit;
+                    //
+
+                    vec2 TextureAtlasSize = vec2((f32) Font->TextureAtlas.Width, (f32) Font->TextureAtlas.Height);
+
+                    for (wchar *At = Command->Text; *At; ++At)
+                    {
+                        wchar Character = *At;
+                        wchar NextCharacter = *(At + 1);
+
+                        glyph *GlyphInfo = GetCharacterGlyph(Font, Character);
+
+                        vec2 Position = vec2(AtX, AtY);
+                        // todo: maybe I should do it inside assets builder?
+                        vec2 SpriteSize = GlyphInfo->SpriteSize / TextureAtlasSize;
+                        vec2 TextureOffset = GlyphInfo->UV;
+
+                        vec2 Size = GlyphInfo->CharacterSize * TextScale * UnitsPerPixel;
+                        vec2 Alignment = (GlyphInfo->Alignment) * TextScale * UnitsPerPixel;
+
+                        // todo: Z coordinate
+                        vec3 Translation = vec3(Position + Alignment, 0.f);
+                        vec3 Scale = vec3(Size, 0.f);
+                        quat Rotation = quat(0.f);
+
+                        mat4 Model = Transform(CreateTransform(Translation, Scale, Rotation));
+
+                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                        glUniform2f(glGetUniformLocation(Shader->Program, "u_SpriteSize"), SpriteSize.x, SpriteSize.y);
+                        glUniform2f(glGetUniformLocation(Shader->Program, "u_TextureOffset"), TextureOffset.x, TextureOffset.y);
+
+                        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+                        f32 HorizontalAdvance = GetHorizontalAdvanceForPair(Font, Character, NextCharacter);
+                        AtX += HorizontalAdvance * TextScale * UnitsPerPixel;
+                    }
+
+                    glEnable(GL_DEPTH_TEST);
                     glUseProgram(0);
                     glBindVertexArray(0);
                 }

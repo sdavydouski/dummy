@@ -67,10 +67,14 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     read_file_result AssetFile = Platform->ReadFile(FileName, Arena, false);
     u8 *Buffer = (u8 *)AssetFile.Contents;
 
-    model_asset_header *Header = (model_asset_header *)Buffer;
+    asset_header *Header = (asset_header *) Buffer;
+
+    Assert(Header->Type == AssetType_Model);
+
+    model_asset_header *ModelHeader = (model_asset_header *) (Buffer + Header->DataOffset);
 
     // Skeleton
-    model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)(Buffer + Header->SkeletonHeaderOffset);
+    model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)(Buffer + ModelHeader->SkeletonHeaderOffset);
     Result->Skeleton.JointCount = SkeletonHeader->JointCount;
 #if 0
     Result->Skeleton.Joints = (joint *)(Buffer + SkeletonHeader->JointsOffset);
@@ -89,7 +93,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 #endif
 
     // Skeleton Bind Pose
-    model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)(Buffer + Header->SkeletonPoseHeaderOffset);
+    model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)(Buffer + ModelHeader->SkeletonPoseHeaderOffset);
     Result->BindPose.Skeleton = &Result->Skeleton;
     Result->BindPose.LocalJointPoses = (joint_pose *)(Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
 #if 0
@@ -99,10 +103,10 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 #endif
 
     // Animation Graph
-    ReadAnimationGraph(&Result->AnimationGraph, Header->AnimationGraphHeaderOffset, Buffer);
+    ReadAnimationGraph(&Result->AnimationGraph, ModelHeader->AnimationGraphHeaderOffset, Buffer);
 
     // Meshes
-    model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)(Buffer + Header->MeshesHeaderOffset);
+    model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)(Buffer + ModelHeader->MeshesHeaderOffset);
     Result->MeshCount = MeshesHeader->MeshCount;
     Result->Meshes = PushArray(Arena, Result->MeshCount, mesh);
 
@@ -168,7 +172,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     }
 
     // Materials
-    model_asset_materials_header *MaterialsHeader = (model_asset_materials_header *)(Buffer + Header->MaterialsHeaderOffset);
+    model_asset_materials_header *MaterialsHeader = (model_asset_materials_header *)(Buffer + ModelHeader->MaterialsHeaderOffset);
 
     Result->MaterialCount = MaterialsHeader->MaterialCount;
     Result->Materials = PushArray(Arena, Result->MaterialCount, mesh_material);
@@ -237,7 +241,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
     // Animations
     model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)
-        (Buffer + Header->AnimationsHeaderOffset);
+        (Buffer + ModelHeader->AnimationsHeaderOffset);
     Result->AnimationCount = AnimationsHeader->AnimationCount;
     Result->Animations = PushArray(Arena, Result->AnimationCount, animation_clip);
 
@@ -272,6 +276,41 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
         NextAnimationHeaderOffset += sizeof(model_asset_animation_header) + NextAnimationSampleHeaderOffset;
     }
+
+    return Result;
+}
+
+internal font_asset *
+LoadFontAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
+{
+    font_asset *Result = PushType(Arena, font_asset);
+
+    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, false);
+    u8 *Buffer = (u8 *) AssetFile.Contents;
+
+    asset_header *Header = (asset_header *) Buffer;
+
+    Assert(Header->Type == AssetType_Font);
+
+    font_asset_header *FontHeader = (font_asset_header *) (Buffer + Header->DataOffset);
+
+    Result->TextureAtlas.Width = FontHeader->TextureAtlasWidth;
+    Result->TextureAtlas.Height = FontHeader->TextureAtlasHeight;
+    Result->TextureAtlas.Channels = FontHeader->TextureAtlasChannels;
+    Result->TextureAtlas.Pixels = (u8 *) (Buffer + FontHeader->TextureAtlasOffset);
+
+    Result->VerticalAdvance = FontHeader->VerticalAdvance;
+    Result->Ascent = FontHeader->Ascent;
+    Result->Descent = FontHeader->Descent;
+
+    Result->CodepointsRangeCount = FontHeader->CodepointsRangeCount;
+    Result->CodepointsRanges = (codepoints_range *) (Buffer + FontHeader->CodepointsRangesOffset);
+
+    Result->HorizontalAdvanceTableCount = FontHeader->HorizontalAdvanceTableCount;
+    Result->HorizontalAdvanceTable = (f32 *) (Buffer + FontHeader->HorizontalAdvanceTableOffset);
+
+    Result->GlyphCount = FontHeader->GlyphCount;
+    Result->Glyphs = (glyph *) (Buffer + FontHeader->GlyphsOffset);
 
     return Result;
 }

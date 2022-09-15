@@ -1,12 +1,3 @@
-#include <assimp/cimport.h>        // Plain-C interface
-#include <assimp/scene.h>          // Output data structure
-#include <assimp/postprocess.h>    // Post processing flags
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
 // todo: some models have weird bone transformations
 // https://github.com/assimp/assimp/issues/1974
 
@@ -33,6 +24,9 @@ using dynamic_array = std::vector<TValue>;
 template <typename TKey, typename TValue>
 using hashtable = std::unordered_map<TKey, TValue>;
 
+using namespace rapidjson;
+namespace fs = std::filesystem;
+
 struct assimp_node
 {
     aiNode *Node;
@@ -50,6 +44,40 @@ AllocateMemory(u32 Count = 1)
     return Result;
 }
 
+inline u32
+GetFileSize(FILE *File)
+{
+    u32 FileSize = 0;
+
+    fseek(File, 0, SEEK_END);
+    FileSize = ftell(File);
+    fseek(File, 0, SEEK_SET);
+
+    return FileSize;
+}
+
+internal char *
+ReadTextFile(const char *FileName)
+{
+    char *Result = 0;
+    FILE *File = fopen(FileName, "rb");
+
+    if (File)
+    {
+        u32 Length = GetFileSize(File);
+
+        Result = AllocateMemory<char>(Length + 1);
+
+        fread(Result, 1, Length, File);
+        Result[Length] = 0;
+
+        fclose(File);
+    }
+
+    return Result;
+}
+
+// Assimp utils
 inline vec4
 AssimpColor2Vector(aiColor4D AssimpColor)
 {
@@ -761,37 +789,4 @@ ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
             ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
         }
     }
-}
-
-inline u32
-GetFileSize(FILE *File)
-{
-    u32 FileSize = 0;
-
-    fseek(File, 0, SEEK_END);
-    FileSize = ftell(File);
-    fseek(File, 0, SEEK_SET);
-
-    return FileSize;
-}
-
-internal char *
-ReadTextFile(const char *FileName)
-{
-    char *Result = 0;
-    FILE *File = fopen(FileName, "rb");
-
-    if (File)
-    {
-        u32 Length = GetFileSize(File);
-
-        Result = AllocateMemory<char>(Length + 1);
-
-        fread(Result, 1, Length, File);
-        Result[Length] = 0;
-
-        fclose(File);
-    }
-
-    return Result;
 }

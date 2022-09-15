@@ -5,6 +5,12 @@
 #define GET_MOUSE_CURSOR_X(lParam) (i32)(i16)((lParam) & 0xFFFF)
 #define GET_MOUSE_CURSOR_Y(lParam) (i32)(i16)((lParam) >> 16)
 
+struct win32_job_queue_sync
+{
+    CRITICAL_SECTION CriticalSection;
+    CONDITION_VARIABLE QueueNotEmpty;
+};
+
 struct win32_platform_state
 {
     HWND WindowHandle;
@@ -35,6 +41,8 @@ struct win32_platform_state
     f32 TimeRate;
 
     mouse_mode MouseMode;
+
+    win32_job_queue_sync JobQueueSync;
 };
 
 struct win32_game_code
@@ -56,7 +64,7 @@ struct win32_file_attributes
     FILETIME LastWriteTime;
 };
 
-struct win32_thread
+struct win32_worker_thread
 {
     job_queue *JobQueue;
 };

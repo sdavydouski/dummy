@@ -35,6 +35,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shaders", "shaders", "{0108
 		renderers\OpenGL\shaders\simple.frag = renderers\OpenGL\shaders\simple.frag
 		renderers\OpenGL\shaders\simple.vert = renderers\OpenGL\shaders\simple.vert
 		renderers\OpenGL\shaders\skinned_mesh.vert = renderers\OpenGL\shaders\skinned_mesh.vert
+		renderers\OpenGL\shaders\text.frag = renderers\OpenGL\shaders\text.frag
+		renderers\OpenGL\shaders\text.vert = renderers\OpenGL\shaders\text.vert
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{E838FA38-32E5-4E28-829C-93D44A18AF91}"

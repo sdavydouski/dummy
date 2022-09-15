@@ -156,18 +156,80 @@ struct model_asset
     animation_clip *Animations;
 };
 
+struct glyph
+{
+    vec2 SpriteSize;
+    vec2 CharacterSize;
+    vec2 UV;
+    vec2 Alignment;
+};
+
+struct codepoints_range
+{
+    u32 Start;
+    u32 End;
+    u32 Count;
+};
+
+struct font_asset
+{
+    bitmap TextureAtlas;
+
+    i32 VerticalAdvance;
+    i32 Ascent;
+    i32 Descent;
+
+    u32 CodepointsRangeCount;
+    codepoints_range *CodepointsRanges;
+
+    u32 HorizontalAdvanceTableCount;
+    f32 *HorizontalAdvanceTable;
+
+    u32 GlyphCount;
+    glyph *Glyphs;
+};
+
+// todo: same as font_asset
+struct font
+{
+    char Name[64];
+    u32 TextureId;
+
+    bitmap TextureAtlas;
+
+    i32 VerticalAdvance;
+    i32 Ascent;
+    i32 Descent;
+
+    u32 CodepointsRangeCount;
+    codepoints_range *CodepointsRanges;
+
+    u32 HorizontalAdvanceTableCount;
+    f32 *HorizontalAdvanceTable;
+
+    u32 GlyphCount;
+    glyph *Glyphs;
+};
+
 #pragma pack(push, 1)
+
+enum asset_type
+{
+    AssetType_Model = 0x1,
+    AssetType_Font = 0x2
+};
 
 struct asset_header
 {
-
+    u32 MagicValue;
+    u32 Version;
+    u64 DataOffset;
+    asset_type Type;
+    char Description[32];
 };
 
 struct model_asset_header
 {
-    i32 MagicValue;
-    i32 Version;
-    char Description[32];
     u64 SkeletonHeaderOffset;
     u64 SkeletonPoseHeaderOffset;
     u64 AnimationGraphHeaderOffset;
@@ -285,6 +347,26 @@ struct model_asset_animation_sample_header
     u32 JointIndex;
     u32 KeyFrameCount;
     u64 KeyFramesOffset;
+};
+
+struct font_asset_header {
+    i32 TextureAtlasWidth;
+    i32 TextureAtlasHeight;
+    i32 TextureAtlasChannels;
+    u64 TextureAtlasOffset;
+
+    i32 VerticalAdvance;
+    i32 Ascent;
+    i32 Descent;
+
+    u32 CodepointsRangeCount;
+    u64 CodepointsRangesOffset;
+
+    u32 HorizontalAdvanceTableCount;
+    u64 HorizontalAdvanceTableOffset;
+
+    u32 GlyphCount;
+    u64 GlyphsOffset;
 };
 
 #pragma pack(pop)

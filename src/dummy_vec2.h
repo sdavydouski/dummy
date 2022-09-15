@@ -50,6 +50,12 @@ struct vec2
         return Result;
     }
 
+    inline vec2 operator /(vec2 Vector)
+    {
+        vec2 Result = vec2(x / Vector.x, y / Vector.y);
+        return Result;
+    }
+
     inline vec2 operator +(vec2 Vector)
     {
         vec2 Result = vec2(x + Vector.x, y + Vector.y);

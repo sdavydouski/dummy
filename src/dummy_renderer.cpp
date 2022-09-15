@@ -150,6 +150,18 @@ DrawRectangle(render_commands *Commands, transform Transform, vec4 Color, u32 Re
 }
 
 inline void
+DrawTextLine(render_commands *Commands, const wchar *Text, font *Font, mat4 Projection, vec3 Position, f32 Scale, vec4 Color, u32 RenderTarget = 0)
+{
+    render_command_draw_text_line *Command = PushRenderCommand(Commands, render_command_draw_text_line, RenderCommand_DrawTextLine, RenderTarget);
+    CopyString(Text, Command->Text);
+    Command->Font = Font;
+    Command->Projection = Projection;
+    Command->Position = Position;
+    Command->Scale = Scale;
+    Command->Color = Color;
+}
+
+inline void
 DrawGround(render_commands *Commands, u32 RenderTarget = 0)
 {
     render_command_draw_ground *Command = PushRenderCommand(Commands, render_command_draw_ground, RenderCommand_DrawGround, RenderTarget);
