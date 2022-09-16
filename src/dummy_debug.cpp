@@ -236,10 +236,21 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
     ImGui::SliderFloat3("Dir Direction", (f32 *) &GameState->DirectionalLight.Direction, -1.f, 1.f);
     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
-    ImGui::Checkbox("Show Camera", (bool *) &GameState->Options.ShowCamera);
-    ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
-    ImGui::Checkbox("Show Rigid Bodies", (bool *) &GameState->Options.ShowRigidBodies);
-    ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
+    if (ImGui::BeginTable("Render toggles", 2))
+    {
+        ImGui::TableNextColumn();
+        ImGui::Checkbox("Show Camera", (bool *) &GameState->Options.ShowCamera);
+        ImGui::TableNextColumn();
+        ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
+
+        ImGui::TableNextColumn();
+        ImGui::Checkbox("Show Rigid Bodies", (bool *) &GameState->Options.ShowRigidBodies);
+        ImGui::TableNextColumn();
+        ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
+
+        ImGui::EndTable();
+    }
+
     ImGui::End();
 
     ImGui::Begin("Animation Graph");

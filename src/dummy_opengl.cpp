@@ -459,6 +459,7 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
     GLuint Program = Shader->Program;
 
     Shader->ModelUniformLocation = glGetUniformLocation(Program, "u_Model");
+    Shader->ModeUniformLocation = glGetUniformLocation(Program, "u_Mode");
     Shader->SkinningMatricesSamplerUniformLocation = glGetUniformLocation(Program, "u_SkinningMatricesSampler");
 
     Shader->ColorUniformLocation = glGetUniformLocation(Program, "u_Color");
@@ -492,7 +493,7 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 {
     u32 Size = InitialSize + 256;
     char *Result = PushString(Arena, Size);
-    FormatString_(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT);
+    FormatString_(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT, OPENGL_WORLD_SPACE_MODE, OPENGL_SCREEN_SPACE_MODE);
 
     return Result;
 }
@@ -1051,7 +1052,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
         mat4 TransposeLightView = Transpose(Options->CascadeView);
 
         glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-        glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeLightProjection);
+        glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeLightProjection);
         glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeLightView);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
@@ -1074,33 +1075,33 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 break;
             }
-            case RenderCommand_SetOrthographicProjection:
+            case RenderCommand_SetScreenProjection:
             {
                 if (!Options->RenderShadowMap)
                 {
-                    render_command_set_orthographic_projection *Command = (render_command_set_orthographic_projection *) Entry;
+                    render_command_set_screen_projection *Command = (render_command_set_screen_projection *) Entry;
 
                     mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
                     glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, ScreenProjection), sizeof(mat4), &TransposeProjection);
                     glBindBuffer(GL_UNIFORM_BUFFER, 0);
                 }
 
                 break;
             }
-            case RenderCommand_SetPerspectiveProjection:
+            case RenderCommand_SetWorldProjection:
             {
                 if (!Options->RenderShadowMap)
                 {
-                    render_command_set_perspective_projection *Command = (render_command_set_perspective_projection *) Entry;
+                    render_command_set_world_projection *Command = (render_command_set_world_projection *) Entry;
 
                     mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
                     glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Projection), sizeof(mat4), &TransposeProjection);
+                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeProjection);
                     glBindBuffer(GL_UNIFORM_BUFFER, 0);
                 }
 
@@ -1234,6 +1235,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         mat4 S = Scale(Command->End - Command->Start);
                         mat4 Model = T * S;
 
+                        glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
                         glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
                         glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
                     }
@@ -1266,6 +1268,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
                     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+                    glUniform1i(Shader->ModeUniformLocation, OPENGL_SCREEN_SPACE_MODE);
                     glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
                     glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
@@ -1277,27 +1280,34 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 break;
             }
-            case RenderCommand_DrawTextLine:
+            case RenderCommand_DrawText:
             {
                 if (!Options->RenderShadowMap)
                 {
-                    render_command_draw_text_line *Command = (render_command_draw_text_line *) Entry;
+                    render_command_draw_text *Command = (render_command_draw_text *) Entry;
 
                     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_TEXT_SHADER_ID);
 
                     glBindVertexArray(State->RectangleVAO);
                     glUseProgram(Shader->Program);
-                    glDisable(GL_DEPTH_TEST);
 
-                    mat4 View = mat4(1.f);
-                    mat4 Projection = Command->Projection;
+                    if (!Command->DepthEnabled)
+                    {
+                        glDisable(GL_DEPTH_TEST);
+                    }
+
+                    if (Command->Mode == DrawText_WorldSpace)
+                    {
+                        glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
+                    }
+                    else if (Command->Mode == DrawText_ScreenSpace)
+                    {
+                        glUniform1i(Shader->ModeUniformLocation, OPENGL_SCREEN_SPACE_MODE);
+                    }
+                    
+                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     font *Font = Command->Font;
-
-                    glUniformMatrix4fv(glGetUniformLocation(Shader->Program, "u_TextView"), 1, GL_TRUE, (f32 *) View.Elements);
-                    glUniformMatrix4fv(glGetUniformLocation(Shader->Program, "u_TextProjection"), 1, GL_TRUE, (f32 *) Projection.Elements);
-
-                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     opengl_texture *Texture = OpenGLGetTexture(State, Font->TextureId);
                     glActiveTexture(GL_TEXTURE0);
@@ -1306,14 +1316,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     f32 AtX = Command->Position.x;
                     f32 AtY = Command->Position.y;
                     f32 TextScale = Command->Scale;
+                    f32 UnitsPerPixel = Commands->Settings.UnitsPerPixel;
 
-                    // todo:
-                    f32 PixelsPerUnit = 160.f;
-                    f32 UnitsPerPixel = 1.f / PixelsPerUnit;
-                    //
-
-                    vec2 TextureAtlasSize = vec2((f32) Font->TextureAtlas.Width, (f32) Font->TextureAtlas.Height);
-
+                    // todo: draw as billboards?
                     for (wchar *At = Command->Text; *At; ++At)
                     {
                         wchar Character = *At;
@@ -1322,15 +1327,12 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         glyph *GlyphInfo = GetCharacterGlyph(Font, Character);
 
                         vec2 Position = vec2(AtX, AtY);
-                        // todo: maybe I should do it inside assets builder?
-                        vec2 SpriteSize = GlyphInfo->SpriteSize / TextureAtlasSize;
+                        vec2 SpriteSize = GlyphInfo->SpriteSize;
                         vec2 TextureOffset = GlyphInfo->UV;
-
                         vec2 Size = GlyphInfo->CharacterSize * TextScale * UnitsPerPixel;
                         vec2 Alignment = (GlyphInfo->Alignment) * TextScale * UnitsPerPixel;
 
-                        // todo: Z coordinate
-                        vec3 Translation = vec3(Position + Alignment, 0.f);
+                        vec3 Translation = vec3(Position + Alignment, Command->Position.z);
                         vec3 Scale = vec3(Size, 0.f);
                         quat Rotation = quat(0.f);
 
@@ -1346,7 +1348,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         AtX += HorizontalAdvance * TextScale * UnitsPerPixel;
                     }
 
-                    glEnable(GL_DEPTH_TEST);
+                    if (!Command->DepthEnabled)
+                    {
+                        glEnable(GL_DEPTH_TEST);
+                    }
+
                     glUseProgram(0);
                     glBindVertexArray(0);
                 }
@@ -1412,6 +1418,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             mat4 Model = Transform(Command->Transform);
                             material Material = Command->Material;
 
+                            glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
                             glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
                             glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
 

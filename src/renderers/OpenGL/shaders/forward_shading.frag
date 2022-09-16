@@ -1,4 +1,5 @@
 //! #include "common/version.glsl"
+//! #include "common/constants.glsl"
 //! #include "common/math.glsl"
 //! #include "common/uniform.glsl"
 //! #include "common/blinn_phong.glsl"
@@ -54,8 +55,7 @@ void main()
 
     if (u_Material.HasNormalMap)
     {
-        Normal = Normal * 2.f - 1.f;
-        // todo: optimize   
+        Normal = Normal * 2.f - 1.f; 
         Normal = fs_in.TBN * Normal;
     }
     

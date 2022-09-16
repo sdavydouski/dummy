@@ -394,16 +394,16 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 {
     game_asset FontAssets[] = {
         {
-            "Arial",
-            "assets\\arial.asset"
-        },
-        {
-            "SF Atarian System",
-            "assets\\SF Atarian System.asset"
-        },
-        {
             "Nasalization",
             "assets\\nasalization-rg.asset"
+        },
+        {
+            "TitilliumWeb-Regular",
+            "assets\\TitilliumWeb-Regular.asset"
+        },
+        {
+            "Where My Keys",
+            "assets\\Where My Keys.asset"
         }
     };
 
@@ -1429,10 +1429,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         if (State->Mode == GameMode_Menu)
         {
-            State->Mode = GameMode_World;
+            State->Mode = State->PrevMode;
         }
-        else if (State->Mode == GameMode_World)
+        else if (State->Mode == GameMode_World || State->Mode == GameMode_Edit)
         {
+            State->PrevMode = State->Mode;
             State->Mode = GameMode_Menu;
             InitGameMenu(State);
         }
@@ -1720,13 +1721,18 @@ DLLExport GAME_RENDER(GameRender)
 
     ClearMemoryArena(&State->TransientArena);
 
+    f32 ScreenWidthInUnits = 20.f;
+    f32 PixelsPerUnit = (f32) Parameters->WindowWidth / ScreenWidthInUnits;
+    f32 ScreenHeightInUnits = (f32) Parameters->WindowHeight / PixelsPerUnit;
+
     RenderCommands->Settings.WindowWidth = Parameters->WindowWidth;
     RenderCommands->Settings.WindowHeight = Parameters->WindowHeight;
     RenderCommands->Settings.Time = Parameters->Time;
+    RenderCommands->Settings.PixelsPerUnit = PixelsPerUnit;
+    RenderCommands->Settings.UnitsPerPixel = 1.f / PixelsPerUnit;
 
     f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
-    // todo: add loading message
     if (State->Assets.State == GameAssetsState_Loaded)
     {
         // todo: render commands buffer is not multithread-safe!
@@ -1740,6 +1746,15 @@ DLLExport GAME_RENDER(GameRender)
     }
 
     SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
+
+    f32 Left = -ScreenWidthInUnits / 2.f;
+    f32 Right = ScreenWidthInUnits / 2.f;
+    f32 Bottom = -ScreenHeightInUnits / 2.f;
+    f32 Top = ScreenHeightInUnits / 2.f;
+    f32 Near = -10.f;
+    f32 Far = 10.f;
+
+    SetScreenProjection(RenderCommands, Left, Right, Bottom, Top, Near, Far);
     
     switch (State->Mode)
     {
@@ -1769,7 +1784,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
-            SetPerspectiveProjection(RenderCommands, Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
+            SetWorldProjection(RenderCommands, Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
 
             BuildFrustrumPolyhedron(&State->PlayerCamera, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
@@ -1962,24 +1977,31 @@ DLLExport GAME_RENDER(GameRender)
             DrawGround(RenderCommands);
 
 #if 1
-            if (State->Assets.State != GameAssetsState_Ready)
             {
-                // todo:
-                f32 FrustrumWidthInUnits = 20.f;
-                f32 PixelsPerUnit = (f32) Parameters->WindowWidth / FrustrumWidthInUnits;
-                f32 FrustrumHeightInUnits = (f32) Parameters->WindowHeight / PixelsPerUnit;
+                if (State->Assets.State != GameAssetsState_Ready)
+                {
+                    font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
+                    DrawText(RenderCommands, L"Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                }
 
-                f32 Left = -FrustrumWidthInUnits / 2.f;
-                f32 Right = FrustrumWidthInUnits / 2.f;
-                f32 Bottom = -FrustrumHeightInUnits / 2.f;
-                f32 Top = FrustrumHeightInUnits / 2.f;
-                f32 Near = -10.f;
-                f32 Far = 10.f;
+                if (State->Player->Model)
+                {
+                    font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
+                    {
+                        wchar Text[64];
+                        FormatString(Text, L"Active entity: %S", State->Player->Model->Name);
+                        DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                    }
 
-                font *Font = GetFontAsset(&State->Assets, "Nasalization");
-                mat4 Projection = Orthographic(Left, Right, Bottom, Top, Near, Far);
+                    {
+                        vec3 Position = State->Player->Transform.Translation;
+                        vec3 TextPosition = Position + vec3(-0.8f, 6.f, 0.f);
 
-                DrawTextLine(RenderCommands, L"Loading assets...", Font, Projection, vec3(-3.f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f));
+                        wchar Text[64];
+                        FormatString(Text, L"%.2f, %.2f, %.2f", Position.x, Position.y, Position.z);
+                        DrawText(RenderCommands, Text, Font, TextPosition, 0.75f, vec4(1.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
+                    }
+                }
             }
 #endif
 
@@ -1988,19 +2010,6 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_Menu:
         {
             Clear(RenderCommands, vec4(0.f));
-
-            f32 FrustrumWidthInUnits = 20.f;
-            f32 PixelsPerUnit = (f32)Parameters->WindowWidth / FrustrumWidthInUnits;
-            f32 FrustrumHeightInUnits = (f32)Parameters->WindowHeight / PixelsPerUnit;
-
-            f32 Left = -FrustrumWidthInUnits / 2.f;
-            f32 Right = FrustrumWidthInUnits / 2.f;
-            f32 Bottom = -FrustrumHeightInUnits / 2.f;
-            f32 Top = FrustrumHeightInUnits / 2.f;
-            f32 Near = -10.f;
-            f32 Far = 10.f;
-
-            SetOrthographicProjection(RenderCommands, Left, Right, Bottom, Top, Near, Far);
 
             vec3 TopLeft = vec3(-3.f, 3.f, 0.f);
             vec3 TopRight = vec3(3.f, 3.f, 0.f);
@@ -2064,11 +2073,8 @@ DLLExport GAME_RENDER(GameRender)
                 );
             }
 
-            font *Font = GetFontAsset(&State->Assets, "Nasalization");
-            // todo:
-            mat4 Projection = Orthographic(Left, Right, Bottom, Top, Near, Far);
-
-            DrawTextLine(RenderCommands, L"Dummy", Font, Projection, vec3(-1.5f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f));
+            font *Font = GetFontAsset(&State->Assets, "Where My Keys");
+            DrawText(RenderCommands, L"Dummy", Font, vec3(-1.8f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
 
             break;
         }

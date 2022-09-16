@@ -17,11 +17,14 @@
 #define OPENGL_TEXT_SHADER_ID 0x7
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 32
+#define OPENGL_WORLD_SPACE_MODE 0x1
+#define OPENGL_SCREEN_SPACE_MODE 0x2
 
 #define MAX_SHADER_FILE_PATH 256
 
 const char *OpenGLCommonShaders[] = {
     "..\\src\\renderers\\OpenGL\\shaders\\common\\version.glsl",
+    "..\\src\\renderers\\OpenGL\\shaders\\common\\constants.glsl",
     "..\\src\\renderers\\OpenGL\\shaders\\common\\math.glsl",
     "..\\src\\renderers\\OpenGL\\shaders\\common\\uniform.glsl",
     "..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl",
@@ -77,6 +80,7 @@ struct opengl_shader
     
     // Uniform locations
     GLint ModelUniformLocation;
+    GLint ModeUniformLocation;
     GLint SkinningMatricesSamplerUniformLocation;
 
     GLint ColorUniformLocation;
@@ -105,7 +109,8 @@ struct opengl_shader
 
 struct opengl_shader_state
 {
-    mat4 Projection;
+    mat4 WorldProjection;
+    mat4 ScreenProjection;
     mat4 View;
     alignas(16) vec3 CameraPosition;
     alignas(16) vec3 CameraDirection;

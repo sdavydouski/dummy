@@ -12,8 +12,7 @@ uniform sampler2D u_FontTextureAtlas;
 
 void main()
 {
-    float ChannelValue = texture(u_FontTextureAtlas, fs_in.TextureCoords + u_TextureOffset).r;
+    float Value = texture(u_FontTextureAtlas, fs_in.TextureCoords + u_TextureOffset).r;
 
-    out_Color = vec4(1.f, 1.f, 1.f, ChannelValue) * u_Color;
-    //out_Color = u_Color;
+    out_Color = vec4(1.f, 1.f, 1.f, Value) * u_Color;
 }

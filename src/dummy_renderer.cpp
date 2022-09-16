@@ -85,10 +85,10 @@ SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height, u32 
 }
 
 inline void
-SetOrthographicProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far, u32 RenderTarget = 0)
+SetScreenProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far, u32 RenderTarget = 0)
 {
-    render_command_set_orthographic_projection *Command = 
-        PushRenderCommand(Commands, render_command_set_orthographic_projection, RenderCommand_SetOrthographicProjection, RenderTarget);
+    render_command_set_screen_projection *Command = 
+        PushRenderCommand(Commands, render_command_set_screen_projection, RenderCommand_SetScreenProjection, RenderTarget);
     Command->Left = Left;
     Command->Right = Right;
     Command->Bottom = Bottom;
@@ -98,10 +98,10 @@ SetOrthographicProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bo
 }
 
 inline void
-SetPerspectiveProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far, u32 RenderTarget = 0)
+SetWorldProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far, u32 RenderTarget = 0)
 {
-    render_command_set_perspective_projection *Command =
-        PushRenderCommand(Commands, render_command_set_perspective_projection, RenderCommand_SetPerspectiveProjection, RenderTarget);
+    render_command_set_world_projection *Command =
+        PushRenderCommand(Commands, render_command_set_world_projection, RenderCommand_SetWorldProjection, RenderTarget);
     Command->FovY = FovY;
     Command->Aspect = Aspect;
     Command->Near = Near;
@@ -150,15 +150,16 @@ DrawRectangle(render_commands *Commands, transform Transform, vec4 Color, u32 Re
 }
 
 inline void
-DrawTextLine(render_commands *Commands, const wchar *Text, font *Font, mat4 Projection, vec3 Position, f32 Scale, vec4 Color, u32 RenderTarget = 0)
+DrawText(render_commands *Commands, const wchar *Text, font *Font, vec3 Position, f32 Scale, vec4 Color, draw_text_mode Mode, b32 DepthEnabled = false, u32 RenderTarget = 0)
 {
-    render_command_draw_text_line *Command = PushRenderCommand(Commands, render_command_draw_text_line, RenderCommand_DrawTextLine, RenderTarget);
+    render_command_draw_text *Command = PushRenderCommand(Commands, render_command_draw_text, RenderCommand_DrawText, RenderTarget);
     CopyString(Text, Command->Text);
     Command->Font = Font;
-    Command->Projection = Projection;
     Command->Position = Position;
     Command->Scale = Scale;
     Command->Color = Color;
+    Command->Mode = Mode;
+    Command->DepthEnabled = DepthEnabled;
 }
 
 inline void

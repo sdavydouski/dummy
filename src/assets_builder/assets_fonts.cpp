@@ -212,7 +212,7 @@ LoadFontAsset(const char *FilePath, font_asset *FontAsset)
         ++CodepointIndex;
     }
 
-#if 1
+#if 0
     // for testing
     char FontTextureAtlasFilePath[256];
     FormatString(FontTextureAtlasFilePath, "assets/%s.png", GetLastAfterDelimiter((char *) FilePath, '/'));
@@ -321,22 +321,4 @@ ProcessFont(const char *FilePath, const char *OutputPath)
     font_asset TestAsset = {};
     ReadFontAsset(OutputPath, &TestAsset, &Asset);
 #endif
-}
-
-internal void
-BuildFontAssets()
-{
-    char *Path = (char *) "fonts/";
-
-    for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
-    {
-        fs::path FilePath = Entry.path();
-        fs::path FileName = Entry.path().stem();
-
-        char OutputPath[256];
-        FormatString(OutputPath, "assets/%s.asset", FileName.generic_string().c_str());
-
-        // todo: multithreading (std::thread?)
-        ProcessFont(FilePath.generic_string().c_str(), OutputPath);
-    }
 }

@@ -907,35 +907,3 @@ ProcessAsset(const char *FilePath, const char *AnimationConfigPath, const char *
     ReadModelAsset(OutputPath, &TestAsset, &Asset);
 #endif
 }
-
-// https://nilooy.github.io/character-animation-combiner/
-internal void
-BuildModelAssets()
-{
-    char *Path = (char *) "models/";
-
-    for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
-    {
-        if (Entry.is_directory())
-        {
-            fs::path DirectoryPath = Entry.path();
-            fs::path DirectoryName = Entry.path().filename();
-
-            char FilePath[256];
-            FormatString(FilePath, "%s/%s.fbx", DirectoryPath.generic_string().c_str(), DirectoryName.generic_string().c_str());
-
-            char AnimationConfigPath[256];
-            // todo: move to yaml configs
-            FormatString(AnimationConfigPath, "%s/animation_graph.json", DirectoryPath.generic_string().c_str());
-
-            char AnimationClipsPath[256];
-            FormatString(AnimationClipsPath, "%s/clips", DirectoryPath.generic_string().c_str());
-
-            char OutputPath[256];
-            FormatString(OutputPath, "assets/%s.asset", DirectoryName.generic_string().c_str());
-
-            // todo: multithreading (std::thread?)
-            ProcessAsset(FilePath, AnimationConfigPath, AnimationClipsPath, OutputPath);
-        }
-    }
-}

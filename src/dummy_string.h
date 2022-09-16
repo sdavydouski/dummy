@@ -114,7 +114,7 @@ FormatString_(wchar *String, u32 Size, const wchar *Format, ...)
     va_end(ArgPtr);
 }
 
-#define FormatString(String, Format, ...) FormatString_(String, sizeof(String), Format, __VA_ARGS__)
+#define FormatString(String, Format, ...) FormatString_(String, ArrayCount(String), Format, __VA_ARGS__)
 
 inline void
 GetDirectoryPath(const char *FilePath, char *DirectoryPath)

@@ -1,4 +1,6 @@
 //! #include "common/version.glsl"
+//! #include "common/constants.glsl"
+//! #include "common/uniform.glsl"
 
 layout(location = 0) in vec3 in_Position;
 layout(location = 1) in vec2 in_TextureCoords;
@@ -7,28 +9,20 @@ out VS_OUT {
     vec2 TextureCoords;
 } vs_out; 
 
-uniform mat4 u_TextProjection;
-uniform mat4 u_TextView;
+uniform int u_Mode;
 uniform mat4 u_Model;
 uniform vec2 u_SpriteSize;
+uniform sampler2D u_FontTextureAtlas;
 
 void main()
 {
-    vs_out.TextureCoords = in_TextureCoords * u_SpriteSize;
+    // [-1, 1] -> [0, 1]
+    vec3 Position = (in_Position + 1.f) / 2.f; 
 
-    vec3 Position = in_Position;
+    vec2 TextureSize = textureSize(u_FontTextureAtlas, 0);
+    vec2 NormalizedSpriteSize = u_SpriteSize / TextureSize;
 
-    // todo:
-#if 1
-    if (Position.x == -1.f)
-    {
-        Position.x = 0.f;
-    }
-    if (Position.y == -1.f)
-    {
-        Position.y = 0.f;
-    }
-#endif
+    vs_out.TextureCoords = in_TextureCoords * NormalizedSpriteSize;
 
-    gl_Position = u_TextProjection * u_TextView * u_Model * vec4(Position, 1.f);
+    gl_Position = GetViewProjection(u_Mode) * u_Model * vec4(Position, 1.f);
 }

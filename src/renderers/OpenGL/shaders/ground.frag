@@ -1,4 +1,5 @@
 //! #include "common/version.glsl"
+//! #include "common/constants.glsl"
 //! #include "common/math.glsl"
 //! #include "common/uniform.glsl"
 //! #include "common/blinn_phong.glsl"
@@ -103,5 +104,5 @@ void main()
     }
 
 	out_Color = vec4(Result, 1.f - Opacity);
-	gl_FragDepth = ComputeDepth(GroundPoint, u_View, u_Projection);
+	gl_FragDepth = ComputeDepth(GroundPoint, u_View, u_WorldProjection);
 }

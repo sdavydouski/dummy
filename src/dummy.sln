@@ -42,6 +42,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{E838FA38-32E5-4E28-829C-93D44A18AF91}"
 	ProjectSection(SolutionItems) = preProject
 		renderers\OpenGL\shaders\common\blinn_phong.glsl = renderers\OpenGL\shaders\common\blinn_phong.glsl
+		renderers\OpenGL\shaders\common\constants.glsl = renderers\OpenGL\shaders\common\constants.glsl
 		renderers\OpenGL\shaders\common\math.glsl = renderers\OpenGL\shaders\common\math.glsl
 		renderers\OpenGL\shaders\common\shadows.glsl = renderers\OpenGL\shaders\common\shadows.glsl
 		renderers\OpenGL\shaders\common\uniform.glsl = renderers\OpenGL\shaders\common\uniform.glsl

@@ -204,6 +204,7 @@ struct font
     u32 CodepointsRangeCount;
     codepoints_range *CodepointsRanges;
 
+    // todo: should be per codepoint range?
     u32 HorizontalAdvanceTableCount;
     f32 *HorizontalAdvanceTable;
 

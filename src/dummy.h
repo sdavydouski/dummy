@@ -109,7 +109,9 @@ struct game_state
 
     job_queue *JobQueue;
 
+    game_mode PrevMode;
     game_mode Mode;
+
     game_input Input;
 
     vec2 ViewFrustrumSize;
