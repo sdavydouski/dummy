@@ -61,7 +61,6 @@ struct mesh
 
 struct animation_graph_asset;
 
-// todo: break this?
 struct model
 {
     char Name[64];

@@ -166,6 +166,8 @@
       <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>false</ExceptionHandling>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -221,6 +223,8 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
+      <ExceptionHandling>false</ExceptionHandling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

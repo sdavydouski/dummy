@@ -842,6 +842,7 @@ LoadAnimationGrah(const char *FilePath, model_asset *Asset)
     }
 }
 
+// todo: https://github.com/f3d-app/f3d/issues/414 !!!
 internal void
 LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
 {

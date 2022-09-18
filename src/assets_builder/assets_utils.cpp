@@ -16,17 +16,6 @@
 #undef AI_CONFIG_PP_LBW_MAX_WEIGHTS
 #define AI_CONFIG_PP_LBW_MAX_WEIGHTS MAX_WEIGHT_COUNT
 
-using std::string;
-
-template <typename TValue>
-using dynamic_array = std::vector<TValue>;
-
-template <typename TKey, typename TValue>
-using hashtable = std::unordered_map<TKey, TValue>;
-
-using namespace rapidjson;
-namespace fs = std::filesystem;
-
 struct assimp_node
 {
     aiNode *Node;

@@ -132,6 +132,60 @@ GetRotationMatrix(quat q)
     return Result;
 }
 
+inline quat
+LookRotation(mat4 M)
+{
+    quat Result;
+
+    f32 m00 = M[0][0];
+    f32 m11 = M[1][1];
+    f32 m22 = M[2][2];
+    f32 sum = m00 + m11 + m22;
+
+    if (sum > 0.f)
+    {
+        f32 w = Sqrt(sum + 1.f) + 0.5f;
+        f32 f = 0.25f / w;
+
+        Result.x = (M[2][1] - M[1][2]) * f;
+        Result.y = (M[0][2] - M[2][0]) * f;
+        Result.z = (M[1][0] - M[0][1]) * f;
+        Result.w = w;
+    }
+    else if ((m00 > m11) && (m00 > m22))
+    {
+        f32 x = Sqrt(m00 - m11 - m22 + 1.f) * 0.5f;
+        f32 f = 0.25f / x;
+
+        Result.x = x;
+        Result.y = (M[1][0] + M[0][1]) * f;
+        Result.z = (M[0][2] + M[2][0]) * f;
+        Result.w = (M[2][1] - M[1][2]) * f;
+    }
+    else if (m11 > m22)
+    {
+        f32 y = Sqrt(m11 - m00 - m22 + 1.f) * 0.5f;
+        f32 f = 0.25f / y;
+
+        Result.x = (M[1][0] + M[0][1]) * f;
+        Result.y = y;
+        Result.z = (M[2][1] + M[1][2]) * f;
+        Result.w = (M[0][2] - M[2][0]) * f;
+    }
+    else
+    {
+        f32 z = Sqrt(m22 - m00 - m11 + 1.f) * 0.5f;
+        f32 f = 0.25f / z;
+
+        Result.x = (M[0][2] + M[2][0]) * f;
+        Result.y = (M[2][1] + M[1][2]) * f;
+        Result.z = z;
+        Result.w = (M[1][0] - M[0][1]) * f;
+    }
+
+    return Result;
+}
+
 inline vec3
 Rotate(vec3 v, quat q)
 {

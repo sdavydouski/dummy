@@ -419,24 +419,25 @@ Perspective(f32 FovY, f32 AspectRatio, f32 Near, f32 Far)
 }
 
 inline mat4
-LookAt(vec3 Eye, vec3 Target, vec3 WorldUp)
+LookAt(vec3 Position, vec3 Target, vec3 Up)
 {
-    vec3 zAxis = Normalize(Eye - Target);
-    vec3 xAxis = Normalize(Cross(WorldUp, zAxis));
+    vec3 zAxis = Normalize(Position - Target);
+    vec3 xAxis = Normalize(Cross(Up, zAxis));
     vec3 yAxis = Normalize(Cross(zAxis, xAxis));
 
     mat4 Result = mat4(
-        vec4(xAxis, -Dot(xAxis, Eye)),
-        vec4(yAxis, -Dot(yAxis, Eye)),
-        vec4(zAxis, -Dot(zAxis, Eye)),
+        vec4(xAxis, -Dot(xAxis, Position)),
+        vec4(yAxis, -Dot(yAxis, Position)),
+        vec4(zAxis, -Dot(zAxis, Position)),
         vec4(0.f, 0.f, 0.f, 1.f)
     );
 
     return Result;
 }
 
+// todo: Roll?
 inline vec3
-Euler2Direction(f32 Pitch, f32 Yaw)
+Euler2Direction(f32 Yaw, f32 Pitch)
 {
     vec3 Result = vec3(1.f);
 
@@ -500,6 +501,14 @@ AxisAngle2Quat(vec4 AxisAngle)
     Result.y = AxisAngle.y * Sin(Angle / 2);
     Result.z = AxisAngle.z * Sin(Angle / 2);
     Result.w = Cos(Angle / 2);
+
+    return Result;
+}
+
+inline quat
+AxisAngle2Quat(vec3 Axis, f32 Angle)
+{
+    quat Result = AxisAngle2Quat(vec4(Axis.x, Axis.y, Axis.z, Angle));
 
     return Result;
 }

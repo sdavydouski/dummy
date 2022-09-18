@@ -1,94 +1,4 @@
 internal void
-PelegriniStateIdlePerFrameUpdate(animation_graph *Graph, animator_params Params, f32 Delta)
-{
-    animation_node *Active = Graph->Active;
-
-    if (StringEquals(Active->Name, "StateIdle_0"))
-    {
-        Graph->State.Time += Delta;
-
-        if (Graph->State.Time > Params.MaxTime)
-        {
-            Graph->State.Time = 0.f;
-
-            if (Params.ToStateIdle1)
-            {
-                TransitionToNode(Graph, "StateIdle_1");
-            }
-
-            if (Params.ToStateIdle2)
-            {
-                TransitionToNode(Graph, "StateIdle_2");
-            }
-        }
-    }
-    else if (StringEquals(Active->Name, "StateIdle_1"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
-        {
-            TransitionToNode(Graph, "StateIdle_0");
-        }
-    }
-    else if (StringEquals(Active->Name, "StateIdle_2"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
-        {
-            TransitionToNode(Graph, "StateIdle_0");
-        }
-    }
-    else
-    {
-        Assert(!"Invalid state");
-    }
-}
-
-ANIMATOR_CONTROLLER(PelegriniAnimatorController)
-{
-    animation_node *WalkingNode = GetAnimationNode(Graph, "StateWalking");
-    WalkingNode->BlendSpace->Parameter = Params.Move;
-
-    animation_node *Active = Graph->Active;
-
-    if (StringEquals(Active->Name, "StateIdle"))
-    {
-        animation_graph *StateIdleGraph = Active->Graph;
-        PelegriniStateIdlePerFrameUpdate(StateIdleGraph, Params, Delta);
-
-        // External transitions
-        if (Params.ToStateDancing)
-        {
-            StateIdleGraph->State.Time = 0.f;
-            TransitionToNode(Graph, "StateDancing");
-        }
-
-        if (Params.MoveMagnitude > 0.f)
-        {
-            StateIdleGraph->State.Time = 0.f;
-            TransitionToNode(Graph, "StateWalking");
-        }
-    }
-    else if (StringEquals(Active->Name, "StateWalking"))
-    {
-        if (Params.MoveMagnitude < EPSILON)
-        {
-            TransitionToNode(Graph, "StateIdle");
-        }
-    }
-    else if (StringEquals(Active->Name, "StateDancing"))
-    {
-        if (Params.ToStateIdle && Params.MoveMagnitude < EPSILON)
-        {
-            TransitionToNode(Graph, "StateIdle");
-        }
-    }
-    else
-    {
-        Assert(!"Invalid state");
-    }
-}
-
-// xBot/yBot animator
-internal void
 ActionIdlePerFrameUpdate(animation_graph *Graph, animator_params Params, f32 Delta)
 {
     animation_node *Active = Graph->Active;
@@ -211,4 +121,11 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
     {
         Assert(!"Invalid state");
     }
+}
+
+ANIMATOR_CONTROLLER(SimpleAnimatorController)
+{
+    animation_node *Active = Graph->Active;
+
+    // no transitions
 }

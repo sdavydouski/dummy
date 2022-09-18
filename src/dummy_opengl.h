@@ -138,6 +138,7 @@ struct opengl_state
 
     memory_arena Arena;
     platform_api *Platform;
+    platform_profiler *Profiler;
 
     GLuint MultiSampledFBO;
     GLuint MultiSampledColorTexture;

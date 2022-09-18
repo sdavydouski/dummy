@@ -52,27 +52,25 @@ struct spot_light
 
 struct game_camera
 {
-    // For orbiting camera
-    vec3 PivotPosition;
-    f32 Radius;
-    vec3_lerp PivotPositionLerp;
-    //
-
+    transform Transform;
     vec3 Direction;
     vec3 Up;
 
-    // todo: use Transform.Rotation
     f32 Pitch;
     f32 Yaw;
-    //
 
-    transform Transform;
     // Vertical field of view
     f32 FieldOfView;
     f32 FocalLength;
     f32 AspectRatio;
     f32 NearClipPlane;
     f32 FarClipPlane;
+
+    // For orbiting camera
+    vec3 PivotPosition;
+    f32 Radius;
+    vec3_lerp PivotPositionLerp;
+    //
 };
 
 inline mat4

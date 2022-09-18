@@ -15,6 +15,40 @@
 #include "dummy_platform.h"
 #include "dummy.h"
 
+#define sid u64
+
+struct string_id
+{
+    sid Id;
+    char Name[64];
+};
+
+global hash_table<string_id> GlobalStringTable;
+
+internal void
+InitGlobalStringTable(memory_arena *Arena)
+{
+    GlobalStringTable.Count = 4099;
+    GlobalStringTable.Values = PushArray(Arena, GlobalStringTable.Count, string_id);
+}
+
+internal sid
+InternString(char *String)
+{
+    string_id *StringId = HashTableLookup(&GlobalStringTable, String);
+
+    if (StringEquals(StringId->Name, ""))
+    {
+        CopyString(String, StringId->Name);
+        StringId->Id = Hash(String);
+    }
+
+    return StringId->Id;
+}
+
+// todo: try user-defined literal for compile-time evaluation?
+#define SID(String) InternString((char *) String)
+
 #include "dummy_assets.cpp"
 #include "dummy_text.cpp"
 #include "dummy_collision.cpp"
@@ -33,15 +67,14 @@ NormalizeRGB(vec3 RGB)
 }
 
 inline void
-InitCamera(game_camera *Camera, f32 Pitch, f32 Yaw, f32 FieldOfView, f32 AspectRatio, f32 NearClipPlane, f32 FarClipPlane, vec3 Position, vec3 Up = vec3(0.f, 1.f, 0.f))
+InitCamera(game_camera *Camera, f32 FieldOfView, f32 AspectRatio, f32 NearClipPlane, f32 FarClipPlane, vec3 Position, f32 Pitch, f32 Yaw, vec3 Up = vec3(0.f, 1.f, 0.f))
 {
+    Camera->Transform = CreateTransform(Position, vec3(1.f), Euler2Quat(Yaw, Pitch, 0.f));
+    Camera->Direction = Euler2Direction(Yaw, Pitch);
+    Camera->Up = Up;
+
     Camera->Pitch = Pitch;
     Camera->Yaw = Yaw;
-
-    Camera->Transform.Translation = Position;
-    Camera->Transform.Rotation = Euler2Quat(Yaw, Pitch, 0.f);
-    Camera->Direction = Euler2Direction(Pitch, Yaw);
-    Camera->Up = Up;
 
     Camera->FieldOfView = FieldOfView;
     Camera->FocalLength = 1.f / Tan(FieldOfView * 0.5f);
@@ -140,10 +173,6 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
 }
 
 // todo:
-//global u32 GlobalMeshId = 0;
-//global u32 GlobalTextureId = 0;
-//global u32 GlobalSkinningBufferId = 0;
-
 inline u32
 GenerateMeshId()
 {
@@ -701,7 +730,6 @@ AddModelComponent(game_entity *Entity, game_assets *Assets, const char *ModelNam
     Entity->Model = GetModelAsset(Assets, ModelName);
 }
 
-// todo: pack params into struct
 inline void
 AddRigidBodyComponent(game_entity *Entity, vec3 Position, quat Orientation, vec3 HalfSize, b32 RootMotionEnabled, memory_arena *Arena)
 {
@@ -1228,6 +1256,8 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 
 DLLExport GAME_INIT(GameInit)
 {
+    PROFILE(Memory->Profiler, "GameInit");
+
     game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
 
@@ -1255,12 +1285,14 @@ DLLExport GAME_INIT(GameInit)
     State->Animator.Controllers.Count = 31;
     State->Animator.Controllers.Values = PushArray(&State->PermanentArena, State->Animator.Controllers.Count, animator_controller);
 
-    animator_controller *PelegriniController = HashTableLookup(&State->Animator.Controllers, (char *)"Pelegrini");
-    PelegriniController->Func = PelegriniAnimatorController;
-
     animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *)"Bot");
     BotController->Func = BotAnimatorController;
+
+    animator_controller *SimpleController = HashTableLookup(&State->Animator.Controllers, (char *) "Simple");
+    SimpleController->Func = SimpleAnimatorController;
     //
+
+    InitGlobalStringTable(&State->PermanentArena);
 
     State->DelayTime = 0.f;
     State->DelayDuration = 0.5f;
@@ -1270,8 +1302,9 @@ DLLExport GAME_INIT(GameInit)
 
     // todo: should depend on the screen aspect ratio
     f32 AspectRatio = 16.f / 9.f;
-    InitCamera(&State->FreeCamera, RADIANS(-30.f), RADIANS(-90.f), RADIANS(45.f), AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f));
-    InitCamera(&State->PlayerCamera, RADIANS(20.f), RADIANS(0.f), RADIANS(45.f), AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f));
+    f32 FieldOfView = RADIANS(45.f);
+    InitCamera(&State->FreeCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f), RADIANS(-30.f), RADIANS(-90.f));
+    InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(0.f));
     // todo:
     State->PlayerCamera.Radius = 16.f;
 
@@ -1371,11 +1404,14 @@ DLLExport GAME_RELOAD(GameReload)
     }
 
     // Reloading animators
-    animator_controller *PelegriniController = HashTableLookup(&State->Animator.Controllers, (char *) "Pelegrini");
-    PelegriniController->Func = PelegriniAnimatorController;
-
     animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *) "Bot");
     BotController->Func = BotAnimatorController;
+
+    animator_controller *SimpleController = HashTableLookup(&State->Animator.Controllers, (char *) "Simple");
+    SimpleController->Func = SimpleAnimatorController;
+    //
+
+    InitGlobalStringTable(&State->PermanentArena);
 }
 
 inline game_entity *
@@ -1576,6 +1612,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             PlayerCamera->Transform.Translation.z = PlayerCamera->PivotPosition.z -
                 Sqrt(Square(PlayerCamera->Radius) - Square(CameraHeight)) * Cos(PlayerCamera->Yaw);
 
+            PlayerCamera->Transform.Rotation = Euler2Quat(PlayerCamera->Yaw, PlayerCamera->Pitch, 0.f);
+
             // todo:
             vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 4.f, 0.f);
             PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Transform.Translation);
@@ -1639,7 +1677,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 FreeCamera->Yaw += Input->Camera.Range.x * FreeCameraSensitivity;
                 FreeCamera->Yaw = Mod(FreeCamera->Yaw, 2 * PI);
 
-                FreeCamera->Direction = Euler2Direction(FreeCamera->Pitch, FreeCamera->Yaw);
+                FreeCamera->Direction = Euler2Direction(FreeCamera->Yaw, FreeCamera->Pitch);
+                FreeCamera->Transform.Rotation = Euler2Quat(FreeCamera->Yaw, FreeCamera->Pitch, 0.f);
             }
             else
             {
@@ -1665,6 +1704,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
 DLLExport GAME_UPDATE(GameUpdate)
 {
+    //PROFILE(Memory->Profiler, "GameUpdate");
+
     game_state *State = GetGameState(Memory);
 
     // todo: lovely O(n^2)
@@ -1862,148 +1903,133 @@ DLLExport GAME_RENDER(GameRender)
             State->EntityBatches.Count = 32;
             State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
 
-#define MULTITHREADED_ANIMATION 1
-
-#if MULTITHREADED_ANIMATION
-            // Animation
-            u32 MaxJobCount = State->EntityCount;
-            job *Jobs = PushArray(&State->TransientArena, MaxJobCount, job);
-            animate_entity_job *JobParams = PushArray(&State->TransientArena, MaxJobCount, animate_entity_job);
-
-            u32 JobCount = 0;
-            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
-                game_entity *Entity = State->Entities + EntityIndex;
+                PROFILE(Memory->Profiler, "GameRender:AnimateEntities");
 
-                // Rigid bodies movement
-                if (Entity->Body)
+                // Animation
+                u32 MaxJobCount = State->EntityCount;
+                job *Jobs = PushArray(&State->TransientArena, MaxJobCount, job);
+                animate_entity_job *JobParams = PushArray(&State->TransientArena, MaxJobCount, animate_entity_job);
+
+                u32 JobCount = 0;
+                for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
                 {
-                    Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Lag, Entity->Body->Position);
-                    Entity->Transform.Rotation = Entity->Body->Orientation;
+                    game_entity *Entity = State->Entities + EntityIndex;
+
+                    // Rigid bodies movement
+                    if (Entity->Body)
+                    {
+                        Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Lag, Entity->Body->Position);
+                        Entity->Transform.Rotation = Entity->Body->Orientation;
+                    }
+
+                    if (Entity->Animation)
+                    {
+                        job *Job = Jobs + JobCount;
+                        animate_entity_job *JobData = JobParams + JobCount;
+
+                        ++JobCount;
+
+                        JobData->State = State;
+                        JobData->Entity = Entity;
+                        JobData->Arena = SubMemoryArena(&State->TransientArena, Megabytes(1), NoClear());
+                        JobData->Delta = Parameters->Delta;
+
+                        Job->EntryPoint = AnimateEntityJob;
+                        Job->Parameters = JobData;
+                    }
                 }
 
-                if (Entity->Animation)
-                {
-                    job *Job = Jobs + JobCount;
-                    animate_entity_job *JobData = JobParams + JobCount;
-
-                    ++JobCount;
-
-                    JobData->State = State;
-                    JobData->Entity = Entity;
-                    JobData->Arena = SubMemoryArena(&State->TransientArena, Megabytes(1), NoClear());
-                    JobData->Delta = Parameters->Delta;
-                    
-                    Job->EntryPoint = AnimateEntityJob;
-                    Job->Parameters = JobData;
-                }
+                Platform->KickJobsAndWait(State->JobQueue, JobCount, Jobs);
             }
 
-            Platform->KickJobsAndWait(State->JobQueue, JobCount, Jobs);
-#endif
-            //
-
-            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
-                game_entity *Entity = State->Entities + EntityIndex;
+                PROFILE(Memory->Profiler, "GameRender:FrustumCulling");
 
-                aabb BoundingBox = GetEntityBoundingBox(Entity);
-
-#if !MULTITHREADED_ANIMATION
-                // Rigid bodies movement
-                if (Entity->Body)
+                for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
                 {
-                    Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Lag, Entity->Body->Position);
-                    Entity->Transform.Rotation = Entity->Body->Orientation;
-                }
+                    game_entity *Entity = State->Entities + EntityIndex;
 
-                if (Entity->Animation)
-                {
-                    AnimateEntity(State, Entity, &State->TransientArena, Parameters->Delta);
-                }
-#endif
+                    aabb BoundingBox = GetEntityBoundingBox(Entity);
 
-                // todo: come up with some visualization of non-culled entities
-#if 0
-                Entity->DebugView = !EnableFrustrumCulling && AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox);
-#endif
+                    // todo: come up with some visualization of non-culled entities
 
-                // Frustrum culling
-                if (!EnableFrustrumCulling || AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox))
-                {
-                    // Grouping entities into render batches
-                    if (Entity->Model)
+                    // Frustrum culling
+                    if (!EnableFrustrumCulling || AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox))
                     {
-                        entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
-
-                        if (StringEquals(Batch->Name, ""))
+                        // Grouping entities into render batches
+                        if (Entity->Model)
                         {
-                            InitRenderBatch(Batch, Entity->Model, 256, &State->TransientArena);
+                            entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
+
+                            if (StringEquals(Batch->Name, ""))
+                            {
+                                InitRenderBatch(Batch, Entity->Model, 256, &State->TransientArena);
+                            }
+
+                            AddEntityToRenderBatch(Batch, Entity);
                         }
-
-                        AddEntityToRenderBatch(Batch, Entity);
                     }
-                }
 
-                // todo:
-                Entity->Controllable = Entity->FutureControllable;
+                    // todo:
+                    Entity->Controllable = Entity->FutureControllable;
+                }
             }
 
-#if 1
-            // Pushing entities into render buffer
-            for (u32 EntityBatchIndex = 0; EntityBatchIndex < State->EntityBatches.Count; ++EntityBatchIndex)
             {
-                entity_render_batch *Batch = State->EntityBatches.Values + EntityBatchIndex;
+                PROFILE(Memory->Profiler, "GameRender:PushRenderBuffer");
 
-                u32 BatchThreshold = 0;
+                // Pushing entities into render buffer
+                for (u32 EntityBatchIndex = 0; EntityBatchIndex < State->EntityBatches.Count; ++EntityBatchIndex)
+                {
+                    entity_render_batch *Batch = State->EntityBatches.Values + EntityBatchIndex;
 
-                if (Batch->EntityCount > BatchThreshold && Batch->Model->AnimationCount == 0)
-                {
-                    // todo: need to add mesh instanced first :(
-                    RenderEntityBatch(RenderCommands, State, Batch);
-                }
-                else
-                {
-                    for (u32 EntityIndex = 0; EntityIndex < Batch->EntityCount; ++EntityIndex)
+                    u32 BatchThreshold = 0;
+
+                    if (Batch->EntityCount > BatchThreshold && Batch->Model->AnimationCount == 0)
                     {
-                        game_entity *Entity = Batch->Entities[EntityIndex];
+                        RenderEntityBatch(RenderCommands, State, Batch);
+                    }
+                    else
+                    {
+                        for (u32 EntityIndex = 0; EntityIndex < Batch->EntityCount; ++EntityIndex)
+                        {
+                            game_entity *Entity = Batch->Entities[EntityIndex];
 
-                        RenderEntity(RenderCommands, State, Entity);
+                            RenderEntity(RenderCommands, State, Entity);
+                        }
                     }
                 }
             }
-#endif
 
             DrawGround(RenderCommands);
 
-#if 1
+            if (State->Assets.State != GameAssetsState_Ready)
             {
-                if (State->Assets.State != GameAssetsState_Ready)
-                {
-                    font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
-                    DrawText(RenderCommands, L"Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
-                }
-
-                if (State->Player->Model)
-                {
-                    font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
-                    {
-                        wchar Text[64];
-                        FormatString(Text, L"Active entity: %S", State->Player->Model->Name);
-                        DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
-                    }
-
-                    {
-                        vec3 Position = State->Player->Transform.Translation;
-                        vec3 TextPosition = Position + vec3(-0.8f, 6.f, 0.f);
-
-                        wchar Text[64];
-                        FormatString(Text, L"%.2f, %.2f, %.2f", Position.x, Position.y, Position.z);
-                        DrawText(RenderCommands, Text, Font, TextPosition, 0.75f, vec4(1.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
-                    }
-                }
+                font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
+                DrawText(RenderCommands, L"Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
             }
+
+
+            if (State->Player->Model)
+            {
+                font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
+                {
+                    wchar Text[64];
+                    FormatString(Text, L"Active entity: %S", State->Player->Model->Name);
+                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                }
+#if 0
+                {
+                    vec3 Position = State->Player->Transform.Translation;
+                    vec3 TextPosition = Position + vec3(-0.8f, 6.f, 0.f);
+
+                    wchar Text[64];
+                    FormatString(Text, L"%.2f, %.2f, %.2f", Position.x, Position.y, Position.z);
+                    DrawText(RenderCommands, Text, Font, TextPosition, 1.f, vec4(1.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
+                }
 #endif
+            }
 
             break;
         }

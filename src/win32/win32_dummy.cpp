@@ -890,6 +890,18 @@ Win32MakeJobQueue(job_queue *JobQueue, u32 WorkerThreadCount, win32_job_queue_sy
     }
 }
 
+inline void
+Win32InitProfiler(platform_profiler *Profiler)
+{
+    LARGE_INTEGER PerformanceFrequency;
+    QueryPerformanceFrequency(&PerformanceFrequency);
+
+    Profiler->TicksPerSecond = PerformanceFrequency.QuadPart;
+    Profiler->CurrentFrameSampleIndex = 0;
+    Profiler->MaxFrameSampleCount = 256;
+    Profiler->FrameSamples = (profiler_frame_samples *) Win32AllocateMemory(0, Profiler->MaxFrameSampleCount * sizeof(profiler_frame_samples));
+}
+
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
     SetProcessDPIAware();
@@ -903,6 +915,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     job_queue JobQueue = {};
     Win32MakeJobQueue(&JobQueue, MaxWorkerThreadCount, &PlatformState.JobQueueSync);
+
+    HANDLE CurrentThread = GetCurrentThread();
+    u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
+    SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
 #if 1
     PlatformState.WindowWidth = 3200;
@@ -932,11 +948,15 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformApi.KickJobAndWait = Win32KickJobAndWait;
     PlatformApi.KickJobsAndWait = Win32KickJobsAndWait;
 
+    platform_profiler PlatformProfiler = {};
+    Win32InitProfiler(&PlatformProfiler);
+
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
     GameMemory.TransientStorageSize = Megabytes(256);
     GameMemory.RenderCommandsStorageSize = Megabytes(32);
     GameMemory.Platform = &PlatformApi;
+    GameMemory.Profiler = &PlatformProfiler;
     GameMemory.JobQueue = &JobQueue;
 
     void *BaseAddress = 0;
@@ -993,6 +1013,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         InitMemoryArena(&Win32OpenGLState.OpenGL.Arena, Win32AllocateMemory(0, RendererArenaSize), RendererArenaSize);
 
         Win32OpenGLState.OpenGL.Platform = &PlatformApi;
+        Win32OpenGLState.OpenGL.Profiler = &PlatformProfiler;
 
         Win32InitOpenGL(&Win32OpenGLState, &PlatformState, hInstance);
         Win32OpenGLSetVSync(&Win32OpenGLState, PlatformState.VSync);
@@ -1009,6 +1030,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
         
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
+
+        umm DebugArenaSize = Megabytes(32);
+        memory_arena DebugArena;
+        InitMemoryArena(&DebugArena, Win32AllocateMemory(0, DebugArenaSize), DebugArenaSize);
 
         DEBUG_UI_INIT(&PlatformState);
 
@@ -1033,22 +1058,34 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         // Game Loop
         while (PlatformState.IsGameRunning)
         {
+            PROFILER_START_FRAME(&PlatformProfiler);
+
             char WindowTitle[64];
             FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
             SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
 
-            Win32ProcessWindowMessages(&PlatformState, &KeyboardInput, &MouseInput);
-            Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
-
-            FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
-            if (CompareFileTime(&NewDLLWriteTime, &GameCode.LastWriteTime) != 0)
             {
-                Win32UnloadGameCode(&GameCode);
-                GameCode = Win32LoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath, GameCodeLockFullPath);
+                PROFILE(&PlatformProfiler, "Win32ProcessWindowMessages");
+                Win32ProcessWindowMessages(&PlatformState, &KeyboardInput, &MouseInput);
+            }
+            {
+                PROFILE(&PlatformProfiler, "Win32ProcessXboxControllerInput");
+                Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
+            }
 
-                if (GameCode.IsValid)
+            {
+                PROFILE(&PlatformProfiler, "Win32CheckAndCompareLastDLLWriteTime");
+
+                FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
+                if (CompareFileTime(&NewDLLWriteTime, &GameCode.LastWriteTime) != 0)
                 {
-                    GameCode.Reload(&GameMemory);
+                    Win32UnloadGameCode(&GameCode);
+                    GameCode = Win32LoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath, GameCodeLockFullPath);
+
+                    if (GameCode.IsValid)
+                    {
+                        GameCode.Reload(&GameMemory);
+                    }
                 }
             }
 
@@ -1060,33 +1097,41 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 // Input
                 GameInput = {};
 
-                XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
-
-                if (!DEBUG_UI_CAPTURE_KEYBOARD)
                 {
-                    KeyboardInput2GameInput(&KeyboardInput, &GameInput);
-                }
+                    PROFILE(&PlatformProfiler, "ProcessInput");
 
-                if (!DEBUG_UI_CAPTURE_MOUSE)
-                {
-                    MouseInput2GameInput(&MouseInput, &GameInput);
-                }
+                    XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
-                GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
+                    if (!DEBUG_UI_CAPTURE_KEYBOARD)
+                    {
+                        KeyboardInput2GameInput(&KeyboardInput, &GameInput);
+                    }
+
+                    if (!DEBUG_UI_CAPTURE_MOUSE)
+                    {
+                        MouseInput2GameInput(&MouseInput, &GameInput);
+                    }
+
+                    GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
+                }
 
                 // Fixed Update
-                GameParameters.UpdateLag += GameParameters.Delta;
-                UpdateCount = 0;
-
-                while (GameParameters.UpdateLag >= GameParameters.UpdateRate && UpdateCount < MaxUpdateCount)
                 {
-                    GameCode.Update(&GameMemory, &GameParameters);
+                    PROFILE(&PlatformProfiler, "FixedUpdate");
 
-                    GameParameters.UpdateLag -= GameParameters.UpdateRate;
-                    UpdateCount++;
+                    GameParameters.UpdateLag += GameParameters.Delta;
+                    UpdateCount = 0;
+
+                    while (GameParameters.UpdateLag >= GameParameters.UpdateRate && UpdateCount < MaxUpdateCount)
+                    {
+                        GameCode.Update(&GameMemory, &GameParameters);
+
+                        GameParameters.UpdateLag -= GameParameters.UpdateRate;
+                        UpdateCount++;
+                    }
+
+                    GameParameters.UpdateLag = Min(GameParameters.UpdateLag, GameParameters.UpdateRate);
                 }
-
-                GameParameters.UpdateLag = Min(GameParameters.UpdateLag, GameParameters.UpdateRate);
 
                 // Render
                 GameCode.Render(&GameMemory, &GameParameters);
@@ -1097,7 +1142,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             }
 
             win32_platform_state LastPlatformState = PlatformState;
-            DEBUG_UI_RENDER(&PlatformState, &GameMemory, &GameParameters);
+
+            {
+                PROFILE(&PlatformProfiler, "DEBUG_UI_RENDER");
+                DEBUG_UI_RENDER(&PlatformState, &GameMemory, &GameParameters, &DebugArena);
+            }
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
             {
@@ -1108,9 +1157,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 Win32OpenGLSetVSync(&Win32OpenGLState, PlatformState.VSync);
             }
 
-            SwapBuffers(WindowDC);
+            {
+                PROFILE(&PlatformProfiler, "SwapBuffers");
+                SwapBuffers(WindowDC);
+            }
 
-            // Counting
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
@@ -1129,7 +1180,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             Clamp(&PlatformState.TimeRate, 0.125f, 2.f);
 
             u64 DeltaPerformanceCounter = CurrentPerformanceCounter.QuadPart - LastPerformanceCounter.QuadPart;
-            f32 Delta = (f32)DeltaPerformanceCounter / (f32)PlatformState.PerformanceFrequency;
+            f32 Delta = (f32) DeltaPerformanceCounter / (f32) PlatformState.PerformanceFrequency;
             // ?
             Delta = Min(Delta, 1.f);
 

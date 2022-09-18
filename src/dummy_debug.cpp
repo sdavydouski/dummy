@@ -153,8 +153,10 @@ RenderEntityInfo(game_entity *Entity, model *Model)
 }
 
 internal void
-Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, game_parameters *GameParameters)
+Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, game_parameters *GameParameters, memory_arena *Arena)
 {
+    scoped_memory ScopedMemory(Arena);
+
     game_state *GameState = GetGameState(GameMemory);
 
     // Start the Dear ImGui frame
@@ -282,6 +284,85 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
         {
             RenderEntityInfo(Entity, Entity->Model);
         }
+    }
+
+    ImGui::End();
+
+    ImGui::Begin("Profiler");
+
+    platform_profiler *Profiler = GameMemory->Profiler;
+    profiler_frame_samples *FrameSamples = ProfilerGetPreviousFrameSamples(Profiler);
+
+    f32 *ElapsedMillisecondsValues = PushArray(ScopedMemory.Arena, FrameSamples->SampleCount, f32);
+
+    for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
+    {
+        profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
+        f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
+        *ElapsedMilliseconds = Sample->ElapsedMicroseconds;
+    }
+
+    ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
+
+    if (ImGui::BeginTable("Profiler stats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
+    {
+        ImGui::TableSetupColumn("Block", 0, 3.f);
+        ImGui::TableSetupColumn("Ticks", 0, 1.f);
+        ImGui::TableSetupColumn("Milliseconds", 0, 1.f);
+        ImGui::TableHeadersRow();
+
+        u64 TotalTicks = 0;
+        f32 TotalMilliseconds = 0.f;
+
+        for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
+        {
+            profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
+
+            ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
+
+            if (Sample->ElapsedMicroseconds >= 1.0f)
+            {
+                Color = ImVec4(1.f, 0.f, 0.f, 1.f);
+            }
+            else if (0.1f <= Sample->ElapsedMicroseconds && Sample->ElapsedMicroseconds < 1.f)
+            {
+                Color = ImVec4(1.f, 1.f, 0.f, 1.f);
+            }
+
+            ImGui::TableNextColumn();
+            ImGui::TextColored(Color, "%s", Sample->Name);
+
+            ImGui::TableNextColumn();
+            ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
+
+            ImGui::TableNextColumn();
+            ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMicroseconds);
+
+            TotalTicks += Sample->ElapsedTicks;
+            TotalMilliseconds += Sample->ElapsedMicroseconds;
+        }
+
+        ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
+
+        if (TotalMilliseconds >= 4.0f)
+        {
+            Color = ImVec4(1.f, 0.f, 0.f, 1.f);
+        }
+        else if (1.f <= TotalMilliseconds && TotalMilliseconds < 4.f)
+        {
+            Color = ImVec4(1.f, 1.f, 0.f, 1.f);
+        }
+
+        ImGui::TableNextColumn();
+        ImGui::TextColored(Color, "Total");
+
+        ImGui::TableNextColumn();
+        ImGui::TextColored(Color, "%d ticks", TotalTicks);
+
+        ImGui::TableNextColumn();
+        ImGui::TextColored(Color, "%.3f ms", TotalMilliseconds);
+
+        ImGui::EndTable();
     }
 
     ImGui::End();

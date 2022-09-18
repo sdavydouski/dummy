@@ -1,5 +1,100 @@
 #pragma once
 
+struct profiler_sample
+{
+    char Name[64];
+    u64 ElapsedTicks;
+    f32 ElapsedMicroseconds;
+};
+
+struct profiler_frame_samples
+{
+    u32 SampleCount;
+    profiler_sample Samples[64];
+};
+
+struct platform_profiler
+{
+    u64 TicksPerSecond;
+    i32 CurrentFrameSampleIndex;
+    u32 MaxFrameSampleCount;
+    profiler_frame_samples *FrameSamples;
+};
+
+inline profiler_frame_samples *
+ProfilerGetCurrentFrameSamples(platform_profiler *Profiler)
+{
+    profiler_frame_samples *Result = Profiler->FrameSamples + Profiler->CurrentFrameSampleIndex;
+    return Result;
+}
+
+inline profiler_frame_samples *
+ProfilerGetPreviousFrameSamples(platform_profiler *Profiler)
+{
+    i32 PreviousFrameSampleIndex = Profiler->CurrentFrameSampleIndex - 1;
+    if (PreviousFrameSampleIndex < 0)
+    {
+        PreviousFrameSampleIndex = Profiler->MaxFrameSampleCount - 1;
+    }
+
+    profiler_frame_samples *Result = Profiler->FrameSamples + PreviousFrameSampleIndex;
+    return Result;
+}
+
+inline void
+StoreProfileSample(platform_profiler *Profiler, char *Name, u64 ElapsedTicks)
+{
+    profiler_sample Sample = {};
+    CopyString(Name, Sample.Name);
+    Sample.ElapsedTicks = ElapsedTicks;
+    Sample.ElapsedMicroseconds = ((f32) ElapsedTicks / (f32) Profiler->TicksPerSecond) * 1000.f;
+
+    profiler_frame_samples *FrameSamples = ProfilerGetCurrentFrameSamples(Profiler);
+
+    FrameSamples->Samples[FrameSamples->SampleCount++] = Sample;
+    Assert(FrameSamples->SampleCount < ArrayCount(FrameSamples->Samples));
+}
+
+inline void
+ProfilerStartFrame(platform_profiler *Profiler)
+{
+    Profiler->CurrentFrameSampleIndex = (Profiler->CurrentFrameSampleIndex + 1) % Profiler->MaxFrameSampleCount;
+    profiler_frame_samples *FrameSamples = ProfilerGetCurrentFrameSamples(Profiler);
+    FrameSamples->SampleCount = 0;
+}
+
+#ifdef _WIN32
+#include <windows.h>
+
+struct win32_auto_profiler
+{
+    platform_profiler *Profiler;
+    char *Name;
+    LARGE_INTEGER StartTime;
+
+    win32_auto_profiler(platform_profiler *Profiler, char *Name) : Profiler(Profiler), Name(Name)
+    {
+        QueryPerformanceCounter(&StartTime);
+    }
+
+    ~win32_auto_profiler()
+    {
+        LARGE_INTEGER EndTime;
+        QueryPerformanceCounter(&EndTime);
+
+        u64 ElapsedTicks = EndTime.QuadPart - StartTime.QuadPart;
+
+        StoreProfileSample(Profiler, Name, ElapsedTicks);
+    }
+};
+
+#define PROFILE(Profiler, Name) win32_auto_profiler Profile(Profiler, (char *) Name)
+#else
+#error Not implemented
+#endif
+
+#define PROFILER_START_FRAME(Profiler) ProfilerStartFrame(Profiler) 
+
 struct game_state;
 
 enum mouse_mode
@@ -60,11 +155,11 @@ struct game_memory
     umm TransientStorageSize;
     void *TransientStorage;
 
-    // todo: use TransientStorage for this?
     umm RenderCommandsStorageSize;
     void *RenderCommandsStorage;
 
     platform_api *Platform;
+    platform_profiler *Profiler;
     job_queue *JobQueue;
 };
 

@@ -15,10 +15,12 @@
 #define StructOffset(StructType, StructMember) ((u64)(&(((StructType *)0)->StructMember)))
 #define Stringify(Arg) #Arg
 
-#ifdef NDEBUG
-#define Assert(...)
-#else
+#define ASSERTIONS 1
+
+#if ASSERTIONS
 #define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
+#else
+#define Assert(...)
 #endif
 
 #define i8 int8_t
@@ -27,7 +29,7 @@
 #define u16 uint16_t
 #define i32 int32_t
 #define u32 uint32_t
-#define i64 uint64_t
+#define i64 int64_t
 #define u64 uint64_t
 
 #define f32 float

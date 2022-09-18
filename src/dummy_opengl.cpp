@@ -1330,7 +1330,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         vec2 SpriteSize = GlyphInfo->SpriteSize;
                         vec2 TextureOffset = GlyphInfo->UV;
                         vec2 Size = GlyphInfo->CharacterSize * TextScale * UnitsPerPixel;
-                        vec2 Alignment = (GlyphInfo->Alignment) * TextScale * UnitsPerPixel;
+                        vec2 Alignment = GlyphInfo->Alignment * TextScale * UnitsPerPixel;
 
                         vec3 Translation = vec3(Position + Alignment, Command->Position.z);
                         vec3 Scale = vec3(Size, 0.f);
@@ -1581,42 +1581,48 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 internal void
 OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 {
+    //PROFILE(State->Profiler, "OpenGLProcessRenderCommands");
+
 #if WIN32_RELOADABLE_SHADERS
-    for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
     {
-        opengl_shader *Shader = State->Shaders + ShaderIndex;
+        PROFILE(State->Profiler, "OpenGLReloadableShaders");
 
-        b32 ShouldReload = false;
-
-        for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
+        for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
         {
-            win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
+            opengl_shader *Shader = State->Shaders + ShaderIndex;
 
-            FILETIME NewCommonShaderWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
-            if (CompareFileTime(&NewCommonShaderWriteTime, &CommonShader->LastWriteTime) != 0)
+            b32 ShouldReload = false;
+
+            for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
             {
-                CommonShader->LastWriteTime = NewCommonShaderWriteTime;
+                win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
+
+                FILETIME NewCommonShaderWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
+                if (CompareFileTime(&NewCommonShaderWriteTime, &CommonShader->LastWriteTime) != 0)
+                {
+                    CommonShader->LastWriteTime = NewCommonShaderWriteTime;
+                    ShouldReload = true;
+                }
+            }
+
+            FILETIME NewVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
+            if (CompareFileTime(&NewVertexShaderWriteTime, &Shader->VertexShader.LastWriteTime) != 0)
+            {
+                Shader->VertexShader.LastWriteTime = NewVertexShaderWriteTime;
                 ShouldReload = true;
             }
-        }
 
-        FILETIME NewVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
-        if (CompareFileTime(&NewVertexShaderWriteTime, &Shader->VertexShader.LastWriteTime) != 0)
-        {
-            Shader->VertexShader.LastWriteTime = NewVertexShaderWriteTime;
-            ShouldReload = true;
-        }
+            FILETIME NewFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
+            if (CompareFileTime(&NewFragmentShaderWriteTime, &Shader->FragmentShader.LastWriteTime) != 0)
+            {
+                Shader->FragmentShader.LastWriteTime = NewFragmentShaderWriteTime;
+                ShouldReload = true;
+            }
 
-        FILETIME NewFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
-        if (CompareFileTime(&NewFragmentShaderWriteTime, &Shader->FragmentShader.LastWriteTime) != 0)
-        {
-            Shader->FragmentShader.LastWriteTime = NewFragmentShaderWriteTime;
-            ShouldReload = true;
-        }
-
-        if (ShouldReload)
-        {
-            OpenGLReloadShader(State, Shader->Id);
+            if (ShouldReload)
+            {
+                OpenGLReloadShader(State, Shader->Id);
+            }
         }
     }
 #endif
@@ -1628,96 +1634,107 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         OpenGLOnWindowResize(State, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
     }
 
-    OpenGLPrepareScene(State, Commands);
-
-    game_camera *Camera = RenderSettings->Camera;
-
-    f32 FocalLength = Camera->FocalLength;
-    f32 AspectRatio = Camera->AspectRatio;
-
-    mat4 CameraM = GetCameraTransform(Camera);
-    mat4 CameraMInv = Inverse(CameraM);
-
-    vec3 LightPosition = vec3(0.f);
-    vec3 LightDirection = Normalize(RenderSettings->DirectionalLight->Direction);
-    vec3 LightUp = vec3(0.f, 1.f, 0.f);
-
-    mat4 LightM = LookAt(LightPosition, LightPosition + LightDirection, LightUp);
+    {
+        PROFILE(State->Profiler, "OpenGLPrepareScene");
+        OpenGLPrepareScene(State, Commands);
+    }
 
 #if 1
-    for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
     {
-        vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
+        PROFILE(State->Profiler, "OpenGLCascadedShadowMaps");
 
-        f32 Near = CascadeBounds.x;
-        f32 Far = CascadeBounds.y;
+        game_camera *Camera = RenderSettings->Camera;
 
-        vec4 CameraSpaceFrustrumCorners[8] = {
-            vec4(-Near * AspectRatio / FocalLength, -Near / FocalLength, Near, 1.f),
-            vec4(Near * AspectRatio / FocalLength, -Near / FocalLength, Near, 1.f),
-            vec4(-Near * AspectRatio / FocalLength, Near / FocalLength, Near, 1.f),
-            vec4(Near * AspectRatio / FocalLength, Near / FocalLength, Near, 1.f),
+        f32 FocalLength = Camera->FocalLength;
+        f32 AspectRatio = Camera->AspectRatio;
 
-            vec4(-Far * AspectRatio / FocalLength, -Far / FocalLength, Far, 1.f),
-            vec4(Far * AspectRatio / FocalLength, -Far / FocalLength, Far, 1.f),
-            vec4(-Far * AspectRatio / FocalLength, Far / FocalLength, Far, 1.f),
-            vec4(Far * AspectRatio / FocalLength, Far / FocalLength, Far, 1.f),
-        };
+        mat4 CameraM = GetCameraTransform(Camera);
+        mat4 CameraMInv = Inverse(CameraM);
 
-        f32 xMin = F32_MAX;
-        f32 xMax = -F32_MAX;
-        f32 yMin = F32_MAX;
-        f32 yMax = -F32_MAX;
-        f32 zMin = F32_MAX;
-        f32 zMax = -F32_MAX;
+        vec3 LightPosition = vec3(0.f);
+        vec3 LightDirection = Normalize(RenderSettings->DirectionalLight->Direction);
+        vec3 LightUp = vec3(0.f, 1.f, 0.f);
 
-        for (u32 CornerIndex = 0; CornerIndex < ArrayCount(CameraSpaceFrustrumCorners); ++CornerIndex)
+        mat4 LightM = LookAt(LightPosition, LightPosition + LightDirection, LightUp);
+
+        for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
         {
-            vec4 LightSpaceFrustrumCorner = LightM * CameraMInv * CameraSpaceFrustrumCorners[CornerIndex];
+            vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
 
-            xMin = Min(xMin, LightSpaceFrustrumCorner.x);
-            xMax = Max(xMax, LightSpaceFrustrumCorner.x);
-            yMin = Min(yMin, LightSpaceFrustrumCorner.y);
-            yMax = Max(yMax, LightSpaceFrustrumCorner.y);
-            zMin = Min(zMin, LightSpaceFrustrumCorner.z);
-            zMax = Max(zMax, LightSpaceFrustrumCorner.z);
+            f32 Near = CascadeBounds.x;
+            f32 Far = CascadeBounds.y;
+
+            vec4 CameraSpaceFrustrumCorners[8] = {
+                vec4(-Near * AspectRatio / FocalLength, -Near / FocalLength, Near, 1.f),
+                vec4(Near * AspectRatio / FocalLength, -Near / FocalLength, Near, 1.f),
+                vec4(-Near * AspectRatio / FocalLength, Near / FocalLength, Near, 1.f),
+                vec4(Near * AspectRatio / FocalLength, Near / FocalLength, Near, 1.f),
+
+                vec4(-Far * AspectRatio / FocalLength, -Far / FocalLength, Far, 1.f),
+                vec4(Far * AspectRatio / FocalLength, -Far / FocalLength, Far, 1.f),
+                vec4(-Far * AspectRatio / FocalLength, Far / FocalLength, Far, 1.f),
+                vec4(Far * AspectRatio / FocalLength, Far / FocalLength, Far, 1.f),
+            };
+
+            f32 xMin = F32_MAX;
+            f32 xMax = -F32_MAX;
+            f32 yMin = F32_MAX;
+            f32 yMax = -F32_MAX;
+            f32 zMin = F32_MAX;
+            f32 zMax = -F32_MAX;
+
+            for (u32 CornerIndex = 0; CornerIndex < ArrayCount(CameraSpaceFrustrumCorners); ++CornerIndex)
+            {
+                vec4 LightSpaceFrustrumCorner = LightM * CameraMInv * CameraSpaceFrustrumCorners[CornerIndex];
+
+                xMin = Min(xMin, LightSpaceFrustrumCorner.x);
+                xMax = Max(xMax, LightSpaceFrustrumCorner.x);
+                yMin = Min(yMin, LightSpaceFrustrumCorner.y);
+                yMax = Max(yMax, LightSpaceFrustrumCorner.y);
+                zMin = Min(zMin, LightSpaceFrustrumCorner.z);
+                zMax = Max(zMax, LightSpaceFrustrumCorner.z);
+            }
+
+            // todo: could be calculated one time and saved
+            i32 d = Ceil(Max(Magnitude(CameraSpaceFrustrumCorners[1] - CameraSpaceFrustrumCorners[6]), Magnitude(CameraSpaceFrustrumCorners[5] - CameraSpaceFrustrumCorners[6])));
+
+            mat4 CascadeProjection = mat4(
+                2.f / d, 0.f, 0.f, 0.f,
+                0.f, 2.f / d, 0.f, 0.f,
+                0.f, 0.f, -1.f / (zMax - zMin), 0.f,
+                0.f, 0.f, 0.f, 1.f
+            );
+
+            f32 T = (f32) d / (f32) State->CascadeShadowMapSize;
+
+            vec3 LightPosition = vec3(Floor((xMax + xMin) / (2.f * T)) * T, Floor((yMax + yMin) / (2.f * T)) * T, zMin);
+
+            mat4 CascadeView = mat4(
+                vec4(LightM[0].xyz, -LightPosition.x),
+                vec4(LightM[1].xyz, -LightPosition.y),
+                vec4(LightM[2].xyz, -LightPosition.z),
+                vec4(0.f, 0.f, 0.f, 1.f)
+            );
+
+            State->CascadeViewProjection[CascadeIndex] = CascadeProjection * CascadeView;
+
+            opengl_render_options RenderOptions = {};
+            RenderOptions.RenderShadowMap = true;
+            RenderOptions.CascadeIndex = CascadeIndex;
+            RenderOptions.CascadeProjection = CascadeProjection;
+            RenderOptions.CascadeView = CascadeView;
+            OpenGLRenderScene(State, Commands, &RenderOptions);
         }
-
-        // todo: could be calculated one time and saved
-        i32 d = Ceil(Max(Magnitude(CameraSpaceFrustrumCorners[1] - CameraSpaceFrustrumCorners[6]), Magnitude(CameraSpaceFrustrumCorners[5] - CameraSpaceFrustrumCorners[6])));
-
-        mat4 CascadeProjection = mat4(
-            2.f / d, 0.f, 0.f, 0.f,
-            0.f, 2.f / d, 0.f, 0.f,
-            0.f, 0.f, -1.f / (zMax - zMin), 0.f,
-            0.f, 0.f, 0.f, 1.f
-        );
-
-        f32 T = (f32)d / (f32)State->CascadeShadowMapSize;
-
-        vec3 LightPosition = vec3(Floor((xMax + xMin) / (2.f * T)) * T, Floor((yMax + yMin) / (2.f * T)) * T, zMin);
-
-        mat4 CascadeView = mat4(
-            vec4(LightM[0].xyz, -LightPosition.x),
-            vec4(LightM[1].xyz, -LightPosition.y),
-            vec4(LightM[2].xyz, -LightPosition.z),
-            vec4(0.f, 0.f, 0.f, 1.f)
-        );
-
-        State->CascadeViewProjection[CascadeIndex] = CascadeProjection * CascadeView;
-
-        opengl_render_options RenderOptions = {};
-        RenderOptions.RenderShadowMap = true;
-        RenderOptions.CascadeIndex = CascadeIndex;
-        RenderOptions.CascadeProjection = CascadeProjection;
-        RenderOptions.CascadeView = CascadeView;
-        OpenGLRenderScene(State, Commands, &RenderOptions);
     }
 #endif
 
-    opengl_render_options RenderOptions = {};
-    RenderOptions.ShowCascades = RenderSettings->ShowCascades;
-    OpenGLRenderScene(State, Commands, &RenderOptions);
+    {
+        PROFILE(State->Profiler, "OpenGLRenderScene");
+
+        opengl_render_options RenderOptions = {};
+        RenderOptions.ShowCascades = RenderSettings->ShowCascades;
+        OpenGLRenderScene(State, Commands, &RenderOptions);
+    }
 
 #if 0
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

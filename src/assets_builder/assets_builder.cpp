@@ -15,9 +15,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#include <assimp/cimport.h>        // Plain-C interface
-#include <assimp/scene.h>          // Output data structure
-#include <assimp/postprocess.h>    // Post processing flags
+#include <assimp/cimport.h>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include "rapidjson/document.h"
 
@@ -29,16 +29,25 @@
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 
+using std::string;
+
+template <typename TValue>
+using dynamic_array = std::vector<TValue>;
+
+template <typename TKey, typename TValue>
+using hashtable = std::unordered_map<TKey, TValue>;
+
+using namespace rapidjson;
+namespace fs = std::filesystem;
+
 #include "assets_utils.cpp"
 #include "assets_models.cpp"
 #include "assets_fonts.cpp"
 
 // https://nilooy.github.io/character-animation-combiner/
 internal void
-BuildModelAssets()
+BuildModelAssets(const char *Path)
 {
-    char *Path = (char *) "models/";
-
     for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
     {
         if (Entry.is_directory())
@@ -59,17 +68,15 @@ BuildModelAssets()
             char OutputPath[256];
             FormatString(OutputPath, "assets/%s.asset", DirectoryName.generic_string().c_str());
 
-            // todo: multithreading (std::thread?)
+            printf("Processing %s...\n", FilePath);
             ProcessAsset(FilePath, AnimationConfigPath, AnimationClipsPath, OutputPath);
         }
     }
 }
 
 internal void
-BuildFontAssets()
+BuildFontAssets(const char *Path)
 {
-    char *Path = (char *) "fonts/";
-
     for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
     {
         fs::path FilePath = Entry.path();
@@ -78,13 +85,13 @@ BuildFontAssets()
         char OutputPath[256];
         FormatString(OutputPath, "assets/%s.asset", FileName.generic_string().c_str());
 
-        // todo: multithreading (std::thread?)
+        printf("Processing %s...\n", FilePath.generic_string().c_str());
         ProcessFont(FilePath.generic_string().c_str(), OutputPath);
     }
 }
 
 i32 main(i32 ArgCount, char **Args)
 {
-    BuildModelAssets();
-    BuildFontAssets();
+    BuildModelAssets("models/");
+    BuildFontAssets("fonts/");
 }
