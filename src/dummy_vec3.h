@@ -163,6 +163,13 @@ Magnitude(vec3 Vector)
     return Result;
 }
 
+inline f32
+SquaredMagnitude(vec3 Vector)
+{
+    f32 Result = Square(Vector.x) + Square(Vector.y) + Square(Vector.z);
+    return Result;
+}
+
 inline vec3
 Normalize(vec3 Vector)
 {

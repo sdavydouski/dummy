@@ -4,7 +4,7 @@ struct profiler_sample
 {
     char Name[64];
     u64 ElapsedTicks;
-    f32 ElapsedMicroseconds;
+    f32 ElapsedMilliseconds;
 };
 
 struct profiler_frame_samples
@@ -47,7 +47,7 @@ StoreProfileSample(platform_profiler *Profiler, char *Name, u64 ElapsedTicks)
     profiler_sample Sample = {};
     CopyString(Name, Sample.Name);
     Sample.ElapsedTicks = ElapsedTicks;
-    Sample.ElapsedMicroseconds = ((f32) ElapsedTicks / (f32) Profiler->TicksPerSecond) * 1000.f;
+    Sample.ElapsedMilliseconds = ((f32) ElapsedTicks / (f32) Profiler->TicksPerSecond) * 1000.f;
 
     profiler_frame_samples *FrameSamples = ProfilerGetCurrentFrameSamples(Profiler);
 

@@ -48,6 +48,13 @@ DotPoint(plane Plane, vec3 Point)
     return Result;
 }
 
+inline f32
+Dot(plane Plane, vec4 Vector)
+{
+    f32 Result = Dot(vec4(Plane.Normal, Plane.Distance), Vector);
+    return Result;
+}
+
 inline vec3
 Projection(vec3 Vector, plane Plane)
 {
@@ -60,6 +67,19 @@ Orthogonal(vec3 Vector, plane Plane)
 {
     vec3 Result = Cross(Vector, Plane.Normal);
     return Result;
+}
+
+inline b32
+IntersectLinePlane(vec3 LineOrigin, vec3 LineDirection, plane Plane, vec3 *IntersectionPoint)
+{
+    f32 fv = DotVector(Plane, LineDirection);
+    if (Abs(fv) > F32_MIN)
+    {
+        *IntersectionPoint = LineOrigin - LineDirection * (DotPoint(Plane, LineOrigin) / fv);
+        return true;
+    }
+
+    return false;
 }
 
 /**

@@ -126,6 +126,7 @@ struct game_state
     game_assets Assets;
     animator Animator;
 
+    u32 RenderableEntityCount;
     u32 EntityCount;
     u32 MaxEntityCount;
     game_entity *Entities;

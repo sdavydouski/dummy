@@ -148,8 +148,10 @@ struct opengl_state
     GLuint SingleSampledColorTexture;
     GLuint SingleSampledDepthTexture;
 
+    // Draw primitives
     GLuint LineVAO;
     GLuint RectangleVAO;
+    GLuint BoxVAO;
 
     GLuint ShaderStateUBO;
 

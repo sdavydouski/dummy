@@ -88,19 +88,11 @@ OpenGLInitRectangle(opengl_state *State)
 {
     f32 RectangleVertices[] = 
     {
-        // potisions     // uvs
-#if 1
-        // todo: flipped uvs!
-        -1.f, -1.f, 0.f, 0.f, 1.f,
-        1.f, -1.f, 0.f,  1.f, 1.f,
-        -1.f, 1.f, 0.f,  0.f, 0.f,
-        1.f, 1.f, 0.f,   1.f, 0.f
-#else
-        0.f, 0.f, 0.f,  0.f, 1.f,
-        0.f, 1.f, 0.f,  0.f, 0.f,
-        1.f, 0.f, 0.f,  1.f, 1.f,
-        1.f, 1.f, 0.f,  1.f, 0.f
-#endif
+        // potisions      // uvs
+        - 1.f, -1.f, 0.f,  0.f, 0.f,
+        1.f, -1.f, 0.f,   1.f, 0.f,
+        -1.f, 1.f, 0.f,   0.f, 1.f,
+        1.f, 1.f, 0.f,    1.f, 1.f
     };
 
     GLsizei Stride = sizeof(vec3) + sizeof(vec2);
@@ -117,7 +109,42 @@ OpenGLInitRectangle(opengl_state *State)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Stride, 0);
 
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Stride, (void *) sizeof(vec3));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Stride, (GLvoid *) sizeof(vec3));
+
+    glBindVertexArray(0);
+}
+
+internal void
+OpenGLInitBox(opengl_state *State)
+{
+    vec3 BoxVertices[] = 
+    {
+        vec3(-1.f, 2.f, -1.f),
+        vec3(1.f, 2.f, -1.f),
+        vec3(-1.f, 0.f, -1.f),
+        vec3(1.f, 0.f, -1.f),
+        vec3(1.f, 0.f, 1.f),
+        vec3(1.f, 2.f, -1.f),
+        vec3(1.f, 2.f, 1.f),
+        vec3(-1.f, 2.f, -1.f),
+        vec3(-1.f, 2.f, 1.f),
+        vec3(-1.f, 0.f, -1.f),
+        vec3(-1.f, 0.f, 1.f),
+        vec3(1.f, 0.f, 1.f),
+        vec3(-1.f, 2.f, 1.f),
+        vec3(1.f, 2.f, 1.f)
+    };
+
+    glGenVertexArrays(1, &State->BoxVAO);
+    glBindVertexArray(State->BoxVAO);
+
+    GLuint BoxVBO;
+    glGenBuffers(1, &BoxVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, BoxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(BoxVertices), BoxVertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
 
     glBindVertexArray(0);
 }
@@ -906,6 +933,8 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     OpenGLInitLine(State);
     OpenGLInitRectangle(State);
+    OpenGLInitBox(State);
+
     OpenGLInitShaders(State);
     OpenGLInitFramebuffers(State, WindowWidth, WindowHeight);
 
@@ -960,8 +989,8 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     OpenGLAddTexture(State, 0, &WhiteTexture);
 
-    //glEnable(GL_CULL_FACE);
-    //glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     glFrontFace(GL_CCW);
 
@@ -1273,6 +1302,36 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+                    glUseProgram(0);
+                    glBindVertexArray(0);
+                }
+
+                break;
+            }
+            case RenderCommand_DrawBox:
+            {
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_draw_box *Command = (render_command_draw_box *) Entry;
+
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+
+                    glBindVertexArray(State->BoxVAO);
+                    glUseProgram(Shader->Program);
+
+                    mat4 Model = Transform(Command->Transform);
+
+                    glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
+                    glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+
+                    // todo: configurable
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+                    glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
+
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
                     glUseProgram(0);
                     glBindVertexArray(0);
@@ -1641,6 +1700,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
 #if 1
     {
+        // todo(continue): shadow culling
+
         PROFILE(State->Profiler, "OpenGLCascadedShadowMaps");
 
         game_camera *Camera = RenderSettings->Camera;

@@ -21,8 +21,9 @@ void main()
 
     vec2 TextureSize = textureSize(u_FontTextureAtlas, 0);
     vec2 NormalizedSpriteSize = u_SpriteSize / TextureSize;
+    vec2 FlippedTextureCoords = vec2(in_TextureCoords.x, 1.f - in_TextureCoords.y);
 
-    vs_out.TextureCoords = in_TextureCoords * NormalizedSpriteSize;
+    vs_out.TextureCoords = FlippedTextureCoords * NormalizedSpriteSize;
 
     gl_Position = GetViewProjection(u_Mode) * u_Model * vec4(Position, 1.f);
 }

@@ -306,6 +306,20 @@ Max(i32 ArgCount, ...)
     return Result;
 }
 
+inline i32
+Min(i32 a, i32 b)
+{
+    i32 Result = a <= b ? a : b;
+    return Result;
+}
+
+inline i32
+Max(i32 a, i32 b)
+{
+    i32 Result = a > b ? a : b;
+    return Result;
+}
+
 inline mat4
 Scale(f32 Value)
 {

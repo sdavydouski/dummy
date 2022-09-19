@@ -81,6 +81,303 @@ BuildFrustrumPolyhedron(game_camera *Camera, f32 Near, f32 Far, polyhedron *Poly
 }
 
 internal b32
+ClipPolyhedron(polyhedron *Polyhedron, plane Plane, polyhedron *Result)
+{
+    f32 VertexLocations[MaxPolyhedronVertexCount] = {};
+    i8 VertexCodes[MaxPolyhedronVertexCount] = {};
+    i8 EdgeCodes[MaxPolyhedronEdgeCount] = {};
+    u8 VertexRemap[MaxPolyhedronVertexCount] = {};
+    u8 EdgeRemap[MaxPolyhedronEdgeCount] = {};
+    u8 FaceRemap[MaxPolyhedronFaceCount] = {};
+    u8 PlaneEdgeTable[MaxPolyhedronFaceEdgeCount] = {};
+
+    f32 PolyhedronEpsilon = 0.001f;
+    i32 MinCode = 6;
+    i32 MaxCode = 0;
+
+    // Classify vertices
+    for (u32 VertexIndex = 0; VertexIndex < Polyhedron->VertexCount; ++VertexIndex)
+    {
+        VertexRemap[VertexIndex] = 0xFF;
+        f32 d = DotPoint(Plane, Polyhedron->Vertices[VertexIndex]);
+        VertexLocations[VertexIndex] = d;
+
+        i32 Code = (d > -PolyhedronEpsilon) + (d > PolyhedronEpsilon) * 2;
+        MinCode = Min(MinCode, Code);
+        MaxCode = Max(MaxCode, Code);
+        VertexCodes[VertexIndex] = Code;
+    }
+
+    if (MinCode != 0)
+    {
+        // No vertices on negative side of clip plane
+        *Result = *Polyhedron;
+        return true;
+    }
+
+    if (MaxCode <= 1)
+    {
+        // No vertices on positive side of clip plane
+        return false;
+    }
+
+    // Classify edges
+    for (u32 EdgeIndex = 0; EdgeIndex < Polyhedron->EdgeCount; ++EdgeIndex)
+    {
+        EdgeRemap[EdgeIndex] = 0xFF;
+        edge *Edge = Polyhedron->Edges + EdgeIndex;
+        EdgeCodes[EdgeIndex] = (i8) (VertexCodes[Edge->VertexIndex[0]] + VertexCodes[Edge->VertexIndex[1]]);
+    }
+
+    // Determine which faces will be in result
+    u32 ResultFaceCount = 0;
+    for (u32 FaceIndex = 0; FaceIndex < Polyhedron->FaceCount; ++FaceIndex)
+    {
+        FaceRemap[FaceIndex] = 0xFF;
+        face *Face = Polyhedron->Faces + FaceIndex;
+        
+        for (u32 FaceEdgeIndex = 0; FaceEdgeIndex < Face->EdgeCount; ++FaceEdgeIndex)
+        {
+            if (EdgeCodes[Face->EdgeIndex[FaceEdgeIndex]] >= 3)
+            {
+                // Face has a vertex on the positive side of the plane
+                Result->Planes[ResultFaceCount] = Polyhedron->Planes[FaceIndex];
+                FaceRemap[FaceIndex] = (u8)(ResultFaceCount++);
+                break;
+            }
+        }
+    }
+
+    u32 ResultVertexCount = 0;
+    u32 ResultEdgeCount = 0;
+    for (u32 EdgeIndex = 0; EdgeIndex < Polyhedron->EdgeCount; ++EdgeIndex)
+    {
+        if (EdgeCodes[EdgeIndex] >= 2)
+        {
+            // The edge is not completely clipped away
+            edge *Edge= Polyhedron->Edges + EdgeIndex;
+            edge *ResultEdge = Result->Edges + ResultEdgeCount;
+            EdgeRemap[EdgeIndex] = (u8)(ResultEdgeCount++);
+
+            ResultEdge->FaceIndex[0] = FaceRemap[Edge->FaceIndex[0]];
+            ResultEdge->FaceIndex[1] = FaceRemap[Edge->FaceIndex[1]];
+
+            // Loop over both vertices of edge
+            for (u32 EdgeVertexIndex = 0; EdgeVertexIndex < 2; ++EdgeVertexIndex)
+            {
+                u8 VertexIndex = Edge->VertexIndex[EdgeVertexIndex];
+
+                if (VertexCodes[VertexIndex] != 0)
+                {
+                    // This vertex on positive side of plane or in plane
+                    u8 RemappedVertexIndex = VertexRemap[VertexIndex];
+                    if (RemappedVertexIndex == 0xFF)
+                    {
+                        RemappedVertexIndex = ResultVertexCount++;
+                        VertexRemap[VertexIndex] = RemappedVertexIndex;
+                        Result->Vertices[RemappedVertexIndex] = Polyhedron->Vertices[VertexIndex];
+                    }
+
+                    ResultEdge->VertexIndex[EdgeVertexIndex] = RemappedVertexIndex;
+                }
+                else
+                {
+                    // This vertex on negative side, and other vertex on positive side
+                    u8 OtherVertexIndex = Edge->VertexIndex[1 - EdgeVertexIndex];
+
+                    vec3 p1 = Polyhedron->Vertices[VertexIndex];
+                    vec3 p2 = Polyhedron->Vertices[OtherVertexIndex];
+
+                    f32 d1 = VertexLocations[VertexIndex];
+                    f32 d2 = VertexLocations[OtherVertexIndex];
+                    f32 t = d2 / (d2 - d1);
+
+                    Result->Vertices[ResultVertexCount] = p2 * (1.f - t) + p1 * t;
+                    ResultEdge->VertexIndex[EdgeVertexIndex] = (u8)(ResultVertexCount++);
+                }
+            }
+        }
+    }
+
+    u32 PlaneEdgeCount = 0;
+    for (u32 FaceIndex = 0; FaceIndex < Polyhedron->FaceCount; ++FaceIndex)
+    {
+        u8 RemappedFaceIndex = FaceRemap[FaceIndex];
+
+        if (RemappedFaceIndex != 0xFF) 
+        {
+            // The face is not completely clipped away
+            edge *NewEdge = 0;
+            u8 NewEdgeIndex = 0xFF;
+
+            face *Face = Polyhedron->Faces + FaceIndex;
+            face *ResultFace = Result->Faces + RemappedFaceIndex;
+            u32 ResultFaceEdgeCount = 0;
+            
+            // Loop over face's original edges
+            for (u32 FaceEdgeIndex = 0; FaceEdgeIndex < Face->EdgeCount; ++FaceEdgeIndex)
+            {
+                u8 EdgeIndex = Face->EdgeIndex[FaceEdgeIndex];
+                i32 Code = EdgeCodes[EdgeIndex];
+
+                if (Code & 1)
+                {
+                    // One endpoint on negative side of plane, and other either
+                    // on positive side (code == 3) or in plane (code == 1)
+                    if (!NewEdge)
+                    {
+                        // At this point, we know we need a new edge
+                        NewEdgeIndex = ResultEdgeCount;
+                        NewEdge = Result->Edges + ResultEdgeCount;
+                        PlaneEdgeTable[PlaneEdgeCount++] = (u8)(ResultEdgeCount++);
+
+                        NewEdge->VertexIndex[0] = 0xFF;
+                        NewEdge->VertexIndex[1] = 0xFF;
+                        NewEdge->FaceIndex[0] = RemappedFaceIndex;
+                        NewEdge->FaceIndex[1] = 0xFF;
+                    }
+
+                    edge *Edge = Polyhedron->Edges + EdgeIndex;
+                    b32 ccw = Edge->FaceIndex[0] == FaceIndex;
+                    b32 InsertEdge = ccw ^ (VertexCodes[Edge->VertexIndex[0]] == 0);
+
+                    if (Code == 3)
+                    {
+                        // Original edge has been clipped
+                        u8 RemappedEdgeIndex = EdgeRemap[EdgeIndex];
+                        ResultFace->EdgeIndex[ResultFaceEdgeCount++] = RemappedEdgeIndex;
+
+                        edge *ResultEdge = Result->Edges + RemappedEdgeIndex;
+                        if (InsertEdge)
+                        {
+                            NewEdge->VertexIndex[0] = ResultEdge->VertexIndex[ccw];
+                            ResultFace->EdgeIndex[ResultFaceEdgeCount++] = NewEdgeIndex;
+                        }
+                        else
+                        {
+                            NewEdge->VertexIndex[1] = ResultEdge->VertexIndex[!ccw];
+                        }
+                    }
+                    else
+                    {
+                        // Original edge has been deleted, code == 1
+                        if (InsertEdge)
+                        {
+                            NewEdge->VertexIndex[0] = VertexRemap[Edge->VertexIndex[!ccw]];
+                            ResultFace->EdgeIndex[ResultFaceEdgeCount++] = NewEdgeIndex;
+                        }
+                        else
+                        {
+                            NewEdge->VertexIndex[1] = VertexRemap[Edge->VertexIndex[ccw]];
+                        }
+                    }
+                }
+                else if (Code != 0)
+                {
+                    // Neither endpoint is on the negative side of the clipping plane
+                    u8 RemappedEdgeIndex = EdgeRemap[EdgeIndex];
+                    ResultFace->EdgeIndex[ResultFaceEdgeCount++] = RemappedEdgeIndex;
+
+                    if (Code == 2)
+                    {
+                        PlaneEdgeTable[PlaneEdgeCount++] = RemappedEdgeIndex;
+                    }
+                }
+            }
+
+            if (NewEdge && Max(NewEdge->VertexIndex[0], NewEdge->VertexIndex[1]) == 0xFF)
+            {
+                // The input polyhedron was invalid
+                *Result = *Polyhedron;
+                return true;
+            }
+
+            ResultFace->EdgeCount = (u8)ResultEdgeCount;
+        }
+    }
+
+    if (PlaneEdgeCount > 2)
+    {
+        Result->Planes[ResultFaceCount] = Plane;
+        face *ResultFace = Result->Faces + ResultFaceCount;
+        ResultFace->EdgeCount = (u8)PlaneEdgeCount;
+
+        for (u32 PlaneEdgeIndex = 0; PlaneEdgeIndex < PlaneEdgeCount; ++PlaneEdgeIndex)
+        {
+            u8 EdgeIndex = PlaneEdgeTable[PlaneEdgeIndex];
+            ResultFace->EdgeIndex[PlaneEdgeIndex] = EdgeIndex;
+
+            edge *ResultEdge = Result->Edges + EdgeIndex;
+            u8 k = ResultEdge->FaceIndex[1] == 0xFF;
+            ResultEdge->FaceIndex[k] = (u8)ResultFaceCount;
+        }
+
+        ResultFaceCount++;
+    }
+
+    Result->VertexCount = (u8)ResultVertexCount;
+    Result->EdgeCount = (u8)ResultEdgeCount;
+    Result->FaceCount = (u8)ResultFaceCount;
+
+    return true;
+}
+
+internal u32
+CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowPlanes)
+{
+    u32 ShadowPlaneCount = 0;
+
+    f32 ShadowRegionEpsilon = 0.000001f;
+    b32 FrontArray[MaxPolyhedronFaceCount] = {};
+
+    // Classify faces of polyhedron and record back planes
+    for (u32 PlaneIndex = 0; PlaneIndex < Polyhedron->FaceCount; ++PlaneIndex)
+    {
+        plane Plane = Polyhedron->Planes[PlaneIndex];
+        face Face = Polyhedron->Faces[PlaneIndex];
+        FrontArray[PlaneIndex] = Dot(Plane, LightPosition) > 0.f;
+
+        if (FrontArray[PlaneIndex])
+        {
+            ShadowPlanes[ShadowPlaneCount++] = Plane;
+        }
+    }
+
+    // Construct planes containing silhouette edges and light position
+    for (u32 EdgeIndex = 0; EdgeIndex < Polyhedron->EdgeCount; ++EdgeIndex)
+    {
+        edge *Edge = Polyhedron->Edges + EdgeIndex;
+
+        b32 Front = FrontArray[Edge->FaceIndex[0]];
+
+        if (Front ^ FrontArray[Edge->FaceIndex[1]])
+        {
+            // This edge is on the silhouette
+            vec3 v0 = Polyhedron->Vertices[Edge->VertexIndex[0]];
+            vec3 v1 = Polyhedron->Vertices[Edge->VertexIndex[1]];
+
+            vec3 n = Cross(LightPosition.xyz - v0 * LightPosition.w, v1 - v0);
+
+            // Make sure plane is not degenerate
+            f32 m = SquaredMagnitude(n);
+            if (m > ShadowRegionEpsilon)
+            {
+                // Normalize and point inward
+                n *= (Front ? 1.f : -1.f) / Sqrt(m);
+                ShadowPlanes[ShadowPlaneCount++] = plane(n, -Dot(n, v0));
+
+                if (ShadowPlaneCount == MaxPolyhedronFaceCount)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    return ShadowPlaneCount;
+}
+
+internal b32
 AxisAlignedBoxVisible(u32 PlaneCount, plane *Planes, aabb Box)
 {
     vec3 BoxCenter = GetAABBCenter(Box);

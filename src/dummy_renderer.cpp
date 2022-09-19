@@ -150,6 +150,14 @@ DrawRectangle(render_commands *Commands, transform Transform, vec4 Color, u32 Re
 }
 
 inline void
+DrawBox(render_commands *Commands, transform Transform, vec4 Color, u32 RenderTarget = 0)
+{
+    render_command_draw_box *Command = PushRenderCommand(Commands, render_command_draw_box, RenderCommand_DrawBox, RenderTarget);
+    Command->Transform = Transform;
+    Command->Color = Color;
+}
+
+inline void
 DrawText(render_commands *Commands, const wchar *Text, font *Font, vec3 Position, f32 Scale, vec4 Color, draw_text_mode Mode, b32 DepthEnabled = false, u32 RenderTarget = 0)
 {
     render_command_draw_text *Command = PushRenderCommand(Commands, render_command_draw_text, RenderCommand_DrawText, RenderTarget);

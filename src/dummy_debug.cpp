@@ -217,7 +217,8 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
 
     ImGui::Begin("Game State");
 
-    ImGui::Text("Entity Count: %d", GameState->EntityCount);
+    ImGui::Text("Total Entities: %d", GameState->EntityCount);
+    ImGui::Text("Renderable Entities: %d", GameState->RenderableEntityCount);
 
     if (GameState->Player->Body)
     {
@@ -259,17 +260,31 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
     RenderAnimationGraphInfo(GameState->Player->Animation);
     ImGui::End();
 
-#if 0
-    ImGui::Begin("GameWindow");
+#if 1
+    ImGui::Begin("Cascaded Shadow Maps");
     {
-        // Using a Child allow to fill all the space of the window.
-        // It also alows customization
-        ImGui::BeginChild("GameRender");
-        // Get the size of the child (i.e. the whole draw size of the windows).
-        ImVec2 WindowSize = ImGui::GetWindowSize();
-        // Because I use the texture from OpenGL, I need to invert the V from the UV.
-        ImGui::Image((ImTextureID)3, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
-        ImGui::EndChild();
+        ImVec2 WindowSize = ImVec2(512, 512);
+
+        if (ImGui::BeginTable("Shadow Maps", 4, ImGuiTableFlags_ScrollX))
+        {
+            ImGui::TableNextColumn();
+
+            ImGui::Image((ImTextureID) 5, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+            ImGui::TableNextColumn();
+
+            ImGui::Image((ImTextureID) 6, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+            ImGui::TableNextColumn();
+
+            ImGui::Image((ImTextureID) 7, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+            ImGui::TableNextColumn();
+
+            ImGui::Image((ImTextureID) 8, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
 #endif
@@ -299,7 +314,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
     {
         profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
         f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
-        *ElapsedMilliseconds = Sample->ElapsedMicroseconds;
+        *ElapsedMilliseconds = Sample->ElapsedMilliseconds;
     }
 
     ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
@@ -320,11 +335,11 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
 
             ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
 
-            if (Sample->ElapsedMicroseconds >= 1.0f)
+            if (Sample->ElapsedMilliseconds >= 1.0f)
             {
                 Color = ImVec4(1.f, 0.f, 0.f, 1.f);
             }
-            else if (0.1f <= Sample->ElapsedMicroseconds && Sample->ElapsedMicroseconds < 1.f)
+            else if (0.1f <= Sample->ElapsedMilliseconds && Sample->ElapsedMilliseconds < 1.f)
             {
                 Color = ImVec4(1.f, 1.f, 0.f, 1.f);
             }
@@ -336,10 +351,10 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
             ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
 
             ImGui::TableNextColumn();
-            ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMicroseconds);
+            ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMilliseconds);
 
             TotalTicks += Sample->ElapsedTicks;
-            TotalMilliseconds += Sample->ElapsedMicroseconds;
+            TotalMilliseconds += Sample->ElapsedMilliseconds;
         }
 
         ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);

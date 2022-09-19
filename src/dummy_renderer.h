@@ -111,6 +111,7 @@ enum render_command_type
     RenderCommand_Clear,
     RenderCommand_DrawLine,
     RenderCommand_DrawRectangle,
+    RenderCommand_DrawBox,
     RenderCommand_DrawText,
     RenderCommand_DrawGround,
     RenderCommand_DrawMesh,
@@ -238,6 +239,13 @@ struct render_command_draw_line
 };
 
 struct render_command_draw_rectangle
+{
+    render_command_header Header;
+    transform Transform;
+    vec4 Color;
+};
+
+struct render_command_draw_box
 {
     render_command_header Header;
     transform Transform;

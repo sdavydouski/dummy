@@ -15,6 +15,7 @@
 #include "dummy_platform.h"
 #include "dummy.h"
 
+#if 0
 #define sid u64
 
 struct string_id
@@ -48,6 +49,7 @@ InternString(char *String)
 
 // todo: try user-defined literal for compile-time evaluation?
 #define SID(String) InternString((char *) String)
+#endif
 
 #include "dummy_assets.cpp"
 #include "dummy_text.cpp"
@@ -423,10 +425,6 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 {
     game_asset FontAssets[] = {
         {
-            "Nasalization",
-            "assets\\nasalization-rg.asset"
-        },
-        {
             "TitilliumWeb-Regular",
             "assets\\TitilliumWeb-Regular.asset"
         },
@@ -522,9 +520,9 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
         transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), quat(0.f));
-        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 1.f, 0.f, 1.f), false, false);
+        vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
-        DrawModel(RenderCommands, GetModelAsset(&State->Assets, "Cube"), Transform, Material);
+        DrawBox(RenderCommands, Transform, Color);
 
         if (Joint->ParentIndex > -1)
         {
@@ -610,8 +608,6 @@ GetEntityBoundingBox(game_entity *Entity)
 internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
-    model *Cube = GetModelAsset(&State->Assets, "Cube");
-
     if (Entity->Body)
     {
         // Rigid Body
@@ -620,9 +616,9 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
         quat Rotation = Entity->Transform.Rotation;
 
         transform Transform = CreateTransform(Position, HalfSize, Rotation);
-        material Material = CreateMaterial(MaterialType_Unlit, vec4(1.f, 0.f, 0.f, 1.f), false, true);
+        vec4 Color = vec4(1.f, 0.f, 0.f, 1.f);
 
-        DrawModel(RenderCommands, Cube, Transform, Material);
+        DrawBox(RenderCommands, Transform, Color);
     }
     else
     {
@@ -632,9 +628,9 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
         quat Rotation = Entity->Transform.Rotation;
 
         transform Transform = CreateTransform(Position, HalfSize, Rotation);
-        material Material = CreateMaterial(MaterialType_Unlit, vec4(0.f, 1.f, 1.f, 1.f), false, true);
+        vec4 Color = vec4(0.f, 1.f, 1.f, 1.f);
 
-        DrawModel(RenderCommands, Cube, Transform, Material);
+        DrawBox(RenderCommands, Transform, Color);
     }
 }
 
@@ -655,16 +651,6 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
     else
     {
         DrawModel(RenderCommands, Entity->Model, Entity->Transform);
-    }
-
-    if (Entity->DebugView || State->Options.ShowRigidBodies)
-    {
-        RenderBoundingBox(RenderCommands, State, Entity);
-
-        if (Entity->Model->Skeleton->JointCount > 1)
-        {
-            //DrawSkeleton(RenderCommands, State, Entity->Model->Pose);
-        }
     }
 }
 
@@ -1159,15 +1145,17 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->PermanentArena);
 
     // Marker Man
+#if 0
     State->MarkerMan = CreateGameEntity(State);
     State->MarkerMan->Transform = CreateTransform(vec3(0.f, 0.f, -25.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->MarkerMan, &State->Assets, "MarkerMan");
     AddRigidBodyComponent(State->MarkerMan, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->MarkerMan, "Bot", RenderCommands, &State->PermanentArena);
+#endif
 
 #if 1
     // temp:
-    u32 Count = 100;
+    u32 Count = 50;
     while (Count--)
     {
         game_entity *Entity = CreateGameEntity(State);
@@ -1240,10 +1228,10 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     // Player
     //State->Player = State->xBot;
     //State->Player = State->yBot;
-    State->Player = State->Pelegrini;
+    //State->Player = State->Pelegrini;
     //State->Player = State->MarkerMan;
-    //State->Player = State->Dummy;
     //State->Player = State->Cubes[7];
+    //State->Player = State->Dummy;
 #if 0
     // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
     GenerateRoom(State, vec3(0.f), vec2(16.f, 10.f), vec3(2.f));
@@ -1291,8 +1279,6 @@ DLLExport GAME_INIT(GameInit)
     animator_controller *SimpleController = HashTableLookup(&State->Animator.Controllers, (char *) "Simple");
     SimpleController->Func = SimpleAnimatorController;
     //
-
-    InitGlobalStringTable(&State->PermanentArena);
 
     State->DelayTime = 0.f;
     State->DelayDuration = 0.5f;
@@ -1357,7 +1343,6 @@ DLLExport GAME_INIT(GameInit)
 
     // Dummy
     State->Dummy = CreateGameEntity(State);
-    // todo: rigid bodies are not visible without assigned model
     AddRigidBodyComponent(State->Dummy, vec3(0.f, 0.f, -20.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
 
     LoadFontAssets(&State->Assets, Platform, &State->PermanentArena);
@@ -1410,8 +1395,6 @@ DLLExport GAME_RELOAD(GameReload)
     animator_controller *SimpleController = HashTableLookup(&State->Animator.Controllers, (char *) "Simple");
     SimpleController->Func = SimpleAnimatorController;
     //
-
-    InitGlobalStringTable(&State->PermanentArena);
 }
 
 inline game_entity *
@@ -1419,8 +1402,8 @@ GetPrevHero(game_state *State)
 {
     game_entity *Result = State->Dummy;
 
-    if (State->Player == State->MarkerMan) Result = State->xBot;
-    if (State->Player == State->Pelegrini) Result = State->MarkerMan;
+    //if (State->Player == State->MarkerMan) Result = State->xBot;
+    if (State->Player == State->Pelegrini) Result = State->xBot;
     if (State->Player == State->yBot) Result = State->Pelegrini;
     if (State->Player == State->xBot) Result = State->yBot;
 
@@ -1432,10 +1415,10 @@ GetNextHero(game_state *State)
 {
     game_entity *Result = State->Dummy;
 
-    if (State->Player == State->MarkerMan) Result = State->Pelegrini;
+    //if (State->Player == State->MarkerMan) Result = State->Pelegrini;
     if (State->Player == State->Pelegrini) Result = State->yBot;
     if (State->Player == State->yBot) Result = State->xBot;
-    if (State->Player == State->xBot) Result = State->MarkerMan;
+    if (State->Player == State->xBot) Result = State->Pelegrini;
 
     return Result;
 }
@@ -1780,7 +1763,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameModelAssets(&State->Assets, RenderCommands, &State->PermanentArena);
         InitGameEntities(State, RenderCommands);
 
-        State->Player = State->MarkerMan;
+        State->Player = State->Pelegrini;
+        //State->Player = State->Cubes[7];
         State->Player->FutureControllable = true;
 
         State->Assets.State = GameAssetsState_Ready;
@@ -1828,28 +1812,6 @@ DLLExport GAME_RENDER(GameRender)
             SetWorldProjection(RenderCommands, Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
 
-            BuildFrustrumPolyhedron(&State->PlayerCamera, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
-
-            if (State->Options.ShowCamera)
-            {
-                RenderFrustrum(RenderCommands, &State->Frustrum);
-
-                // Render camera axes
-                game_camera *Camera = &State->PlayerCamera;
-                mat4 CameraTransform = GetCameraTransform(Camera);
-
-                vec3 xAxis = CameraTransform[0].xyz;
-                vec3 yAxis = CameraTransform[1].xyz;
-                vec3 zAxis = CameraTransform[2].xyz;
-
-                vec3 Origin = Camera->Transform.Translation;
-                f32 AxisLength = 3.f;
-
-                DrawLine(RenderCommands, Origin, Origin + xAxis * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
-                DrawLine(RenderCommands, Origin, Origin + yAxis * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
-                DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
-            }
-
             RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
             RenderCommands->Settings.Camera = Camera;
             RenderCommands->Settings.DirectionalLight = &State->DirectionalLight;
@@ -1894,6 +1856,47 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 #endif
+            u32 ShadowPlaneCount = 0;
+            plane *ShadowPlanes=  0;
+
+            {
+                PROFILE(Memory->Profiler, "GameRender:BuildVisibilityRegion");
+
+                BuildFrustrumPolyhedron(&State->PlayerCamera, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
+
+                polyhedron VisibilityRegion = State->Frustrum;
+
+                // Camera is looking downwards
+                if (State->PlayerCamera.Direction.y < 0.f)
+                {
+                    ClipPolyhedron(&State->Frustrum, State->Ground, &VisibilityRegion);
+                }
+
+                vec4 LightPosition = vec4(-State->DirectionalLight.Direction * 100.f, 0.f);
+
+                ShadowPlanes = PushArray(&State->TransientArena, MaxPolyhedronFaceCount, plane);
+                ShadowPlaneCount = CalculateShadowRegion(&VisibilityRegion, LightPosition, ShadowPlanes);
+
+                if (State->Options.ShowCamera)
+                {
+                    RenderFrustrum(RenderCommands, &VisibilityRegion);
+
+                    // Render camera axes
+                    game_camera *Camera = &State->PlayerCamera;
+                    mat4 CameraTransform = GetCameraTransform(Camera);
+
+                    vec3 xAxis = CameraTransform[0].xyz;
+                    vec3 yAxis = CameraTransform[1].xyz;
+                    vec3 zAxis = CameraTransform[2].xyz;
+
+                    vec3 Origin = Camera->Transform.Translation;
+                    f32 AxisLength = 3.f;
+
+                    DrawLine(RenderCommands, Origin, Origin + xAxis * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
+                    DrawLine(RenderCommands, Origin, Origin + yAxis * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
+                    DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
+                }
+            }
 
             // todo: ???
             f32 InterpolationTime = 0.2f;
@@ -1946,20 +1949,28 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:FrustumCulling");
 
+                State->RenderableEntityCount = 0;
+
                 for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
                 {
                     game_entity *Entity = State->Entities + EntityIndex;
 
                     aabb BoundingBox = GetEntityBoundingBox(Entity);
 
+#if 1
                     // todo: come up with some visualization of non-culled entities
+                    Entity->DebugView = !EnableFrustrumCulling && AxisAlignedBoxVisible(ShadowPlaneCount, ShadowPlanes, BoundingBox);
+#endif
 
                     // Frustrum culling
-                    if (!EnableFrustrumCulling || AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox))
+                    //if (!EnableFrustrumCulling || AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox))
+                    if (!EnableFrustrumCulling || AxisAlignedBoxVisible(ShadowPlaneCount, ShadowPlanes, BoundingBox))
                     {
                         // Grouping entities into render batches
                         if (Entity->Model)
                         {
+                            ++State->RenderableEntityCount;
+
                             entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
 
                             if (StringEquals(Batch->Name, ""))
@@ -1969,6 +1980,11 @@ DLLExport GAME_RENDER(GameRender)
 
                             AddEntityToRenderBatch(Batch, Entity);
                         }
+                    }
+
+                    if (Entity->DebugView || State->Options.ShowRigidBodies)
+                    {
+                        RenderBoundingBox(RenderCommands, State, Entity);
                     }
 
                     // todo:
