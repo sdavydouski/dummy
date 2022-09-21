@@ -24,13 +24,16 @@ struct bitmap
 
 struct material_property
 {
-    u32 Id;
     material_property_type Type;
     union
     {
         f32 Value;
         vec4 Color;
-        bitmap Bitmap;
+        struct
+        {
+            u32 TextureId;
+            bitmap Bitmap;
+        };
     };
 };
 
@@ -64,12 +67,11 @@ struct animation_graph_asset;
 struct model
 {
     char Name[64];
+    aabb Bounds;
 
     skeleton *Skeleton;
     skeleton_pose *BindPose;
     animation_graph_asset *AnimationGraph;
-
-    aabb Bounds;
 
     u32 MeshCount;
     mesh *Meshes;

@@ -15,4 +15,5 @@ void main()
     float Value = texture(u_FontTextureAtlas, fs_in.TextureCoords + u_TextureOffset).r;
 
     out_Color = vec4(1.f, 1.f, 1.f, Value) * u_Color;
+    gl_FragDepth = 1.f - Value;
 }

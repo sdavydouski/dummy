@@ -450,6 +450,9 @@ Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_in
             XboxControllerInput->Start.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_START);
             XboxControllerInput->Back.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_BACK);
 
+            XboxControllerInput->LeftThumb.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB);
+            XboxControllerInput->RightThumb.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB);
+
             XboxControllerInput->A.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_A);
             XboxControllerInput->B.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_B);
             XboxControllerInput->X.IsPressed = (CurrentControllerState.Gamepad.wButtons & XINPUT_GAMEPAD_X);
@@ -535,6 +538,11 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
             case VK_RETURN:
             {
                 KeyboardInput->Enter.IsPressed = IsKeyPressed;
+                break;
+            }
+            case VK_SHIFT:
+            {
+                KeyboardInput->Shift.IsPressed = IsKeyPressed;
                 break;
             }
             case VK_OEM_PLUS:
@@ -1145,7 +1153,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             {
                 PROFILE(&PlatformProfiler, "DEBUG_UI_RENDER");
-                DEBUG_UI_RENDER(&PlatformState, &GameMemory, &GameParameters, &DebugArena);
+                DEBUG_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &DebugArena);
             }
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)

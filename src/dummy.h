@@ -23,7 +23,7 @@ struct game_entity
     b32 Controllable;   // todo: come up with smth better
     b32 FutureControllable;   // todo: come up with smth better
     b32 DebugView;
-    vec3 Color;
+    vec3 DebugColor;
 };
 
 struct entity_render_batch

@@ -776,7 +776,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 }
                 case MaterialProperty_Texture_Diffuse:
                 {
-                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
@@ -787,7 +787,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 }
                 case MaterialProperty_Texture_Specular:
                 {
-                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
@@ -798,7 +798,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 }
                 case MaterialProperty_Texture_Shininess:
                 {
-                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
@@ -809,7 +809,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 }
                 case MaterialProperty_Texture_Normal:
                 {
-                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->Id);
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
@@ -1453,7 +1453,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     switch (Command->Material.Type)
                     {
-                        case MaterialType_BlinnPhong:
+                        case MaterialType_Phong:
                         {
                             mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
@@ -1468,7 +1468,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             break;
                         }
-                        case MaterialType_Unlit:
+                        case MaterialType_Basic:
                         {
                             opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
 
@@ -1518,8 +1518,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     switch (Command->Material.Type)
                     {
-                        // todo: organize materials (https://threejs.org/docs/#api/en/materials/MeshPhongMaterial)
-                        case MaterialType_BlinnPhong:
+                        case MaterialType_Phong:
                         {
                             mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
@@ -1576,7 +1575,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     switch (Command->Material.Type)
                     {
-                        case MaterialType_BlinnPhong:
+                        case MaterialType_Phong:
                         {
                             mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
@@ -1588,7 +1587,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             break;
                         }
-                        case MaterialType_Unlit:
+                        case MaterialType_Basic:
                         {
                             Assert(!"Not Implemented");
 #if 0
@@ -1699,9 +1698,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     }
 
 #if 1
-    {
-        // todo(continue): shadow culling
 
+    {
         PROFILE(State->Profiler, "OpenGLCascadedShadowMaps");
 
         game_camera *Camera = RenderSettings->Camera;

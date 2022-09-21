@@ -86,26 +86,27 @@ InitCamera(game_camera *Camera, f32 FieldOfView, f32 AspectRatio, f32 NearClipPl
 }
 
 inline material
-CreateMaterial(material_type Type, mesh_material *MeshMaterial)
+CreateBasicMaterial(vec4 Color, b32 Wireframe = false, b32 CastShadow = false)
 {
     material Result = {};
 
-    Result.Type = Type;
-    Result.MeshMaterial = MeshMaterial;
-    Result.CastShadow = true;
+    Result.Type = MaterialType_Basic;
+    Result.Color = Color;
+    Result.Wireframe = Wireframe;
+    Result.CastShadow = CastShadow;
 
     return Result;
 }
 
 inline material
-CreateMaterial(material_type Type, vec4 Color, b32 CastShadow, b32 Wireframe)
+CreatePhongMaterial(mesh_material *MeshMaterial, b32 Wireframe = false, b32 CastShadow = true)
 {
     material Result = {};
 
-    Result.Type = Type;
-    Result.Color = Color;
-    Result.CastShadow = CastShadow;
+    Result.Type = MaterialType_Phong;
+    Result.MeshMaterial = MeshMaterial;
     Result.Wireframe = Wireframe;
+    Result.CastShadow = CastShadow;
 
     return Result;
 }
@@ -128,7 +129,7 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial);
+        material Material = CreatePhongMaterial(MeshMaterial);
 
         DrawSkinnedMesh(
             RenderCommands, Mesh->Id, {}, Material,
@@ -144,7 +145,7 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial);
+        material Material = CreatePhongMaterial(MeshMaterial);
 
         DrawMesh(RenderCommands, Mesh->Id, Transform, Material);
     }
@@ -168,7 +169,7 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreateMaterial(MaterialType_BlinnPhong, MeshMaterial);
+        material Material = CreatePhongMaterial(MeshMaterial);
 
         DrawMeshInstanced(RenderCommands, Mesh->Id, InstanceCount, Instances, Material);
     }
@@ -232,7 +233,6 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
         for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
         {
             material_property *MaterialProperty = MeshMaterial->Properties + MaterialPropertyIndex;
-            MaterialProperty->Id = -1;
 
             if (
                 MaterialProperty->Type == MaterialProperty_Texture_Diffuse ||
@@ -241,8 +241,8 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
                 MaterialProperty->Type == MaterialProperty_Texture_Normal
             )
             {
-                MaterialProperty->Id = GenerateTextureId();
-                AddTexture(RenderCommands, MaterialProperty->Id, &MaterialProperty->Bitmap);
+                MaterialProperty->TextureId = GenerateTextureId();
+                AddTexture(RenderCommands, MaterialProperty->TextureId, &MaterialProperty->Bitmap);
             }
         }
     }
@@ -359,10 +359,10 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
             "yBot",
             "assets\\ybot.asset"
         },
-        {
-            "MarkerMan",
-            "assets\\marker_man.asset"
-        },
+        /*{
+            "Mutant",
+            "assets\\mutant.asset"
+        },*/
         {
             "Cube",
             "assets\\cube.asset",
@@ -519,10 +519,13 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
-        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), quat(0.f));
+        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), LocalJointPose->Rotation);
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
+        wchar Text[256];
+        mbstowcs_s(0, Text, Joint->Name, 256);
+        DrawText(RenderCommands, Text, GetFontAsset(&State->Assets, "TitilliumWeb-Regular"), Transform.Translation, 0.2f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -694,7 +697,7 @@ AddEntityToRenderBatch(entity_render_batch *Batch, game_entity *Entity)
 
     *NextFreeEntity = Entity;
     NextFreeInstance->Model = Transform(Entity->Transform);
-    NextFreeInstance->Color = Entity->Color;
+    NextFreeInstance->Color = Entity->DebugColor;
 
     Batch->EntityCount++;
 }
@@ -705,7 +708,7 @@ CreateGameEntity(game_state *State)
     game_entity *Entity = State->Entities + State->EntityCount++;
 
     // todo:
-    Entity->Color = vec3(1.f);
+    Entity->DebugColor = vec3(1.f);
 
     return Entity;
 }
@@ -1024,7 +1027,7 @@ GameInput2AnimatorParams(game_state *State, game_entity *Entity)
 
     // todo:
     Result.MaxTime = 5.f;
-    Result.Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+    Result.Move = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
     Result.MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
     Result.ToStateActionIdle = Entity->FutureControllable;
     Result.ToStateStandingIdle = !Entity->FutureControllable;
@@ -1153,6 +1156,14 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddAnimationComponent(State->MarkerMan, "Bot", RenderCommands, &State->PermanentArena);
 #endif
 
+    /*{
+        game_entity *Entity = CreateGameEntity(State);
+        Entity->Transform = CreateTransform(vec3(0.f, 0.f, -25.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+        AddModelComponent(Entity, &State->Assets, "Mutant");
+        AddRigidBodyComponent(Entity, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+        AddAnimationComponent(Entity, "Simple", RenderCommands, &State->PermanentArena);
+    }*/
+
 #if 1
     // temp:
     u32 Count = 50;
@@ -1163,8 +1174,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
         Entity->Transform = CreateTransform(Position, vec3(1.5f), quat(0.f, 0.f, 0.f, 1.f));
         AddModelComponent(Entity, &State->Assets, "Sphere");
         AddRigidBodyComponent(Entity, Position, quat(0.f, 0.f, 0.f, 1.f), vec3(1.5f), false, &State->PermanentArena);
-        //AddAnimationComponent(Entity, "Bot", RenderCommands, &State->PermanentArena);
-        Entity->Color = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+        Entity->DebugColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
     }
 #endif
 
@@ -1619,6 +1629,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
                 State->TargetMove = Move;
 
+                if (State->TargetMove != State->CurrentMove)
+                {
+                    StartGameProcess(State, PlayerMoveLerpProcess);
+                }
+
                 Player->Body->Acceleration.x = (xMoveX + xMoveY) * 120.f;
                 Player->Body->Acceleration.z = (zMoveX + zMoveY) * 120.f;
 
@@ -1748,14 +1763,19 @@ DLLExport GAME_RENDER(GameRender)
     f32 ScreenWidthInUnits = 20.f;
     f32 PixelsPerUnit = (f32) Parameters->WindowWidth / ScreenWidthInUnits;
     f32 ScreenHeightInUnits = (f32) Parameters->WindowHeight / PixelsPerUnit;
+    f32 Left = -ScreenWidthInUnits / 2.f;
+    f32 Right = ScreenWidthInUnits / 2.f;
+    f32 Bottom = -ScreenHeightInUnits / 2.f;
+    f32 Top = ScreenHeightInUnits / 2.f;
+    f32 Near = -10.f;
+    f32 Far = 10.f;
+    f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
     RenderCommands->Settings.WindowWidth = Parameters->WindowWidth;
     RenderCommands->Settings.WindowHeight = Parameters->WindowHeight;
     RenderCommands->Settings.Time = Parameters->Time;
     RenderCommands->Settings.PixelsPerUnit = PixelsPerUnit;
     RenderCommands->Settings.UnitsPerPixel = 1.f / PixelsPerUnit;
-
-    f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
     if (State->Assets.State == GameAssetsState_Loaded)
     {
@@ -1770,15 +1790,8 @@ DLLExport GAME_RENDER(GameRender)
         State->Assets.State = GameAssetsState_Ready;
     }
 
+    SetTime(RenderCommands, Parameters->Time);
     SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
-
-    f32 Left = -ScreenWidthInUnits / 2.f;
-    f32 Right = ScreenWidthInUnits / 2.f;
-    f32 Bottom = -ScreenHeightInUnits / 2.f;
-    f32 Top = ScreenHeightInUnits / 2.f;
-    f32 Near = -10.f;
-    f32 Far = 10.f;
-
     SetScreenProjection(RenderCommands, Left, Right, Bottom, Top, Near, Far);
     
     switch (State->Mode)
@@ -1786,10 +1799,12 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_World:
         case GameMode_Edit:
         {
-            SetTime(RenderCommands, Parameters->Time);
-
             game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->FreeCamera;
             b32 EnableFrustrumCulling = State->Mode == GameMode_World;
+
+            RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
+            RenderCommands->Settings.Camera = Camera;
+            RenderCommands->Settings.DirectionalLight = &State->DirectionalLight;
 
             if (State->IsBackgroundHighlighted)
             {
@@ -1808,13 +1823,8 @@ DLLExport GAME_RENDER(GameRender)
                 GameProcess = GameProcess->Next;
             }
 
-            f32 Aspect = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
             SetWorldProjection(RenderCommands, Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
-
-            RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
-            RenderCommands->Settings.Camera = Camera;
-            RenderCommands->Settings.DirectionalLight = &State->DirectionalLight;
 
             // Scene lighting
             //State->DirectionalLight.Direction = Normalize(vec3(Cos(Parameters->Time * 0.5f), -1.f, Sin(Parameters->Time * 0.5f)));
@@ -1837,7 +1847,6 @@ DLLExport GAME_RENDER(GameRender)
             //SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
 
             // Flying skulls
-            // todo: get entity by id ?
 #if 0
             if (State->Player->Body)
             {
@@ -1862,7 +1871,7 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:BuildVisibilityRegion");
 
-                BuildFrustrumPolyhedron(&State->PlayerCamera, State->PlayerCamera.NearClipPlane, State->PlayerCamera.FarClipPlane, &State->Frustrum);
+                BuildFrustrumPolyhedron(&State->PlayerCamera, &State->Frustrum);
 
                 polyhedron VisibilityRegion = State->Frustrum;
 
@@ -1897,14 +1906,6 @@ DLLExport GAME_RENDER(GameRender)
                     DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
                 }
             }
-
-            // todo: ???
-            f32 InterpolationTime = 0.2f;
-            vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
-            State->CurrentMove += dMove * Parameters->Delta;
-
-            State->EntityBatches.Count = 32;
-            State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
 
             {
                 PROFILE(Memory->Profiler, "GameRender:AnimateEntities");
@@ -1949,28 +1950,22 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:FrustumCulling");
 
+                State->EntityBatches.Count = 32;
+                State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
                 State->RenderableEntityCount = 0;
 
                 for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
                 {
                     game_entity *Entity = State->Entities + EntityIndex;
 
-                    aabb BoundingBox = GetEntityBoundingBox(Entity);
-
-#if 1
-                    // todo: come up with some visualization of non-culled entities
-                    Entity->DebugView = !EnableFrustrumCulling && AxisAlignedBoxVisible(ShadowPlaneCount, ShadowPlanes, BoundingBox);
-#endif
-
-                    // Frustrum culling
-                    //if (!EnableFrustrumCulling || AxisAlignedBoxVisible(State->Frustrum.FaceCount, State->Frustrum.Planes, BoundingBox))
-                    if (!EnableFrustrumCulling || AxisAlignedBoxVisible(ShadowPlaneCount, ShadowPlanes, BoundingBox))
+                    if (Entity->Model)
                     {
-                        // Grouping entities into render batches
-                        if (Entity->Model)
-                        {
-                            ++State->RenderableEntityCount;
+                        aabb BoundingBox = GetEntityBoundingBox(Entity);
 
+                        // Frustrum culling
+                        if (!EnableFrustrumCulling || AxisAlignedBoxVisible(ShadowPlaneCount, ShadowPlanes, BoundingBox))
+                        {
+                            // Grouping entities into render batches
                             entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
 
                             if (StringEquals(Batch->Name, ""))
@@ -1979,9 +1974,11 @@ DLLExport GAME_RENDER(GameRender)
                             }
 
                             AddEntityToRenderBatch(Batch, Entity);
+
+                            ++State->RenderableEntityCount;
                         }
                     }
-
+                    
                     if (Entity->DebugView || State->Options.ShowRigidBodies)
                     {
                         RenderBoundingBox(RenderCommands, State, Entity);
@@ -2026,7 +2023,6 @@ DLLExport GAME_RENDER(GameRender)
                 DrawText(RenderCommands, L"Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
             }
 
-
             if (State->Player->Model)
             {
                 font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
@@ -2035,7 +2031,7 @@ DLLExport GAME_RENDER(GameRender)
                     FormatString(Text, L"Active entity: %S", State->Player->Model->Name);
                     DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
                 }
-#if 0
+#if 1
                 {
                     vec3 Position = State->Player->Transform.Translation;
                     vec3 TextPosition = Position + vec3(-0.8f, 6.f, 0.f);

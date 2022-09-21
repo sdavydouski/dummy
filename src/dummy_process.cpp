@@ -137,3 +137,10 @@ DLLExport GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
         }
     }
 }
+
+DLLExport GAME_PROCESS_ON_UPDATE(PlayerMoveLerpProcess)
+{
+    f32 InterpolationTime = 0.2f;
+    vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
+    State->CurrentMove += dMove * Delta;
+}

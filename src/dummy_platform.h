@@ -89,6 +89,7 @@ struct win32_auto_profiler
 };
 
 #define PROFILE(Profiler, Name) win32_auto_profiler Profile(Profiler, (char *) Name)
+//#define PROFILE(...) 
 #else
 #error Not implemented
 #endif

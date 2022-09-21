@@ -1,5 +1,5 @@
 internal void
-BuildFrustrumPolyhedron(game_camera *Camera, f32 Near, f32 Far, polyhedron *Polyhedron)
+BuildFrustrumPolyhedron(game_camera *Camera, polyhedron *Polyhedron)
 {
     Polyhedron->VertexCount = 8;
     Polyhedron->EdgeCount = 12;
@@ -10,6 +10,8 @@ BuildFrustrumPolyhedron(game_camera *Camera, f32 Near, f32 Far, polyhedron *Poly
 
     f32 FocalLength = Camera->FocalLength;
     f32 AspectRatio = Camera->AspectRatio;
+    f32 Near = Camera->NearClipPlane;
+    f32 Far = Camera->FarClipPlane;
 
     // Generate vertices for the near side
     f32 y = Near / FocalLength;

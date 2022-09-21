@@ -24,6 +24,7 @@ struct platform_input_keyboard
     platform_button_state Space;
     platform_button_state Esc;
     platform_button_state Enter;
+    platform_button_state Shift;
 
     platform_button_state Plus;
     platform_button_state Minus;
@@ -63,6 +64,9 @@ struct platform_input_xbox_controller
 
     platform_button_state Start;
     platform_button_state Back;
+
+    platform_button_state LeftThumb;
+    platform_button_state RightThumb;
 
     platform_button_state A;
     platform_button_state B;
@@ -153,11 +157,15 @@ inline void
 BeginProcessXboxControllerInput(platform_input_xbox_controller *XboxControllerInput)
 {
     SavePrevButtonState(&XboxControllerInput->Start);
+    SavePrevButtonState(&XboxControllerInput->Back);
 
     SavePrevButtonState(&XboxControllerInput->DradUp);
     SavePrevButtonState(&XboxControllerInput->DradDown);
     SavePrevButtonState(&XboxControllerInput->DradLeft);
     SavePrevButtonState(&XboxControllerInput->DradRight);
+
+    SavePrevButtonState(&XboxControllerInput->LeftThumb);
+    SavePrevButtonState(&XboxControllerInput->RightThumb);
 
     SavePrevButtonState(&XboxControllerInput->A);
     SavePrevButtonState(&XboxControllerInput->B);
@@ -169,11 +177,15 @@ inline void
 EndProcessXboxControllerInput(platform_input_xbox_controller *XboxControllerInput)
 {
     UpdateToggleButtonState(&XboxControllerInput->Start);
+    UpdateToggleButtonState(&XboxControllerInput->Back);
 
     UpdateToggleButtonState(&XboxControllerInput->DradUp);
     UpdateToggleButtonState(&XboxControllerInput->DradDown);
     UpdateToggleButtonState(&XboxControllerInput->DradLeft);
     UpdateToggleButtonState(&XboxControllerInput->DradRight);
+
+    UpdateToggleButtonState(&XboxControllerInput->LeftThumb);
+    UpdateToggleButtonState(&XboxControllerInput->RightThumb);
 
     UpdateToggleButtonState(&XboxControllerInput->A);
     UpdateToggleButtonState(&XboxControllerInput->B);
@@ -187,6 +199,11 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
     if (Magnitude(GameInput->Move.Range) == 0.f)
     {
         GameInput->Move.Range = XboxControllerInput->LeftStick;
+    }
+
+    if (XboxControllerInput->LeftThumb.IsPressed)
+    {
+        GameInput->Move.Range *= 2.f;
     }
 
     if (Magnitude(GameInput->Camera.Range) == 0.f)
@@ -225,6 +242,7 @@ BeginProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
     SavePrevButtonState(&KeyboardInput->Tab);
     SavePrevButtonState(&KeyboardInput->Space);
     SavePrevButtonState(&KeyboardInput->Enter);
+    SavePrevButtonState(&KeyboardInput->Shift);
     SavePrevButtonState(&KeyboardInput->Plus);
     SavePrevButtonState(&KeyboardInput->Minus);
     SavePrevButtonState(&KeyboardInput->One);
@@ -243,6 +261,7 @@ EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
     UpdateToggleButtonState(&KeyboardInput->Tab);
     UpdateToggleButtonState(&KeyboardInput->Space);
     UpdateToggleButtonState(&KeyboardInput->Enter);
+    UpdateToggleButtonState(&KeyboardInput->Shift);
     UpdateToggleButtonState(&KeyboardInput->Plus);
     UpdateToggleButtonState(&KeyboardInput->Minus);
     UpdateToggleButtonState(&KeyboardInput->One);
@@ -266,7 +285,19 @@ EndProcessMouseInput(platform_input_mouse *MouseInput)
 internal void
 KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *GameInput)
 {
-    f32 Move = KeyboardInput->Z.Toggle ? 1.f : 0.5f;
+    f32 Move = 0.5f;
+
+    if (KeyboardInput->Z.Toggle)
+    {
+        if (KeyboardInput->Shift.IsPressed)
+        {
+            Move = 2.f;
+        }
+        else
+        {
+            Move = 1.f;
+        }
+    }
 
     if (Magnitude(GameInput->Move.Range) == 0.f)
     {
@@ -322,7 +353,7 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
     if (Magnitude(GameInput->Camera.Range) == 0.f)
     {
         f32 MouseSensitivity = 0.05f;
-        vec2 MouseMovement = vec2((f32)MouseInput->dx, (f32)MouseInput->dy) * MouseSensitivity;
+        vec2 MouseMovement = vec2((f32) MouseInput->dx, (f32) MouseInput->dy) * MouseSensitivity;
 
         GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
         GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
@@ -330,11 +361,11 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
 
     if (GameInput->ZoomDelta == 0.f)
     {
-        GameInput->ZoomDelta = (f32)MouseInput->WheelDelta;
+        GameInput->ZoomDelta = (f32) MouseInput->WheelDelta;
     }
 
     GameInput->LeftClick.IsActivated = IsButtonActivated(&MouseInput->LeftButton);
-    GameInput->MouseCoords = vec2((f32)MouseInput->x, (f32)MouseInput->y);
+    GameInput->MouseCoords = vec2((f32) MouseInput->x, (f32) MouseInput->y);
 
     MouseInput->WheelDelta = 0;
 }

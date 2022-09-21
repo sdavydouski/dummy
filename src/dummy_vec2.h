@@ -75,6 +75,18 @@ struct vec2
     }
 };
 
+inline b32 operator ==(vec2 a, vec2 b)
+{
+    b32 Result = a.x == b.x && a.y == b.y;
+    return Result;
+}
+
+inline b32 operator !=(vec2 a, vec2 b)
+{
+    b32 Result = !(a == b);
+    return Result;
+}
+
 inline vec2 &operator +=(vec2 &Dest, vec2 Vector)
 {
     Dest = Dest + Vector;
@@ -84,6 +96,12 @@ inline vec2 &operator +=(vec2 &Dest, vec2 Vector)
 inline vec2 &operator -=(vec2 &Dest, vec2 Vector)
 {
     Dest = Dest - Vector;
+    return Dest;
+}
+
+inline vec2 &operator *=(vec2 &Dest, f32 Scalar)
+{
+    Dest = Dest * Scalar;
     return Dest;
 }
 

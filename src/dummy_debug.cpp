@@ -153,7 +153,7 @@ RenderEntityInfo(game_entity *Entity, model *Model)
 }
 
 internal void
-Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemory, game_parameters *GameParameters, memory_arena *Arena)
+Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *RendererState, game_memory *GameMemory, game_parameters *GameParameters, memory_arena *Arena)
 {
     scoped_memory ScopedMemory(Arena);
 
@@ -267,21 +267,11 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, game_memory *GameMemor
 
         if (ImGui::BeginTable("Shadow Maps", 4, ImGuiTableFlags_ScrollX))
         {
-            ImGui::TableNextColumn();
-
-            ImGui::Image((ImTextureID) 5, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
-
-            ImGui::TableNextColumn();
-
-            ImGui::Image((ImTextureID) 6, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
-
-            ImGui::TableNextColumn();
-
-            ImGui::Image((ImTextureID) 7, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
-
-            ImGui::TableNextColumn();
-
-            ImGui::Image((ImTextureID) 8, WindowSize, ImVec2(0, 1), ImVec2(1, 0));
+            for (u32 CascadeIndex = 0; CascadeIndex < ArrayCount(RendererState->CascadeShadowMaps); ++CascadeIndex)
+            {
+                ImGui::TableNextColumn();
+                ImGui::Image((ImTextureID)(umm)RendererState->CascadeShadowMaps[CascadeIndex], WindowSize, ImVec2(0, 1), ImVec2(1, 0));
+            }
 
             ImGui::EndTable();
         }

@@ -2,17 +2,20 @@
 
 enum material_type
 {
-    MaterialType_BlinnPhong,
-    MaterialType_Unlit
+    MaterialType_Basic,
+    MaterialType_Phong
 };
 
 struct material
 {
     material_type Type;
-    mesh_material *MeshMaterial;
 
-    // todo: Remove this?
-    vec4 Color;
+    union
+    {
+        vec4 Color;
+        mesh_material *MeshMaterial;
+    };
+
     b32 Wireframe;
     b32 CastShadow;
 };
