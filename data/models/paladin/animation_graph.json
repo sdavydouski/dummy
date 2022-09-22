@@ -1,0 +1,16 @@
+{
+   "version":"0.0.1",
+   "graph":{
+      "name":"Paladin animation graph",
+      "entry":"StandingIdle",
+      "nodes":[
+         {
+            "name":"StandingIdle",
+            "type":"Animation",
+            "clip":"sword and shield idle",
+            "looping":true,
+            "transitions":[]
+         }
+      ]
+   }
+}

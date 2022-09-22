@@ -1,3 +1,5 @@
+// TODO: give up on assimp and switch to https://github.com/nem0/OpenFBX ?
+
 // todo: some models have weird bone transformations
 // https://github.com/assimp/assimp/issues/1974
 

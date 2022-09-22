@@ -158,6 +158,23 @@ DrawBox(render_commands *Commands, transform Transform, vec4 Color, u32 RenderTa
 }
 
 inline void
+DrawText(render_commands *Commands, const char *Text, font *Font, vec3 Position, f32 Scale, vec4 Color, draw_text_mode Mode, b32 DepthEnabled = false, u32 RenderTarget = 0)
+{
+    render_command_draw_text *Command = PushRenderCommand(Commands, render_command_draw_text, RenderCommand_DrawText, RenderTarget);
+
+    wchar CommandText[256];
+    ConvertToWideString(Text, CommandText);
+    CopyString(CommandText, Command->Text);
+
+    Command->Font = Font;
+    Command->Position = Position;
+    Command->Scale = Scale;
+    Command->Color = Color;
+    Command->Mode = Mode;
+    Command->DepthEnabled = DepthEnabled;
+}
+
+inline void
 DrawText(render_commands *Commands, const wchar *Text, font *Font, vec3 Position, f32 Scale, vec4 Color, draw_text_mode Mode, b32 DepthEnabled = false, u32 RenderTarget = 0)
 {
     render_command_draw_text *Command = PushRenderCommand(Commands, render_command_draw_text, RenderCommand_DrawText, RenderTarget);

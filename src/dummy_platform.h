@@ -1,5 +1,8 @@
 #pragma once
 
+#define PLATFORM_GET_TIMESTAMP(name) u64 name(void)
+typedef PLATFORM_GET_TIMESTAMP(platform_get_timestamp);
+
 struct profiler_sample
 {
     char Name[64];
@@ -19,6 +22,8 @@ struct platform_profiler
     i32 CurrentFrameSampleIndex;
     u32 MaxFrameSampleCount;
     profiler_frame_samples *FrameSamples;
+
+    platform_get_timestamp *GetTimestamp;
 };
 
 inline profiler_frame_samples *
@@ -63,36 +68,28 @@ ProfilerStartFrame(platform_profiler *Profiler)
     FrameSamples->SampleCount = 0;
 }
 
-#ifdef _WIN32
-#include <windows.h>
-
-struct win32_auto_profiler
+struct auto_profiler
 {
     platform_profiler *Profiler;
     char *Name;
-    LARGE_INTEGER StartTime;
+    u64 StartTime;
 
-    win32_auto_profiler(platform_profiler *Profiler, char *Name) : Profiler(Profiler), Name(Name)
+    auto_profiler(platform_profiler *Profiler, char *Name) : Profiler(Profiler), Name(Name)
     {
-        QueryPerformanceCounter(&StartTime);
+        StartTime = Profiler->GetTimestamp();
     }
 
-    ~win32_auto_profiler()
+    ~auto_profiler()
     {
-        LARGE_INTEGER EndTime;
-        QueryPerformanceCounter(&EndTime);
-
-        u64 ElapsedTicks = EndTime.QuadPart - StartTime.QuadPart;
+        u64 EndTime = Profiler->GetTimestamp();
+        u64 ElapsedTicks = EndTime - StartTime;
 
         StoreProfileSample(Profiler, Name, ElapsedTicks);
     }
 };
 
-#define PROFILE(Profiler, Name) win32_auto_profiler Profile(Profiler, (char *) Name)
+#define PROFILE(Profiler, Name) auto_profiler Profile(Profiler, (char *) Name)
 //#define PROFILE(...) 
-#else
-#error Not implemented
-#endif
 
 #define PROFILER_START_FRAME(Profiler) ProfilerStartFrame(Profiler) 
 

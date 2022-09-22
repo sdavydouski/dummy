@@ -128,13 +128,17 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
-        mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreatePhongMaterial(MeshMaterial);
+        
+        if (Mesh->Visible)
+        {
+            mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
+            material Material = CreatePhongMaterial(MeshMaterial);
 
-        DrawSkinnedMesh(
-            RenderCommands, Mesh->Id, {}, Material,
-            Skinning->SkinningBufferId, Skinning->SkinningMatrixCount, Skinning->SkinningMatrices
-        );
+            DrawSkinnedMesh(
+                RenderCommands, Mesh->Id, {}, Material,
+                Skinning->SkinningBufferId, Skinning->SkinningMatrixCount, Skinning->SkinningMatrices
+            );
+        }
     }
 }
 
@@ -144,21 +148,14 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
-        mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreatePhongMaterial(MeshMaterial);
 
-        DrawMesh(RenderCommands, Mesh->Id, Transform, Material);
-    }
-}
+        if (Mesh->Visible)
+        {
+            mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
+            material Material = CreatePhongMaterial(MeshMaterial);
 
-inline void
-DrawModel(render_commands *RenderCommands, model *Model, transform Transform, material Material)
-{
-    for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
-    {
-        mesh *Mesh = Model->Meshes + MeshIndex;
-
-        DrawMesh(RenderCommands, Mesh->Id, Transform, Material);
+            DrawMesh(RenderCommands, Mesh->Id, Transform, Material);
+        }
     }
 }
 
@@ -168,10 +165,14 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
-        mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-        material Material = CreatePhongMaterial(MeshMaterial);
+        
+        if (Mesh->Visible)
+        {
+            mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
+            material Material = CreatePhongMaterial(MeshMaterial);
 
-        DrawMeshInstanced(RenderCommands, Mesh->Id, InstanceCount, Instances, Material);
+            DrawMeshInstanced(RenderCommands, Mesh->Id, InstanceCount, Instances, Material);
+        }
     }
 }
 
@@ -221,7 +222,10 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
+
         Mesh->Id = GenerateMeshId();
+        Mesh->Visible = true;
+
         AddMesh(
             RenderCommands, Mesh->Id, Mesh->VertexCount, 
             Mesh->Positions, Mesh->Normals, Mesh->Tangents, Mesh->Bitangents, Mesh->TextureCoords, Mesh->Weights, Mesh->JointIndices, 
@@ -359,10 +363,10 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
             "yBot",
             "assets\\ybot.asset"
         },
-        /*{
-            "Mutant",
-            "assets\\mutant.asset"
-        },*/
+        {
+            "Paladin",
+            "assets\\paladin.asset"
+        },
         {
             "Cube",
             "assets\\cube.asset",
@@ -513,6 +517,8 @@ InitGameFontAssets(game_assets *Assets, render_commands *RenderCommands, memory_
 internal void
 DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *Pose)
 {
+    font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
+
     for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
     {
         joint *Joint = Pose->Skeleton->Joints + JointIndex;
@@ -523,9 +529,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
-        wchar Text[256];
-        mbstowcs_s(0, Text, Joint->Name, 256);
-        DrawText(RenderCommands, Text, GetFontAsset(&State->Assets, "TitilliumWeb-Regular"), Transform.Translation, 0.2f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
+        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.2f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -1135,17 +1139,24 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 
     // xBot
     State->xBot = CreateGameEntity(State);
-    State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->xBot, &State->Assets, "xBot");
     AddRigidBodyComponent(State->xBot, vec3(8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->xBot, "Bot", RenderCommands, &State->PermanentArena);
 
     // yBot
     State->yBot = CreateGameEntity(State);
-    State->yBot->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->yBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->yBot, &State->Assets, "yBot");
     AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->PermanentArena);
+
+    // Paladin
+    State->Paladin = CreateGameEntity(State);
+    State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -25.f), vec3(3.7f), quat(0.f, 0.f, 0.f, 1.f));
+    AddModelComponent(State->Paladin, &State->Assets, "Paladin");
+    AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddAnimationComponent(State->Paladin, "Simple", RenderCommands, &State->PermanentArena);
 
     // Marker Man
 #if 0
@@ -1155,14 +1166,6 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddRigidBodyComponent(State->MarkerMan, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->MarkerMan, "Bot", RenderCommands, &State->PermanentArena);
 #endif
-
-    /*{
-        game_entity *Entity = CreateGameEntity(State);
-        Entity->Transform = CreateTransform(vec3(0.f, 0.f, -25.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
-        AddModelComponent(Entity, &State->Assets, "Mutant");
-        AddRigidBodyComponent(Entity, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-        AddAnimationComponent(Entity, "Simple", RenderCommands, &State->PermanentArena);
-    }*/
 
 #if 1
     // temp:
@@ -2020,24 +2023,24 @@ DLLExport GAME_RENDER(GameRender)
             if (State->Assets.State != GameAssetsState_Ready)
             {
                 font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
-                DrawText(RenderCommands, L"Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
             }
 
             if (State->Player->Model)
             {
                 font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
                 {
-                    wchar Text[64];
-                    FormatString(Text, L"Active entity: %S", State->Player->Model->Name);
+                    char Text[64];
+                    FormatString(Text, "Active entity: %s", State->Player->Model->Name);
                     DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
                 }
-#if 1
+#if 0
                 {
                     vec3 Position = State->Player->Transform.Translation;
                     vec3 TextPosition = Position + vec3(-0.8f, 6.f, 0.f);
 
-                    wchar Text[64];
-                    FormatString(Text, L"%.2f, %.2f, %.2f", Position.x, Position.y, Position.z);
+                    char Text[64];
+                    FormatString(Text, "%.2f, %.2f, %.2f", Position.x, Position.y, Position.z);
                     DrawText(RenderCommands, Text, Font, TextPosition, 1.f, vec4(1.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
                 }
 #endif
@@ -2112,7 +2115,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             font *Font = GetFontAsset(&State->Assets, "Where My Keys");
-            DrawText(RenderCommands, L"Dummy", Font, vec3(-1.8f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+            DrawText(RenderCommands, "Dummy", Font, vec3(-1.8f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
 
             break;
         }

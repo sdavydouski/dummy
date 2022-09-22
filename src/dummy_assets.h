@@ -47,6 +47,7 @@ struct mesh
 {
     u32 Id;
     u32 MaterialIndex;
+    b32 Visible;
 
     // todo: calculate bitangent instead of storing it? (fourth weight too) <- do I even care?
     u32 VertexCount;

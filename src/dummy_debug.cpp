@@ -47,6 +47,18 @@ Win32ShutdownImGui()
     ImGui::DestroyContext();
 }
 
+inline const char *
+GetAnimationNodeTypeName(animation_node_type NodeType)
+{
+    switch (NodeType)
+    {
+        case AnimationNodeType_Clip: return "Clip";
+        case AnimationNodeType_BlendSpace: return "BlendSpace";
+        case AnimationNodeType_Graph: return "Graph";
+        default: return "";
+    }
+}
+
 internal void
 RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 {
@@ -61,6 +73,7 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 
     Prefix[Depth] = 0;
 
+    ImGui::Text("%sAnimator: %s", Prefix, Graph->Animator);
     ImGui::Text("%sActive Node: %s", Prefix, Graph->Active->Name);
 
     ImGui::NewLine();
@@ -69,7 +82,7 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
     {
         animation_node *Node = Graph->Nodes + NodeIndex;
 
-        ImGui::Text("%sNode Type: %d\n", Prefix, Node->Type);
+        ImGui::Text("%sNode Type: %s\n", Prefix, GetAnimationNodeTypeName(Node->Type));
         ImGui::Text("%sNode Weight: %.3f\n", Prefix, Node->Weight);
 
         switch (Node->Type)
@@ -111,13 +124,24 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 internal void
 RenderEntityInfo(game_entity *Entity, model *Model)
 {
-    ImGui::Text("Selected Entity:");
-
     if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
     {
         ImGui::InputFloat3("Position", Entity->Transform.Translation.Elements);
         ImGui::InputFloat3("Scale", Entity->Transform.Scale.Elements);
         ImGui::InputFloat4("Rotation", Entity->Transform.Rotation.Elements);
+    }
+
+    ImGui::NewLine();
+
+    if (Entity->Body)
+    {
+        if (ImGui::CollapsingHeader("Ridig Body", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
+            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
+            ImGui::InputFloat4("Orientation", Entity->Body->Orientation.Elements);
+            ImGui::NewLine();
+        }
     }
 
     if (Model)
@@ -128,26 +152,38 @@ RenderEntityInfo(game_entity *Entity, model *Model)
             ImGui::Text("Materials: %d", Model->MaterialCount);
             ImGui::Text("\n");
 
+            u32 TotalVertexCount = 0;
+            u32 TotalIndexCount = 0;
+
             for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
             {
                 mesh *Mesh = Model->Meshes + MeshIndex;
 
-                ImGui::Text("Mesh %d\n", MeshIndex);
+                char CheckboxLabel[32];
+                FormatString(CheckboxLabel, "Visible (Mesh Id: %d)", Mesh->Id);
+                ImGui::Checkbox(CheckboxLabel, (bool *) &Mesh->Visible);
+
                 ImGui::Text("Vertices: %d", Mesh->VertexCount);
                 ImGui::Text("Indices: %d", Mesh->IndexCount);
-                ImGui::Text("\n");
+
+                ImGui::NewLine();
+
+                TotalVertexCount += Mesh->VertexCount;
+                TotalIndexCount += Mesh->IndexCount;
             }
+
+            ImGui::Text("Total Vertices: %d", TotalVertexCount);
+            ImGui::Text("Total Indices: %d", TotalIndexCount);
+
+            ImGui::NewLine();
         }
     }
 
-    if (Entity->Body)
+    if (Entity->Animation)
     {
-        if (ImGui::CollapsingHeader("Ridig Body", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::CollapsingHeader("Animation Graph", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
-            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
-            ImGui::InputFloat4("Orientation", Entity->Body->Orientation.Elements);
-            ImGui::Text("\n");
+            RenderAnimationGraphInfo(Entity->Animation);
         }
     }
 }
@@ -256,11 +292,6 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
 
     ImGui::End();
 
-    ImGui::Begin("Animation Graph");
-    RenderAnimationGraphInfo(GameState->Player->Animation);
-    ImGui::End();
-
-#if 1
     ImGui::Begin("Cascaded Shadow Maps");
     {
         ImVec2 WindowSize = ImVec2(512, 512);
@@ -277,9 +308,6 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
         }
     }
     ImGui::End();
-#endif
-
-    ImGui::Begin("Debug");
 
     for (u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
     {
@@ -287,11 +315,11 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
 
         if (Entity->DebugView)
         {
+            ImGui::Begin("Entity", (bool *) &Entity->DebugView);
             RenderEntityInfo(Entity, Entity->Model);
+            ImGui::End();
         }
     }
-
-    ImGui::End();
 
     ImGui::Begin("Profiler");
 

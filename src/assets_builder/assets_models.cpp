@@ -660,7 +660,10 @@ WriteModelAsset(const char *FilePath, model_asset *Asset)
 internal void
 LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
 {
-    const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
+    aiPropertyStore *AssimpPropertyStore = aiCreatePropertyStore();
+    aiSetImportPropertyInteger(AssimpPropertyStore, AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, 0);
+
+    const aiScene *AssimpScene = aiImportFileExWithProperties(FilePath, Flags, 0, AssimpPropertyStore);
 
     if (AssimpScene)
     {
@@ -675,6 +678,8 @@ LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
         const char *ErrorMessage = aiGetErrorString();
         Assert(!ErrorMessage);
     }
+
+    aiReleasePropertyStore(AssimpPropertyStore);
 }
 
 internal void

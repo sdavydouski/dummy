@@ -131,3 +131,14 @@ GetDirectoryPath(const char *FilePath, char *DirectoryPath)
 
     CopyStringUnsafe(FilePath, DirectoryPath, (u32)(LastDelimiter - FilePath));
 }
+
+inline void
+ConvertToWideString(const char *Source, wchar *Dest)
+{
+    u32 SourceLength = StringLength(Source);
+    u32 DestLength = StringLength(Dest);
+
+    //Assert(SourceLength < DestLength);
+
+    mbstowcs_s(0, Dest, SourceLength + 1, Source, SourceLength);
+}

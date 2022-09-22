@@ -9,30 +9,38 @@ struct platform_button_state
 
 struct platform_input_keyboard
 {
-    platform_button_state Up;
-    platform_button_state Down;
-    platform_button_state Left;
-    platform_button_state Right;
+    union
+    {
+        struct
+        {
+            platform_button_state Up;
+            platform_button_state Down;
+            platform_button_state Left;
+            platform_button_state Right;
 
-    platform_button_state Z;
-    platform_button_state C;
-    platform_button_state E;
-    platform_button_state R;
+            platform_button_state Z;
+            platform_button_state C;
+            platform_button_state E;
+            platform_button_state R;
 
-    platform_button_state Tab;
-    platform_button_state Ctrl;
-    platform_button_state Space;
-    platform_button_state Esc;
-    platform_button_state Enter;
-    platform_button_state Shift;
+            platform_button_state Tab;
+            platform_button_state Ctrl;
+            platform_button_state Space;
+            platform_button_state Esc;
+            platform_button_state Enter;
+            platform_button_state Shift;
 
-    platform_button_state Plus;
-    platform_button_state Minus;
+            platform_button_state Plus;
+            platform_button_state Minus;
 
-    platform_button_state One;
-    platform_button_state Two;
-    platform_button_state Three;
-    platform_button_state Zero;
+            platform_button_state One;
+            platform_button_state Two;
+            platform_button_state Three;
+            platform_button_state Zero;
+        };
+
+        platform_button_state Buttons[32];
+    };
 };
 
 struct platform_input_mouse
@@ -57,21 +65,29 @@ struct platform_input_xbox_controller
     f32 LeftTrigger;
     f32 RightTrigger;
 
-    platform_button_state DradUp;
-    platform_button_state DradDown;
-    platform_button_state DradLeft;
-    platform_button_state DradRight;
+    union
+    {
+        struct
+        {
+            platform_button_state DradUp;
+            platform_button_state DradDown;
+            platform_button_state DradLeft;
+            platform_button_state DradRight;
 
-    platform_button_state Start;
-    platform_button_state Back;
+            platform_button_state Start;
+            platform_button_state Back;
 
-    platform_button_state LeftThumb;
-    platform_button_state RightThumb;
+            platform_button_state LeftThumb;
+            platform_button_state RightThumb;
 
-    platform_button_state A;
-    platform_button_state B;
-    platform_button_state X;
-    platform_button_state Y;
+            platform_button_state A;
+            platform_button_state B;
+            platform_button_state X;
+            platform_button_state Y;
+        };
+
+        platform_button_state Buttons[12];
+    };
 };
 
 struct game_input_action
@@ -156,41 +172,19 @@ ProcessInputState(game_input_state *State, platform_button_state *Button)
 inline void
 BeginProcessXboxControllerInput(platform_input_xbox_controller *XboxControllerInput)
 {
-    SavePrevButtonState(&XboxControllerInput->Start);
-    SavePrevButtonState(&XboxControllerInput->Back);
-
-    SavePrevButtonState(&XboxControllerInput->DradUp);
-    SavePrevButtonState(&XboxControllerInput->DradDown);
-    SavePrevButtonState(&XboxControllerInput->DradLeft);
-    SavePrevButtonState(&XboxControllerInput->DradRight);
-
-    SavePrevButtonState(&XboxControllerInput->LeftThumb);
-    SavePrevButtonState(&XboxControllerInput->RightThumb);
-
-    SavePrevButtonState(&XboxControllerInput->A);
-    SavePrevButtonState(&XboxControllerInput->B);
-    SavePrevButtonState(&XboxControllerInput->X);
-    SavePrevButtonState(&XboxControllerInput->Y);
+    for (u32 ButtonIndex = 0; ButtonIndex < ArrayCount(XboxControllerInput->Buttons); ++ButtonIndex)
+    {
+        SavePrevButtonState(&XboxControllerInput->Buttons[ButtonIndex]);
+    }
 }
 
 inline void
 EndProcessXboxControllerInput(platform_input_xbox_controller *XboxControllerInput)
 {
-    UpdateToggleButtonState(&XboxControllerInput->Start);
-    UpdateToggleButtonState(&XboxControllerInput->Back);
-
-    UpdateToggleButtonState(&XboxControllerInput->DradUp);
-    UpdateToggleButtonState(&XboxControllerInput->DradDown);
-    UpdateToggleButtonState(&XboxControllerInput->DradLeft);
-    UpdateToggleButtonState(&XboxControllerInput->DradRight);
-
-    UpdateToggleButtonState(&XboxControllerInput->LeftThumb);
-    UpdateToggleButtonState(&XboxControllerInput->RightThumb);
-
-    UpdateToggleButtonState(&XboxControllerInput->A);
-    UpdateToggleButtonState(&XboxControllerInput->B);
-    UpdateToggleButtonState(&XboxControllerInput->X);
-    UpdateToggleButtonState(&XboxControllerInput->Y);
+    for (u32 ButtonIndex = 0; ButtonIndex < ArrayCount(XboxControllerInput->Buttons); ++ButtonIndex)
+    {
+        UpdateToggleButtonState(&XboxControllerInput->Buttons[ButtonIndex]);
+    }
 }
 
 inline void
@@ -235,39 +229,19 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
 inline void
 BeginProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
 {
-    SavePrevButtonState(&KeyboardInput->C);
-    SavePrevButtonState(&KeyboardInput->Z);
-    SavePrevButtonState(&KeyboardInput->E);
-    SavePrevButtonState(&KeyboardInput->R);
-    SavePrevButtonState(&KeyboardInput->Tab);
-    SavePrevButtonState(&KeyboardInput->Space);
-    SavePrevButtonState(&KeyboardInput->Enter);
-    SavePrevButtonState(&KeyboardInput->Shift);
-    SavePrevButtonState(&KeyboardInput->Plus);
-    SavePrevButtonState(&KeyboardInput->Minus);
-    SavePrevButtonState(&KeyboardInput->One);
-    SavePrevButtonState(&KeyboardInput->Two);
-    SavePrevButtonState(&KeyboardInput->Three);
-    SavePrevButtonState(&KeyboardInput->Zero);
+    for (u32 ButtonIndex = 0; ButtonIndex < ArrayCount(KeyboardInput->Buttons); ++ButtonIndex)
+    {
+        SavePrevButtonState(&KeyboardInput->Buttons[ButtonIndex]);
+    }
 }
 
 inline void
 EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
 {
-    UpdateToggleButtonState(&KeyboardInput->C);
-    UpdateToggleButtonState(&KeyboardInput->Z);
-    UpdateToggleButtonState(&KeyboardInput->E);
-    UpdateToggleButtonState(&KeyboardInput->R);
-    UpdateToggleButtonState(&KeyboardInput->Tab);
-    UpdateToggleButtonState(&KeyboardInput->Space);
-    UpdateToggleButtonState(&KeyboardInput->Enter);
-    UpdateToggleButtonState(&KeyboardInput->Shift);
-    UpdateToggleButtonState(&KeyboardInput->Plus);
-    UpdateToggleButtonState(&KeyboardInput->Minus);
-    UpdateToggleButtonState(&KeyboardInput->One);
-    UpdateToggleButtonState(&KeyboardInput->Two);
-    UpdateToggleButtonState(&KeyboardInput->Three);
-    UpdateToggleButtonState(&KeyboardInput->Zero);
+    for (u32 ButtonIndex = 0; ButtonIndex < ArrayCount(KeyboardInput->Buttons); ++ButtonIndex)
+    {
+        UpdateToggleButtonState(&KeyboardInput->Buttons[ButtonIndex]);
+    }
 }
 
 inline void

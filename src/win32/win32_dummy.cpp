@@ -898,6 +898,16 @@ Win32MakeJobQueue(job_queue *JobQueue, u32 WorkerThreadCount, win32_job_queue_sy
     }
 }
 
+PLATFORM_GET_TIMESTAMP(Win32GetTimeStamp)
+{
+    LARGE_INTEGER PerformanceCounter;
+    QueryPerformanceCounter(&PerformanceCounter);
+
+    u64 Result = PerformanceCounter.QuadPart;
+
+    return Result;
+}
+
 inline void
 Win32InitProfiler(platform_profiler *Profiler)
 {
@@ -908,6 +918,7 @@ Win32InitProfiler(platform_profiler *Profiler)
     Profiler->CurrentFrameSampleIndex = 0;
     Profiler->MaxFrameSampleCount = 256;
     Profiler->FrameSamples = (profiler_frame_samples *) Win32AllocateMemory(0, Profiler->MaxFrameSampleCount * sizeof(profiler_frame_samples));
+    Profiler->GetTimestamp = Win32GetTimeStamp;
 }
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
