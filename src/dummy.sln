@@ -57,8 +57,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "loader", "loader", "{A94563
 		renderers\OpenGL\loader\wglext.h = renderers\OpenGL\loader\wglext.h
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "data", "data", "{DAE27684-7BAB-497C-AB9A-29D25073AE62}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

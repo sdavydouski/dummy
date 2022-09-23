@@ -57,7 +57,7 @@ InternString(char *String)
 #include "dummy_physics.cpp"
 #include "dummy_renderer.cpp"
 #include "dummy_animation.cpp"
-#include "dummy_entity.cpp"
+#include "dummy_animator.cpp"
 #include "dummy_process.cpp"
 #include "dummy_visibility.cpp"
 
@@ -529,7 +529,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
-        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.2f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
+        //DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.2f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -1021,41 +1021,114 @@ GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
     }
 }
 
-inline animator_params
-GameInput2AnimatorParams(game_state *State, game_entity *Entity)
+inline void
+GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
 {
-    animator_params Result = {};
-
     game_input *Input = &State->Input;
-    b32 Random = Random01(&State->Entropy) > 0.5f;
+    f32 Random = Random01(&State->Entropy);
 
     // todo:
-    Result.MaxTime = 5.f;
-    Result.Move = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
-    Result.MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
-    Result.ToStateActionIdle = Entity->FutureControllable;
-    Result.ToStateStandingIdle = !Entity->FutureControllable;
-    Result.ToStateActionIdleFromDancing = Input->Dance.IsActivated;
-    Result.ToStateDancing = Input->Dance.IsActivated;
-    Result.ToStateIdle = Input->Dance.IsActivated;
-    Result.ToStateActionIdle1 = Random;
-    Result.ToStateActionIdle2 = !Random;
-    Result.ToStateIdle1 = Random;
-    Result.ToStateIdle2 = !Random;
+    Params->MaxTime = 5.f;
+    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
+    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
 
-    return Result;
+    Params->ToStateActionIdle = Entity->FutureControllable;
+    Params->ToStateStandingIdle = !Entity->FutureControllable;
+
+    Params->ToStateActionIdle1 = Random < 0.5f;
+    Params->ToStateActionIdle2 = Random >= 0.5f;
+    Params->ToStateIdle1 = Random < 0.5f;
+    Params->ToStateIdle2 = Random >= 0.5f;
+
+    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
 }
 
-inline animator_params
-GameLogic2AnimatorParams(game_state *State, game_entity *Entity)
+inline void
+GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
 {
-    animator_params Result = {};
+    f32 Random = Random01(&State->Entropy);
 
     // todo:
-    Result.ToStateActionIdle = Entity->FutureControllable;
-    Result.ToStateStandingIdle = !Entity->FutureControllable;
+    Params->MaxTime = 8.f;
+    Params->ToStateActionIdle = Entity->FutureControllable;
+    Params->ToStateStandingIdle = !Entity->FutureControllable;
+    Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
+    Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
 
-    return Result;
+    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateActionIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+}
+
+inline void
+GameInput2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_animator_params *Params)
+{
+    game_input *Input = &State->Input;
+    f32 Random = Random01(&State->Entropy);
+
+    // todo:
+    Params->MaxTime = 5.f;
+    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
+
+    Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
+    Params->ToStateActionIdle2 = 0.33f <= Random && Random <= 0.66f;
+    Params->ToStateActionIdle3 = 0.66f <= Random && Random <= 1.f;
+
+    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
+
+    Params->LightAttack = State->Mode == GameMode_World && Input->LightAttack.IsActivated;
+    Params->StrongAttack = State->Mode == GameMode_World && Input->StrongAttack.IsActivated;
+}
+
+inline void
+GameLogic2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_animator_params *Params)
+{
+    f32 Random = Random01(&State->Entropy);
+
+    // todo:
+    Params->MaxTime = 8.f;
+    Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
+    Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
+
+    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateActionIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+}
+
+internal void *
+GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
+{
+    void *Params = 0;
+
+    if (StringEquals(Entity->Animation->Animator, "Bot"))
+    {
+        Params = PushType(Arena, bot_animator_params);
+
+        if (Entity->Controllable)
+        {
+            GameInput2BotAnimatorParams(State, Entity, (bot_animator_params *) Params);
+        }
+        else
+        {
+            GameLogic2BotAnimatorParams(State, Entity, (bot_animator_params *) Params);
+        }
+    }
+    else if (StringEquals(Entity->Animation->Animator, "Paladin"))
+    {
+        Params = PushType(Arena, paladin_animator_params);
+
+        if (Entity->Controllable)
+        {
+            GameInput2PaladinAnimatorParams(State, Entity, (paladin_animator_params *) Params);
+        }
+        else
+        {
+            GameLogic2PaladinAnimatorParams(State, Entity, (paladin_animator_params *) Params);
+        }
+    }
+
+    return Params;
 }
 
 internal void
@@ -1063,16 +1136,7 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
 {
     Assert(Entity->Animation);
 
-    animator_params Params = {};
-
-    if (Entity->Controllable)
-    {
-        Params = GameInput2AnimatorParams(State, Entity);
-    }
-    else
-    {
-        Params = GameLogic2AnimatorParams(State, Entity);
-    }
+    void *Params = GetAnimatorParams(State, Entity, Arena);
 
     skeleton_pose *Pose = Entity->Skinning->Pose;
     joint_pose *Root = GetRootLocalJointPose(Pose);
@@ -1132,9 +1196,9 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 {
     // Pelegrini
     State->Pelegrini = CreateGameEntity(State);
-    State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 10.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
-    AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->PermanentArena);
 
     // xBot
@@ -1153,10 +1217,10 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 
     // Paladin
     State->Paladin = CreateGameEntity(State);
-    State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -25.f), vec3(3.7f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -10.f), vec3(3.7f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Paladin, &State->Assets, "Paladin");
-    AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->Paladin, "Simple", RenderCommands, &State->PermanentArena);
+    AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddAnimationComponent(State->Paladin, "Paladin", RenderCommands, &State->PermanentArena);
 
     // Marker Man
 #if 0
@@ -1255,6 +1319,19 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 #endif
 }
 
+inline void
+LoadAnimators(animator *Animator)
+{
+    animator_controller *BotController = HashTableLookup(&Animator->Controllers, (char *) "Bot");
+    BotController->Func = BotAnimatorController;
+
+    animator_controller *PaladinController = HashTableLookup(&Animator->Controllers, (char *) "Paladin");
+    PaladinController->Func = PaladinAnimatorController;
+
+    animator_controller *SimpleController = HashTableLookup(&Animator->Controllers, (char *) "Simple");
+    SimpleController->Func = SimpleAnimatorController;
+}
+
 DLLExport GAME_INIT(GameInit)
 {
     PROFILE(Memory->Profiler, "GameInit");
@@ -1286,11 +1363,7 @@ DLLExport GAME_INIT(GameInit)
     State->Animator.Controllers.Count = 31;
     State->Animator.Controllers.Values = PushArray(&State->PermanentArena, State->Animator.Controllers.Count, animator_controller);
 
-    animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *)"Bot");
-    BotController->Func = BotAnimatorController;
-
-    animator_controller *SimpleController = HashTableLookup(&State->Animator.Controllers, (char *) "Simple");
-    SimpleController->Func = SimpleAnimatorController;
+    LoadAnimators(&State->Animator);
     //
 
     State->DelayTime = 0.f;
@@ -1402,12 +1475,7 @@ DLLExport GAME_RELOAD(GameReload)
     }
 
     // Reloading animators
-    animator_controller *BotController = HashTableLookup(&State->Animator.Controllers, (char *) "Bot");
-    BotController->Func = BotAnimatorController;
-
-    animator_controller *SimpleController = HashTableLookup(&State->Animator.Controllers, (char *) "Simple");
-    SimpleController->Func = SimpleAnimatorController;
-    //
+    LoadAnimators(&State->Animator);
 }
 
 inline game_entity *
@@ -1415,10 +1483,10 @@ GetPrevHero(game_state *State)
 {
     game_entity *Result = State->Dummy;
 
-    //if (State->Player == State->MarkerMan) Result = State->xBot;
-    if (State->Player == State->Pelegrini) Result = State->xBot;
-    if (State->Player == State->yBot) Result = State->Pelegrini;
     if (State->Player == State->xBot) Result = State->yBot;
+    if (State->Player == State->yBot) Result = State->Pelegrini;
+    if (State->Player == State->Pelegrini) Result = State->Paladin;
+    if (State->Player == State->Paladin) Result = State->xBot;
 
     return Result;
 }
@@ -1428,10 +1496,10 @@ GetNextHero(game_state *State)
 {
     game_entity *Result = State->Dummy;
 
-    //if (State->Player == State->MarkerMan) Result = State->Pelegrini;
+    if (State->Player == State->Paladin) Result = State->Pelegrini;
     if (State->Player == State->Pelegrini) Result = State->yBot;
     if (State->Player == State->yBot) Result = State->xBot;
-    if (State->Player == State->xBot) Result = State->Pelegrini;
+    if (State->Player == State->xBot) Result = State->Paladin;
 
     return Result;
 }
@@ -1495,7 +1563,10 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         State->Player->FutureControllable = false;
 
-        State->Pelegrini->Body->Position = vec3(0.f);
+        State->Paladin->Body->Position = vec3(0.f, 0.f, -10.f);
+        State->Paladin->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+
+        State->Pelegrini->Body->Position = vec3(0.f, 0.f, 10.f);
         State->Pelegrini->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
         State->xBot->Body->Position = vec3(8.f, 0.f, 0.f);
@@ -1786,7 +1857,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameModelAssets(&State->Assets, RenderCommands, &State->PermanentArena);
         InitGameEntities(State, RenderCommands);
 
-        State->Player = State->Pelegrini;
+        State->Player = State->Paladin;
+        //State->Player = State->Pelegrini;
         //State->Player = State->Cubes[7];
         State->Player->FutureControllable = true;
 
@@ -1992,6 +2064,8 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
+            State->PrevDanceMode = State->DanceMode;
+
             {
                 PROFILE(Memory->Profiler, "GameRender:PushRenderBuffer");
 
@@ -2023,7 +2097,7 @@ DLLExport GAME_RENDER(GameRender)
             if (State->Assets.State != GameAssetsState_Ready)
             {
                 font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
-                DrawText(RenderCommands, "Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 1.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
             }
 
             if (State->Player->Model)
@@ -2032,7 +2106,7 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     char Text[64];
                     FormatString(Text, "Active entity: %s", State->Player->Model->Name);
-                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
                 }
 #if 0
                 {
@@ -2115,7 +2189,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             font *Font = GetFontAsset(&State->Assets, "Where My Keys");
-            DrawText(RenderCommands, "Dummy", Font, vec3(-1.8f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+            DrawText(RenderCommands, "Dummy", Font, vec3(-1.8f, 0.f, 0.f), 1.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
 
             break;
         }

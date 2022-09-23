@@ -170,26 +170,7 @@ struct animation_graph
     vec3 AccRootMotion;
 };
 
-// todo: better naming
-struct animator_params
-{
-    f32 MaxTime;
-    b32 ToStateIdle1;
-    b32 ToStateIdle2;
-
-    f32 Move;
-    f32 MoveMagnitude;
-    b32 ToStateDancing;
-    b32 ToStateIdle;
-
-    b32 ToStateActionIdle1;
-    b32 ToStateActionIdle2;
-    b32 ToStateActionIdle;
-    b32 ToStateActionIdleFromDancing;
-    b32 ToStateStandingIdle;
-};
-
-#define ANIMATOR_CONTROLLER(name) void name(animation_graph *Graph, animator_params Params, f32 Delta)
+#define ANIMATOR_CONTROLLER(name) void name(animation_graph *Graph, void *Params, f32 Delta)
 typedef ANIMATOR_CONTROLLER(animator_controller_func);
 
 struct animator_controller

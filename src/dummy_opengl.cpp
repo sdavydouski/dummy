@@ -925,7 +925,7 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
     State->Version = (char*)glGetString(GL_VERSION);
     State->ShadingLanguageVersion = (char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    State->CascadeShadowMapSize = 4096;
+    State->CascadeShadowMapSize = 2048;
     State->CascadeBounds[0] = vec2(-0.1f, -20.f);
     State->CascadeBounds[1] = vec2(-15.f, -50.f);
     State->CascadeBounds[2] = vec2(-40.f, -120.f);

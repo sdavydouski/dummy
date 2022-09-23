@@ -939,7 +939,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 1
+#if 0
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1007,6 +1007,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     WindowClass.hInstance = hInstance;
     WindowClass.lpszClassName = L"Dummy Window Class";
     WindowClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
+    WindowClass.hbrBackground = CreateSolidBrush(RGB(0, 0, 0));
 
     RegisterClass(&WindowClass);
 

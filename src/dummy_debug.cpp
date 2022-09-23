@@ -1,4 +1,4 @@
-//#pragma warning(push, 0)
+﻿//#pragma warning(push, 0)
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -36,7 +36,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 }
 
 internal void
@@ -266,6 +266,8 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
         : &GameState->FreeCamera;
 
     ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Transform.Translation.x, Camera->Transform.Translation.y, Camera->Transform.Translation.z);
+
+    ImGui::Checkbox("(| - _ - |)", (bool *) &GameState->DanceMode);
 
     ImGui::End();
 

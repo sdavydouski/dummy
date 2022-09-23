@@ -2,14 +2,208 @@
    "version":"0.0.1",
    "graph":{
       "name":"Paladin animation graph",
-      "entry":"StandingIdle",
+      "entry":"ActionIdle",
       "nodes":[
          {
-            "name":"StandingIdle",
+            "name":"ActionIdle",
+            "type":"Graph",
+            "entry":"sword and shield idle (4)",
+            "transitions":[
+               {
+                  "to":"Moving",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"LightAttack",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"StrongAttack",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"Dancing",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ],
+            "nodes":[
+               {
+                  "name":"sword and shield idle (4)",
+                  "type":"Animation",
+                  "clip":"sword and shield idle (4)",
+                  "looping":true,
+                  "transitions":[
+                     {
+                        "to":"sword and shield idle",
+                        "type":"crossfade",
+                        "blend":0.2
+                     },
+                     {
+                        "to":"sword and shield idle (2)",
+                        "type":"crossfade",
+                        "blend":0.2
+                     },
+                     {
+                        "to":"sword and shield idle (3)",
+                        "type":"crossfade",
+                        "blend":0.2
+                     }
+                  ]
+               },
+               {
+                  "name":"sword and shield idle",
+                  "type":"Animation",
+                  "clip":"sword and shield idle",
+                  "looping":false,
+                  "transitions":[
+                     {
+                        "to":"sword and shield idle (4)",
+                        "type":"crossfade",
+                        "blend":0.2
+                     }
+                  ]
+               },
+               {
+                  "name":"sword and shield idle (2)",
+                  "type":"Animation",
+                  "clip":"sword and shield idle (2)",
+                  "looping":false,
+                  "transitions":[
+                     {
+                        "to":"sword and shield idle (4)",
+                        "type":"crossfade",
+                        "blend":0.2
+                     }
+                  ]
+               },
+               {
+                  "name":"sword and shield idle (3)",
+                  "type":"Animation",
+                  "clip":"sword and shield idle (3)",
+                  "looping":false,
+                  "transitions":[
+                     {
+                        "to":"sword and shield idle (4)",
+                        "type":"crossfade",
+                        "blend":0.2
+                     }
+                  ]
+               }
+            ]
+         },
+         {
+            "name":"Moving",
+            "type":"Blendspace",
+            "values":[
+               {
+                  "value":0,
+                  "clip":"sword and shield idle (4)"
+               },
+               {
+                  "value":0.5,
+                  "clip":"sword and shield walk"
+               },
+               {
+                  "value":1,
+                  "clip":"sword and shield run"
+               }
+            ],
+            "transitions":[
+               {
+                  "to":"ActionIdle",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"LightAttack",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"StrongAttack",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"LightAttackMoving",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"StrongAttackMoving",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
+         },
+         {
+            "name":"LightAttack",
             "type":"Animation",
-            "clip":"sword and shield idle",
+            "clip":"sword and shield slash",
+            "looping":false,
+            "transitions":[
+               {
+                  "to":"ActionIdle",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
+         },
+         {
+            "name":"StrongAttack",
+            "type":"Animation",
+            "clip":"sword and shield slash (4)",
+            "looping":false,
+            "transitions":[
+               {
+                  "to":"ActionIdle",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
+         },
+         {
+            "name":"LightAttackMoving",
+            "type":"Animation",
+            "clip":"sword and shield attack (3)",
+            "looping":false,
+            "transitions":[
+               {
+                  "to":"Moving",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
+         },
+         {
+            "name":"StrongAttackMoving",
+            "type":"Animation",
+            "clip":"sword and shield attack",
+            "looping":false,
+            "transitions":[
+               {
+                  "to":"Moving",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
+         },
+         {
+            "name":"Dancing",
+            "type":"Animation",
+            "clip":"swing dancing",
             "looping":true,
-            "transitions":[]
+            "transitions":[
+               {
+                  "to":"ActionIdle",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
          }
       ]
    }

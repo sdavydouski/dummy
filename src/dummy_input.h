@@ -53,8 +53,16 @@ struct platform_input_mouse
 
     i32 WheelDelta;
 
-    platform_button_state LeftButton;
-    platform_button_state RightButton;
+    union
+    {
+        struct
+        {
+            platform_button_state LeftButton;
+            platform_button_state RightButton;
+        };
+
+        platform_button_state Buttons[2];
+    };
 };
 
 struct platform_input_xbox_controller
@@ -110,6 +118,8 @@ struct game_input
     game_input_range Move;
     game_input_action Dance;
     game_input_action Activate;
+    game_input_action LightAttack;
+    game_input_action StrongAttack;
 
     game_input_action ChoosePrevHero;
     game_input_action ChooseNextHero;
@@ -208,7 +218,9 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
     ProcessInputAction(&GameInput->Menu, &XboxControllerInput->Start);
     ProcessInputAction(&GameInput->ChoosePrevHero, &XboxControllerInput->DradLeft);
     ProcessInputAction(&GameInput->ChooseNextHero, &XboxControllerInput->DradRight);
-    ProcessInputAction(&GameInput->Dance, &XboxControllerInput->X);
+    ProcessInputAction(&GameInput->LightAttack, &XboxControllerInput->X);
+    ProcessInputAction(&GameInput->StrongAttack, &XboxControllerInput->Y);
+    ProcessInputAction(&GameInput->Dance, &XboxControllerInput->B);
 
     ProcessInputState(&GameInput->HighlightBackground, &XboxControllerInput->Back);
 
@@ -247,7 +259,10 @@ EndProcessKeyboardInput(platform_input_keyboard *KeyboardInput)
 inline void
 BeginProcessMouseInput(platform_input_mouse *MouseInput)
 {
-    SavePrevButtonState(&MouseInput->LeftButton);
+    for (u32 ButtonIndex = 0; ButtonIndex < ArrayCount(MouseInput->Buttons); ++ButtonIndex)
+    {
+        SavePrevButtonState(&MouseInput->Buttons[ButtonIndex]);
+    }
 }
 
 inline void
@@ -338,8 +353,11 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
         GameInput->ZoomDelta = (f32) MouseInput->WheelDelta;
     }
 
-    GameInput->LeftClick.IsActivated = IsButtonActivated(&MouseInput->LeftButton);
     GameInput->MouseCoords = vec2((f32) MouseInput->x, (f32) MouseInput->y);
 
     MouseInput->WheelDelta = 0;
+
+    ProcessInputAction(&GameInput->LeftClick, &MouseInput->LeftButton);
+    ProcessInputAction(&GameInput->LightAttack, &MouseInput->LeftButton);
+    ProcessInputAction(&GameInput->StrongAttack, &MouseInput->RightButton);
 }

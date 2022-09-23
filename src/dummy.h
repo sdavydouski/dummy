@@ -166,4 +166,7 @@ struct game_state
 
     game_options Options;
     game_menu_quad MenuQuads[4];
+
+    b32 DanceMode;
+    b32 PrevDanceMode;
 };
