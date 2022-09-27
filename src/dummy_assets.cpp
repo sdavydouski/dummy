@@ -73,6 +73,8 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
     model_asset_header *ModelHeader = (model_asset_header *) (Buffer + Header->DataOffset);
 
+    Result->Bounds = ModelHeader->Bounds;
+
     // Skeleton
     model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)(Buffer + ModelHeader->SkeletonHeaderOffset);
     Result->Skeleton.JointCount = SkeletonHeader->JointCount;

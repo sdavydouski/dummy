@@ -605,6 +605,7 @@ WriteModelAsset(const char *FilePath, model_asset *Asset)
     CurrentStreamPosition = ftell(AssetFile);
 
     model_asset_header ModelAssetHeader = {};
+    ModelAssetHeader.Bounds = Asset->Bounds;
 
     fwrite(&ModelAssetHeader, sizeof(model_asset_header), 1, AssetFile);
 
@@ -670,6 +671,8 @@ LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
         *Asset = {};
 
         ProcessAssimpScene(AssimpScene, Asset);
+
+        Asset->Bounds = CalculateAxisAlignedBoundingBox(Asset->MeshCount, Asset->Meshes);
 
         aiReleaseImport(AssimpScene);
     }
@@ -884,6 +887,129 @@ LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
 }
 
 internal void
+OptimizeModelAsset(model_asset *Asset)
+{
+    for (u32 MeshIndex = 0; MeshIndex < Asset->MeshCount; ++MeshIndex)
+    {
+        mesh *Mesh = Asset->Meshes + MeshIndex;
+
+        f32 Threshold = 0.2f;
+        f32 TargetError = 0.001f;
+        u32 TargetIndexCount = (u32) (Mesh->IndexCount * Threshold);
+        u32 *TargetIndices = AllocateMemory<u32>(Mesh->IndexCount);
+        
+        u32 NewIndexCount = (u32) meshopt_simplify(TargetIndices, Mesh->Indices, Mesh->IndexCount, (f32 *) Mesh->Positions, Mesh->VertexCount, sizeof(vec3), TargetIndexCount, TargetError);
+
+        Mesh->IndexCount = NewIndexCount;
+        Mesh->Indices = TargetIndices;
+
+        meshopt_Stream Streams[7] = {};
+
+        u32 StreamCount = 0;
+
+        if (Mesh->Positions)
+        {
+            Streams[StreamCount++] = { Mesh->Positions, sizeof(vec3), sizeof(vec3) };
+        }
+
+        if (Mesh->Normals)
+        {
+            Streams[StreamCount++] = { Mesh->Normals, sizeof(vec3), sizeof(vec3) };
+        }
+
+        if (Mesh->Tangents)
+        {
+            Streams[StreamCount++] = { Mesh->Tangents, sizeof(vec3), sizeof(vec3) };
+        }
+
+        if (Mesh->Bitangents)
+        {
+            Streams[StreamCount++] = { Mesh->Bitangents, sizeof(vec3), sizeof(vec3) };
+        }
+
+        if (Mesh->TextureCoords)
+        {
+            Streams[StreamCount++] = { Mesh->TextureCoords, sizeof(vec2), sizeof(vec2) };
+        }
+
+        if (Mesh->Weights)
+        {
+            Streams[StreamCount++] = { Mesh->Weights, sizeof(vec4), sizeof(vec4) };
+        }
+
+        if (Mesh->JointIndices)
+        {
+            Streams[StreamCount++] = { Mesh->JointIndices, sizeof(i32) * 4, sizeof(i32) * 4 };
+        }
+
+        u32 *RemapTable = AllocateMemory<u32>(Mesh->VertexCount);
+        meshopt_generateVertexRemapMulti(RemapTable, Mesh->Indices, Mesh->IndexCount, Mesh->VertexCount, Streams, StreamCount);
+
+        meshopt_optimizeVertexCache(Mesh->Indices, Mesh->Indices, Mesh->IndexCount, Mesh->VertexCount);
+        meshopt_optimizeOverdraw(Mesh->Indices, Mesh->Indices, Mesh->IndexCount, (f32 *) Mesh->Positions, Mesh->VertexCount, sizeof(vec3), 1.05f);
+
+        u32 NewVertexCount = (u32) meshopt_optimizeVertexFetchRemap(RemapTable, Mesh->Indices, Mesh->IndexCount, Mesh->VertexCount);
+
+        meshopt_remapIndexBuffer(Mesh->Indices, Mesh->Indices, Mesh->IndexCount, RemapTable);
+
+        for (u32 StreamIndex = 0; StreamIndex < StreamCount; ++StreamIndex)
+        {
+            meshopt_Stream Stream = Streams[StreamIndex];
+
+            void *Data = (void *) AllocateMemory<u8>(NewVertexCount * Stream.size);
+
+            meshopt_remapVertexBuffer(Data, Stream.data, Mesh->VertexCount, Stream.size, RemapTable);
+
+            switch (StreamIndex)
+            {
+                case 0:
+                {
+                    Mesh->Positions = (vec3 *) Data;
+                    break;
+                }
+                case 1:
+                {
+                    Mesh->Normals = (vec3 *) Data;
+                    break;
+                }
+                case 2:
+                {
+                    Mesh->Tangents = (vec3 *) Data;
+                    break;
+                }
+                case 3:
+                {
+                    Mesh->Bitangents = (vec3 *) Data;
+                    break;
+                }
+                case 4:
+                {
+                    Mesh->TextureCoords = (vec2 *) Data;
+                    break;
+                }
+                case 5:
+                {
+                    Mesh->Weights = (vec4 *) Data;
+                    break;
+                }
+                case 6:
+                {
+                    Mesh->JointIndices = (i32 *) Data;
+                    break;
+                }
+                default:
+                {
+                    Assert(!"Invalid stream index");
+                    break;
+                }
+            }
+        }
+
+        Mesh->VertexCount = NewVertexCount;
+    }
+}
+
+internal void
 ProcessAsset(const char *FilePath, const char *AnimationConfigPath, const char *AnimationClipsPath, const char *OutputPath)
 {
     u32 Flags =
@@ -905,6 +1031,8 @@ ProcessAsset(const char *FilePath, const char *AnimationConfigPath, const char *
     LoadModelAsset(FilePath, &Asset, Flags);
     LoadAnimationGrah(AnimationConfigPath, &Asset);
     LoadAnimationClips(AnimationClipsPath, Flags, &Asset);
+
+    OptimizeModelAsset(&Asset);
 
     WriteModelAsset(OutputPath, &Asset);
 

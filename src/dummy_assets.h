@@ -68,6 +68,7 @@ struct animation_graph_asset;
 struct model
 {
     char Name[64];
+
     aabb Bounds;
 
     skeleton *Skeleton;
@@ -144,6 +145,8 @@ struct animation_graph_asset
 
 struct model_asset
 {
+    aabb Bounds;
+
     skeleton Skeleton;
     skeleton_pose BindPose;
     animation_graph_asset AnimationGraph;
@@ -233,6 +236,8 @@ struct asset_header
 
 struct model_asset_header
 {
+    aabb Bounds;
+
     u64 SkeletonHeaderOffset;
     u64 SkeletonPoseHeaderOffset;
     u64 AnimationGraphHeaderOffset;

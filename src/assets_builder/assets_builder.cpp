@@ -21,6 +21,13 @@
 
 #include "rapidjson/document.h"
 
+#include "meshoptimizer.h"
+#include "indexgenerator.cpp"
+#include "vcacheoptimizer.cpp"
+#include "overdrawoptimizer.cpp"
+#include "vfetchoptimizer.cpp"
+#include "simplifier.cpp"
+
 #include "dummy_defs.h"
 #include "dummy_math.h"
 #include "dummy_string.h"

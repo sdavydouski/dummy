@@ -10,3 +10,6 @@
 [submodule "src/external/rapidjson"]
 	path = src/external/rapidjson
 	url = https://github.com/Tencent/rapidjson
+[submodule "src/external/meshoptimizer"]
+	path = src/external/meshoptimizer
+	url = https://github.com/zeux/meshoptimizer

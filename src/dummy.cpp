@@ -209,6 +209,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     *Model = {};
 
     CopyString(Name, Model->Name);
+    Model->Bounds = Asset->Bounds;
     Model->Skeleton = &Asset->Skeleton;
     Model->BindPose = &Asset->BindPose;
     Model->AnimationGraph = &Asset->AnimationGraph;
@@ -250,8 +251,6 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
             }
         }
     }
-
-    Model->Bounds = CalculateAxisAlignedBoundingBox(Model);
 }
 
 internal void

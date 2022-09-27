@@ -75,7 +75,7 @@ AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildPr
     ParentProcess->Child = ChildProcess;
 }
 
-DLLExport GAME_PROCESS_ON_UPDATE(DelayProcess)
+GAME_PROCESS_ON_UPDATE(DelayProcess)
 {
     State->DelayTime += Delta;
 
@@ -87,7 +87,7 @@ DLLExport GAME_PROCESS_ON_UPDATE(DelayProcess)
     }
 }
 
-DLLExport GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
+GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
 {
     f32 Red = Random01(&State->Entropy);
     f32 Green = Random01(&State->Entropy);
@@ -98,7 +98,7 @@ DLLExport GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
     EndGameProcess(State, Process->Name);
 }
 
-DLLExport GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
+GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
 {
     rigid_body *PlayerBody = State->Player->Body;
 
@@ -119,7 +119,7 @@ DLLExport GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
     }
 }
 
-DLLExport GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
+GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
 {
     if (State->PlayerCamera.PivotPositionLerp.Duration > 0.f)
     {
@@ -138,7 +138,7 @@ DLLExport GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
     }
 }
 
-DLLExport GAME_PROCESS_ON_UPDATE(PlayerMoveLerpProcess)
+GAME_PROCESS_ON_UPDATE(PlayerMoveLerpProcess)
 {
     f32 InterpolationTime = 0.2f;
     vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;

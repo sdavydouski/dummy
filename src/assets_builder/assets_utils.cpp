@@ -26,7 +26,7 @@ struct assimp_node
 
 template <typename T>
 inline T *
-AllocateMemory(u32 Count = 1)
+AllocateMemory(umm Count = 1)
 {
     T *Result = (T *)malloc(Count * sizeof(T));
 
@@ -684,6 +684,57 @@ GetMeshVerticesSize(mesh *Mesh)
     }
 
     return Size;
+}
+
+internal aabb
+CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
+{
+    vec3 vMin = Vertices[0];
+    vec3 vMax = Vertices[0];
+
+    for (u32 VertexIndex = 1; VertexIndex < VertexCount; ++VertexIndex)
+    {
+        vec3 *Vertex = Vertices + VertexIndex;
+
+        vMin = Min(vMin, *Vertex);
+        vMax = Max(vMax, *Vertex);
+    }
+
+    aabb Result = {};
+
+    Result.Min = vMin;
+    Result.Max = vMax;
+
+    return Result;
+}
+
+internal aabb
+CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
+{
+    aabb Result = {};
+
+    if (MeshCount > 0)
+    {
+        mesh *FirstMesh = First(Meshes);
+        aabb Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
+
+        vec3 vMin = Box.Min;
+        vec3 vMax = Box.Max;
+
+        for (u32 MeshIndex = 1; MeshIndex < MeshCount; ++MeshIndex)
+        {
+            mesh *Mesh = Meshes + MeshIndex;
+            aabb Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
+
+            vMin = Min(vMin, Box.Min);
+            vMax = Max(vMax, Box.Max);
+        }
+
+        Result.Min = vMin;
+        Result.Max = vMax;
+    }
+
+    return Result;
 }
 
 internal void
