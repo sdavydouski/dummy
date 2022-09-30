@@ -184,6 +184,13 @@ Abs(vec3 Value)
 }
 
 inline i32
+Sign(f32 Value)
+{
+    i32 Result = Value >= 0.f ? 1 : -1;
+    return Result;
+}
+
+inline i32
 Ceil(f32 Value)
 {
     i32 Result = (i32)ceil(Value);
@@ -399,7 +406,7 @@ RotateZ(f32 Angle)
 }
 
 inline mat4
-Orthographic(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
+OrthographicProjection(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 {
     mat4 Result = mat4(
         2.f / (Right - Left), 0.f, 0.f, -(Right + Left) / (Right - Left),
@@ -416,16 +423,17 @@ Orthographic(f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 * where points inside view frustrum have normalized device
 * coordinates in the range [-1, 1] along x, y and z axis
 * after the perspective divide occurs.
+* http://www.songho.ca/opengl/gl_projectionmatrix.html <-- todo: switch from this
 */
 inline mat4
-Perspective(f32 FovY, f32 AspectRatio, f32 Near, f32 Far)
+FrustrumProjection(f32 FovY, f32 AspectRatio, f32 Near, f32 Far)
 {
     f32 FocalLength = 1.f / Tan(FovY * 0.5f);
 
     mat4 Result = mat4(
         FocalLength / AspectRatio, 0.f, 0.f, 0.f,
         0.f, FocalLength, 0.f, 0.f,
-        0.f, 0.f, (-Near - Far) / (Far - Near), 2.f * (Near * Far) / (Near - Far),
+        0.f, 0.f, -(Near + Far) / (Far - Near), (-2.f * Near * Far) / (Far - Near),
         0.f, 0.f, -1.f, 0.f
     );
 

@@ -11,6 +11,7 @@
 #include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_visibility.h"
+#include "dummy_spatial.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy_renderer.h"
@@ -47,6 +48,7 @@ Win32GetLastWriteTime(char *FileName)
 #define DEBUG_UI_SHUTDOWN(...) Win32ShutdownImGui(__VA_ARGS__)
 
 #define DEBUG_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
+#define DEBUG_UI_REMOVE_FOCUS(...) ImGui::FocusWindow(0)
 #define DEBUG_UI_CAPTURE_KEYBOARD ImGui::GetIO().WantCaptureKeyboard
 #define DEBUG_UI_CAPTURE_MOUSE ImGui::GetIO().WantCaptureMouse
 #else
@@ -54,6 +56,7 @@ Win32GetLastWriteTime(char *FileName)
 #define DEBUG_UI_RENDER(...)
 #define DEBUG_UI_SHUTDOWN(...)
 #define DEBUG_UI_WND_PROC_HANDLER(...)
+#define DEBUG_UI_REMOVE_FOCUS(...)
 #define DEBUG_UI_CAPTURE_KEYBOARD false
 #define DEBUG_UI_CAPTURE_MOUSE false
 #endif
@@ -738,6 +741,9 @@ internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
                 SetCursorPos(PlatformState->WindowPositionX + PlatformState->WindowWidth / 2, PlatformState->WindowPositionY + PlatformState->WindowHeight / 2);
                 RECT ClipRegion = GetCursorClipRect(PlatformState);
                 ClipCursor(&ClipRegion);
+
+                DEBUG_UI_REMOVE_FOCUS();
+
                 break;
             }
             case MouseMode_Cursor:
@@ -939,7 +945,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 0
+#if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1069,7 +1075,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         LARGE_INTEGER LastPerformanceCounter;
         QueryPerformanceCounter(&LastPerformanceCounter);
 
-        GameParameters.UpdateRate = 1.f / 30.f;
+        GameParameters.UpdateRate = 1.f / 20.f;
         u32 UpdateCount = 0;
         u32 MaxUpdateCount = 5;
 

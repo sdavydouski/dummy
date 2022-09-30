@@ -65,8 +65,6 @@ struct animation_clip
 struct animation_state
 {
     f32 Time;
-    // note: This weight is used to store computed values during final pose computing. 
-    // todo: Think of a better name or place it somewhere else?
     f32 Weight;
 
     b32 IsLooping;

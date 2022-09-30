@@ -212,7 +212,8 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
 
     if (Magnitude(GameInput->Camera.Range) == 0.f)
     {
-        GameInput->Camera.Range = XboxControllerInput->RightStick;
+        f32 StickSensitivity = 0.01f;
+        GameInput->Camera.Range = XboxControllerInput->RightStick * StickSensitivity;
     }
 
     ProcessInputAction(&GameInput->Menu, &XboxControllerInput->Start);
@@ -226,14 +227,16 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
 
     if (GameInput->ZoomDelta == 0.f)
     {
+        f32 TriggerSensitivity = 0.1f;
+
         if (XboxControllerInput->LeftTrigger > 0.f)
         {
-            GameInput->ZoomDelta = -XboxControllerInput->LeftTrigger * 0.1f;
+            GameInput->ZoomDelta = -XboxControllerInput->LeftTrigger * TriggerSensitivity;
         }
 
         if (XboxControllerInput->RightTrigger > 0.f)
         {
-            GameInput->ZoomDelta = XboxControllerInput->RightTrigger * 0.1f;
+            GameInput->ZoomDelta = XboxControllerInput->RightTrigger * TriggerSensitivity;
         }
     }
 }
@@ -341,23 +344,23 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
 {
     if (Magnitude(GameInput->Camera.Range) == 0.f)
     {
-        f32 MouseSensitivity = 0.05f;
+        f32 MouseSensitivity = 0.0005f;
         vec2 MouseMovement = vec2((f32) MouseInput->dx, (f32) MouseInput->dy) * MouseSensitivity;
 
         GameInput->Camera.Range = vec2(MouseMovement.x, -MouseMovement.y);
-        GameInput->EnableFreeCameraMovement.IsActive = MouseInput->RightButton.IsPressed;
     }
 
     if (GameInput->ZoomDelta == 0.f)
     {
         GameInput->ZoomDelta = (f32) MouseInput->WheelDelta;
+        MouseInput->WheelDelta = 0;
     }
 
     GameInput->MouseCoords = vec2((f32) MouseInput->x, (f32) MouseInput->y);
 
-    MouseInput->WheelDelta = 0;
-
     ProcessInputAction(&GameInput->LeftClick, &MouseInput->LeftButton);
     ProcessInputAction(&GameInput->LightAttack, &MouseInput->LeftButton);
     ProcessInputAction(&GameInput->StrongAttack, &MouseInput->RightButton);
+
+    ProcessInputState(&GameInput->EnableFreeCameraMovement, &MouseInput->RightButton);
 }

@@ -894,7 +894,7 @@ OptimizeModelAsset(model_asset *Asset)
         mesh *Mesh = Asset->Meshes + MeshIndex;
 
         f32 Threshold = 0.2f;
-        f32 TargetError = 0.001f;
+        f32 TargetError = 0.002f;
         u32 TargetIndexCount = (u32) (Mesh->IndexCount * Threshold);
         u32 *TargetIndices = AllocateMemory<u32>(Mesh->IndexCount);
         

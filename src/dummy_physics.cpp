@@ -26,17 +26,6 @@ HasFiniteMass(rigid_body *Body)
     return Result;
 }
 
-inline aabb
-GetRigidBodyAABB(rigid_body *Body)
-{
-    aabb Result = {};
-
-    Result.Min = vec3(Body->Position - vec3(Body->HalfSize.x, 0.f, Body->HalfSize.z));
-    Result.Max = vec3(Body->Position + vec3(Body->HalfSize.x, 2.f * Body->HalfSize.y, Body->HalfSize.z));
-
-    return Result;
-}
-
 inline void
 BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, vec3 HalfSize, b32 RootMotionEnabled)
 {

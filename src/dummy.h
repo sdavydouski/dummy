@@ -13,6 +13,9 @@ enum game_mode
 
 struct game_entity
 {
+    u32 Id;
+    ivec3 GridCellCoords[2];
+
     transform Transform;
 
     model *Model;
@@ -23,6 +26,7 @@ struct game_entity
     b32 Controllable;   // todo: come up with smth better
     b32 FutureControllable;   // todo: come up with smth better
     b32 DebugView;
+    vec3 TestColor;
     vec3 DebugColor;
 };
 
@@ -90,7 +94,7 @@ struct game_assets
 struct game_options
 {
     b32 ShowCascades;
-    b32 ShowRigidBodies;
+    b32 ShowBoundingVolumes;
     b32 ShowSkeletons;
     b32 ShowCamera;
 };
@@ -130,6 +134,8 @@ struct game_state
     u32 EntityCount;
     u32 MaxEntityCount;
     game_entity *Entities;
+
+    spatial_hash_grid SpatialGrid;
 
     hash_table<entity_render_batch> EntityBatches;
 

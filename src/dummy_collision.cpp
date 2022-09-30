@@ -34,6 +34,55 @@ GetAABBCenter(aabb Box)
     return Result;
 }
 
+inline aabb
+Union(aabb a, aabb b)
+{
+    aabb Result;
+
+    Result.Min = Min(a.Min, b.Min);
+    Result.Max = Max(a.Max, b.Max);
+
+    return Result;
+}
+
+inline vec3
+GetModelHalfSize(model *Model, transform Transform)
+{
+    vec3 Result = Transform.Scale * GetAABBHalfSize(Model->Bounds);
+    return Result;
+}
+
+inline aabb
+GetRigidBodyAABB(rigid_body *Body)
+{
+    aabb Result = {};
+
+    Result.Min = vec3(Body->Position - vec3(Body->HalfSize.x, 0.f, Body->HalfSize.z));
+    Result.Max = vec3(Body->Position + vec3(Body->HalfSize.x, 2.f * Body->HalfSize.y, Body->HalfSize.z));
+
+    return Result;
+}
+
+internal aabb
+GetEntityBoundingBox(game_entity *Entity)
+{
+    aabb Result = {};
+
+    if (Entity->Body)
+    {
+        Result = GetRigidBodyAABB(Entity->Body);
+    }
+    else if (Entity->Model)
+    {
+        vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
+        vec3 Center = Entity->Transform.Translation + vec3(0.f, HalfSize.y, 0.f);
+
+        Result = CreateAABBCenterHalfSize(Center, HalfSize);
+    }
+
+    return Result;
+}
+
 internal b32
 TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *mtvDistance)
 {
@@ -119,6 +168,18 @@ TestAABBAABB(aabb a, aabb b, vec3 *mtv)
     // Calculate Minimum Translation Vector (MTV) [normal * penetration]
     *mtv = Normalize(mtvAxis) * Penetration;
 
+    return true;
+}
+
+inline b32
+TestAABBAABB(aabb a, aabb b)
+{
+    // Exit with no intersection if separated along an axis
+    if (a.Max.x < b.Min.x || a.Min.x > b.Max.x) return false;
+    if (a.Max.y < b.Min.y || a.Min.y > b.Max.y) return false;
+    if (a.Max.z < b.Min.z || a.Min.z > b.Max.z) return false;
+
+    // Overlapping on all axes means AABBs are intersecting
     return true;
 }
 

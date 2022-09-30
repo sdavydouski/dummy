@@ -36,7 +36,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 }
 
 internal void
@@ -124,6 +124,11 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 internal void
 RenderEntityInfo(game_entity *Entity, model *Model)
 {
+    ImGui::Text("Id: %d", Entity->Id);
+    ImGui::Text("Min Grid Coords: %d, %d, %d", Entity->GridCellCoords[0].x, Entity->GridCellCoords[0].y, Entity->GridCellCoords[0].z);
+    ImGui::Text("Max Grid Coords: %d, %d, %d", Entity->GridCellCoords[1].x, Entity->GridCellCoords[1].y, Entity->GridCellCoords[1].z);
+    ImGui::NewLine();
+
     if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
     {
         ImGui::InputFloat3("Position", Entity->Transform.Translation.Elements);
@@ -285,7 +290,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
         ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
 
         ImGui::TableNextColumn();
-        ImGui::Checkbox("Show Rigid Bodies", (bool *) &GameState->Options.ShowRigidBodies);
+        ImGui::Checkbox("Show Bounding Volumes", (bool *) &GameState->Options.ShowBoundingVolumes);
         ImGui::TableNextColumn();
         ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
 

@@ -1,5 +1,6 @@
 #pragma once
 
+// vec3
 struct vec3
 {
     union
@@ -193,5 +194,40 @@ inline vec3
 Max(vec3 a, vec3 b)
 {
     vec3 Result = vec3(Max(a.x, b.x), Max(a.y, b.y), Max(a.z, b.z));
+    return Result;
+}
+
+// ivec3
+struct ivec3
+{
+    union
+    {
+        struct
+        {
+            i32 x;
+            i32 y;
+            i32 z;
+        };
+
+        struct
+        {
+            i32 Elements[3];
+        };
+    };
+
+    explicit ivec3() = default;
+    explicit ivec3(i32 Value) : x(Value), y(Value), z(Value) {}
+    explicit ivec3(i32 x, i32 y, i32 z) : x(x), y(y), z(z) {}
+};
+
+inline b32 operator ==(ivec3 a, ivec3 b)
+{
+    b32 Result = a.x == b.x && a.y == b.y && a.z == b.z;
+    return Result;
+}
+
+inline b32 operator !=(ivec3 a, ivec3 b)
+{
+    b32 Result = !(a == b);
     return Result;
 }

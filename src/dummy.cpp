@@ -8,6 +8,7 @@
 #include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_visibility.h"
+#include "dummy_spatial.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy_renderer.h"
@@ -55,6 +56,7 @@ InternString(char *String)
 #include "dummy_text.cpp"
 #include "dummy_collision.cpp"
 #include "dummy_physics.cpp"
+#include "dummy_spatial.cpp"
 #include "dummy_renderer.cpp"
 #include "dummy_animation.cpp"
 #include "dummy_animator.cpp"
@@ -174,6 +176,15 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
             DrawMeshInstanced(RenderCommands, Mesh->Id, InstanceCount, Instances, Material);
         }
     }
+}
+
+// todo:
+inline u32
+GenerateEntityId()
+{
+    persist u32 EntityId = 1;
+
+    return EntityId++;
 }
 
 // todo:
@@ -311,7 +322,7 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
     mat4 View = GetCameraTransform(Camera);
 
     f32 Aspect = (f32)ScreenSize.x / (f32)ScreenSize.y;
-    mat4 Projection = Perspective(Camera->FieldOfView, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
+    mat4 Projection = FrustrumProjection(Camera->FieldOfView, Aspect, Camera->NearClipPlane, Camera->FarClipPlane);
 
     vec4 CameraRay = Inverse(Projection) * ClipRay;
     CameraRay = vec4(CameraRay.xy, -1.f, 0.f);
@@ -369,7 +380,7 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
         {
             "Cube",
             "assets\\cube.asset",
-            4096
+            8192
         },
         {
             "Sphere",
@@ -542,13 +553,6 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
     }
 }
 
-inline vec3
-GetModelHalfSize(model *Model, transform Transform)
-{
-    vec3 Result = Transform.Scale * GetAABBHalfSize(Model->Bounds);
-    return Result;
-}
-
 internal void
 RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
 {
@@ -591,26 +595,6 @@ RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
 #endif
 }
 
-internal aabb
-GetEntityBoundingBox(game_entity *Entity)
-{
-    aabb Result = {};
-
-    if (Entity->Body)
-    {
-        Result = GetRigidBodyAABB(Entity->Body);
-    }
-    else if (Entity->Model)
-    {
-        vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
-        vec3 Center = Entity->Transform.Translation + vec3(0.f, HalfSize.y, 0.f);
-
-        Result = CreateAABBCenterHalfSize(Center, HalfSize);
-    }
-
-    return Result;
-}
-
 internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
@@ -622,11 +606,11 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
         quat Rotation = Entity->Transform.Rotation;
 
         transform Transform = CreateTransform(Position, HalfSize, Rotation);
-        vec4 Color = vec4(1.f, 0.f, 0.f, 1.f);
+        vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
     }
-    else
+    else if (Entity->Model)
     {
         // Mesh Bounds
         vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
@@ -672,7 +656,7 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
         game_entity *Entity = Batch->Entities[EntityIndex];
         //render_instance *Instance = Batch->Instances + EntityIndex;
 
-        if (Entity->DebugView || State->Options.ShowRigidBodies)
+        if (Entity->DebugView || State->Options.ShowBoundingVolumes)
         {
             RenderBoundingBox(RenderCommands, State, Entity);
         }
@@ -685,7 +669,7 @@ InitRenderBatch(entity_render_batch *Batch, model *Model, u32 MaxEntityCount, me
     CopyString(Model->Name, Batch->Name);
     Batch->Model = Model;
     Batch->EntityCount = 0;
-    Batch->MaxEntityCount = 4096;
+    Batch->MaxEntityCount = MaxEntityCount;
     Batch->Entities = PushArray(Arena, Batch->MaxEntityCount, game_entity *);
     Batch->Instances = PushArray(Arena, Batch->MaxEntityCount, render_instance);
 }
@@ -710,7 +694,11 @@ CreateGameEntity(game_state *State)
 {
     game_entity *Entity = State->Entities + State->EntityCount++;
 
+    Assert(State->EntityCount <= State->MaxEntityCount);
+
+    Entity->Id = GenerateEntityId();
     // todo:
+    Entity->TestColor = vec3(1.f);
     Entity->DebugColor = vec3(1.f);
 
     return Entity;
@@ -1199,6 +1187,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
     AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Pelegrini);
 
     // xBot
     State->xBot = CreateGameEntity(State);
@@ -1206,6 +1195,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddModelComponent(State->xBot, &State->Assets, "xBot");
     AddRigidBodyComponent(State->xBot, vec3(8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->xBot, "Bot", RenderCommands, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->xBot);
 
     // yBot
     State->yBot = CreateGameEntity(State);
@@ -1213,13 +1203,15 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddModelComponent(State->yBot, &State->Assets, "yBot");
     AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->yBot);
 
     // Paladin
     State->Paladin = CreateGameEntity(State);
     State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -10.f), vec3(3.7f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Paladin, &State->Assets, "Paladin");
-    AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.5f, 3.f, 1.75f), true, &State->PermanentArena);
     AddAnimationComponent(State->Paladin, "Paladin", RenderCommands, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Paladin);
 
     // Marker Man
 #if 0
@@ -1232,15 +1224,17 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 
 #if 1
     // temp:
-    u32 Count = 50;
+    u32 Count = 1000;
     while (Count--)
     {
         game_entity *Entity = CreateGameEntity(State);
-        vec3 Position = vec3(RandomBetween(&State->Entropy, -150.f, 150.f), RandomBetween(&State->Entropy, 1.f, 2.f), RandomBetween(&State->Entropy, -150.f, 150.f));
-        Entity->Transform = CreateTransform(Position, vec3(1.5f), quat(0.f, 0.f, 0.f, 1.f));
-        AddModelComponent(Entity, &State->Assets, "Sphere");
-        AddRigidBodyComponent(Entity, Position, quat(0.f, 0.f, 0.f, 1.f), vec3(1.5f), false, &State->PermanentArena);
-        Entity->DebugColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+        vec3 Position = vec3(RandomBetween(&State->Entropy, -200.f, 200.f), RandomBetween(&State->Entropy, 1.f, 4.f), RandomBetween(&State->Entropy, -200.f, 200.f));
+        Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
+        AddModelComponent(Entity, &State->Assets, "Cube");
+        AddRigidBodyComponent(Entity, Position, quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
+        Entity->TestColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+
+        AddToSpacialGrid(&State->SpatialGrid, Entity);
     }
 #endif
 
@@ -1261,44 +1255,52 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
 #if 1
     // Cubes
     State->Cubes[0] = CreateGameEntity(State);
-    State->Cubes[0]->Transform = CreateTransform(vec3(-20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
+    State->Cubes[0]->Transform = CreateTransform(vec3(-20.f, 1.f, 40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[0], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[0], vec3(-20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[0]);
 
     State->Cubes[1] = CreateGameEntity(State);
-    State->Cubes[1]->Transform = CreateTransform(vec3(20.f, 1.f, 40.f), vec3(2.f), quat(0.f));
+    State->Cubes[1]->Transform = CreateTransform(vec3(20.f, 1.f, 40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[1], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[1], vec3(20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[1]);
 
     State->Cubes[2] = CreateGameEntity(State);
-    State->Cubes[2]->Transform = CreateTransform(vec3(-40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
+    State->Cubes[2]->Transform = CreateTransform(vec3(-40.f, 2.f, 80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[2], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[2], vec3(-40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[2]);
 
     State->Cubes[3] = CreateGameEntity(State);
-    State->Cubes[3]->Transform = CreateTransform(vec3(40.f, 2.f, 80.f), vec3(3.f), quat(0.f));
+    State->Cubes[3]->Transform = CreateTransform(vec3(40.f, 2.f, 80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[3], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[3], vec3(40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[3]);
 
     State->Cubes[4] = CreateGameEntity(State);
-    State->Cubes[4]->Transform = CreateTransform(vec3(-20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
+    State->Cubes[4]->Transform = CreateTransform(vec3(-20.f, 1.f, -40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[4], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[4], vec3(-20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[4]);
 
     State->Cubes[5] = CreateGameEntity(State);
-    State->Cubes[5]->Transform = CreateTransform(vec3(20.f, 1.f, -40.f), vec3(2.f), quat(0.f));
+    State->Cubes[5]->Transform = CreateTransform(vec3(20.f, 1.f, -40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[5], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[5], vec3(20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[5]);
 
     State->Cubes[6] = CreateGameEntity(State);
-    State->Cubes[6]->Transform = CreateTransform(vec3(-40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
+    State->Cubes[6]->Transform = CreateTransform(vec3(-40.f, 2.f, -80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[6], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[6], vec3(-40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[6]);
 
     State->Cubes[7] = CreateGameEntity(State);
-    State->Cubes[7]->Transform = CreateTransform(vec3(40.f, 2.f, -80.f), vec3(3.f), quat(0.f));
+    State->Cubes[7]->Transform = CreateTransform(vec3(40.f, 2.f, -80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cubes[7], &State->Assets, "Cube");
     AddRigidBodyComponent(State->Cubes[7], vec3(40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[7]);
 #endif
 
     // Player
@@ -1422,13 +1424,19 @@ DLLExport GAME_INIT(GameInit)
 
     InitGameMenu(State);
 
+    aabb WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
+    vec3 CellSize = vec3(10.f);
+    InitSpatialHashGrid(&State->SpatialGrid, WorldBounds, CellSize, &State->PermanentArena);
+
     State->EntityCount = 0;
-    State->MaxEntityCount = 4096;
+    State->MaxEntityCount = 10000;
     State->Entities = PushArray(&State->PermanentArena, State->MaxEntityCount, game_entity);
 
     // Dummy
     State->Dummy = CreateGameEntity(State);
-    AddRigidBodyComponent(State->Dummy, vec3(0.f, 0.f, -20.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
+    State->Dummy->Transform = CreateTransform(vec3(0.f, 0.f, -100.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+    //AddRigidBodyComponent(State->Dummy, vec3(0.f, 20.f, -100.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Dummy);
 
     LoadFontAssets(&State->Assets, Platform, &State->PermanentArena);
     InitGameFontAssets(&State->Assets, RenderCommands, &State->PermanentArena);
@@ -1579,7 +1587,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         State->Player->FutureControllable = true;
     }
 
-    if (Input->LeftClick.IsActivated)
+    if (State->Mode == GameMode_Edit && Input->LeftClick.IsActivated)
     {
         ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32)Parameters->WindowWidth, (f32)Parameters->WindowHeight), &State->FreeCamera);
 
@@ -1648,15 +1656,13 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             // https://www.gamasutra.com/blogs/YoannPignole/20150928/249412/Third_person_camera_design_with_free_move_zone.php
             game_camera *PlayerCamera = &State->PlayerCamera;
 
-            f32 PlayerCameraSensitivity = 0.01f;
-
-            PlayerCamera->Pitch -= Input->Camera.Range.y * PlayerCameraSensitivity;
+            PlayerCamera->Pitch -= Input->Camera.Range.y;
             PlayerCamera->Pitch = Clamp(PlayerCamera->Pitch, RADIANS(0.f), RADIANS(89.f));
 
-            PlayerCamera->Yaw += Input->Camera.Range.x * PlayerCameraSensitivity;
+            PlayerCamera->Yaw += Input->Camera.Range.x;
             PlayerCamera->Yaw = Mod(PlayerCamera->Yaw, 2 * PI);
 
-            PlayerCamera->Radius -= Input->ZoomDelta * 1.0f;
+            PlayerCamera->Radius -= Input->ZoomDelta;
             PlayerCamera->Radius = Clamp(PlayerCamera->Radius, 10.f, 70.f);
 
             f32 CameraHeight = Max(0.1f, PlayerCamera->Radius * Sin(PlayerCamera->Pitch));
@@ -1736,16 +1742,15 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             game_camera *FreeCamera = &State->FreeCamera;
 
             f32 FreeCameraSpeed = 30.f;
-            f32 FreeCameraSensitivity = 0.02f;
 
             if (Input->EnableFreeCameraMovement.IsActive)
             {
                 Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-                FreeCamera->Pitch += Input->Camera.Range.y * FreeCameraSensitivity;
+                FreeCamera->Pitch += Input->Camera.Range.y;
                 FreeCamera->Pitch = Clamp(FreeCamera->Pitch, RADIANS(-89.f), RADIANS(89.f));
 
-                FreeCamera->Yaw += Input->Camera.Range.x * FreeCameraSensitivity;
+                FreeCamera->Yaw += Input->Camera.Range.x;
                 FreeCamera->Yaw = Mod(FreeCamera->Yaw, 2 * PI);
 
                 FreeCamera->Direction = Euler2Direction(FreeCamera->Yaw, FreeCamera->Pitch);
@@ -1779,7 +1784,24 @@ DLLExport GAME_UPDATE(GameUpdate)
 
     game_state *State = GetGameState(Memory);
 
-    // todo: lovely O(n^2)
+    scoped_memory ScopedMemory(&State->TransientArena);
+
+#if 1
+    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+    {
+        game_entity *Entity = State->Entities + EntityIndex;
+        Entity->DebugColor = Entity->TestColor;
+        
+#if 0
+        if (Entity->Body)
+        {
+            rigid_body *Body = Entity->Body;
+            Body->Acceleration = vec3(RandomBetween(&State->Entropy, -100.f, 100.f), 0.f, RandomBetween(&State->Entropy, -100.f, 100.f));
+        }
+#endif
+    }
+#endif
+
     for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
     {
         game_entity *Entity = State->Entities + EntityIndex;
@@ -1805,6 +1827,33 @@ DLLExport GAME_UPDATE(GameUpdate)
             }
 
 #if 1
+            u32 MaxNearbyEntityCount = 100;
+            game_entity **NearbyEntities = PushArray(ScopedMemory.Arena, MaxNearbyEntityCount, game_entity *);
+            aabb Bounds = { vec3(-5.f), vec3(5.f) };
+
+            u32 NearbyEntityCount = FindNearbyEntities(&State->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
+
+            for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
+            {
+                game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
+                rigid_body *NearbyBody = NearbyEntity->Body;
+
+                if (Entity->Id == State->Player->Id || Entity->DebugView)
+                {
+                    NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                }
+
+                if (NearbyBody)
+                {
+                    // Collision detection and resolution
+                    vec3 mtv;
+                    if (TestAABBAABB(GetRigidBodyAABB(Entity->Body), GetRigidBodyAABB(NearbyBody), &mtv))
+                    {
+                        Entity->Body->Position += mtv;
+                    }
+                }
+            }
+#else
             for (u32 AnotherEntityIndex = EntityIndex + 1; AnotherEntityIndex < State->EntityCount; ++AnotherEntityIndex)
             {
                 game_entity *AnotherEntity = State->Entities + AnotherEntityIndex;
@@ -1984,17 +2033,15 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:AnimateEntities");
 
-                // Animation
+                u32 JobCount = 0;
                 u32 MaxJobCount = State->EntityCount;
                 job *Jobs = PushArray(&State->TransientArena, MaxJobCount, job);
                 animate_entity_job *JobParams = PushArray(&State->TransientArena, MaxJobCount, animate_entity_job);
 
-                u32 JobCount = 0;
                 for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
                 {
                     game_entity *Entity = State->Entities + EntityIndex;
 
-                    // Rigid bodies movement
                     if (Entity->Body)
                     {
                         Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Lag, Entity->Body->Position);
@@ -2032,6 +2079,8 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     game_entity *Entity = State->Entities + EntityIndex;
 
+                    UpdateInSpacialGrid(&State->SpatialGrid, Entity);
+
                     if (Entity->Model)
                     {
                         aabb BoundingBox = GetEntityBoundingBox(Entity);
@@ -2044,7 +2093,7 @@ DLLExport GAME_RENDER(GameRender)
 
                             if (StringEquals(Batch->Name, ""))
                             {
-                                InitRenderBatch(Batch, Entity->Model, 256, &State->TransientArena);
+                                InitRenderBatch(Batch, Entity->Model, 10000, &State->TransientArena);
                             }
 
                             AddEntityToRenderBatch(Batch, Entity);
@@ -2053,7 +2102,7 @@ DLLExport GAME_RENDER(GameRender)
                         }
                     }
                     
-                    if (Entity->DebugView || State->Options.ShowRigidBodies)
+                    if (Entity->DebugView || State->Options.ShowBoundingVolumes)
                     {
                         RenderBoundingBox(RenderCommands, State, Entity);
                     }
@@ -2096,7 +2145,7 @@ DLLExport GAME_RENDER(GameRender)
             if (State->Assets.State != GameAssetsState_Ready)
             {
                 font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
-                DrawText(RenderCommands, "Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 1.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
             }
 
             if (State->Player->Model)
@@ -2105,7 +2154,7 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     char Text[64];
                     FormatString(Text, "Active entity: %s", State->Player->Model->Name);
-                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
                 }
 #if 0
                 {
@@ -2188,7 +2237,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             font *Font = GetFontAsset(&State->Assets, "Where My Keys");
-            DrawText(RenderCommands, "Dummy", Font, vec3(-1.8f, 0.f, 0.f), 1.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+            DrawText(RenderCommands, "Dummy", Font, vec3(-1.8f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
 
             break;
         }

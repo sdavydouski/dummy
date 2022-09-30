@@ -925,7 +925,7 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
     State->Version = (char*)glGetString(GL_VERSION);
     State->ShadingLanguageVersion = (char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    State->CascadeShadowMapSize = 2048;
+    State->CascadeShadowMapSize = 4096;
     State->CascadeBounds[0] = vec2(-0.1f, -20.f);
     State->CascadeBounds[1] = vec2(-15.f, -50.f);
     State->CascadeBounds[2] = vec2(-40.f, -120.f);
@@ -1110,7 +1110,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_set_screen_projection *Command = (render_command_set_screen_projection *) Entry;
 
-                    mat4 Projection = Orthographic(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
+                    mat4 Projection = OrthographicProjection(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
                     glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
@@ -1126,7 +1126,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_set_world_projection *Command = (render_command_set_world_projection *) Entry;
 
-                    mat4 Projection = Perspective(Command->FovY, Command->Aspect, Command->Near, Command->Far);
+                    mat4 Projection = FrustrumProjection(Command->FovY, Command->Aspect, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
                     glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
