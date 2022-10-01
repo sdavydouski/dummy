@@ -246,7 +246,7 @@ GetMeshVerticesSize(
     vec3 *Bitangents,
     vec2 *TextureCoords,
     vec4 *Weights,
-    i32 *JointIndices
+    ivec4 *JointIndices
 )
 {
     u32 Size = 0;
@@ -283,7 +283,7 @@ GetMeshVerticesSize(
 
     if (JointIndices)
     {
-        Size += VertexCount * sizeof(i32) * 4;
+        Size += VertexCount * sizeof(ivec4);
     }
 
     return Size;
@@ -314,7 +314,7 @@ OpenGLAddMeshBuffer(
     vec3 *Bitangents,
     vec2 *TextureCoords,
     vec4 *Weights,
-    i32 *JointIndices,
+    ivec4 *JointIndices,
     u32 IndexCount, 
     u32 *Indices, 
     u32 MaxInstanceCount
@@ -394,10 +394,10 @@ OpenGLAddMeshBuffer(
     if (JointIndices)
     {
         glEnableVertexAttribArray(6);
-        glVertexAttribIPointer(6, 4, GL_UNSIGNED_INT, sizeof(i32) * 4, (GLvoid *)Offset);
+        glVertexAttribIPointer(6, 4, GL_UNSIGNED_INT, sizeof(ivec4), (GLvoid *)Offset);
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(i32) * 4, JointIndices);
-        Offset += VertexCount * sizeof(i32) * 4;
+        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(ivec4), JointIndices);
+        Offset += VertexCount * sizeof(ivec4);
     }
 
     if (MaxInstanceCount > 0)

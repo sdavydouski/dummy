@@ -1,5 +1,6 @@
 #pragma once
 
+// vec2
 struct vec2
 {
     union
@@ -142,5 +143,39 @@ inline vec2
 PerpendicularCCW(vec2 Vector)
 {
     vec2 Result = vec2(-Vector.y, Vector.x);
+    return Result;
+}
+
+// ivec2
+struct ivec2
+{
+    union
+    {
+        struct
+        {
+            i32 x;
+            i32 y;
+        };
+
+        struct
+        {
+            i32 Elements[2];
+        };
+    };
+
+    explicit ivec2() = default;
+    explicit ivec2(i32 Value) : x(Value), y(Value) {}
+    explicit ivec2(i32 x, i32 y) : x(x), y(y) {}
+};
+
+inline b32 operator ==(ivec2 a, ivec2 b)
+{
+    b32 Result = (a.x == b.x && a.y == b.y);
+    return Result;
+}
+
+inline b32 operator !=(ivec2 a, ivec2 b)
+{
+    b32 Result = !(a == b);
     return Result;
 }

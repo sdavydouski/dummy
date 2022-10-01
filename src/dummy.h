@@ -23,6 +23,7 @@ struct game_entity
     animation_graph *Animation;
     skinning_data *Skinning;
 
+    b32 Visible;
     b32 Controllable;   // todo: come up with smth better
     b32 FutureControllable;   // todo: come up with smth better
     b32 DebugView;

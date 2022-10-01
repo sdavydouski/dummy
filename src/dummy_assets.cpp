@@ -164,8 +164,8 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
         if (MeshHeader->HasJointIndices)
         {
-            Mesh->JointIndices = (i32 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
-            VerticesOffset += sizeof(i32) * 4 * MeshHeader->VertexCount;
+            Mesh->JointIndices = (ivec4 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(ivec4) * MeshHeader->VertexCount;
         }
 
         Mesh->Indices = (u32 *)(Buffer + MeshHeader->IndicesOffset);

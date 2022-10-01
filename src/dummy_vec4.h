@@ -2,6 +2,7 @@
 
 #include <xmmintrin.h>
 
+// vec4
 struct vec4
 {
     union
@@ -155,5 +156,41 @@ Normalize(vec4 Vector)
 
     vec4 Result = Vector / Length;
 
+    return Result;
+}
+
+// ivec4
+struct ivec4
+{
+    union
+    {
+        struct
+        {
+            i32 x;
+            i32 y;
+            i32 z;
+            i32 w;
+        };
+
+        struct
+        {
+            i32 Elements[4];
+        };
+    };
+
+    explicit ivec4() = default;
+    explicit ivec4(i32 Value) : x(Value), y(Value), z(Value), w(Value) {}
+    explicit ivec4(i32 x, i32 y, i32 z, i32 w) : x(x), y(y), z(z), w(w) {}
+};
+
+inline b32 operator ==(ivec4 a, ivec4 b)
+{
+    b32 Result = (a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w);
+    return Result;
+}
+
+inline b32 operator !=(ivec4 a, ivec4 b)
+{
+    b32 Result = !(a == b);
     return Result;
 }

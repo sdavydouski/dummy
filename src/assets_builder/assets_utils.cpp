@@ -26,7 +26,7 @@ template <typename T>
 inline T *
 AllocateMemory(umm Count = 1)
 {
-    T *Result = (T *)malloc(Count * sizeof(T));
+    T *Result = (T *) malloc(Count * sizeof(T));
 
     Assert(Result);
 
@@ -433,7 +433,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
     if (AssimpMesh->HasBones())
     {
         Mesh->Weights = AllocateMemory<vec4>(Mesh->VertexCount);
-        Mesh->JointIndices = AllocateMemory<i32>(Mesh->VertexCount * 4);
+        Mesh->JointIndices = AllocateMemory<ivec4>(Mesh->VertexCount);
 
         hashtable<u32, dynamic_array<joint_weight>> JointWeightsTable = {};
 
@@ -474,7 +474,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
         for (u32 VertexIndex = 0; VertexIndex < Mesh->VertexCount; ++VertexIndex)
         {
             vec4 *Weight = Mesh->Weights + VertexIndex;
-            i32 *JointIndices = Mesh->JointIndices + VertexIndex * 4;
+            ivec4 *JointIndices = Mesh->JointIndices + VertexIndex;
 
             dynamic_array<joint_weight> &JointWeights = JointWeightsTable[VertexIndex];
 
@@ -482,7 +482,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
             {
                 joint_weight JointWeight = JointWeights[JointWeightIndex];
 
-                JointIndices[JointWeightIndex] = JointWeight.JointIndex;
+                JointIndices->Elements[JointWeightIndex] = JointWeight.JointIndex;
                 Weight->Elements[JointWeightIndex] = JointWeight.Weight;
             }
 
@@ -678,7 +678,7 @@ GetMeshVerticesSize(mesh *Mesh)
 
     if (Mesh->JointIndices)
     {
-        Size += Mesh->VertexCount * sizeof(i32) * 4;
+        Size += Mesh->VertexCount * sizeof(ivec4);
     }
 
     return Size;

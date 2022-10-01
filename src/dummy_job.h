@@ -17,7 +17,7 @@ struct job_queue
     void *CriticalSection;
     void *QueueNotEmpty;
 
-    u32 volatile CurrentJobCount;
+    i32 volatile CurrentJobCount;
     i32 volatile CurrentJobIndex;
 
     job Jobs[256];
@@ -26,6 +26,8 @@ struct job_queue
 inline job *
 GetNextJobFromQueue(job_queue *JobQueue)
 {
+    Assert(JobQueue->CurrentJobCount > 0);
+
     job *Job = JobQueue->Jobs + JobQueue->CurrentJobIndex;
 
     JobQueue->CurrentJobIndex -= 1;

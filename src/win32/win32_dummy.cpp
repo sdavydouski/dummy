@@ -62,9 +62,9 @@ Win32GetLastWriteTime(char *FileName)
 #endif
 
 inline void *
-Win32AllocateMemory(void *BaseAddress, umm Size)
+Win32AllocateMemory(void *BaseAddress, umm Bytes)
 {
-    void *Result = VirtualAlloc(BaseAddress, Size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    void *Result = VirtualAlloc(BaseAddress, Bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
     if (!Result)
     {
@@ -75,6 +75,13 @@ Win32AllocateMemory(void *BaseAddress, umm Size)
     return Result;
 }
 
+template <typename T>
+inline T *
+Win32AllocateMemory(umm Count = 1)
+{
+    T *Result = (T *) Win32AllocateMemory(0, sizeof(T) * Count);
+    return Result;
+}
 
 inline void
 Win32DeallocateMemory(void *Address)
@@ -813,6 +820,10 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
 
 PLATFORM_KICK_JOB(Win32KickJob)
 {
+    CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
+
+    EnterCriticalSection(CriticalSection);
+
     PutJobIntoQueue(JobQueue, &Job);
 
     // dear compiler: please don't reorder instructions across this barrier!
@@ -820,10 +831,16 @@ PLATFORM_KICK_JOB(Win32KickJob)
 
     CONDITION_VARIABLE *QueueNotEmpty = (CONDITION_VARIABLE *) JobQueue->QueueNotEmpty;
     WakeConditionVariable(QueueNotEmpty);
+
+    LeaveCriticalSection(CriticalSection);
 }
 
 PLATFORM_KICK_JOBS(Win32KickJobs)
 {
+    CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
+
+    EnterCriticalSection(CriticalSection);
+
     PutJobsIntoQueue(JobQueue, JobCount, Jobs);
 
     // dear compiler: please don't reorder instructions across this barrier!
@@ -831,6 +848,8 @@ PLATFORM_KICK_JOBS(Win32KickJobs)
 
     CONDITION_VARIABLE *QueueNotEmpty = (CONDITION_VARIABLE *) JobQueue->QueueNotEmpty;
     WakeAllConditionVariable(QueueNotEmpty);
+
+    LeaveCriticalSection(CriticalSection);
 }
 
 PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
@@ -873,7 +892,8 @@ DWORD WINAPI WorkerThreadProc(LPVOID lpParam)
 
         Job->EntryPoint(JobQueue, Job->Parameters);
 
-        InterlockedDecrement(&JobQueue->CurrentJobCount);
+        InterlockedDecrement((LONG *) &JobQueue->CurrentJobCount);
+
         Assert(JobQueue->CurrentJobCount >= 0);
     }
 
@@ -883,7 +903,7 @@ DWORD WINAPI WorkerThreadProc(LPVOID lpParam)
 internal void
 Win32MakeJobQueue(job_queue *JobQueue, u32 WorkerThreadCount, win32_job_queue_sync *JobQueueSync)
 {
-    win32_worker_thread *WorkerThreads = (win32_worker_thread *) Win32AllocateMemory(0, WorkerThreadCount * sizeof(win32_worker_thread));
+    win32_worker_thread *WorkerThreads = Win32AllocateMemory<win32_worker_thread>(WorkerThreadCount);
 
     InitializeCriticalSectionAndSpinCount(&JobQueueSync->CriticalSection, 0x00000400);
     InitializeConditionVariable(&JobQueueSync->QueueNotEmpty);
@@ -923,7 +943,7 @@ Win32InitProfiler(platform_profiler *Profiler)
     Profiler->TicksPerSecond = PerformanceFrequency.QuadPart;
     Profiler->CurrentFrameSampleIndex = 0;
     Profiler->MaxFrameSampleCount = 256;
-    Profiler->FrameSamples = (profiler_frame_samples *) Win32AllocateMemory(0, Profiler->MaxFrameSampleCount * sizeof(profiler_frame_samples));
+    Profiler->FrameSamples = Win32AllocateMemory<profiler_frame_samples>(Profiler->MaxFrameSampleCount);
     Profiler->GetTimestamp = Win32GetTimeStamp;
 }
 

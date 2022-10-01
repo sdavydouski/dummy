@@ -91,7 +91,8 @@ struct auto_profiler
 #define PROFILE(Profiler, Name) auto_profiler Profile(Profiler, (char *) Name)
 //#define PROFILE(...) 
 
-#define PROFILER_START_FRAME(Profiler) ProfilerStartFrame(Profiler) 
+#define PROFILER_START_FRAME(Profiler) ProfilerStartFrame(Profiler)
+//#define PROFILER_START_FRAME(...) 
 
 struct game_state;
 

@@ -147,8 +147,8 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
 
         if (MeshHeader->HasJointIndices)
         {
-            Mesh.JointIndices = (i32 *) (Buffer + MeshHeader->VerticesOffset + VerticesOffset);
-            VerticesOffset += sizeof(i32) * 4 * MeshHeader->VertexCount;
+            Mesh.JointIndices = (ivec4 *) (Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            VerticesOffset += sizeof(ivec4) * MeshHeader->VertexCount;
         }
 
         Mesh.Indices = (u32 *) (Buffer + MeshHeader->IndicesOffset);
@@ -447,7 +447,7 @@ WriteMeshes(model_asset *Asset, u64 Offset, FILE *AssetFile)
 
         if (MeshHeader.HasJointIndices)
         {
-            fwrite(Mesh->JointIndices, sizeof(i32) * 4, Mesh->VertexCount, AssetFile);
+            fwrite(Mesh->JointIndices, sizeof(ivec4), Mesh->VertexCount, AssetFile);
         }
 
         fwrite(Mesh->Indices, sizeof(u32), Mesh->IndexCount, AssetFile);
@@ -939,7 +939,7 @@ OptimizeModelAsset(model_asset *Asset)
 
         if (Mesh->JointIndices)
         {
-            Streams[StreamCount++] = { Mesh->JointIndices, sizeof(i32) * 4, sizeof(i32) * 4 };
+            Streams[StreamCount++] = { Mesh->JointIndices, sizeof(ivec4), sizeof(ivec4) };
         }
 
         u32 *RemapTable = AllocateMemory<u32>(Mesh->VertexCount);
@@ -994,7 +994,7 @@ OptimizeModelAsset(model_asset *Asset)
                 }
                 case 6:
                 {
-                    Mesh->JointIndices = (i32 *) Data;
+                    Mesh->JointIndices = (ivec4 *) Data;
                     break;
                 }
                 default:

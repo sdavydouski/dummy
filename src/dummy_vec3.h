@@ -222,7 +222,7 @@ struct ivec3
 
 inline b32 operator ==(ivec3 a, ivec3 b)
 {
-    b32 Result = a.x == b.x && a.y == b.y && a.z == b.z;
+    b32 Result = (a.x == b.x && a.y == b.y && a.z == b.z);
     return Result;
 }
 

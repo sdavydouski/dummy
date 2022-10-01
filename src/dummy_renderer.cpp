@@ -36,7 +36,7 @@ AddMesh(
     vec3 *Bitangents,
     vec2 *TextureCoords,
     vec4 *Weights,
-    i32 *JointIndices,
+    ivec4 *JointIndices,
     u32 IndexCount,
     u32 *Indices,
     u32 MaxInstanceCount
