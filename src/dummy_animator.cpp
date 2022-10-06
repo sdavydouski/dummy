@@ -17,23 +17,6 @@ struct bot_animator_params
     b32 ToStateActionIdleFromDancing;
 };
 
-struct paladin_animator_params
-{
-    f32 MaxTime;
-    f32 Move;
-    f32 MoveMagnitude;
-
-    b32 ToStateActionIdle1;
-    b32 ToStateActionIdle2;
-    b32 ToStateActionIdle3;
-
-    b32 ToStateDancing;
-    b32 ToStateActionIdleFromDancing;
-
-    b32 LightAttack;
-    b32 StrongAttack;
-};
-
 internal void
 BotActionIdlePerFrameUpdate(animation_graph *Graph, bot_animator_params *Params, f32 Delta)
 {
@@ -165,6 +148,23 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
         Assert(!"Invalid state");
     }
 }
+
+struct paladin_animator_params
+{
+    f32 MaxTime;
+    f32 Move;
+    f32 MoveMagnitude;
+
+    b32 ToStateActionIdle1;
+    b32 ToStateActionIdle2;
+    b32 ToStateActionIdle3;
+
+    b32 ToStateDancing;
+    b32 ToStateActionIdleFromDancing;
+
+    b32 LightAttack;
+    b32 StrongAttack;
+};
 
 internal void
 PaladinActionIdlePerFrameUpdate(animation_graph *Graph, paladin_animator_params *Params, f32 Delta)
@@ -326,6 +326,69 @@ ANIMATOR_CONTROLLER(PaladinAnimatorController)
         if (PaladinParams->ToStateActionIdleFromDancing && PaladinParams->MoveMagnitude < EPSILON)
         {
             TransitionToNode(Graph, "ActionIdle");
+        }
+    }
+    else
+    {
+        Assert(!"Invalid state");
+    }
+}
+
+struct monstar_animator_params
+{
+    f32 Move;
+    f32 MoveMagnitude;
+    b32 Attack;
+
+    b32 ToStateDancing;
+    b32 ToStateIdleFromDancing;
+};
+
+ANIMATOR_CONTROLLER(MonstarAnimatorController)
+{
+    monstar_animator_params *MonstarParams = (monstar_animator_params *) Params;
+
+    animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
+    WalkingNode->BlendSpace->Parameter = MonstarParams->Move;
+
+    animation_node *Active = Graph->Active;
+
+    if (StringEquals(Active->Name, "Idle"))
+    {
+        if (MonstarParams->MoveMagnitude > 0.f)
+        {
+            TransitionToNode(Graph, "Moving");
+        }
+
+        if (MonstarParams->Attack)
+        {
+            TransitionToNode(Graph, "Attack");
+        }
+
+        if (MonstarParams->ToStateDancing)
+        {
+            TransitionToNode(Graph, "Dancing");
+        }
+    }
+    else if (StringEquals(Active->Name, "Moving"))
+    {
+        if (MonstarParams->MoveMagnitude < EPSILON)
+        {
+            TransitionToNode(Graph, "Idle");
+        }
+    }
+    else if (StringEquals(Active->Name, "Attack"))
+    {
+        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        {
+            TransitionToNode(Graph, "Idle");
+        }
+    }
+    else if (StringEquals(Active->Name, "Dancing"))
+    {
+        if (MonstarParams->ToStateIdleFromDancing && MonstarParams->MoveMagnitude < EPSILON)
+        {
+            TransitionToNode(Graph, "Idle");
         }
     }
     else

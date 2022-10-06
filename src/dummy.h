@@ -150,13 +150,24 @@ struct game_state
     game_process ProcessSentinel;
 
     game_entity *Player;
-    game_entity *Pelegrini;
-    game_entity *Paladin;
-    game_entity *xBot;
-    game_entity *yBot;
-    game_entity *Skulls[2];
+
+    i32 PlayableEntityIndex;
+    union
+    {
+        struct
+        {
+            game_entity *Pelegrini;
+            game_entity *yBot;
+            game_entity *xBot;
+            game_entity *Paladin;
+            game_entity *Warrok;
+            game_entity *Maw;
+        };
+
+        game_entity *PlayableEntities[6];
+    };
+
     game_entity *Dummy;
-    game_entity *Cubes[16];
 
     vec2 CurrentMove;
     vec2 TargetMove;

@@ -378,6 +378,14 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
             "assets\\paladin.asset"
         },
         {
+            "Warrok",
+            "assets\\warrok.asset"
+        },
+        {
+            "Maw",
+            "assets\\maw.asset"
+        },
+        {
             "Cube",
             "assets\\cube.asset",
             8192
@@ -385,36 +393,6 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
         {
             "Sphere",
             "assets\\sphere.asset",
-            4096
-        },
-        {
-            "Skull",
-            "assets\\skull.asset",
-            4096
-        },
-        {
-            "Floor",
-            "assets\\floor.asset",
-            4096
-        },
-        {
-            "Wall",
-            "assets\\wall.asset",
-            4096
-        },
-        {
-            "Wall_90",
-            "assets\\wall_90.asset",
-            4096
-        },
-        {
-            "Column",
-            "assets\\column.asset",
-            4096
-        },
-        {
-            "Banner Wall",
-            "assets\\banner_wall.asset",
             4096
         }
     };
@@ -705,9 +683,15 @@ CreateGameEntity(game_state *State)
 }
 
 inline void
-AddModelComponent(game_entity *Entity, game_assets *Assets, const char *ModelName)
+AddModelComponent(game_entity *Entity, game_assets *Assets, const char *ModelName, render_commands *RenderCommands, memory_arena *Arena)
 {
     Entity->Model = GetModelAsset(Assets, ModelName);
+
+    if (Entity->Model->Skeleton->JointCount > 1)
+    {
+        Entity->Skinning = PushType(Arena, skinning_data);
+        InitSkinningBuffer(Entity->Skinning, Entity->Model, Arena, RenderCommands);
+    }
 }
 
 inline void
@@ -722,290 +706,6 @@ AddAnimationComponent(game_entity *Entity, const char *Animator, render_commands
 {
     Entity->Animation = PushType(Arena, animation_graph);
     BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Animator, Arena);
-
-    Entity->Skinning = PushType(Arena, skinning_data);
-    InitSkinningBuffer(Entity->Skinning, Entity->Model, Arena, RenderCommands);
-}
-
-internal void
-GenerateRoom(game_state *State, vec3 Origin, vec2 Size, vec3 Scale)
-{
-    // https://quaternius.itch.io/lowpoly-modular-dungeon-pack
-    model *FloorModel = GetModelAsset(&State->Assets, "Floor");
-    model *WallModel = GetModelAsset(&State->Assets, "Wall");
-    model *Wall90Model = GetModelAsset(&State->Assets, "Wall_90");
-    model *ColumnModel = GetModelAsset(&State->Assets, "Column");
-
-    vec3 FloorModelBoundsSize = FloorModel->Bounds.Max - FloorModel->Bounds.Min;
-    vec3 WallModelBoundsSize = WallModel->Bounds.Max - WallModel->Bounds.Min;
-    vec3 Wall90ModelBoundsSize = Wall90Model->Bounds.Max - Wall90Model->Bounds.Min;
-    vec3 ColumnModelBoundsSize = ColumnModel->Bounds.Max - ColumnModel->Bounds.Min;
-
-    // todo: ?
-    f32 TileSize = FloorModelBoundsSize.x;
-
-    // todo: odd sizes
-    i32 HalfDimX = (i32) (Size.x / 2.f);
-    i32 HalfDimY = (i32) (Size.y / 2.f);
-
-    // Floor Tiles
-    for (i32 x = -HalfDimX; x < HalfDimX; ++x)
-    {
-        for (i32 y = -HalfDimY; y < HalfDimY; ++y)
-        {
-            game_entity *Entity = CreateGameEntity(State);
-
-            vec3 Offset = vec3(FloorModelBoundsSize.x * x + FloorModelBoundsSize.x / 2.f, 0.f, FloorModelBoundsSize.z * y + FloorModelBoundsSize.z / 2.f) * Scale;
-            vec3 Position = Origin + Offset;
-            quat Orientation = quat(0.f);
-
-            Entity->Transform = CreateTransform(Position, Scale, Orientation);
-            Entity->Model = FloorModel;
-        }
-    }
-
-    // Wall Tiles
-    {
-        // Top
-        for (i32 x = -HalfDimX; x < HalfDimX; ++x)
-        {
-            // First Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, 0.f, TileSize * -HalfDimY) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = WallModel;
-            }
-
-            // Second Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, WallModelBoundsSize.y, TileSize * -HalfDimY) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = WallModel;
-            }
-        }
-
-        // Bottom
-        for (i32 x = -HalfDimX; x < HalfDimX; ++x)
-        {
-            // First Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, 0.f, TileSize * HalfDimY) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = WallModel;
-            }
-
-            // Second Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * x + WallModelBoundsSize.x / 2.f, WallModelBoundsSize.y, TileSize * HalfDimY) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = WallModel;
-            }
-        }
-
-        // Left
-        for (i32 y = -HalfDimY; y < HalfDimY; ++y)
-        {
-            // First Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * -HalfDimX, 0.f, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = Wall90Model;
-            }
-
-            // Second Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * -HalfDimX, Wall90ModelBoundsSize.y, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = Wall90Model;
-            }
-        }
-
-        // Right
-        for (i32 y = -HalfDimY; y < HalfDimY; ++y)
-        {
-            // First Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * HalfDimX, 0.f, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = Wall90Model;
-            }
-
-            // Second Level
-            {
-                game_entity *Entity = CreateGameEntity(State);
-
-                vec3 Offset = vec3(TileSize * HalfDimX, Wall90ModelBoundsSize.y, TileSize * y + Wall90ModelBoundsSize.z / 2.f) * Scale;
-                vec3 Position = Origin + Offset;
-                quat Orientation = quat(0.f);
-
-                Entity->Transform = CreateTransform(Position, Scale, Orientation);
-                Entity->Model = Wall90Model;
-            }
-        }
-    }
-
-    // Columns
-    {
-        // Top-Left
-        {
-            game_entity *Entity = State->Entities + State->EntityCount++;
-
-            vec3 Offset = vec3(-HalfDimX * TileSize, 0.f, -HalfDimY * TileSize) * Scale;
-            vec3 Position = Origin + Offset;
-            quat Orientation = quat(0.f);
-
-            Entity->Transform = CreateTransform(Position, Scale, Orientation);
-            Entity->Model = ColumnModel;
-        }
-
-        // Top-Right
-        {
-            game_entity *Entity = State->Entities + State->EntityCount++;
-
-            vec3 Offset = vec3(HalfDimX * TileSize, 0.f, -HalfDimY * TileSize) * Scale;
-            vec3 Position = Origin + Offset;
-            quat Orientation = quat(0.f);
-
-            Entity->Transform = CreateTransform(Position, Scale, Orientation);
-            Entity->Model = ColumnModel;
-        }
-
-        // Bottom-Left
-        {
-            game_entity *Entity = State->Entities + State->EntityCount++;
-
-            vec3 Offset = vec3(-HalfDimX * TileSize, 0.f, HalfDimY * TileSize) * Scale;
-            vec3 Position = Origin + Offset;
-            quat Orientation = quat(0.f);
-
-            Entity->Transform = CreateTransform(Position, Scale, Orientation);
-            Entity->Model = ColumnModel;
-        }
-
-        // Bottom-Right
-        {
-            game_entity *Entity = State->Entities + State->EntityCount++;
-
-            vec3 Offset = vec3(HalfDimX * TileSize, 0.f, HalfDimY * TileSize) * Scale;
-            vec3 Position = Origin + Offset;
-            quat Orientation = quat(0.f);
-
-            Entity->Transform = CreateTransform(Position, Scale, Orientation);
-            Entity->Model = ColumnModel;
-        }
-    }
-}
-
-internal void
-GenerateDungeon(game_state *State, vec3 Origin, u32 RoomCount, vec3 Scale)
-{
-    Assert(RoomCount > 0);
-
-#if 0
-    u32 RoomWidth = RandomBetween(&State->RNG, 6, 12);
-    u32 RoomHeight = RandomBetween(&State->RNG, 6, 12);
-#else
-    u32 RoomWidth = 8;
-    u32 RoomHeight = 8;
-#endif
-
-    vec2 RoomSize = vec2((f32) RoomWidth, (f32) RoomHeight);
-    vec3 RoomOrigin = Origin;
-
-    GenerateRoom(State, RoomOrigin, RoomSize, Scale);
-
-    vec2 PrevRoomSize = RoomSize;
-    vec3 PrevRoomOrigin = RoomOrigin;
-    u32 PrevDirection = -1;
-
-    // todo: fix overlapping rooms
-    for (u32 RoomIndex = 1; RoomIndex < RoomCount; ++RoomIndex)
-    {
-#if 0
-        u32 RoomWidth = RandomBetween(&State->Entropy, 4, 12);
-        u32 RoomHeight = RandomBetween(&State->Entropy, 4, 12);
-#else
-        u32 RoomWidth = 8;
-        u32 RoomHeight = 6;
-#endif
-
-        vec2 RoomSize = vec2((f32) RoomWidth, (f32) RoomHeight);
-        vec3 RoomOrigin = PrevRoomOrigin;
-
-        u32 Direction = RandomChoice(&State->Entropy, 4);
-
-        Assert(Direction < 4);
-
-        if (Direction == PrevDirection)
-        {
-            //Direction = 2;
-        }
-
-        switch (Direction)
-        {
-            case 0:
-            {
-                RoomOrigin.z += (PrevRoomSize.y + RoomSize.y) * Scale.z;
-                break;
-            }
-            case 1:
-            {
-                RoomOrigin.x += (PrevRoomSize.x + RoomSize.x) * Scale.x;
-                break;
-            }
-            case 2:
-            {
-                RoomOrigin.z -= (PrevRoomSize.y + RoomSize.y) * Scale.z;
-                break;
-            }
-            case 3:
-            {
-                RoomOrigin.x -= (PrevRoomSize.x + RoomSize.x) * Scale.x;
-                break;
-            }
-        }
-
-        GenerateRoom(State, RoomOrigin, RoomSize, Scale);
-
-        PrevRoomSize = RoomSize;
-        PrevRoomOrigin = RoomOrigin;
-        PrevDirection = Direction;
-    }
 }
 
 inline void
@@ -1083,6 +783,25 @@ GameLogic2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_
     Params->ToStateActionIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
 }
 
+inline void
+GameInput2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_animator_params *Params)
+{
+    game_input *Input = &State->Input;
+
+    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
+    Params->Attack = State->Mode == GameMode_World && Input->LightAttack.IsActivated;
+    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
+}
+
+inline void
+GameLogic2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_animator_params *Params)
+{
+    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+}
+
 internal void *
 GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
 {
@@ -1114,6 +833,19 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
             GameLogic2PaladinAnimatorParams(State, Entity, (paladin_animator_params *) Params);
         }
     }
+    else if (StringEquals(Entity->Animation->Animator, "Monstar"))
+    {
+        Params = PushType(Arena, monstar_animator_params);
+
+        if (Entity->Controllable)
+        {
+            GameInput2MonstarAnimatorParams(State, Entity, (monstar_animator_params *) Params);
+        }
+        else
+        {
+            GameLogic2MonstarAnimatorParams(State, Entity, (monstar_animator_params *) Params);
+        }
+    }
 
     return Params;
 }
@@ -1121,20 +853,23 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
 internal void
 AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 Delta)
 {
-    Assert(Entity->Animation);
-
-    void *Params = GetAnimatorParams(State, Entity, Arena);
+    Assert(Entity->Skinning);
 
     skeleton_pose *Pose = Entity->Skinning->Pose;
     joint_pose *Root = GetRootLocalJointPose(Pose);
 
-    AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
-    AnimationGraphPerFrameUpdate(Entity->Animation, Delta);
-    CalculateSkeletonPose(Entity->Animation, Pose, Arena);
+    if (Entity->Animation)
+    {
+        void *Params = GetAnimatorParams(State, Entity, Arena);
 
-    // Root Motion
-    Entity->Animation->AccRootMotion.x += Pose->RootMotion.x;
-    Entity->Animation->AccRootMotion.z += Pose->RootMotion.z;
+        AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
+        AnimationGraphPerFrameUpdate(Entity->Animation, Delta);
+        CalculateSkeletonPose(Entity->Animation, Pose, Arena);
+
+        // Root Motion
+        Entity->Animation->AccRootMotion.x += Pose->RootMotion.x;
+        Entity->Animation->AccRootMotion.z += Pose->RootMotion.z;
+    }
 
     Root->Translation = Entity->Transform.Translation;
     Root->Rotation = Entity->Transform.Rotation;
@@ -1293,7 +1028,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     // Pelegrini
     State->Pelegrini = CreateGameEntity(State);
     State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 10.f, 1.f));
-    AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini");
+    AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Pelegrini);
@@ -1301,7 +1036,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     // xBot
     State->xBot = CreateGameEntity(State);
     State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->xBot, &State->Assets, "xBot");
+    AddModelComponent(State->xBot, &State->Assets, "xBot", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->xBot, vec3(8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->xBot, "Bot", RenderCommands, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->xBot);
@@ -1309,7 +1044,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     // yBot
     State->yBot = CreateGameEntity(State);
     State->yBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->yBot, &State->Assets, "yBot");
+    AddModelComponent(State->yBot, &State->Assets, "yBot", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
     AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->yBot);
@@ -1317,29 +1052,37 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     // Paladin
     State->Paladin = CreateGameEntity(State);
     State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -10.f), vec3(3.7f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Paladin, &State->Assets, "Paladin");
+    AddModelComponent(State->Paladin, &State->Assets, "Paladin", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.5f, 3.f, 1.75f), true, &State->PermanentArena);
     AddAnimationComponent(State->Paladin, "Paladin", RenderCommands, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Paladin);
 
-    // Marker Man
-#if 0
-    State->MarkerMan = CreateGameEntity(State);
-    State->MarkerMan->Transform = CreateTransform(vec3(0.f, 0.f, -25.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->MarkerMan, &State->Assets, "MarkerMan");
-    AddRigidBodyComponent(State->MarkerMan, vec3(0.f, 0.f, -25.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->MarkerMan, "Bot", RenderCommands, &State->PermanentArena);
-#endif
+    // Warrok
+    State->Warrok = CreateGameEntity(State);
+    State->Warrok->Transform = CreateTransform(vec3(-16.f, 0.f, -10.f), vec3(4.f), quat(0.f, 0.f, 0.f, 1.f));
+    AddModelComponent(State->Warrok, &State->Assets, "Warrok", RenderCommands, &State->PermanentArena);
+    AddRigidBodyComponent(State->Warrok, vec3(-16.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f, 4.f, 3.f), true, &State->PermanentArena);
+    AddAnimationComponent(State->Warrok, "Monstar", RenderCommands, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Warrok);
+
+    // Maw
+    State->Maw = CreateGameEntity(State);
+    State->Maw->Transform = CreateTransform(vec3(16.f, 0.f, -10.f), vec3(4.f), quat(0.f, 0.f, 0.f, 1.f));
+    AddModelComponent(State->Maw, &State->Assets, "Maw", RenderCommands, &State->PermanentArena);
+    AddRigidBodyComponent(State->Maw, vec3(16.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f, 4.f, 3.f), true, &State->PermanentArena);
+    AddAnimationComponent(State->Maw, "Monstar", RenderCommands, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Maw);
+
+    State->PlayableEntityIndex = 3;
 
 #if 1
-    // temp:
     u32 Count = 1000;
     while (Count--)
     {
         game_entity *Entity = CreateGameEntity(State);
         vec3 Position = vec3(RandomBetween(&State->Entropy, -200.f, 200.f), RandomBetween(&State->Entropy, 1.f, 4.f), RandomBetween(&State->Entropy, -200.f, 200.f));
         Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
-        AddModelComponent(Entity, &State->Assets, "Cube");
+        AddModelComponent(Entity, &State->Assets, "Cube", RenderCommands, &State->PermanentArena);
         AddRigidBodyComponent(Entity, Position, quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
         Entity->TestColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
 
@@ -1347,85 +1090,29 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     }
 #endif
 
-    //
-
 #if 0
-    // Skull 0
-    State->Skulls[0] = CreateGameEntity(State);
-    State->Skulls[0]->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
-    State->Skulls[0]->Model = GetModelAsset(&State->Assets, "Skull");
+    for (i32 TileY = 0; TileY <= 3; ++TileY)
+    {
+        for (i32 TileX = -10; TileX <= 10; ++TileX)
+        {
+            vec3 HalfSize = vec3(1.f, 1.f, 1.f);
 
-    // Skull 1
-    State->Skulls[1] = CreateGameEntity(State);
-    State->Skulls[1]->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f));
-    State->Skulls[1]->Model = GetModelAsset(&State->Assets, "Skull");
-#endif
+            f32 x = 2.f * HalfSize.x * TileX;
+            f32 y = 2.f * HalfSize.y * TileY;
+            f32 z = -40.f + RandomBetween(&State->Entropy, -0.2f, 0.2f);
 
-#if 1
-    // Cubes
-    State->Cubes[0] = CreateGameEntity(State);
-    State->Cubes[0]->Transform = CreateTransform(vec3(-20.f, 1.f, 40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[0], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[0], vec3(-20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[0]);
+            vec3 Position = vec3(x, y, z);
+            vec3 Scale = vec3(HalfSize);
+            quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
 
-    State->Cubes[1] = CreateGameEntity(State);
-    State->Cubes[1]->Transform = CreateTransform(vec3(20.f, 1.f, 40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[1], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[1], vec3(20.f, 1.f, 40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[1]);
-
-    State->Cubes[2] = CreateGameEntity(State);
-    State->Cubes[2]->Transform = CreateTransform(vec3(-40.f, 2.f, 80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[2], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[2], vec3(-40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[2]);
-
-    State->Cubes[3] = CreateGameEntity(State);
-    State->Cubes[3]->Transform = CreateTransform(vec3(40.f, 2.f, 80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[3], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[3], vec3(40.f, 2.f, 80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[3]);
-
-    State->Cubes[4] = CreateGameEntity(State);
-    State->Cubes[4]->Transform = CreateTransform(vec3(-20.f, 1.f, -40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[4], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[4], vec3(-20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[4]);
-
-    State->Cubes[5] = CreateGameEntity(State);
-    State->Cubes[5]->Transform = CreateTransform(vec3(20.f, 1.f, -40.f), vec3(2.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[5], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[5], vec3(20.f, 1.f, -40.f), quat(0.f, 0.f, 0.f, 1.f), vec3(2.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[5]);
-
-    State->Cubes[6] = CreateGameEntity(State);
-    State->Cubes[6]->Transform = CreateTransform(vec3(-40.f, 2.f, -80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[6], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[6], vec3(-40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[6]);
-
-    State->Cubes[7] = CreateGameEntity(State);
-    State->Cubes[7]->Transform = CreateTransform(vec3(40.f, 2.f, -80.f), vec3(3.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModelComponent(State->Cubes[7], &State->Assets, "Cube");
-    AddRigidBodyComponent(State->Cubes[7], vec3(40.f, 2.f, -80.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f), false, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cubes[7]);
-#endif
-
-    // Player
-    //State->Player = State->xBot;
-    //State->Player = State->yBot;
-    //State->Player = State->Pelegrini;
-    //State->Player = State->MarkerMan;
-    //State->Player = State->Cubes[7];
-    //State->Player = State->Dummy;
-#if 0
-    // todo: create GenerateDungeon function wich takes care of generation multiple connected rooms
-    GenerateRoom(State, vec3(0.f), vec2(16.f, 10.f), vec3(2.f));
-    GenerateRoom(State, vec3(0.f, 0.f, -36.f), vec2(8.f, 8.f), vec3(2.f));
-    GenerateRoom(State, vec3(0.f, 0.f, 48.f), vec2(8.f, 14.f), vec3(2.f));
-#else
-    //GenerateDungeon(State, vec3(0.f), 12, vec3(2.f));
+            game_entity *Entity = CreateGameEntity(State);
+            Entity->Transform = CreateTransform(Position, Scale, Rotation);
+            AddModelComponent(Entity, &State->Assets, "Cube");
+            AddRigidBodyComponent(Entity, Position, Rotation, Scale, false, &State->PermanentArena);
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+            Entity->TestColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+        }
+    }
 #endif
 }
 
@@ -1437,6 +1124,9 @@ LoadAnimators(animator *Animator)
 
     animator_controller *PaladinController = HashTableLookup(&Animator->Controllers, (char *) "Paladin");
     PaladinController->Func = PaladinAnimatorController;
+
+    animator_controller *MonstarController = HashTableLookup(&Animator->Controllers, (char *) "Monstar");
+    MonstarController->Func = MonstarAnimatorController;
 
     animator_controller *SimpleController = HashTableLookup(&Animator->Controllers, (char *) "Simple");
     SimpleController->Func = SimpleAnimatorController;
@@ -1543,7 +1233,7 @@ DLLExport GAME_INIT(GameInit)
 
     // Dummy
     State->Dummy = CreateGameEntity(State);
-    State->Dummy->Transform = CreateTransform(vec3(0.f, 0.f, -100.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Dummy->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
     //AddRigidBodyComponent(State->Dummy, vec3(0.f, 20.f, -100.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Dummy);
 
@@ -1597,26 +1287,26 @@ DLLExport GAME_RELOAD(GameReload)
 inline game_entity *
 GetPrevHero(game_state *State)
 {
-    game_entity *Result = State->Dummy;
+    State->PlayableEntityIndex -= 1;
+    if (State->PlayableEntityIndex < 0)
+    {
+        State->PlayableEntityIndex = ArrayCount(State->PlayableEntities) - 1;
+    }
 
-    if (State->Player == State->xBot) Result = State->yBot;
-    if (State->Player == State->yBot) Result = State->Pelegrini;
-    if (State->Player == State->Pelegrini) Result = State->Paladin;
-    if (State->Player == State->Paladin) Result = State->xBot;
-
+    game_entity *Result = State->PlayableEntities[State->PlayableEntityIndex];
     return Result;
 }
 
 inline game_entity *
 GetNextHero(game_state *State)
 {
-    game_entity *Result = State->Dummy;
+    State->PlayableEntityIndex += 1;
+    if (State->PlayableEntityIndex > ArrayCount(State->PlayableEntities) - 1)
+    {
+        State->PlayableEntityIndex = 0;
+    }
 
-    if (State->Player == State->Paladin) Result = State->Pelegrini;
-    if (State->Player == State->Pelegrini) Result = State->yBot;
-    if (State->Player == State->yBot) Result = State->xBot;
-    if (State->Player == State->xBot) Result = State->Paladin;
-
+    game_entity *Result = State->PlayableEntities[State->PlayableEntityIndex];
     return Result;
 }
 
@@ -1679,9 +1369,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         State->Player->FutureControllable = false;
 
-        State->Paladin->Body->Position = vec3(0.f, 0.f, -10.f);
-        State->Paladin->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-
         State->Pelegrini->Body->Position = vec3(0.f, 0.f, 10.f);
         State->Pelegrini->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
@@ -1691,7 +1378,18 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         State->yBot->Body->Position = vec3(-8.f, 0.f, 0.f);
         State->yBot->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
-        State->Player = State->Pelegrini;
+        State->Paladin->Body->Position = vec3(0.f, 0.f, -10.f);
+        State->Paladin->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+
+        State->Warrok->Body->Position = vec3(-16.f, 0.f, -10.f);
+        State->Warrok->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+
+        State->Maw->Body->Position = vec3(16.f, 0.f, -10.f);
+        State->Maw->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
+
+        State->PlayableEntityIndex = 0;
+
+        State->Player = State->PlayableEntities[State->PlayableEntityIndex];
 
         State->Player->FutureControllable = true;
     }
@@ -2023,9 +1721,7 @@ DLLExport GAME_RENDER(GameRender)
         InitGameModelAssets(&State->Assets, RenderCommands, &State->PermanentArena);
         InitGameEntities(State, RenderCommands);
 
-        State->Player = State->Paladin;
-        //State->Player = State->Pelegrini;
-        //State->Player = State->Cubes[7];
+        State->Player = State->PlayableEntities[State->PlayableEntityIndex];
         State->Player->FutureControllable = true;
 
         State->Assets.State = GameAssetsState_Ready;
@@ -2192,7 +1888,7 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     game_entity *Entity = State->Entities + EntityIndex;
 
-                    if (Entity->Animation)
+                    if (Entity->Model && Entity->Model->Skeleton->JointCount > 1)
                     {
                         job *Job = AnimationJobs + AnimationJobCount;
                         animate_entity_job *JobData = AnimationJobParams + AnimationJobCount;
