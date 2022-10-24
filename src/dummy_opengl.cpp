@@ -28,14 +28,26 @@ OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, b32 CrashIfError =
 }
 
 internal GLuint
-OpenGLCreateProgram(GLuint VertexShader, GLuint FragmentShader, b32 CrashIfError = true)
+OpenGLCreateProgram(opengl_create_program_params Params, b32 CrashIfError = true)
 {
     GLuint Program = glCreateProgram();
-    glAttachShader(Program, VertexShader);
-    glAttachShader(Program, FragmentShader);
+    glAttachShader(Program, Params.VertexShader);
+    glAttachShader(Program, Params.FragmentShader);
+
+    if (Params.GeometryShader)
+    {
+        glAttachShader(Program, Params.GeometryShader);
+    }
+
     glLinkProgram(Program);
-    glDeleteShader(VertexShader);
-    glDeleteShader(FragmentShader);
+
+    glDeleteShader(Params.VertexShader);
+    glDeleteShader(Params.FragmentShader);
+
+    if (Params.GeometryShader)
+    {
+        glDeleteShader(Params.GeometryShader);
+    }
 
     i32 IsProgramLinked;
     glGetProgramiv(Program, GL_LINK_STATUS, &IsProgramLinked);
@@ -145,6 +157,33 @@ OpenGLInitBox(opengl_state *State)
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
+
+    glBindVertexArray(0);
+}
+
+internal void
+OpenGLInitText(opengl_state *State)
+{
+    u32 MaxCharacterLength = 1024;
+
+    glGenVertexArrays(1, &State->TextVAO);
+    glBindVertexArray(State->TextVAO);
+
+    glGenBuffers(1, &State->TextVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, State->TextVBO);
+    glBufferData(GL_ARRAY_BUFFER, MaxCharacterLength * sizeof(opengl_character_point), 0, GL_STREAM_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, Position));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, Size));
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, SpriteSize));
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, SpriteOffset));
 
     glBindVertexArray(0);
 }
@@ -526,7 +565,7 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 }
 
 internal char **
-OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Count, memory_arena *Arena)
+OpenGLLoadShaderFile(opengl_state *State, u32 Id, const char *ShaderFileName, u32 Count, memory_arena *Arena)
 {
     char **Sources = PushArray(Arena, Count, char *);
 
@@ -536,28 +575,36 @@ OpenGLLoadShaderFile(opengl_state *State, u32 Id, char *ShaderFileName, u32 Coun
         Sources[FileIndex] = OpenGLPreprocessShader((char *) CommonShaderFile.Contents, CommonShaderFile.Size, Arena);
     }
 
-    read_file_result ShaderFile = State->Platform->ReadFile(ShaderFileName, Arena, true);
+    read_file_result ShaderFile = State->Platform->ReadFile((char *) ShaderFileName, Arena, true);
     Sources[OPENGL_COMMON_SHADER_COUNT] = (char *) ShaderFile.Contents;
 
     return Sources;
 }
 
 internal void
-OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *FragmentShaderFileName)
+OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 {
     opengl_shader *Shader = State->Shaders + State->CurrentShaderCount++;
 
     scoped_memory ScopedMemory(&State->Arena);
 
     u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
-    char **VertexSource = OpenGLLoadShaderFile(State, Id, VertexShaderFileName, Count, ScopedMemory.Arena);
-    char **FragmentSource = OpenGLLoadShaderFile(State, Id, FragmentShaderFileName, Count, ScopedMemory.Arena);
+    char **VertexSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
+    char **FragmentSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
 
-    GLuint VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource);
-    GLuint FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource);
-    GLuint Program = OpenGLCreateProgram(VertexShader, FragmentShader);
+    opengl_create_program_params CreateProgramParams = {};
+    CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource);
+    CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource);
 
-    Shader->Id = Id;
+    if (Params.GeometryShaderFileName)
+    {
+        char **GeometrySource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
+        CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+    }
+
+    GLuint Program = OpenGLCreateProgram(CreateProgramParams);
+
+    Shader->Id = Params.ShaderId;
     Shader->Program = Program;
 
 #if WIN32_RELOADABLE_SHADERS
@@ -569,11 +616,17 @@ OpenGLLoadShader(opengl_state *State, u32 Id, char *VertexShaderFileName, char *
         CommonShader->LastWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
     }
 
-    CopyString(VertexShaderFileName, Shader->VertexShader.FileName);
+    CopyString(Params.VertexShaderFileName, Shader->VertexShader.FileName);
     Shader->VertexShader.LastWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
 
-    CopyString(FragmentShaderFileName, Shader->FragmentShader.FileName);
+    CopyString(Params.FragmentShaderFileName, Shader->FragmentShader.FileName);
     Shader->FragmentShader.LastWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
+
+    if (Params.GeometryShaderFileName)
+    {
+        CopyString(Params.GeometryShaderFileName, Shader->GeometryShader.FileName);
+        Shader->GeometryShader.LastWriteTime = Win32GetLastWriteTime(Shader->GeometryShader.FileName);
+    }
 #endif
 
     OpenGLLoadShaderUniforms(Shader);
@@ -591,14 +644,21 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
     char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
     char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
 
-    GLuint VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource, false);
-    GLuint FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource, false);
+    opengl_create_program_params CreateProgramParams = {};
+    CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource, false);
+    CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource, false);
+
+    if (!StringEquals(Shader->GeometryShader.FileName, ""))
+    {
+        char **GeometrySource = OpenGLLoadShaderFile(State, Id, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
+        CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+    }
 
     GLuint Program = 0;
 
-    if (VertexShader && FragmentShader)
+    if (CreateProgramParams.VertexShader && CreateProgramParams.FragmentShader)
     {
-        Program = OpenGLCreateProgram(VertexShader, FragmentShader, false);
+        Program = OpenGLCreateProgram(CreateProgramParams, false);
     }
 
     if (Program)
@@ -614,54 +674,10 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
 internal void
 OpenGLInitShaders(opengl_state *State)
 {
-    OpenGLLoadShader(
-        State,
-        OPENGL_SIMPLE_SHADER_ID,
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\simple.vert",
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\simple.frag"
-    );
-
-    OpenGLLoadShader(
-        State,
-        OPENGL_PHONG_SHADING_SHADER_ID,
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.vert",
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
-    );
-
-    OpenGLLoadShader(
-        State,
-        OPENGL_SKINNED_PHONG_SHADING_SHADER_ID,
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\skinned_mesh.vert",
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
-    );
-
-    OpenGLLoadShader(
-        State,
-        OPENGL_FRAMEBUFFER_SHADER_ID,
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\framebuffer.vert",
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\framebuffer.frag"
-    );
-
-    OpenGLLoadShader(
-        State,
-        OPENGL_GROUND_SHADER_ID,
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\ground.vert",
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\ground.frag"
-    );
-
-    OpenGLLoadShader(
-        State,
-        OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID,
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\instanced_forward_shading.vert",
-        (char *)"..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
-    );
-
-    OpenGLLoadShader(
-        State,
-        OPENGL_TEXT_SHADER_ID,
-        (char *) "..\\src\\renderers\\OpenGL\\shaders\\text.vert",
-        (char *) "..\\src\\renderers\\OpenGL\\shaders\\text.frag"
-    );
+    for (u32 ShaderIndex = 0; ShaderIndex < ArrayCount(OpenGLShaders); ++ShaderIndex)
+    {
+        OpenGLLoadShader(State, OpenGLShaders[ShaderIndex]);
+    }
 }
 
 internal void
@@ -934,6 +950,7 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
     OpenGLInitLine(State);
     OpenGLInitRectangle(State);
     OpenGLInitBox(State);
+    OpenGLInitText(State);
 
     OpenGLInitShaders(State);
     OpenGLInitFramebuffers(State, WindowWidth, WindowHeight);
@@ -1344,10 +1361,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 if (!Options->RenderShadowMap)
                 {
                     render_command_draw_text *Command = (render_command_draw_text *) Entry;
-
                     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_TEXT_SHADER_ID);
+                    scoped_memory ScopedMemory(&State->Arena);
 
-                    glBindVertexArray(State->RectangleVAO);
+                    glBindVertexArray(State->TextVAO);
                     glUseProgram(Shader->Program);
 
                     if (!Command->DepthEnabled)
@@ -1355,29 +1372,38 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         glDisable(GL_DEPTH_TEST);
                     }
 
-                    if (Command->Mode == DrawText_WorldSpace)
-                    {
-                        glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
-                    }
-                    else if (Command->Mode == DrawText_ScreenSpace)
-                    {
-                        glUniform1i(Shader->ModeUniformLocation, OPENGL_SCREEN_SPACE_MODE);
-                    }
-                    
-                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
-
                     font *Font = Command->Font;
-
-                    opengl_texture *Texture = OpenGLGetTexture(State, Font->TextureId);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
-
-                    f32 AtX = Command->Position.x;
-                    f32 AtY = Command->Position.y;
                     f32 TextScale = Command->Scale;
                     f32 UnitsPerPixel = Commands->Settings.UnitsPerPixel;
+                    u32 CharacterCount = StringLength(Command->Text);
 
-                    // todo: draw as billboards?
+                    u32 Mode = OPENGL_SCREEN_SPACE_MODE;
+
+                    vec3 CameraXAsis = vec3(1.f, 0.f, 0.f);
+                    vec3 CameraYAxis = vec3(0.f, 1.f, 0.f);
+
+                    mat4 CameraToWorld = mat4(1.f);
+                    vec4 CameraSpacePosition = vec4(Command->Position, 1.f);
+
+                    if (Command->Mode == DrawText_WorldSpace)
+                    {
+                        Mode = OPENGL_WORLD_SPACE_MODE;
+
+                        mat4 WorldToCamera = Commands->Settings.WorldToCamera;
+
+                        CameraXAsis = WorldToCamera[0].xyz;
+                        CameraYAxis = WorldToCamera[1].xyz;
+
+                        CameraToWorld = Commands->Settings.CameraToWorld;
+                        CameraSpacePosition = WorldToCamera * vec4(Command->Position, 1.f);
+                    }
+
+                    vec2 Position = GetTextStartPosition(Command->Text, Command->Font, Command->Alignment, CameraSpacePosition.xy, TextScale, UnitsPerPixel);
+
+                    opengl_character_point *Points = PushArray(ScopedMemory.Arena, CharacterCount, opengl_character_point);
+
+                    u32 GlyphPositionIndex = 0;
+
                     for (wchar *At = Command->Text; *At; ++At)
                     {
                         wchar Character = *At;
@@ -1385,27 +1411,38 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                         glyph *GlyphInfo = GetCharacterGlyph(Font, Character);
 
-                        vec2 Position = vec2(AtX, AtY);
                         vec2 SpriteSize = GlyphInfo->SpriteSize;
-                        vec2 TextureOffset = GlyphInfo->UV;
+                        vec2 SpriteOffset = GlyphInfo->UV;
                         vec2 Size = GlyphInfo->CharacterSize * TextScale * UnitsPerPixel;
+                        vec2 HalfSize = Size / 2.f;
                         vec2 Alignment = GlyphInfo->Alignment * TextScale * UnitsPerPixel;
 
-                        vec3 Translation = vec3(Position + Alignment, Command->Position.z);
-                        vec3 Scale = vec3(Size, 0.f);
-                        quat Rotation = quat(0.f);
+                        vec4 WorldSpacePosition = CameraToWorld * vec4(Position + Alignment + HalfSize, CameraSpacePosition.z, 1.f);
 
-                        mat4 Model = Transform(CreateTransform(Translation, Scale, Rotation));
+                        opengl_character_point *Point = Points + GlyphPositionIndex++;
 
-                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
-                        glUniform2f(glGetUniformLocation(Shader->Program, "u_SpriteSize"), SpriteSize.x, SpriteSize.y);
-                        glUniform2f(glGetUniformLocation(Shader->Program, "u_TextureOffset"), TextureOffset.x, TextureOffset.y);
-
-                        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                        Point->Position = WorldSpacePosition.xyz;
+                        Point->Size = Size;
+                        Point->SpriteSize = SpriteSize;
+                        Point->SpriteOffset = SpriteOffset;
 
                         f32 HorizontalAdvance = GetHorizontalAdvanceForPair(Font, Character, NextCharacter);
-                        AtX += HorizontalAdvance * TextScale * UnitsPerPixel;
+                        Position.x += HorizontalAdvance * TextScale * UnitsPerPixel;
                     }
+
+                    glBindBuffer(GL_ARRAY_BUFFER, State->TextVBO);
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, CharacterCount * sizeof(opengl_character_point), Points);
+
+                    opengl_texture *Texture = OpenGLGetTexture(State, Font->TextureId);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+
+                    glUniform1i(Shader->ModeUniformLocation, Mode);
+                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraXAxis"), CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
+                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
+
+                    glDrawArrays(GL_POINTS, 0, CharacterCount);
 
                     if (!Command->DepthEnabled)
                     {
@@ -1677,6 +1714,16 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
                 ShouldReload = true;
             }
 
+            if (!StringEquals(Shader->GeometryShader.FileName, ""))
+            {
+                FILETIME NewGeometryShaderWriteTime = Win32GetLastWriteTime(Shader->GeometryShader.FileName);
+                if (CompareFileTime(&NewGeometryShaderWriteTime, &Shader->GeometryShader.LastWriteTime) != 0)
+                {
+                    Shader->GeometryShader.LastWriteTime = NewGeometryShaderWriteTime;
+                    ShouldReload = true;
+                }
+            }
+
             if (ShouldReload)
             {
                 OpenGLReloadShader(State, Shader->Id);
@@ -1699,6 +1746,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
 #if 1
 
+    if (RenderSettings->EnableCascadedShadowMaps)
     {
         PROFILE(State->Profiler, "OpenGLCascadedShadowMaps");
 
@@ -1707,8 +1755,8 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         f32 FocalLength = Camera->FocalLength;
         f32 AspectRatio = Camera->AspectRatio;
 
-        mat4 CameraM = GetCameraTransform(Camera);
-        mat4 CameraMInv = Inverse(CameraM);
+        mat4 WorldToCamera = RenderSettings->WorldToCamera;
+        mat4 CameraToWorld = RenderSettings->CameraToWorld;
 
         vec3 LightPosition = vec3(0.f);
         vec3 LightDirection = Normalize(RenderSettings->DirectionalLight->Direction);
@@ -1744,7 +1792,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
             for (u32 CornerIndex = 0; CornerIndex < ArrayCount(CameraSpaceFrustrumCorners); ++CornerIndex)
             {
-                vec4 LightSpaceFrustrumCorner = LightM * CameraMInv * CameraSpaceFrustrumCorners[CornerIndex];
+                vec4 LightSpaceFrustrumCorner = LightM * CameraToWorld * CameraSpaceFrustrumCorners[CornerIndex];
 
                 xMin = Min(xMin, LightSpaceFrustrumCorner.x);
                 xMax = Max(xMax, LightSpaceFrustrumCorner.x);

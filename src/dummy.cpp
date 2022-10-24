@@ -417,8 +417,8 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 {
     game_asset FontAssets[] = {
         {
-            "TitilliumWeb-Regular",
-            "assets\\TitilliumWeb-Regular.asset"
+            "Consolas",
+            "assets\\Consolas.asset"
         },
         {
             "Where My Keys",
@@ -505,7 +505,7 @@ InitGameFontAssets(game_assets *Assets, render_commands *RenderCommands, memory_
 internal void
 DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *Pose)
 {
-    font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
+    font *Font = GetFontAsset(&State->Assets, "Consolas");
 
     for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
     {
@@ -517,7 +517,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
-        //DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.2f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
+        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.4f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -562,6 +562,8 @@ RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
             vec3 Vertex1 = Frustrum->Vertices[Edge.VertexIndex[1]];
 
             vec3 MiddleEdgePoint = (Vertex0 + Vertex1) / 2.f;
+
+            Assert(FaceEdgeIndex < ArrayCount(MiddleEdgePoints));
 
             MiddleEdgePoints[FaceEdgeIndex] = MiddleEdgePoint;
         }
@@ -608,6 +610,7 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
     if (Entity->Model->Skeleton->JointCount > 1)
     {
         if (State->Options.ShowSkeletons)
+        //if (true)
         {
             DrawSkeleton(RenderCommands, State, Entity->Skinning->Pose);
         }
@@ -1073,7 +1076,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddAnimationComponent(State->Maw, "Monstar", RenderCommands, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Maw);
 
-    State->PlayableEntityIndex = 3;
+    State->PlayableEntityIndex = 0;
 
 #if 1
     u32 Count = 1000;
@@ -1170,6 +1173,7 @@ DLLExport GAME_INIT(GameInit)
     State->DelayDuration = 0.5f;
 
     State->Mode = GameMode_World;
+
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
     // todo: should depend on the screen aspect ratio
@@ -1739,8 +1743,13 @@ DLLExport GAME_RENDER(GameRender)
             game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->FreeCamera;
             b32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
+            mat4 WorldToCamera = GetCameraTransform(Camera);
+
+            RenderCommands->Settings.EnableCascadedShadowMaps = true;
             RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
             RenderCommands->Settings.Camera = Camera;
+            RenderCommands->Settings.WorldToCamera = GetCameraTransform(Camera);
+            RenderCommands->Settings.CameraToWorld = Inverse(WorldToCamera);
             RenderCommands->Settings.DirectionalLight = &State->DirectionalLight;
 
             if (State->IsBackgroundHighlighted)
@@ -1976,19 +1985,37 @@ DLLExport GAME_RENDER(GameRender)
 
             DrawGround(RenderCommands);
 
+            font *Font = GetFontAsset(&State->Assets, "Consolas");
+
             if (State->Assets.State != GameAssetsState_Ready)
             {
-                font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
-                DrawText(RenderCommands, "Loading assets...", Font, vec3(-2.2f, 0.f, 0.f), 2.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 1.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
+            }
+
+            if (State->Assets.State == GameAssetsState_Ready)
+            {
+                for (u32 PlaybleEntityIndex = 0; PlaybleEntityIndex < ArrayCount(State->PlayableEntities); ++PlaybleEntityIndex)
+                {
+                    game_entity *PlayableEntity = State->PlayableEntities[PlaybleEntityIndex];
+
+                    if (PlayableEntity->Model)
+                    {
+                        vec3 TextPosition = vec3(
+                            PlayableEntity->Transform.Translation.x, 
+                            PlayableEntity->Transform.Translation.y + 2.f * PlayableEntity->Body->HalfSize.y + 0.2f, 
+                            PlayableEntity->Transform.Translation.z
+                        );
+                        DrawText(RenderCommands, PlayableEntity->Model->Name, Font, TextPosition, 0.75f, vec4(1.f, 0.f, 0.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+                    }
+                }
             }
 
             if (State->Player->Model)
             {
-                font *Font = GetFontAsset(&State->Assets, "TitilliumWeb-Regular");
                 {
                     char Text[64];
                     FormatString(Text, "Active entity: %s", State->Player->Model->Name);
-                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.75f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
                 }
 #if 0
                 {
@@ -2006,6 +2033,8 @@ DLLExport GAME_RENDER(GameRender)
         }
         case GameMode_Menu:
         {
+            RenderCommands->Settings.EnableCascadedShadowMaps = false;
+
             Clear(RenderCommands, vec4(0.f));
 
             vec3 TopLeft = vec3(-3.f, 3.f, 0.f);
@@ -2071,7 +2100,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             font *Font = GetFontAsset(&State->Assets, "Where My Keys");
-            DrawText(RenderCommands, "Dummy", Font, vec3(-1.8f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_ScreenSpace);
+            DrawText(RenderCommands, "Dummy", Font, vec3(0.f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
 
             break;
         }

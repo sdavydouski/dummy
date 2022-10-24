@@ -22,7 +22,8 @@
 
 #define MAX_SHADER_FILE_PATH 256
 
-const char *OpenGLCommonShaders[] = {
+const char *OpenGLCommonShaders[] = 
+{
     "..\\src\\renderers\\OpenGL\\shaders\\common\\version.glsl",
     "..\\src\\renderers\\OpenGL\\shaders\\common\\constants.glsl",
     "..\\src\\renderers\\OpenGL\\shaders\\common\\math.glsl",
@@ -67,6 +68,70 @@ struct win32_shader_file
 };
 #endif
 
+struct opengl_load_shader_params
+{
+    u32 ShaderId;
+
+    const char *VertexShaderFileName;
+    const char *FragmentShaderFileName;
+    const char *GeometryShaderFileName;
+};
+
+struct opengl_create_program_params
+{
+    GLuint VertexShader;
+    GLuint GeometryShader;
+    GLuint FragmentShader;
+};
+
+opengl_load_shader_params OpenGLShaders[] =
+{
+    {
+        OPENGL_SIMPLE_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\simple.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\simple.frag"
+    },
+    {
+        OPENGL_PHONG_SHADING_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+    },
+    {
+        OPENGL_SKINNED_PHONG_SHADING_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\skinned_mesh.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+    },
+    {
+        OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\instanced_forward_shading.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+    },
+    {
+        OPENGL_GROUND_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\ground.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\ground.frag"
+    },
+    {
+        OPENGL_FRAMEBUFFER_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\framebuffer.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\framebuffer.frag"
+    },
+    {
+        OPENGL_TEXT_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\text.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\text.frag",
+        "..\\src\\renderers\\OpenGL\\shaders\\text.geom"
+    }
+};
+
+struct opengl_character_point
+{
+    vec3 Position;
+    vec2 Size;
+    vec2 SpriteSize;
+    vec2 SpriteOffset;
+};
+
 struct opengl_shader
 {
     u32 Id;
@@ -75,6 +140,7 @@ struct opengl_shader
 #if WIN32_RELOADABLE_SHADERS
     win32_shader_file CommonShaders[OPENGL_COMMON_SHADER_COUNT];
     win32_shader_file VertexShader;
+    win32_shader_file GeometryShader;
     win32_shader_file FragmentShader;
 #endif
     
@@ -152,6 +218,8 @@ struct opengl_state
     GLuint LineVAO;
     GLuint RectangleVAO;
     GLuint BoxVAO;
+    GLuint TextVAO;
+    GLuint TextVBO;
 
     GLuint ShaderStateUBO;
 

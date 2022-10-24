@@ -261,6 +261,13 @@ enum draw_text_mode
     DrawText_ScreenSpace
 };
 
+enum draw_text_alignment
+{
+    DrawText_AlignLeft,
+    DrawText_AlignCenter,
+    DrawText_AlignRight
+};
+
 struct render_command_draw_text
 {
     render_command_header Header;
@@ -270,6 +277,7 @@ struct render_command_draw_text
     vec3 Position;
     f32 Scale;
     vec4 Color;
+    draw_text_alignment Alignment;
     draw_text_mode Mode;
     b32 DepthEnabled;
 };
@@ -327,7 +335,10 @@ struct render_commands_settings
     f32 PixelsPerUnit;
     f32 UnitsPerPixel;
     b32 ShowCascades;
+    b32 EnableCascadedShadowMaps;
     game_camera *Camera;
+    mat4 WorldToCamera;
+    mat4 CameraToWorld;
     directional_light *DirectionalLight;
 };
 

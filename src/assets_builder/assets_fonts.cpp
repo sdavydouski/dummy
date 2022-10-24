@@ -62,8 +62,8 @@ LoadFontAsset(const char *FilePath, font_asset *FontAsset)
 {
     f32 FontHeight = 72.f;
 
-    FontAsset->TextureAtlas.Width = 1024;
-    FontAsset->TextureAtlas.Height = 1024;
+    FontAsset->TextureAtlas.Width = 2048;
+    FontAsset->TextureAtlas.Height = 2048;
     FontAsset->TextureAtlas.Channels = 1;
 
     unicode_block UnicodeBlocks[] = {
@@ -71,8 +71,7 @@ LoadFontAsset(const char *FilePath, font_asset *FontAsset)
         {
             0x20,
             0x7E
-        }
-#if 0
+        },
         // Greek
         {
             0x370,
@@ -82,7 +81,8 @@ LoadFontAsset(const char *FilePath, font_asset *FontAsset)
         {
             0x410,
             0x045F
-        },
+        }
+#if 0
         // Arabic
         {
             0x600,

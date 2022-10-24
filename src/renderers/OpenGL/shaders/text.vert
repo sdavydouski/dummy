@@ -1,29 +1,21 @@
 //! #include "common/version.glsl"
-//! #include "common/constants.glsl"
-//! #include "common/uniform.glsl"
 
-layout(location = 0) in vec3 in_Position;
-layout(location = 1) in vec2 in_TextureCoords;
+layout (location = 0) in vec3 in_Position;
+layout (location = 1) in vec2 in_Size;
+layout (location = 2) in vec2 in_SpriteSize;
+layout (location = 3) in vec2 in_SpriteOffset;
 
 out VS_OUT {
-    vec2 TextureCoords;
+    vec2 Size;
+    vec2 SpriteSize;
+    vec2 SpriteOffset;
 } vs_out; 
-
-uniform int u_Mode;
-uniform mat4 u_Model;
-uniform vec2 u_SpriteSize;
-uniform sampler2D u_FontTextureAtlas;
 
 void main()
 {
-    // [-1, 1] -> [0, 1]
-    vec3 Position = (in_Position + 1.f) / 2.f; 
+    vs_out.Size = in_Size;
+    vs_out.SpriteSize = in_SpriteSize;
+    vs_out.SpriteOffset = in_SpriteOffset;
 
-    vec2 TextureSize = textureSize(u_FontTextureAtlas, 0);
-    vec2 NormalizedSpriteSize = u_SpriteSize / TextureSize;
-    vec2 FlippedTextureCoords = vec2(in_TextureCoords.x, 1.f - in_TextureCoords.y);
-
-    vs_out.TextureCoords = FlippedTextureCoords * NormalizedSpriteSize;
-
-    gl_Position = GetViewProjection(u_Mode) * u_Model * vec4(Position, 1.f);
+    gl_Position = vec4(in_Position, 1.f);
 }

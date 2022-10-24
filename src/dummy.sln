@@ -36,6 +36,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shaders", "shaders", "{0108
 		renderers\OpenGL\shaders\simple.vert = renderers\OpenGL\shaders\simple.vert
 		renderers\OpenGL\shaders\skinned_mesh.vert = renderers\OpenGL\shaders\skinned_mesh.vert
 		renderers\OpenGL\shaders\text.frag = renderers\OpenGL\shaders\text.frag
+		renderers\OpenGL\shaders\text.geom = renderers\OpenGL\shaders\text.geom
 		renderers\OpenGL\shaders\text.vert = renderers\OpenGL\shaders\text.vert
 	EndProjectSection
 EndProject
