@@ -349,6 +349,7 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
                 model_asset_animation_state_header AnimationStateHeader = {};
                 CopyString(Node->Animation->AnimationClipName, AnimationStateHeader.AnimationClipName);
                 AnimationStateHeader.IsLooping = Node->Animation->IsLooping;
+                AnimationStateHeader.EnableRootMotion = Node->Animation->EnableRootMotion;
 
                 fwrite(&AnimationStateHeader, sizeof(model_asset_animation_state_header), 1, AssetFile);
 
@@ -746,6 +747,8 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
 
                 const char *TransitionNode = Message["through"].GetString();
                 CopyString(TransitionNode, TransitionAsset->TransitionNode);
+
+                TransitionAsset->Duration = Message["blend"].GetFloat();
             }
             else if (StringEquals(TransitionType, "crossfade"))
             {
@@ -797,6 +800,7 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
 
                 CopyString(Clip, ValueAsset->AnimationClipName);
                 ValueAsset->Value = BlendspaceValue["value"].GetFloat();
+                ValueAsset->EnableRootMotion = BlendspaceValue["root_motion"].GetBool();
             }
         }
         else if (StringEquals(Type, "Animation"))
@@ -806,9 +810,11 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
 
             const char *Clip = Node["clip"].GetString();
             b32 IsLooping = Node["looping"].GetBool();
+            b32 EnableRootMotion = Node["root_motion"].GetBool();
 
             CopyString(Clip, NodeAsset->Animation->AnimationClipName);
             NodeAsset->Animation->IsLooping = IsLooping;
+            NodeAsset->Animation->EnableRootMotion = EnableRootMotion;
         }
         else
         {

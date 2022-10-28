@@ -68,11 +68,11 @@ struct animation_state
     f32 Weight;
 
     b32 IsLooping;
-
-    // todo:
     b32 EnableRootMotion;
+
+    // Used for calculating root motion
     f32 PrevTime;
-    vec3 TranslationBefore;
+    vec3 PrevTranslation;
 
     animation_clip *Clip;
 };
@@ -109,7 +109,12 @@ struct animation_transition
     union
     {
         f32 Duration;
-        animation_node *TransitionNode;
+
+        struct
+        {
+            f32 Duration;
+            animation_node *TransitionNode;
+        };
     };
 };
 

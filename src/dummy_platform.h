@@ -196,7 +196,7 @@ struct game_parameters
     f32 UpdateLag;
 };
 
-#define GAME_INIT(name) void name(game_memory *Memory)
+#define GAME_INIT(name) void name(game_memory *Memory, game_parameters *Parameters)
 typedef GAME_INIT(game_init);
 
 #define GAME_RELOAD(name) void name(game_memory *Memory)

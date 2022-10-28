@@ -123,7 +123,7 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_state *Animation)
 {
     joint_pose *RootTranslationPose = GetRootTranslationLocalJointPose(SkeletonPose);
 
-    vec3 TranslationBefore = Animation->TranslationBefore;
+    vec3 TranslationBefore = Animation->PrevTranslation;
 
     for (u32 JointIndex = 0; JointIndex < SkeletonPose->Skeleton->JointCount; ++JointIndex)
     {
@@ -154,7 +154,7 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_state *Animation)
 
     vec3 TranslationAfter = RootTranslationPose->Translation;
 
-    //if (Animation->EnableRootMotion)
+    if (Animation->EnableRootMotion)
     {
         vec3 RootMotion = TranslationAfter - TranslationBefore;
 
@@ -176,7 +176,7 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_state *Animation)
 
         SkeletonPose->RootMotion = RootMotion;
 
-        Animation->TranslationBefore = TranslationAfter;
+        Animation->PrevTranslation = TranslationAfter;
 
         RootTranslationPose->Translation.x = 0.f;
         RootTranslationPose->Translation.z = 0.f;
@@ -375,8 +375,7 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
                 animation_node *ToNode = Transition->TransitionNode;
                 Graph->Active = ToNode;
 
-                // todo: duration?
-                CrossFade(&Graph->Mixer, FromNode, ToNode, 0.2f);
+                CrossFade(&Graph->Mixer, FromNode, ToNode, Transition->Duration);
 
                 break;
             }
@@ -539,21 +538,22 @@ GetAnimationClip(model *Model, const char *ClipName)
 }
 
 inline animation_state
-CreateAnimationState(animation_clip *Clip, b32 IsLooping)
+CreateAnimationState(animation_clip *Clip, b32 IsLooping, b32 EnableRootMotion)
 {
     animation_state Result = {};
     Result.Clip = Clip;
     Result.IsLooping = IsLooping;
+    Result.EnableRootMotion = EnableRootMotion;
 
     return Result;
 }
 
 inline void
-BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip, b32 IsLooping)
+BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip, b32 IsLooping, b32 EnableRootMotion)
 {
     Node->Type = AnimationNodeType_Clip;
     CopyString(Name, Node->Name);
-    Node->Animation = CreateAnimationState(Clip, IsLooping);
+    Node->Animation = CreateAnimationState(Clip, IsLooping, EnableRootMotion);
 }
 
 inline void
@@ -603,13 +603,15 @@ BuildAnimationTransition(
     animation_transition *Transition,
     animation_node *From,
     animation_node *To,
-    animation_node *TransitionNode
+    animation_node *TransitionNode,
+    f32 Duration
 )
 {
     Transition->Type = AnimationTransitionType_Transitional;
     Transition->From = From;
     Transition->To = To;
     Transition->TransitionNode = TransitionNode;
+    Transition->Duration = Duration;
 }
 
 inline animation_node *
@@ -653,7 +655,8 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
                     Node, 
                     NodeAsset->Name, 
                     GetAnimationClip(Model, NodeAsset->Animation->AnimationClipName), 
-                    NodeAsset->Animation->IsLooping
+                    NodeAsset->Animation->IsLooping,
+                    NodeAsset->Animation->EnableRootMotion
                 );
 
                 break;
@@ -670,7 +673,7 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
                     blend_space_1d_value_asset *ValueAsset = NodeAsset->Blendspace->Values + ValueIndex;
 
                     Value->Value =ValueAsset->Value;
-                    Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, ValueAsset->AnimationClipName), true);
+                    Value->AnimationState = CreateAnimationState(GetAnimationClip(Model, ValueAsset->AnimationClipName), true, ValueAsset->EnableRootMotion);
                 }
 
                 BuildAnimationNode(Node, NodeAsset->Name, BlendSpace);
@@ -721,7 +724,7 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
                 case AnimationTransitionType_Transitional:
                 {
                     animation_node *TransitionNode = GetAnimationNode(Graph, TransitionAsset->TransitionNode);
-                    BuildAnimationTransition(Transition, From, To, TransitionNode);
+                    BuildAnimationTransition(Transition, From, To, TransitionNode, TransitionAsset->Duration);
 
                     break;
                 }

@@ -27,6 +27,7 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
                 NodeAsset->Animation = (animation_state_asset *)malloc(sizeof(animation_state_asset) * 1);
                 CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
+                NodeAsset->Animation->EnableRootMotion = AnimationStateHeader->EnableRootMotion;
 
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
                 break;

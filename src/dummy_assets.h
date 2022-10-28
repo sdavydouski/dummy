@@ -90,12 +90,14 @@ struct animation_state_asset
 {
     char AnimationClipName[256];
     b32 IsLooping;
+    b32 EnableRootMotion;
 };
 
 struct blend_space_1d_value_asset
 {
-    f32 Value;
     char AnimationClipName[256];
+    f32 Value;
+    b32 EnableRootMotion;
 };
 
 struct blend_space_1d_asset {
@@ -112,7 +114,12 @@ struct animation_transition_asset
     union
     {
         f32 Duration;
-        char TransitionNode[256];
+
+        struct
+        {
+            f32 Duration;
+            char TransitionNode[256];
+        };
     };
 };
 
@@ -280,6 +287,7 @@ struct model_asset_animation_state_header
 {
     char AnimationClipName[256];
     b32 IsLooping;
+    b32 EnableRootMotion;
 };
 
 struct model_asset_blend_space_1d_header

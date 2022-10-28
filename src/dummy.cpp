@@ -1176,8 +1176,7 @@ DLLExport GAME_INIT(GameInit)
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    // todo: should depend on the screen aspect ratio
-    f32 AspectRatio = 16.f / 9.f;
+    f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
     f32 FieldOfView = RADIANS(45.f);
     InitCamera(&State->FreeCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f), RADIANS(-30.f), RADIANS(-90.f));
     InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(0.f));
@@ -1989,7 +1988,7 @@ DLLExport GAME_RENDER(GameRender)
 
             if (State->Assets.State != GameAssetsState_Ready)
             {
-                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 1.f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 1.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
             }
 
             if (State->Assets.State == GameAssetsState_Ready)
@@ -2005,7 +2004,8 @@ DLLExport GAME_RENDER(GameRender)
                             PlayableEntity->Transform.Translation.y + 2.f * PlayableEntity->Body->HalfSize.y + 0.2f, 
                             PlayableEntity->Transform.Translation.z
                         );
-                        DrawText(RenderCommands, PlayableEntity->Model->Name, Font, TextPosition, 0.75f, vec4(1.f, 0.f, 0.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+
+                        DrawText(RenderCommands, PlayableEntity->Model->Name, Font, TextPosition, 0.75f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
                     }
                 }
             }
@@ -2015,7 +2015,7 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     char Text[64];
                     FormatString(Text, "Active entity: %s", State->Player->Model->Name);
-                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(0.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
+                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
                 }
 #if 0
                 {

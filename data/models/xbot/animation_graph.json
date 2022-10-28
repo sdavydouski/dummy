@@ -9,11 +9,13 @@
             "type":"Animation",
             "clip":"standing_idle",
             "looping":true,
+            "root_motion":true,
             "transitions":[
                {
                   "to":"ActionIdle",
                   "type":"transitional",
-                  "through":"StandingIdleToActionIdle"
+                  "through":"StandingIdleToActionIdle",
+                  "blend":0.2
                },
                {
                   "to":"Dancing",
@@ -30,7 +32,8 @@
                {
                   "to":"StandingIdle",
                   "type":"transitional",
-                  "through":"ActionIdleToStandingIdle"
+                  "through":"ActionIdleToStandingIdle",
+                  "blend":0.2
                },
                {
                   "to":"Moving",
@@ -49,6 +52,7 @@
                   "type":"Animation",
                   "clip":"action_idle_0",
                   "looping":true,
+                  "root_motion":true,
                   "transitions":[
                      {
                         "to":"ActionIdle_1",
@@ -67,6 +71,7 @@
                   "type":"Animation",
                   "clip":"action_idle_1",
                   "looping":false,
+                  "root_motion":true,
                   "transitions":[
                      {
                         "to":"ActionIdle_0",
@@ -80,6 +85,7 @@
                   "type":"Animation",
                   "clip":"action_idle_2",
                   "looping":false,
+                  "root_motion":true,
                   "transitions":[
                      {
                         "to":"ActionIdle_0",
@@ -96,19 +102,23 @@
             "values":[
                {
                   "value":0,
-                  "clip":"idle_blend"
+                  "clip":"idle_blend",
+                  "root_motion":true
                },
                {
                   "value":0.5,
-                  "clip":"walking_blend_root_motion"
+                  "clip":"walking_blend_root_motion",
+                  "root_motion":true
                },
                {
                   "value":1,
-                  "clip":"running_blend_root_motion"
+                  "clip":"running_blend_root_motion",
+                  "root_motion":true
                },
                {
                   "value":2,
-                  "clip":"sprinting_blend_root_motion"
+                  "clip":"sprinting_blend_root_motion",
+                  "root_motion":true
                }
             ],
             "transitions":[
@@ -124,6 +134,7 @@
             "type":"Animation",
             "clip":"samba_dance",
             "looping":true,
+            "root_motion":true,
             "transitions":[
                {
                   "to":"ActionIdle",
@@ -137,6 +148,7 @@
             "type":"Animation",
             "clip":"standing_idle_to_action_idle",
             "looping":false,
+            "root_motion":true,
             "transitions":[
                {
                  "to": "ActionIdle",
@@ -155,6 +167,7 @@
             "type":"Animation",
             "clip":"action_idle_to_standing_idle",
             "looping":false,
+            "root_motion":true,
             "transitions": [
               {
                  "to": "StandingIdle",

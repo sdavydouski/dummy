@@ -9,6 +9,7 @@
             "type":"Animation",
             "clip":"mutant idle",
             "looping":true,
+            "root_motion":true,
             "transitions":[
                {
                   "to":"Moving",
@@ -33,15 +34,18 @@
             "values":[
                {
                   "value":0,
-                  "clip":"mutant breathing idle"
+                  "clip":"mutant breathing idle",
+                  "root_motion":true
                },
                {
                   "value":0.5,
-                  "clip":"mutant walking"
+                  "clip":"mutant walking",
+                  "root_motion":true
                },
                {
                   "value":1,
-                  "clip":"mutant run"
+                  "clip":"mutant run",
+                  "root_motion":true
                }
             ],
             "transitions":[
@@ -57,6 +61,7 @@
             "type":"Animation",
             "clip":"mutant punch",
             "looping":false,
+            "root_motion":true,
             "transitions":[
                {
                   "to":"Idle",
@@ -70,6 +75,7 @@
             "type":"Animation",
             "clip":"mutant dancing",
             "looping":true,
+            "root_motion":true,
             "transitions":[
                {
                   "to":"Idle",

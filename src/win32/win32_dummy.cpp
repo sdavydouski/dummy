@@ -225,7 +225,7 @@ Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
         if (Result.GameDLL)
         {
             Result.Init = (game_init *)GetProcAddress(Result.GameDLL, "GameInit");
-            Result.Reload = (game_init *)GetProcAddress(Result.GameDLL, "GameReload");
+            Result.Reload = (game_reload *)GetProcAddress(Result.GameDLL, "GameReload");
             Result.ProcessInput = (game_process_input *)GetProcAddress(Result.GameDLL, "GameProcessInput");
             Result.Update = (game_update *)GetProcAddress(Result.GameDLL, "GameUpdate");
             Result.Render = (game_render *)GetProcAddress(Result.GameDLL, "GameRender");
@@ -1090,16 +1090,19 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         platform_input_mouse MouseInput = {};
         platform_input_xbox_controller XboxControllerInput = {};
 
-        GameCode.Init(&GameMemory);
-
         LARGE_INTEGER LastPerformanceCounter;
         QueryPerformanceCounter(&LastPerformanceCounter);
 
+        GameParameters.WindowWidth = PlatformState.WindowWidth;
+        GameParameters.WindowHeight = PlatformState.WindowHeight;
         GameParameters.UpdateRate = 1.f / 20.f;
+
         u32 UpdateCount = 0;
         u32 MaxUpdateCount = 5;
 
         PlatformState.IsGameRunning = true;
+
+        GameCode.Init(&GameMemory, &GameParameters);
 
         // Game Loop
         while (PlatformState.IsGameRunning)
