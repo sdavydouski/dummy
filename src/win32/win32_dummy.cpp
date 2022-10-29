@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <xinput.h>
+#include <xaudio2.h>
+#include <xapofx.h>
 
 #include "dummy_defs.h"
 #include "dummy_math.h"
@@ -965,7 +967,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 1
+#if 0
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1048,6 +1050,59 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         0, WindowClass.lpszClassName, L"Dummy", PlatformState.WindowStyles,
         CW_USEDEFAULT, CW_USEDEFAULT, FullWindowWidth, FullWindowHeight, 0, 0, hInstance, &PlatformState
     );
+
+    // Audio
+    HRESULT ComHandle = CoInitializeEx(0, COINIT_MULTITHREADED);
+
+    IXAudio2 *XAudio2;
+    XAudio2Create(&XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
+
+    IXAudio2MasteringVoice *MasterVoice;
+    XAudio2->CreateMasteringVoice(&MasterVoice);
+
+    WAVEFORMATEX wfx = {};
+    wfx.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+    wfx.nChannels = 2;
+    wfx.nSamplesPerSec = 48000;
+    wfx.wBitsPerSample = 32;
+    wfx.nBlockAlign = wfx.nChannels * wfx.wBitsPerSample / 8;
+    wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * wfx.wBitsPerSample / 8;
+
+    XAUDIO2_BUFFER AudioBuffer = {};
+    u32 AudioDataSize = wfx.nChannels * wfx.nSamplesPerSec;
+    f32 *AudioData = Win32AllocateMemory<f32>(AudioDataSize);
+
+    IXAudio2SourceVoice *SourceVoice;
+    XAudio2->CreateSourceVoice(&SourceVoice, &wfx);
+
+    // Reverb effect
+    IUnknown *XAPO;
+    CreateFX(__uuidof(FXReverb), &XAPO);
+
+    XAUDIO2_EFFECT_DESCRIPTOR EffectDescriptors[1];
+    EffectDescriptors[0].InitialState = true;
+    EffectDescriptors[0].OutputChannels = 2;
+    EffectDescriptors[0].pEffect = XAPO;
+
+    XAUDIO2_EFFECT_CHAIN EffectChain;
+    EffectChain.EffectCount = ArrayCount(EffectDescriptors);
+    EffectChain.pEffectDescriptors = EffectDescriptors;
+
+    SourceVoice->SetEffectChain(&EffectChain);
+
+    XAPO->Release();
+
+    FXREVERB_PARAMETERS XAPOParameters;
+    XAPOParameters.Diffusion = FXREVERB_DEFAULT_DIFFUSION;
+    XAPOParameters.RoomSize = FXREVERB_DEFAULT_ROOMSIZE;
+
+    SourceVoice->SetEffectParameters(0, &XAPOParameters, sizeof(XAPOParameters));
+    SourceVoice->EnableEffect(0);
+
+    b32 ReverbActive = true;
+
+    SourceVoice->Start(0);
+    //
 
     if (PlatformState.WindowHandle)
     {
@@ -1162,6 +1217,43 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                     }
 
                     GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
+                }
+
+                // Audio
+                vec2 Move = GameInput.Move.Range;
+                u32 ToneFrequency = (u32) (Magnitude(Move) * 440.f) + 440;
+                u32 WavePeriod = wfx.nSamplesPerSec / ToneFrequency;
+
+                AudioBuffer.AudioBytes = wfx.nAvgBytesPerSec;
+                AudioBuffer.LoopCount = XAUDIO2_LOOP_INFINITE;
+                AudioBuffer.LoopBegin = 0;
+                AudioBuffer.LoopLength = WavePeriod;
+                AudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
+
+                for (u32 SampleIndex = 0; SampleIndex < AudioDataSize;)
+                {
+                    f32 *Channel1Sample = AudioData + SampleIndex++;
+                    f32 *Channel2Sample = AudioData + SampleIndex++;
+
+                    f32 t = 2 * PI * ((f32) SampleIndex / (f32) WavePeriod);
+                    f32 SampleValue = Sin(t);
+
+                    *Channel1Sample = SampleValue;
+                    *Channel2Sample = SampleValue;
+                }
+
+                AudioBuffer.pAudioData = (u8 *) AudioData;
+
+                SourceVoice->SubmitSourceBuffer(&AudioBuffer);
+                SourceVoice->SetVolume(0.05f);
+
+                if (GameInput.EditMode.IsActivated)
+                {
+                    ReverbActive 
+                        ? SourceVoice->DisableEffect(0) 
+                        : SourceVoice->EnableEffect(0);
+
+                    ReverbActive = !ReverbActive;
                 }
 
                 // Fixed Update

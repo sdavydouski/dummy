@@ -1329,6 +1329,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     vec2 Move = Input->Move.Range;
 
+    // todo: handle when Move.x/y == 2
     if (Abs(Move.x) == 1.f && Abs(Move.y) == 1.f)
     {
         Move = Normalize(Move);
