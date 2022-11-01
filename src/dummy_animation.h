@@ -178,7 +178,7 @@ typedef ANIMATOR_CONTROLLER(animator_controller_func);
 
 struct animator_controller
 {
-    char Name[256];
+    char Key[256];
     animator_controller_func *Func;
 };
 

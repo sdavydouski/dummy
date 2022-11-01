@@ -317,3 +317,27 @@ LoadFontAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
     return Result;
 }
+
+internal audio_clip_asset *
+LoadAudioClipAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
+{
+    audio_clip_asset *Result = PushType(Arena, audio_clip_asset);
+
+    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, false);
+    u8 *Buffer = (u8 *) AssetFile.Contents;
+
+    asset_header *Header = (asset_header *) Buffer;
+
+    Assert(Header->Type == AssetType_AudioClip);
+
+    audio_clip_asset_header *AudioHeader = (audio_clip_asset_header *) (Buffer + Header->DataOffset);
+
+    Result->Format = AudioHeader->Format;
+    Result->Channels = AudioHeader->Channels;
+    Result->SamplesPerSecond = AudioHeader->SamplesPerSecond;
+    Result->BitsPerSample = AudioHeader->BitsPerSample;
+    Result->AudioBytes = AudioHeader->AudioBytes;
+    Result->AudioData = (u8 *) (Buffer + AudioHeader->AudioDataOffset);
+
+    return Result;
+}

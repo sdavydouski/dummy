@@ -11,6 +11,11 @@ enum game_mode
     GameMode_Edit
 };
 
+struct audio_source
+{
+    audio_clip *Clip;
+};
+
 struct game_entity
 {
     u32 Id;
@@ -22,6 +27,7 @@ struct game_entity
     rigid_body *Body;
     animation_graph *Animation;
     skinning_data *Skinning;
+    //audio_source *AudioSource;
 
     b32 Visible;
     b32 Controllable;   // todo: come up with smth better
@@ -33,7 +39,7 @@ struct game_entity
 
 struct entity_render_batch
 {
-    char Name[256];
+    char Key[256];
     u32 EntityCount;
     u32 MaxEntityCount;
     game_entity **Entities;
@@ -43,10 +49,10 @@ struct entity_render_batch
 
 struct game_process
 {
-    char Name[256];
     game_process_on_update *OnUpdatePerFrame;
     game_process *Child;
 
+    char Key[256];
     game_process *Prev;
     game_process *Next;
 };
@@ -71,6 +77,12 @@ struct game_asset_font
     font_asset *FontAsset;
 };
 
+struct game_asset_audio_clip
+{
+    game_asset GameAsset;
+    audio_clip_asset *AudioAsset;
+};
+
 enum game_assets_state
 {
     GameAssetsState_Unloaded,
@@ -82,12 +94,16 @@ struct game_assets
 {
     hash_table<model> Models;
     hash_table<font> Fonts;
+    hash_table<audio_clip> AudioClips;
 
     u32 ModelAssetCount;
     game_asset_model *ModelAssets;
 
     u32 FontAssetCount;
     game_asset_font *FontAssets;
+
+    u32 AudioClipAssetCount;
+    game_asset_audio_clip *AudioClipAssets;
 
     game_assets_state State;
 };
@@ -173,6 +189,8 @@ struct game_state
     vec2 TargetMove;
 
     random_sequence Entropy;
+
+    f32 MasterVolume;
 
     vec3 BackgroundColor;
 

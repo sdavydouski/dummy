@@ -8,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="win32_dummy_opengl.cpp" />
+    <None Include="win32_dummy_xaudio2.cpp" />
   </ItemGroup>
 </Project>

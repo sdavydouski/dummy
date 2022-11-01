@@ -682,6 +682,21 @@ Hash(char *String)
     return Hash;
 }
 
+// todo:
+inline u32
+Hash(u32 Key)
+{
+    u32 Hash = Key;
+
+    Hash = (Hash ^ 61) ^ (Hash >> 16);
+    Hash = Hash + (Hash << 3);
+    Hash = Hash ^ (Hash >> 4);
+    Hash = Hash * 0x27d4eb2d;
+    Hash = Hash ^ (Hash >> 15);
+
+    return Hash;
+}
+
 inline vec3
 Project(vec3 a, vec3 b)
 {

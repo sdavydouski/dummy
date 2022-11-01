@@ -1,7 +1,5 @@
 #include <windows.h>
 #include <xinput.h>
-#include <xaudio2.h>
-#include <xapofx.h>
 
 #include "dummy_defs.h"
 #include "dummy_math.h"
@@ -16,6 +14,7 @@
 #include "dummy_spatial.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
+#include "dummy_audio.h"
 #include "dummy_renderer.h"
 #include "dummy_job.h"
 #include "dummy_platform.h"
@@ -35,6 +34,7 @@ Win32GetLastWriteTime(char *FileName)
     return LastWriteTime;
 }
 
+#include "win32_dummy_xaudio2.cpp"
 #include "dummy_text.cpp"
 #include "win32_dummy_opengl.cpp"
 #include "dummy_opengl.cpp"
@@ -967,7 +967,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 0
+#if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1001,18 +1001,20 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
     GameMemory.TransientStorageSize = Megabytes(256);
-    GameMemory.RenderCommandsStorageSize = Megabytes(32);
+    GameMemory.RenderCommandsStorageSize = Megabytes(16);
+    GameMemory.AudioCommandsStorageSize = Megabytes(16);
     GameMemory.Platform = &PlatformApi;
     GameMemory.Profiler = &PlatformProfiler;
     GameMemory.JobQueue = &JobQueue;
 
     void *BaseAddress = 0;
-    PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize;
+    PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize + GameMemory.AudioCommandsStorageSize;
     PlatformState.GameMemoryBlock = Win32AllocateMemory(BaseAddress, PlatformState.GameMemoryBlockSize);
 
     GameMemory.PermanentStorage = PlatformState.GameMemoryBlock;
-    GameMemory.TransientStorage = (u8 *)PlatformState.GameMemoryBlock + GameMemory.PermanentStorageSize;
-    GameMemory.RenderCommandsStorage = (u8 *)PlatformState.GameMemoryBlock + GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
+    GameMemory.TransientStorage = (u8 *) GameMemory.PermanentStorage + GameMemory.PermanentStorageSize;
+    GameMemory.RenderCommandsStorage = (u8 *) GameMemory.TransientStorage + GameMemory.TransientStorageSize;
+    GameMemory.AudioCommandsStorage = (u8 *) GameMemory.RenderCommandsStorage + GameMemory.RenderCommandsStorageSize;
 
     Win32GetFullPathToEXEDirectory(PlatformState.EXEDirectoryFullPath);
 
@@ -1051,63 +1053,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         CW_USEDEFAULT, CW_USEDEFAULT, FullWindowWidth, FullWindowHeight, 0, 0, hInstance, &PlatformState
     );
 
-    // Audio
-    HRESULT ComHandle = CoInitializeEx(0, COINIT_MULTITHREADED);
-
-    IXAudio2 *XAudio2;
-    XAudio2Create(&XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
-
-    IXAudio2MasteringVoice *MasterVoice;
-    XAudio2->CreateMasteringVoice(&MasterVoice);
-
-    WAVEFORMATEX wfx = {};
-    wfx.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
-    wfx.nChannels = 2;
-    wfx.nSamplesPerSec = 48000;
-    wfx.wBitsPerSample = 32;
-    wfx.nBlockAlign = wfx.nChannels * wfx.wBitsPerSample / 8;
-    wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * wfx.wBitsPerSample / 8;
-
-    XAUDIO2_BUFFER AudioBuffer = {};
-    u32 AudioDataSize = wfx.nChannels * wfx.nSamplesPerSec;
-    f32 *AudioData = Win32AllocateMemory<f32>(AudioDataSize);
-
-    IXAudio2SourceVoice *SourceVoice;
-    XAudio2->CreateSourceVoice(&SourceVoice, &wfx);
-
-    // Reverb effect
-    IUnknown *XAPO;
-    CreateFX(__uuidof(FXReverb), &XAPO);
-
-    XAUDIO2_EFFECT_DESCRIPTOR EffectDescriptors[1];
-    EffectDescriptors[0].InitialState = true;
-    EffectDescriptors[0].OutputChannels = 2;
-    EffectDescriptors[0].pEffect = XAPO;
-
-    XAUDIO2_EFFECT_CHAIN EffectChain;
-    EffectChain.EffectCount = ArrayCount(EffectDescriptors);
-    EffectChain.pEffectDescriptors = EffectDescriptors;
-
-    SourceVoice->SetEffectChain(&EffectChain);
-
-    XAPO->Release();
-
-    FXREVERB_PARAMETERS XAPOParameters;
-    XAPOParameters.Diffusion = FXREVERB_DEFAULT_DIFFUSION;
-    XAPOParameters.RoomSize = FXREVERB_DEFAULT_ROOMSIZE;
-
-    SourceVoice->SetEffectParameters(0, &XAPOParameters, sizeof(XAPOParameters));
-    SourceVoice->EnableEffect(0);
-
-    b32 ReverbActive = true;
-
-    SourceVoice->Start(0);
-    //
-
     if (PlatformState.WindowHandle)
     {
         HDC WindowDC = GetDC(PlatformState.WindowHandle);
 
+        // OpenGL
         win32_opengl_state Win32OpenGLState = {};
 
         umm RendererArenaSize = Megabytes(32);
@@ -1118,6 +1068,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         Win32InitOpenGL(&Win32OpenGLState, &PlatformState, hInstance);
         Win32OpenGLSetVSync(&Win32OpenGLState, PlatformState.VSync);
+
+        // XAudio2
+        xaudio2_state XAudio2State = {};
+
+        umm XAudio2ArenaSize = Megabytes(32);
+        InitMemoryArena(&XAudio2State.Arena, Win32AllocateMemory(0, XAudio2ArenaSize), XAudio2ArenaSize);
+
+        Win32InitXAudio2(&XAudio2State);
 
         PlatformState.WindowPositionX = PlatformState.ScreenWidth / 2 - PlatformState.WindowWidth / 2;
         PlatformState.WindowPositionY = PlatformState.ScreenHeight / 2 - PlatformState.WindowHeight / 2;
@@ -1219,43 +1177,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                     GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
                 }
 
-                // Audio
-                vec2 Move = GameInput.Move.Range;
-                u32 ToneFrequency = (u32) (Magnitude(Move) * 440.f) + 440;
-                u32 WavePeriod = wfx.nSamplesPerSec / ToneFrequency;
-
-                AudioBuffer.AudioBytes = wfx.nAvgBytesPerSec;
-                AudioBuffer.LoopCount = XAUDIO2_LOOP_INFINITE;
-                AudioBuffer.LoopBegin = 0;
-                AudioBuffer.LoopLength = WavePeriod;
-                AudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
-
-                for (u32 SampleIndex = 0; SampleIndex < AudioDataSize;)
-                {
-                    f32 *Channel1Sample = AudioData + SampleIndex++;
-                    f32 *Channel2Sample = AudioData + SampleIndex++;
-
-                    f32 t = 2 * PI * ((f32) SampleIndex / (f32) WavePeriod);
-                    f32 SampleValue = Sin(t);
-
-                    *Channel1Sample = SampleValue;
-                    *Channel2Sample = SampleValue;
-                }
-
-                AudioBuffer.pAudioData = (u8 *) AudioData;
-
-                SourceVoice->SubmitSourceBuffer(&AudioBuffer);
-                SourceVoice->SetVolume(0.05f);
-
-                if (GameInput.EditMode.IsActivated)
-                {
-                    ReverbActive 
-                        ? SourceVoice->DisableEffect(0) 
-                        : SourceVoice->EnableEffect(0);
-
-                    ReverbActive = !ReverbActive;
-                }
-
                 // Fixed Update
                 {
                     PROFILE(&PlatformProfiler, "FixedUpdate");
@@ -1276,6 +1197,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                 // Render
                 GameCode.Render(&GameMemory, &GameParameters);
+
+                audio_commands *AudioCommands = GetAudioCommands(&GameMemory);
+                XAudio2ProcessAudioCommands(&XAudio2State, AudioCommands);
+                ClearAudioCommands(&GameMemory);
 
                 render_commands *RenderCommands = GetRenderCommands(&GameMemory);
                 OpenGLProcessRenderCommands(&Win32OpenGLState.OpenGL, RenderCommands);
@@ -1333,6 +1258,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         // Cleanup
         DEBUG_UI_SHUTDOWN();
+
+        // todo:
+        XAudio2State.XAudio2->StopEngine();
 
         Win32DeallocateMemory(PlatformState.GameMemoryBlock);
 

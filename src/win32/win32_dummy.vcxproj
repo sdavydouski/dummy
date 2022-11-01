@@ -238,6 +238,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="win32_dummy.cpp" />
+    <None Include="win32_dummy_xaudio2.cpp" />
     <None Include="win32_dummy_opengl.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -259,7 +259,7 @@ WriteFontAsset(const char *FilePath, font_asset *Asset)
     FontAssetHeader.HorizontalAdvanceTableCount = Asset->HorizontalAdvanceTableCount;
     FontAssetHeader.GlyphCount = Asset->GlyphCount;
 
-    fwrite(&FontAssetHeader, sizeof(FontAssetHeader), 1, AssetFile);
+    fwrite(&FontAssetHeader, sizeof(font_asset_header), 1, AssetFile);
 
     CurrentStreamPosition = ftell(AssetFile);
     FontAssetHeader.TextureAtlasOffset = CurrentStreamPosition;
@@ -311,7 +311,7 @@ ReadFontAsset(const char *FilePath, font_asset *Asset, font_asset *OriginalAsset
 }
 
 internal void
-ProcessFont(const char *FilePath, const char *OutputPath)
+ProcessFontAsset(const char *FilePath, const char *OutputPath)
 {
     font_asset Asset;
     LoadFontAsset(FilePath, &Asset);

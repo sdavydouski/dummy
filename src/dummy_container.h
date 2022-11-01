@@ -8,26 +8,58 @@ struct hash_table
     T *Values;
 };
 
-template <typename T>
 inline b32
-IsSlotEmpty(T *Value)
+IsSlotEmpty(char *Key)
 {
-    b32 Result = StringEquals(Value->Name, "");
+    b32 Result = StringEquals(Key, "");
+    return Result;
+}
+
+inline b32
+IsSlotEmpty(u32 Key)
+{
+    b32 Result = (Key == 0);
     return Result;
 }
 
 template <typename T>
 internal T *
-HashTableLookup(hash_table<T> *HashTable, char *Name)
+HashTableLookup(hash_table<T> *HashTable, char *Key)
 {
-    u64 HashValue = Hash(Name);
+    u64 HashValue = Hash(Key);
     u32 HashSlot = HashValue % HashTable->Count;
 
     T *Result = HashTable->Values + HashSlot;
 
     u32 IterationCount = 0;
 
-    while (!(IsSlotEmpty(Result) || StringEquals(Result->Name, Name)))
+    while (!(IsSlotEmpty(Result->Key) || StringEquals(Result->Key, Key)))
+    {
+        // todo: round-robin?
+        u32 ProbIndex = (HashSlot + Square(IterationCount + 1)) % HashTable->Count;
+        Result = HashTable->Values + ProbIndex;
+
+        if (IterationCount++ >= HashTable->Count)
+        {
+            Assert(!"HashTable is full!");
+        }
+    }
+
+    return Result;
+}
+
+template <typename T>
+internal T *
+HashTableLookup(hash_table<T> *HashTable, u32 Key)
+{
+    u64 HashValue = Hash(Key);
+    u32 HashSlot = HashValue % HashTable->Count;
+
+    T *Result = HashTable->Values + HashSlot;
+
+    u32 IterationCount = 0;
+
+    while (!(IsSlotEmpty(Result->Key) || Result->Key == Key))
     {
         // todo: round-robin?
         u32 ProbIndex = (HashSlot + Square(IterationCount + 1)) % HashTable->Count;

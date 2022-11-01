@@ -20,7 +20,7 @@ RemoveGameProcess(game_process *Process)
 inline void
 InitGameProcess(game_process *Process, char *ProcessName, game_process_on_update *OnUpdatePerFrame)
 {
-    CopyString(ProcessName, Process->Name);
+    CopyString(ProcessName, Process->Key);
     Process->OnUpdatePerFrame = OnUpdatePerFrame;
 }
 
@@ -31,7 +31,7 @@ StartGameProcess_(game_state *State, const char *ProcessName, game_process_on_up
 
     // todo: do a better job, for christ's sake
     // if empty
-    if (StringEquals(Process->Name, ""))
+    if (StringEquals(Process->Key, ""))
     {
         InitGameProcess(Process, (char *)ProcessName, OnUpdatePerFrame);
         AddGameProcess(State, Process);
@@ -44,7 +44,7 @@ EndGameProcess(game_state *State, const char *ProcessName)
     game_process *Process = GetGameProcess(State, (char *)ProcessName);
 
     // if exists
-    if (StringEquals(Process->Name, ProcessName))
+    if (StringEquals(Process->Key, ProcessName))
     {
         RemoveGameProcess(Process);
 
@@ -54,7 +54,7 @@ EndGameProcess(game_state *State, const char *ProcessName)
         }
 
         // todo: removing element from hashtable
-        CopyString("", Process->Name);
+        CopyString("", Process->Key);
     }
 }
 
@@ -67,7 +67,7 @@ AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildPr
     game_process *ChildProcess = GetGameProcess(State, ChildProcessName);
 
     // todo: IsEmpty?
-    if (StringEquals(ChildProcess->Name, ""))
+    if (StringEquals(ChildProcess->Key, ""))
     {
         InitGameProcess(ChildProcess, ChildProcessName, ChildOnUpdatePerFrame);
     }
@@ -83,7 +83,7 @@ GAME_PROCESS_ON_UPDATE(DelayProcess)
     {
         State->DelayTime = 0.f;
 
-        EndGameProcess(State, Process->Name);
+        EndGameProcess(State, Process->Key);
     }
 }
 
@@ -95,7 +95,7 @@ GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
 
     State->DirectionalLight.Color = vec3(Red, Green, Blue);
 
-    EndGameProcess(State, Process->Name);
+    EndGameProcess(State, Process->Key);
 }
 
 GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
@@ -114,7 +114,7 @@ GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
         }
         else
         {
-            EndGameProcess(State, Process->Name);
+            EndGameProcess(State, Process->Key);
         }
     }
 }
@@ -133,7 +133,7 @@ GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
         }
         else
         {
-            EndGameProcess(State, Process->Name);
+            EndGameProcess(State, Process->Key);
         }
     }
 }

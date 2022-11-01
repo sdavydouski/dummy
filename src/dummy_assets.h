@@ -67,7 +67,7 @@ struct animation_graph_asset;
 
 struct model
 {
-    char Name[64];
+    char Key[64];
 
     aabb Bounds;
 
@@ -85,7 +85,6 @@ struct model
     animation_clip *Animations;
 };
 
-// Animation Graph Asset
 struct animation_state_asset
 {
     char AnimationClipName[256];
@@ -204,7 +203,7 @@ struct font_asset
 // todo: same as font_asset
 struct font
 {
-    char Name[64];
+    char Key[64];
     u32 TextureId;
 
     bitmap TextureAtlas;
@@ -224,12 +223,40 @@ struct font
     glyph *Glyphs;
 };
 
+// todo: same as audio_asset
+struct audio_clip
+{
+    char Key[64];
+
+    u32 Format;
+    u32 Channels;
+    u32 SamplesPerSecond;
+    u32 BitsPerSample;
+
+    // Channel-interleaved samples
+    u32 AudioBytes;
+    u8 *AudioData;
+};
+
+struct audio_clip_asset
+{
+    u32 Format;
+    u32 Channels;
+    u32 SamplesPerSecond;
+    u32 BitsPerSample;
+
+    // Channel-interleaved samples
+    u32 AudioBytes;
+    u8 *AudioData;
+};
+
 #pragma pack(push, 1)
 
 enum asset_type
 {
     AssetType_Model = 0x1,
-    AssetType_Font = 0x2
+    AssetType_Font = 0x2,
+    AssetType_AudioClip = 0x3,
 };
 
 struct asset_header
@@ -365,7 +392,8 @@ struct model_asset_animation_sample_header
     u64 KeyFramesOffset;
 };
 
-struct font_asset_header {
+struct font_asset_header
+{
     i32 TextureAtlasWidth;
     i32 TextureAtlasHeight;
     i32 TextureAtlasChannels;
@@ -383,6 +411,16 @@ struct font_asset_header {
 
     u32 GlyphCount;
     u64 GlyphsOffset;
+};
+
+struct audio_clip_asset_header
+{
+    u32 Format;
+    u32 Channels;
+    u32 SamplesPerSecond;
+    u32 BitsPerSample;
+    u32 AudioBytes;
+    u64 AudioDataOffset;
 };
 
 #pragma pack(pop)

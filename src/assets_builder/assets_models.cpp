@@ -1016,7 +1016,7 @@ OptimizeModelAsset(model_asset *Asset)
 }
 
 internal void
-ProcessAsset(const char *FilePath, const char *AnimationConfigPath, const char *AnimationClipsPath, const char *OutputPath)
+ProcessModelAsset(const char *FilePath, const char *AnimationConfigPath, const char *AnimationClipsPath, const char *OutputPath)
 {
     u32 Flags =
         aiProcess_Triangulate |

@@ -36,7 +36,7 @@ Win32InitImGui(win32_platform_state *PlatformState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 }
 
 internal void
@@ -296,6 +296,12 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
 
         ImGui::EndTable();
     }
+
+    ImGui::End();
+
+    ImGui::Begin("Audio Settings");
+
+    ImGui::SliderFloat("Master Volume", &GameState->MasterVolume, 0.f, 1.f);
 
     ImGui::End();
 

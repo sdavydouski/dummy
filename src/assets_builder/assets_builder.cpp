@@ -50,6 +50,7 @@ namespace fs = std::filesystem;
 #include "assets_utils.cpp"
 #include "assets_models.cpp"
 #include "assets_fonts.cpp"
+#include "assets_audio.cpp"
 
 // https://nilooy.github.io/character-animation-combiner/
 internal void
@@ -76,7 +77,7 @@ BuildModelAssets(const char *Path)
             FormatString(OutputPath, "assets/%s.asset", DirectoryName.generic_string().c_str());
 
             printf("Processing %s...\n", FilePath);
-            ProcessAsset(FilePath, AnimationConfigPath, AnimationClipsPath, OutputPath);
+            ProcessModelAsset(FilePath, AnimationConfigPath, AnimationClipsPath, OutputPath);
         }
     }
 }
@@ -93,7 +94,23 @@ BuildFontAssets(const char *Path)
         FormatString(OutputPath, "assets/%s.asset", FileName.generic_string().c_str());
 
         printf("Processing %s...\n", FilePath.generic_string().c_str());
-        ProcessFont(FilePath.generic_string().c_str(), OutputPath);
+        ProcessFontAsset(FilePath.generic_string().c_str(), OutputPath);
+    }
+}
+
+internal void
+BuildAudioAssets(const char *Path)
+{
+    for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
+    {
+        fs::path FilePath = Entry.path();
+        fs::path FileName = Entry.path().stem();
+
+        char OutputPath[256];
+        FormatString(OutputPath, "assets/%s.asset", FileName.generic_string().c_str());
+
+        printf("Processing %s...\n", FilePath.generic_string().c_str());
+        ProcessAudioAsset(FilePath.generic_string().c_str(), OutputPath);
     }
 }
 
@@ -101,4 +118,5 @@ i32 main(i32 ArgCount, char **Args)
 {
     BuildModelAssets("models/");
     BuildFontAssets("fonts/");
+    BuildAudioAssets("audio/");
 }

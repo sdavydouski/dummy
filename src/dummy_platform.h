@@ -146,6 +146,14 @@ struct platform_api
     platform_kick_jobs_and_wait *KickJobsAndWait;
 };
 
+// todo: use audio_commands
+struct game_audio_output
+{
+    u32 AudioClipCount;
+    audio_clip **AudioClips;
+};
+
+// todo(continue): List of all playable sounds and music
 struct game_memory
 {
     umm PermanentStorageSize;
@@ -157,6 +165,11 @@ struct game_memory
     umm RenderCommandsStorageSize;
     void *RenderCommandsStorage;
 
+    umm AudioCommandsStorageSize;
+    void *AudioCommandsStorage;
+
+    game_audio_output AudioOutput;
+
     platform_api *Platform;
     platform_profiler *Profiler;
     job_queue *JobQueue;
@@ -165,24 +178,40 @@ struct game_memory
 inline game_state *
 GetGameState(game_memory *Memory)
 {
-    game_state *GameState =(game_state *)Memory->PermanentStorage;
+    game_state *GameState =(game_state *) Memory->PermanentStorage;
     return GameState;
 }
 
 inline render_commands *
 GetRenderCommands(game_memory *Memory)
 {
-    render_commands *RenderCommands = (render_commands *)Memory->RenderCommandsStorage;
+    render_commands *RenderCommands = (render_commands *) Memory->RenderCommandsStorage;
     return RenderCommands;
 }
 
 inline void
 ClearRenderCommands(game_memory *Memory)
 {
-    render_commands *RenderCommands = (render_commands *)Memory->RenderCommandsStorage;
-    RenderCommands->MaxRenderCommandsBufferSize = (u32)(Memory->RenderCommandsStorageSize - sizeof(render_commands));
+    render_commands *RenderCommands = (render_commands *) Memory->RenderCommandsStorage;
+    RenderCommands->MaxRenderCommandsBufferSize = (u32) (Memory->RenderCommandsStorageSize - sizeof(render_commands));
     RenderCommands->RenderCommandsBufferSize = 0;
-    RenderCommands->RenderCommandsBuffer = (u8 *)Memory->RenderCommandsStorage + sizeof(render_commands);
+    RenderCommands->RenderCommandsBuffer = (u8 *) Memory->RenderCommandsStorage + sizeof(render_commands);
+}
+
+inline audio_commands *
+GetAudioCommands(game_memory *Memory)
+{
+    audio_commands *AudioCommands = (audio_commands *) Memory->AudioCommandsStorage;
+    return AudioCommands;
+}
+
+inline void
+ClearAudioCommands(game_memory *Memory)
+{
+    audio_commands *AudioCommands = (audio_commands *) Memory->AudioCommandsStorage;
+    AudioCommands->MaxAudioCommandsBufferSize = (u32) (Memory->AudioCommandsStorageSize - sizeof(audio_commands));
+    AudioCommands->AudioCommandsBufferSize = 0;
+    AudioCommands->AudioCommandsBuffer = (u8 *) Memory->AudioCommandsStorage + sizeof(audio_commands);
 }
 
 struct game_parameters

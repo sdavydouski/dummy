@@ -11,6 +11,7 @@
 #include "dummy_spatial.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
+#include "dummy_audio.h"
 #include "dummy_renderer.h"
 #include "dummy_job.h"
 #include "dummy_platform.h"
@@ -58,6 +59,7 @@ InternString(char *String)
 #include "dummy_physics.cpp"
 #include "dummy_spatial.cpp"
 #include "dummy_renderer.cpp"
+#include "dummy_audio.cpp"
 #include "dummy_animation.cpp"
 #include "dummy_animator.cpp"
 #include "dummy_process.cpp"
@@ -219,7 +221,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
 {
     *Model = {};
 
-    CopyString(Name, Model->Name);
+    CopyString(Name, Model->Key);
     Model->Bounds = Asset->Bounds;
     Model->Skeleton = &Asset->Skeleton;
     Model->BindPose = &Asset->BindPose;
@@ -267,7 +269,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
 internal void
 InitFont(font_asset *Asset, font *Font, const char *Name, render_commands *RenderCommands)
 {
-    CopyString(Name, Font->Name);
+    CopyString(Name, Font->Key);
     Font->TextureAtlas = Asset->TextureAtlas;
     Font->VerticalAdvance = Asset->VerticalAdvance;
     Font->Ascent = Asset->Ascent;
@@ -281,6 +283,18 @@ InitFont(font_asset *Asset, font *Font, const char *Name, render_commands *Rende
     Font->TextureId = GenerateTextureId();
 
     AddTexture(RenderCommands, Font->TextureId, &Font->TextureAtlas);
+}
+
+internal void
+InitAudioClip(audio_clip_asset *Asset, audio_clip *AudioClip, const char *Name)
+{
+    CopyString(Name, AudioClip->Key);
+    AudioClip->Format = Asset->Format;
+    AudioClip->Channels = Asset->Channels;
+    AudioClip->SamplesPerSecond = Asset->SamplesPerSecond;
+    AudioClip->BitsPerSample = Asset->BitsPerSample;
+    AudioClip->AudioBytes = Asset->AudioBytes;
+    AudioClip->AudioData = Asset->AudioData;
 }
 
 inline void
@@ -347,6 +361,13 @@ internal font *
 GetFontAsset(game_assets *Assets, const char *Name)
 {
     font *Result = HashTableLookup(&Assets->Fonts, (char *) Name);
+    return Result;
+}
+
+internal audio_clip *
+GetAudioClipAsset(game_assets *Assets, const char *Name)
+{
+    audio_clip *Result = HashTableLookup(&Assets->AudioClips, (char *) Name);
     return Result;
 }
 
@@ -443,12 +464,55 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 }
 
 internal void
+LoadAudioClipAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+{
+    game_asset AudioClipAssets[] = {
+        {
+            "Light Ambience 2",
+            "assets\\Light Ambience 2.asset"
+        },
+        {
+            "Action 5",
+            "assets\\Action 5.asset"
+        },
+        {
+            "Fx 1",
+            "assets\\Fx 1.asset"
+        },
+        {
+            "completion_6_karen",
+            "assets\\completion_6_karen.asset"
+        },
+        {
+            "grunting_1_meghan",
+            "assets\\grunting_1_meghan.asset"
+        }
+    };
+
+    Assets->AudioClipAssetCount = ArrayCount(AudioClipAssets);
+    Assets->AudioClipAssets = PushArray(Arena, Assets->AudioClipAssetCount, game_asset_audio_clip);
+
+    for (u32 AudioClipAssetIndex = 0; AudioClipAssetIndex < ArrayCount(AudioClipAssets); ++AudioClipAssetIndex)
+    {
+        game_asset GameAsset = AudioClipAssets[AudioClipAssetIndex];
+
+        game_asset_audio_clip *GameAssetAudioClip = Assets->AudioClipAssets + AudioClipAssetIndex;
+
+        audio_clip_asset *LoadedAsset = LoadAudioClipAsset(Platform, GameAsset.Path, Arena);
+
+        GameAssetAudioClip->GameAsset = GameAsset;
+        GameAssetAudioClip->AudioAsset = LoadedAsset;
+    }
+}
+
+internal void
 LoadGameAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 {
     // todo:
     Assets->State = GameAssetsState_Unloaded;
 
     LoadModelAssets(Assets, Platform, Arena);
+    LoadAudioClipAssets(Assets, Platform, Arena);
 
     Assets->State = GameAssetsState_Loaded;
 }
@@ -488,6 +552,7 @@ InitGameModelAssets(game_assets *Assets, render_commands *RenderCommands, memory
 internal void
 InitGameFontAssets(game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
 {
+    // todo:
     Assets->Fonts.Count = 11;
     Assets->Fonts.Values = PushArray(Arena, Assets->Fonts.Count, font);
 
@@ -499,6 +564,24 @@ InitGameFontAssets(game_assets *Assets, render_commands *RenderCommands, memory_
 
         font *Font = GetFontAsset(Assets, GameAssetFont->GameAsset.Name);
         InitFont(GameAssetFont->FontAsset, Font, GameAssetFont->GameAsset.Name, RenderCommands);
+    }
+}
+
+internal void
+InitGameAudioClipAssets(game_assets *Assets, memory_arena *Arena)
+{
+    // todo:
+    Assets->AudioClips.Count = 11;
+    Assets->AudioClips.Values = PushArray(Arena, Assets->AudioClips.Count, audio_clip);
+
+    Assert(Assets->AudioClips.Count > Assets->AudioClipAssetCount);
+
+    for (u32 GameAssetAudioClipIndex = 0; GameAssetAudioClipIndex < Assets->AudioClipAssetCount; ++GameAssetAudioClipIndex)
+    {
+        game_asset_audio_clip *GameAssetAudioClip = Assets->AudioClipAssets + GameAssetAudioClipIndex;
+
+        audio_clip *AudioClip = GetAudioClipAsset(Assets, GameAssetAudioClip->GameAsset.Name);
+        InitAudioClip(GameAssetAudioClip->AudioAsset, AudioClip, GameAssetAudioClip->GameAsset.Name);
     }
 }
 
@@ -647,7 +730,7 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
 inline void
 InitRenderBatch(entity_render_batch *Batch, model *Model, u32 MaxEntityCount, memory_arena *Arena)
 {
-    CopyString(Model->Name, Batch->Name);
+    CopyString(Model->Key, Batch->Key);
     Batch->Model = Model;
     Batch->EntityCount = 0;
     Batch->MaxEntityCount = MaxEntityCount;
@@ -1155,7 +1238,7 @@ DLLExport GAME_INIT(GameInit)
     State->JobQueue = Memory->JobQueue;
 
     game_process *Sentinel = &State->ProcessSentinel;
-    CopyString("Sentinel", Sentinel->Name);
+    CopyString("Sentinel", Sentinel->Key);
     Sentinel->Next = Sentinel->Prev = Sentinel;
 
     State->Processes.Count = 31;
@@ -1193,6 +1276,8 @@ DLLExport GAME_INIT(GameInit)
 
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
+
+    ClearAudioCommands(Memory);
 
     State->CurrentMove = vec2(0.f);
     State->TargetMove = vec2(0.f);
@@ -1260,6 +1345,8 @@ DLLExport GAME_INIT(GameInit)
 
     State->Player = State->Dummy;
     State->Player->FutureControllable = true;
+
+    State->MasterVolume = 0.5f;
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1273,7 +1360,7 @@ DLLExport GAME_RELOAD(GameReload)
     while (GameProcess->OnUpdatePerFrame)
     {
         char ProcessName[256];
-        CopyString(GameProcess->Name, ProcessName);
+        CopyString(GameProcess->Key, ProcessName);
 
         game_process_on_update *OnUpdatePerFrame = (game_process_on_update *) Platform->LoadFunction(Platform->PlatformHandle, ProcessName);
 
@@ -1317,6 +1404,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 {
     game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
+    audio_commands *AudioCommands = GetAudioCommands(Memory);
 
     State->Input = *Input;
 
@@ -1337,15 +1425,31 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     if (Input->Menu.IsActivated)
     {
+        Play(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
+
         if (State->Mode == GameMode_Menu)
         {
             State->Mode = State->PrevMode;
+
+            // todo: 
+            if (State->Assets.State == GameAssetsState_Ready)
+            {
+                Stop(AudioCommands, 3);
+                Play(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
+            }
         }
         else if (State->Mode == GameMode_World || State->Mode == GameMode_Edit)
         {
             State->PrevMode = State->Mode;
             State->Mode = GameMode_Menu;
             InitGameMenu(State);
+
+            // todo: 
+            if (State->Assets.State == GameAssetsState_Ready)
+            {
+                Stop(AudioCommands, 2);
+                Play(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
+            }
         }
     }
 
@@ -1698,6 +1802,7 @@ DLLExport GAME_RENDER(GameRender)
 {
     game_state *State = GetGameState(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
+    audio_commands *AudioCommands = GetAudioCommands(Memory);
     platform_api *Platform = Memory->Platform;
 
     ClearMemoryArena(&State->TransientArena);
@@ -1719,16 +1824,25 @@ DLLExport GAME_RENDER(GameRender)
     RenderCommands->Settings.PixelsPerUnit = PixelsPerUnit;
     RenderCommands->Settings.UnitsPerPixel = 1.f / PixelsPerUnit;
 
+    AudioCommands->Settings.Volume = State->MasterVolume;
+
     if (State->Assets.State == GameAssetsState_Loaded)
     {
         // todo: render commands buffer is not multithread-safe!
         InitGameModelAssets(&State->Assets, RenderCommands, &State->PermanentArena);
+        InitGameAudioClipAssets(&State->Assets, &State->PermanentArena);
         InitGameEntities(State, RenderCommands);
 
         State->Player = State->PlayableEntities[State->PlayableEntityIndex];
         State->Player->FutureControllable = true;
 
         State->Assets.State = GameAssetsState_Ready;
+
+        //Play(AudioCommands, 1, GetAudioClipAsset(&State->Assets, "Fx 1"));
+        Play(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
+        //Play(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
+        //Play(AudioCommands, 4, GetAudioClipAsset(&State->Assets, "completion_6_karen"));
+        //Play(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
     }
 
     SetTime(RenderCommands, Parameters->Time);
@@ -1933,9 +2047,9 @@ DLLExport GAME_RENDER(GameRender)
                         if (!EnableFrustrumCulling || Entity->Visible)
                         {
                             // Grouping entities into render batches
-                            entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Name);
+                            entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Key);
 
-                            if (StringEquals(Batch->Name, ""))
+                            if (StringEquals(Batch->Key, ""))
                             {
                                 // todo: max count?
                                 InitRenderBatch(Batch, Entity->Model, 10000, &State->TransientArena);
@@ -2006,7 +2120,7 @@ DLLExport GAME_RENDER(GameRender)
                             PlayableEntity->Transform.Translation.z
                         );
 
-                        DrawText(RenderCommands, PlayableEntity->Model->Name, Font, TextPosition, 0.75f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+                        DrawText(RenderCommands, PlayableEntity->Model->Key, Font, TextPosition, 0.75f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
                     }
                 }
             }
@@ -2015,7 +2129,7 @@ DLLExport GAME_RENDER(GameRender)
             {
                 {
                     char Text[64];
-                    FormatString(Text, "Active entity: %s", State->Player->Model->Name);
+                    FormatString(Text, "Active entity: %s", State->Player->Model->Key);
                     DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
                 }
 #if 0
