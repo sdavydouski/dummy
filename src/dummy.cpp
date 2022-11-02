@@ -1425,7 +1425,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     if (Input->Menu.IsActivated)
     {
-        Play(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
+        Play2D(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
 
         if (State->Mode == GameMode_Menu)
         {
@@ -1435,7 +1435,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             if (State->Assets.State == GameAssetsState_Ready)
             {
                 Stop(AudioCommands, 3);
-                Play(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
+                Play2D(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
             }
         }
         else if (State->Mode == GameMode_World || State->Mode == GameMode_Edit)
@@ -1448,7 +1448,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             if (State->Assets.State == GameAssetsState_Ready)
             {
                 Stop(AudioCommands, 2);
-                Play(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
+                Play2D(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
             }
         }
     }
@@ -1838,11 +1838,14 @@ DLLExport GAME_RENDER(GameRender)
 
         State->Assets.State = GameAssetsState_Ready;
 
-        //Play(AudioCommands, 1, GetAudioClipAsset(&State->Assets, "Fx 1"));
-        Play(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
-        //Play(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
-        //Play(AudioCommands, 4, GetAudioClipAsset(&State->Assets, "completion_6_karen"));
-        //Play(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
+        //Play2D(AudioCommands, 1, GetAudioClipAsset(&State->Assets, "Fx 1"));
+        //Play2D(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
+        //Play2D(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
+        //Play2D(AudioCommands, 4, GetAudioClipAsset(&State->Assets, "completion_6_karen"));
+        //Play2D(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
+
+        Play3D(AudioCommands, 6, GetAudioClipAsset(&State->Assets, "Action 5"), State->Player->Transform.Translation);
+        Play3D(AudioCommands, 7, GetAudioClipAsset(&State->Assets, "Light Ambience 2"), State->Paladin->Transform.Translation);
     }
 
     SetTime(RenderCommands, Parameters->Time);
@@ -1856,6 +1859,16 @@ DLLExport GAME_RENDER(GameRender)
         {
             game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->FreeCamera;
             b32 EnableFrustrumCulling = State->Mode == GameMode_World;
+
+            // 
+            SetListener(AudioCommands, Camera->Transform.Translation, -Camera->Direction);
+
+            if (State->Assets.State == GameAssetsState_Ready)
+            {
+                SetEmitter(AudioCommands, 6, State->Player->Transform.Translation);
+                SetEmitter(AudioCommands, 7, State->Paladin->Transform.Translation);
+            }
+            //
 
             mat4 WorldToCamera = GetCameraTransform(Camera);
 

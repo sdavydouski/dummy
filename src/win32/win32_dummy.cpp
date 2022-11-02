@@ -1077,10 +1077,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         Win32InitXAudio2(&XAudio2State);
 
+        // Center window on screen
         PlatformState.WindowPositionX = PlatformState.ScreenWidth / 2 - PlatformState.WindowWidth / 2;
         PlatformState.WindowPositionY = PlatformState.ScreenHeight / 2 - PlatformState.WindowHeight / 2;
 
-        // Center window on screen
         SetWindowPos(PlatformState.WindowHandle, 0, 
             PlatformState.WindowPositionX, PlatformState.WindowPositionY,
             FullWindowWidth, FullWindowHeight, 0
@@ -1259,8 +1259,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         // Cleanup
         DEBUG_UI_SHUTDOWN();
 
-        // todo:
-        XAudio2State.XAudio2->StopEngine();
+        Win32XAudio2Shutdown(&XAudio2State);
 
         Win32DeallocateMemory(PlatformState.GameMemoryBlock);
 

@@ -2,11 +2,13 @@
 
 enum audio_command_type
 {
-    AudioCommand_Play,
+    AudioCommand_Play_2D,
+    AudioCommand_Play_3D,
+    AudioCommand_SetListener,
+    AudioCommand_SetEmitter,
     AudioCommand_Pause,
     AudioCommand_Resume,
     AudioCommand_Stop,
-
 };
 
 struct audio_command_header
@@ -15,13 +17,48 @@ struct audio_command_header
     u32 Size;
 };
 
-struct audio_command_play
+struct audio_command_play_2d
 {
     audio_command_header Header;
 
     u32 Id;
     audio_clip *AudioClip;
     b32 IsLooping;
+};
+
+struct audio_command_play_3d
+{
+    audio_command_header Header;
+
+    u32 Id;
+    audio_clip *AudioClip;
+    vec3 EmitterPosition;
+};
+
+struct audio_command_set_listener
+{
+    audio_command_header Header;
+    vec3 ListenerPosition;
+    vec3 ListenerDirection;
+};
+
+struct audio_command_set_emitter
+{
+    audio_command_header Header;
+    u32 Id;
+    vec3 EmitterPosition;
+};
+
+struct audio_command_set_play_3d
+{
+    audio_command_header Header;
+
+    u32 Id;
+    audio_clip *AudioClip;
+
+    vec3 EmitterPosition;
+    vec3 ListenerPosition;
+    vec3 ListenerDirection;
 };
 
 struct audio_command_pause

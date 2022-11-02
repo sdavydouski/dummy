@@ -15,12 +15,37 @@ PushAudioCommand_(audio_commands *Commands, u32 Size, audio_command_type Type)
 #define PushAudioCommand(Buffer, Struct, Type) (Struct *) PushAudioCommand_(Buffer, sizeof(Struct), Type)
 
 inline void
-Play(audio_commands *Commands, u32 Id, audio_clip *AudioClip, b32 IsLooping = false)
+Play2D(audio_commands *Commands, u32 Id, audio_clip *AudioClip, b32 IsLooping = false)
 {
-    audio_command_play *Command = PushAudioCommand(Commands, audio_command_play, AudioCommand_Play);
+    audio_command_play_2d *Command = PushAudioCommand(Commands, audio_command_play_2d, AudioCommand_Play_2D);
     Command->Id = Id;
     Command->AudioClip = AudioClip;
     Command->IsLooping = IsLooping;
+}
+
+inline void
+Play3D(audio_commands *Commands, u32 Id, audio_clip *AudioClip, vec3 EmitterPosition)
+{
+    audio_command_play_3d *Command = PushAudioCommand(Commands, audio_command_play_3d, AudioCommand_Play_3D);
+    Command->Id = Id;
+    Command->AudioClip = AudioClip;
+    Command->EmitterPosition = EmitterPosition;
+}
+
+inline void
+SetListener(audio_commands *Commands, vec3 ListenerPosition, vec3 ListenerDirection)
+{
+    audio_command_set_listener *Command = PushAudioCommand(Commands, audio_command_set_listener, AudioCommand_SetListener);
+    Command->ListenerPosition = ListenerPosition;
+    Command->ListenerDirection = ListenerDirection;
+}
+
+inline void
+SetEmitter(audio_commands *Commands, u32 Id, vec3 EmitterPosition)
+{
+    audio_command_set_emitter *Command = PushAudioCommand(Commands, audio_command_set_emitter, AudioCommand_SetEmitter);
+    Command->Id = Id;
+    Command->EmitterPosition = EmitterPosition;
 }
 
 inline void

@@ -1,20 +1,49 @@
 #include <xaudio2.h>
-#include <xapofx.h>
+
+#define SPEAKER_MONO             (SPEAKER_FRONT_CENTER)
+#define SPEAKER_STEREO           (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT)
+#define SPEAKER_2POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY)
+#define SPEAKER_SURROUND         (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_BACK_CENTER)
+#define SPEAKER_QUAD             (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT)
+#define SPEAKER_4POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT)
+#define SPEAKER_5POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT)
+#define SPEAKER_7POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | SPEAKER_FRONT_LEFT_OF_CENTER | SPEAKER_FRONT_RIGHT_OF_CENTER)
+#define SPEAKER_5POINT1_SURROUND (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_SIDE_LEFT | SPEAKER_SIDE_RIGHT)
+#define SPEAKER_7POINT1_SURROUND (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | SPEAKER_SIDE_LEFT  | SPEAKER_SIDE_RIGHT)
+
+class XAudio2EngineCallback : public IXAudio2EngineCallback
+{
+public:
+    HANDLE CriticalError;
+
+    XAudio2EngineCallback() : CriticalError(CreateEvent(NULL, FALSE, FALSE, NULL)) {}
+    ~XAudio2EngineCallback()
+    {
+        CloseHandle(CriticalError);
+    }
+
+    void OnProcessingPassEnd() {}
+    void OnProcessingPassStart() {}
+    void OnCriticalError(HRESULT Error)
+    {
+        SetEvent(CriticalError);
+    }
+};
 
 class XAudio2VoiceCallback : public IXAudio2VoiceCallback
 {
 public:
-    HANDLE BufferEndEvent;
+    HANDLE BufferEnd;
 
-    XAudio2VoiceCallback() : BufferEndEvent(CreateEvent(NULL, FALSE, FALSE, NULL)) {}
+    XAudio2VoiceCallback() : BufferEnd(CreateEvent(NULL, FALSE, FALSE, NULL)) {}
     ~XAudio2VoiceCallback()
     {
-        CloseHandle(BufferEndEvent);
+        CloseHandle(BufferEnd);
     }
 
     void OnBufferEnd(void *pBufferContext)
     {
-        SetEvent(BufferEndEvent);
+        SetEvent(BufferEnd);
     }
 
     void OnStreamEnd() { }
@@ -28,6 +57,7 @@ public:
 struct xaudio2_source_voice
 {
     IXAudio2SourceVoice *SourceVoice;
+    XAUDIO2_VOICE_DETAILS VoiceDetails;
 
     u32 Key;
     xaudio2_source_voice *Prev;
@@ -38,13 +68,107 @@ struct xaudio2_state
 {
     IXAudio2 *XAudio2;
     IXAudio2MasteringVoice *MasterVoice;
+    XAUDIO2_VOICE_DETAILS MasterVoiceDetails;
+    DWORD MasterVoiceChannelMask;
+
+    XAudio2EngineCallback EngineCallback;
+    XAudio2VoiceCallback VoiceCallback;
+
     hash_table<xaudio2_source_voice> Voices;
     xaudio2_source_voice VoiceSentinel;
 
-    XAudio2VoiceCallback VoiceCallback;
+    vec3 ListenerPosition;
+    vec3 ListenerDirection;
 
     memory_arena Arena;
 };
+
+f32 inline
+XAudio2CalculateVoiceVolume(vec3 EmitterPosition, vec3 ListenerPosition)
+{
+    f32 Distance = Magnitude(EmitterPosition - ListenerPosition);
+
+    // todo: put in settings?
+    f32 MinDistance = 10.f;
+    f32 MaxDistance = 100.f;
+
+    f32 Volume = 0.f;
+
+    if (Distance <= MinDistance)
+    {
+        Volume = 1.f;
+    }
+    else if (Distance >= MaxDistance)
+    {
+        Volume = 0.f;
+    }
+    else
+    {
+        Volume = 1.f - (Distance - MinDistance) / (MaxDistance - MinDistance);
+    }
+
+    Assert(Volume >= 0.f);
+    Assert(Volume <= 1.f);
+
+    return Volume;
+}
+
+void inline
+XAudio2CalculateOutputMatrix(xaudio2_state *State, vec3 EmitterPosition, vec3 ListenerPosition, vec3 ListenerDirection, f32 *OutputMatrix)
+{
+    vec2 n = Normalize(PerpendicularCW(vec2(ListenerDirection.x, ListenerDirection.z)));
+    vec2 d = Normalize(vec2(EmitterPosition.x, EmitterPosition.z) - vec2(ListenerPosition.x, ListenerPosition.z));
+
+    // Pan of - 1.0 indicates all left speaker,
+    // 1.0 is all right speaker, 0.0 is split between left and right
+    f32 Pan = Dot(n, d);
+
+    f32 Left = 0.5f - Pan / 2;
+    f32 Right = 0.5f + Pan / 2;
+
+    switch (State->MasterVoiceChannelMask)
+    {
+        case SPEAKER_MONO:
+        {
+            OutputMatrix[0] = 1.f;
+            break;
+        }
+        case SPEAKER_STEREO:
+        case SPEAKER_2POINT1:
+        case SPEAKER_SURROUND:
+        {
+            OutputMatrix[0] = Left;
+            OutputMatrix[1] = Right;
+            break;
+        }
+        case SPEAKER_QUAD:
+        {
+            OutputMatrix[0] = OutputMatrix[2] = Left;
+            OutputMatrix[1] = OutputMatrix[3] = Right;
+            break;
+        }
+        case SPEAKER_4POINT1:
+        {
+            OutputMatrix[0] = OutputMatrix[3] = Left;
+            OutputMatrix[1] = OutputMatrix[4] = Right;
+            break;
+        }
+        case SPEAKER_5POINT1:
+        case SPEAKER_7POINT1:
+        case SPEAKER_5POINT1_SURROUND:
+        {
+            OutputMatrix[0] = OutputMatrix[4] = Left;
+            OutputMatrix[1] = OutputMatrix[5] = Right;
+            break;
+        }
+        case SPEAKER_7POINT1_SURROUND:
+        {
+            OutputMatrix[0] = OutputMatrix[4] = OutputMatrix[6] = Left;
+            OutputMatrix[1] = OutputMatrix[5] = OutputMatrix[7] = Right;
+            break;
+        }
+    }
+}
 
 void internal
 Win32InitXAudio2(xaudio2_state *State)
@@ -53,7 +177,17 @@ Win32InitXAudio2(xaudio2_state *State)
 
     XAudio2Create(&State->XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
 
+    State->XAudio2->RegisterForCallbacks(&State->EngineCallback);
     State->XAudio2->CreateMasteringVoice(&State->MasterVoice);
+
+    XAUDIO2_VOICE_DETAILS MasterVoiceDetails;
+    State->MasterVoice->GetVoiceDetails(&MasterVoiceDetails);
+
+    DWORD MasterVoiceChannelMask;
+    State->MasterVoice->GetChannelMask(&MasterVoiceChannelMask);
+
+    State->MasterVoiceDetails = MasterVoiceDetails;
+    State->MasterVoiceChannelMask = MasterVoiceChannelMask;
 
     xaudio2_source_voice *VoiceSentinel = &State->VoiceSentinel;
     VoiceSentinel->SourceVoice = 0;
@@ -63,7 +197,15 @@ Win32InitXAudio2(xaudio2_state *State)
     State->Voices.Values = PushArray(&State->Arena, State->Voices.Count, xaudio2_source_voice);
 }
 
-// todo: check https://learn.microsoft.com/en-us/windows/win32/api/xaudio2/nf-xaudio2-ixaudio2voice-setoutputmatrix for 3d sounds
+void internal
+XAudio2DestroySourceVoice(xaudio2_source_voice *Voice)
+{
+    // todo: could block! - https://learn.microsoft.com/en-us/windows/win32/api/xaudio2/nf-xaudio2-ixaudio2voice-destroyvoice
+    Voice->SourceVoice->DestroyVoice();
+    Voice->SourceVoice = 0;
+    Voice->Key = 0;
+}
+
 internal void
 XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 {
@@ -77,9 +219,9 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 
         switch (Entry->Type)
         {
-            case AudioCommand_Play:
+            case AudioCommand_Play_2D:
             {
-                audio_command_play *Command = (audio_command_play *) Entry;
+                audio_command_play_2d *Command = (audio_command_play_2d *) Entry;
 
                 xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
 
@@ -113,6 +255,91 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 
                 SourceVoice->SubmitSourceBuffer(&AudioBuffer);
                 SourceVoice->Start(0);
+
+                break;
+            }
+            case AudioCommand_Play_3D:
+            {
+                audio_command_play_3d *Command = (audio_command_play_3d *) Entry;
+
+                vec3 EmitterPosition = Command->EmitterPosition;
+
+                vec3 ListenerPosition = State->ListenerPosition;
+                vec3 ListenerDirection = State->ListenerDirection;
+
+                //
+                xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
+
+                audio_clip *AudioClip = Command->AudioClip;
+
+                WAVEFORMATEX wfx = {};
+                wfx.wFormatTag = AudioClip->Format;
+                wfx.nChannels = AudioClip->Channels;
+                wfx.nSamplesPerSec = AudioClip->SamplesPerSecond;
+                wfx.wBitsPerSample = AudioClip->BitsPerSample;
+                wfx.nBlockAlign = wfx.nChannels * wfx.wBitsPerSample / 8;
+                wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * wfx.wBitsPerSample / 8;
+
+                IXAudio2SourceVoice *SourceVoice;
+                State->XAudio2->CreateSourceVoice(&SourceVoice, &wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &State->VoiceCallback);
+
+                XAUDIO2_VOICE_DETAILS VoiceDetails;
+                SourceVoice->GetVoiceDetails(&VoiceDetails);
+
+                Voice->SourceVoice = SourceVoice;
+                Voice->VoiceDetails = VoiceDetails;
+                Voice->Key = Command->Id;
+
+                AddToLinkedList(&State->VoiceSentinel, Voice);
+
+                XAUDIO2_BUFFER AudioBuffer = {};
+                AudioBuffer.AudioBytes = AudioClip->AudioBytes;
+                AudioBuffer.pAudioData = AudioClip->AudioData;
+                AudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
+
+                SourceVoice->SubmitSourceBuffer(&AudioBuffer);
+                //
+
+                // todo: https://learn.microsoft.com/en-us/windows/win32/xaudio2/how-to--integrate-x3daudio-with-xaudio2 ?
+
+                f32 Volume = XAudio2CalculateVoiceVolume(EmitterPosition, ListenerPosition);
+
+                f32 OutputMatrix[8] = {};
+                XAudio2CalculateOutputMatrix(State, EmitterPosition, ListenerPosition, ListenerDirection, OutputMatrix);
+
+                SourceVoice->SetVolume(Volume);
+                SourceVoice->SetOutputMatrix(0, Voice->VoiceDetails.InputChannels, State->MasterVoiceDetails.InputChannels, OutputMatrix);
+                SourceVoice->Start(0);
+
+                break;
+            }
+            case AudioCommand_SetListener:
+            {
+                audio_command_set_listener *Command = (audio_command_set_listener *) Entry;
+
+                State->ListenerPosition = Command->ListenerPosition;
+                State->ListenerDirection = Command->ListenerDirection;
+
+                break;
+            }
+            case AudioCommand_SetEmitter:
+            {
+                audio_command_set_emitter *Command = (audio_command_set_emitter *) Entry;
+
+                vec3 ListenerPosition = State->ListenerPosition;
+                vec3 ListenerDirection = State->ListenerDirection;
+
+                xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
+
+                Assert(Voice->SourceVoice);
+
+                f32 Volume = XAudio2CalculateVoiceVolume(Command->EmitterPosition, ListenerPosition);
+
+                f32 OutputMatrix[8] = {};
+                XAudio2CalculateOutputMatrix(State, Command->EmitterPosition, ListenerPosition, ListenerDirection, OutputMatrix);
+
+                Voice->SourceVoice->SetVolume(Volume);
+                Voice->SourceVoice->SetOutputMatrix(0, Voice->VoiceDetails.InputChannels, State->MasterVoiceDetails.InputChannels, OutputMatrix);
 
                 break;
             }
@@ -162,12 +389,19 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
         BaseAddress += Entry->Size;
     }
 
-    // todo: https://github.dev/microsoft/DirectXTK12/blob/main/Audio/AudioEngine.cpp
-    HANDLE Events[] = { State->VoiceCallback.BufferEndEvent };
+    HANDLE Events[] = { State->EngineCallback.CriticalError, State->VoiceCallback.BufferEnd };
 
     switch (WaitForMultipleObjectsEx(ArrayCount(Events), Events, FALSE, 0, FALSE))
     {
+        // CriticalError
         case WAIT_OBJECT_0:
+        {
+            Assert(!"Critical Error");
+
+            break;
+        }
+        // BufferEnd
+        case WAIT_OBJECT_0 + 1:
         {
             xaudio2_source_voice *Voice = State->VoiceSentinel.Next;
 
@@ -178,10 +412,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 
                 if (VoiceState.BuffersQueued == 0)
                 {
-                    // todo: could block! - https://learn.microsoft.com/en-us/windows/win32/api/xaudio2/nf-xaudio2-ixaudio2voice-destroyvoice
-                    Voice->SourceVoice->DestroyVoice();
-                    Voice->SourceVoice = 0;
-
+                    XAudio2DestroySourceVoice(Voice);
                     RemoveFromLinkedList(Voice);
                 }
 
@@ -190,5 +421,24 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 
             break;
         }
+    }
+}
+
+inline void
+Win32XAudio2Shutdown(xaudio2_state *State)
+{
+    State->XAudio2->UnregisterForCallbacks(&State->EngineCallback);
+    State->XAudio2->StopEngine();
+
+    State->MasterVoice->DestroyVoice();
+
+    xaudio2_source_voice *Voice = State->VoiceSentinel.Next;
+
+    while (Voice->SourceVoice)
+    {
+        XAudio2DestroySourceVoice(Voice);
+        RemoveFromLinkedList(Voice);
+
+        Voice = Voice->Next;
     }
 }
