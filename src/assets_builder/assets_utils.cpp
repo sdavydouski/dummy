@@ -322,7 +322,7 @@ ProcessAssimpAnimation(aiAnimation *AssimpAnimation, animation_clip *Animation, 
 {
     Assert(AssimpAnimation->mName.length < MAX_ANIMATION_NAME_LENGTH);
 
-    CopyString(AssimpAnimation->mName.C_Str(), Animation->Name);
+    //CopyString(AssimpAnimation->mName.C_Str(), Animation->Name);
     Animation->Duration = (f32)AssimpAnimation->mDuration / (f32)AssimpAnimation->mTicksPerSecond;
     Animation->PoseSampleCount = AssimpAnimation->mNumChannels;
     Animation->PoseSamples = AllocateMemory<animation_sample>(Animation->PoseSampleCount);

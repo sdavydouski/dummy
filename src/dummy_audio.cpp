@@ -15,21 +15,21 @@ PushAudioCommand_(audio_commands *Commands, u32 Size, audio_command_type Type)
 #define PushAudioCommand(Buffer, Struct, Type) (Struct *) PushAudioCommand_(Buffer, sizeof(Struct), Type)
 
 inline void
-Play2D(audio_commands *Commands, u32 Id, audio_clip *AudioClip, b32 IsLooping = false)
+Play2D(audio_commands *Commands, audio_clip *AudioClip, b32 IsLooping = false, u32 Id = 0)
 {
     audio_command_play_2d *Command = PushAudioCommand(Commands, audio_command_play_2d, AudioCommand_Play_2D);
-    Command->Id = Id;
     Command->AudioClip = AudioClip;
     Command->IsLooping = IsLooping;
+    Command->Id = Id;
 }
 
 inline void
-Play3D(audio_commands *Commands, u32 Id, audio_clip *AudioClip, vec3 EmitterPosition)
+Play3D(audio_commands *Commands, audio_clip *AudioClip, vec3 EmitterPosition, u32 Id = 0)
 {
     audio_command_play_3d *Command = PushAudioCommand(Commands, audio_command_play_3d, AudioCommand_Play_3D);
-    Command->Id = Id;
     Command->AudioClip = AudioClip;
     Command->EmitterPosition = EmitterPosition;
+    Command->Id = Id;
 }
 
 inline void

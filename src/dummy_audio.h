@@ -22,8 +22,8 @@ struct audio_command_play_2d
     audio_command_header Header;
 
     u32 Id;
-    audio_clip *AudioClip;
     b32 IsLooping;
+    audio_clip *AudioClip;
 };
 
 struct audio_command_play_3d
@@ -31,8 +31,8 @@ struct audio_command_play_3d
     audio_command_header Header;
 
     u32 Id;
-    audio_clip *AudioClip;
     vec3 EmitterPosition;
+    audio_clip *AudioClip;
 };
 
 struct audio_command_set_listener
@@ -47,18 +47,6 @@ struct audio_command_set_emitter
     audio_command_header Header;
     u32 Id;
     vec3 EmitterPosition;
-};
-
-struct audio_command_set_play_3d
-{
-    audio_command_header Header;
-
-    u32 Id;
-    audio_clip *AudioClip;
-
-    vec3 EmitterPosition;
-    vec3 ListenerPosition;
-    vec3 ListenerDirection;
 };
 
 struct audio_command_pause

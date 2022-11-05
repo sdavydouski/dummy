@@ -23,6 +23,7 @@
     <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_assets.h" />
     <ClInclude Include="dummy_audio.h" />
+    <ClInclude Include="dummy_events.h" />
     <ClInclude Include="dummy_job.h" />
     <ClInclude Include="dummy_plane.h" />
     <ClInclude Include="dummy_spatial.h" />
@@ -48,6 +49,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_events.cpp" />
     <None Include="dummy_audio.cpp" />
     <None Include="dummy_spatial.cpp" />
     <None Include="dummy_animator.cpp" />

@@ -32,6 +32,8 @@
 #include "dummy_math.h"
 #include "dummy_string.h"
 #include "dummy_container.h"
+#include "dummy_memory.h"
+#include "dummy_events.h"
 #include "dummy_collision.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"

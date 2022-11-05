@@ -671,9 +671,8 @@ inline u64
 Hash(char *String)
 {
     u64 Hash = 5381;
-    char Character;
 
-    while (Character = *String++)
+    while (char Character = *String++)
     {
         // Hash * 33 + Character
         Hash = ((Hash << 5) + Hash) + Character;
@@ -682,9 +681,9 @@ Hash(char *String)
     return Hash;
 }
 
-// todo:
+// todo: better hash function?
 inline u32
-Hash(u32 Key)
+Hash(const u32 Key)
 {
     u32 Hash = Key;
 

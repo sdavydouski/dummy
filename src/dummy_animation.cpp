@@ -119,7 +119,7 @@ FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime, key_frame **
 }
 
 internal void
-AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_state *Animation)
+AnimateSkeletonPose(animation_graph *Graph, skeleton_pose *SkeletonPose, animation_state *Animation)
 {
     joint_pose *RootTranslationPose = GetRootTranslationLocalJointPose(SkeletonPose);
 
@@ -149,6 +149,27 @@ AnimateSkeletonPose(skeleton_pose *SkeletonPose, animation_state *Animation)
             Assert(t >= 0.f && t <= 1.f);
             
             *LocalJointPose = Lerp(&PrevKeyFrame->Pose, t, &NextKeyFrame->Pose);
+        }
+    }
+
+    for (u32 EventIndex = 0; EventIndex < Animation->Clip->EventCount; ++EventIndex)
+    {
+        animation_event *Event = Animation->Clip->Events + EventIndex;
+
+        // Reset events when animation starts over
+        if ((Animation->Time - Animation->PrevTime) < 0.f)
+        {
+            Event->IsFired = false;
+        }
+
+        if (Animation->Time >= Event->Time && !Event->IsFired)
+        {
+            Event->IsFired = true;
+
+            animation_footstep_event *FootstepEvent = PushType(&Graph->EventList->Arena, animation_footstep_event);
+            FootstepEvent->EntityId = Graph->EntityId;
+            FootstepEvent->Weight = Animation->Weight;
+            PublishEvent(Graph->EventList, Event->Name, FootstepEvent);
         }
     }
 
@@ -636,7 +657,7 @@ GetAnimationNode(animation_graph *Graph, const char *NodeName)
 }
 
 internal void
-BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model *Model, const char *Animator, memory_arena *Arena)
+BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model *Model, u32 EntityId, const char *Animator, game_event_list *EventList, memory_arena *Arena)
 {
     Graph->NodeCount = Asset->NodeCount;
     Graph->Nodes = PushArray(Arena, Graph->NodeCount, animation_node);
@@ -684,7 +705,7 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
             {
                 animation_graph *NodeGraph = PushType(Arena, animation_graph);
 
-                BuildAnimationGraph(NodeGraph, NodeAsset->Graph, Model, Animator, Arena);
+                BuildAnimationGraph(NodeGraph, NodeAsset->Graph, Model, EntityId, Animator, EventList, Arena);
                 BuildAnimationNode(Node, NodeAsset->Name, NodeGraph);
 
                 break;
@@ -737,6 +758,9 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
 
     Graph->Entry = Entry;
     Graph->Active = Entry;
+
+    Graph->EntityId = EntityId;
+    Graph->EventList = EventList;
 }
 
 internal u32
@@ -877,7 +901,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
             animation_state *AnimationState = ActiveAnimations[AnimationIndex];
             skeleton_pose *SkeletonPose = SkeletonPoses + AnimationIndex;
 
-            AnimateSkeletonPose(SkeletonPose, AnimationState);
+            AnimateSkeletonPose(Graph, SkeletonPose, AnimationState);
         }
 
         // Averaging root motion

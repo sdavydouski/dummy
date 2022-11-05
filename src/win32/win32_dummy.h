@@ -16,6 +16,7 @@ struct win32_platform_state
     HWND WindowHandle;
     WINDOWPLACEMENT WindowPlacement;
     DWORD WindowStyles;
+    CRITICAL_SECTION CriticalSection;
     
     u64 PerformanceFrequency;
 

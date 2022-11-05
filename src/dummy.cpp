@@ -5,6 +5,7 @@
 #include "dummy_string.h"
 #include "dummy_container.h"
 #include "dummy_input.h"
+#include "dummy_events.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_visibility.h"
@@ -17,49 +18,17 @@
 #include "dummy_platform.h"
 #include "dummy.h"
 
-#if 0
-#define sid u64
-
-struct string_id
-{
-    sid Id;
-    char Name[64];
-};
-
-global hash_table<string_id> GlobalStringTable;
-
-internal void
-InitGlobalStringTable(memory_arena *Arena)
-{
-    GlobalStringTable.Count = 4099;
-    GlobalStringTable.Values = PushArray(Arena, GlobalStringTable.Count, string_id);
-}
-
-internal sid
-InternString(char *String)
-{
-    string_id *StringId = HashTableLookup(&GlobalStringTable, String);
-
-    if (StringEquals(StringId->Name, ""))
-    {
-        CopyString(String, StringId->Name);
-        StringId->Id = Hash(String);
-    }
-
-    return StringId->Id;
-}
-
-// todo: try user-defined literal for compile-time evaluation?
-#define SID(String) InternString((char *) String)
-#endif
+//#define sid u32
+//#define SID(String) Hash(String)
 
 #include "dummy_assets.cpp"
 #include "dummy_text.cpp"
+#include "dummy_audio.cpp"
+#include "dummy_renderer.cpp"
+#include "dummy_events.cpp"
 #include "dummy_collision.cpp"
 #include "dummy_physics.cpp"
 #include "dummy_spatial.cpp"
-#include "dummy_renderer.cpp"
-#include "dummy_audio.cpp"
 #include "dummy_animation.cpp"
 #include "dummy_animator.cpp"
 #include "dummy_process.cpp"
@@ -184,7 +153,7 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
 inline u32
 GenerateEntityId()
 {
-    persist u32 EntityId = 1;
+    persist u32 EntityId = 0;
 
     return EntityId++;
 }
@@ -350,27 +319,6 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
     return Result;
 }
 
-internal model *
-GetModelAsset(game_assets *Assets, const char *Name)
-{
-    model *Result = HashTableLookup(&Assets->Models, (char *) Name);
-    return Result;
-}
-
-internal font *
-GetFontAsset(game_assets *Assets, const char *Name)
-{
-    font *Result = HashTableLookup(&Assets->Fonts, (char *) Name);
-    return Result;
-}
-
-internal audio_clip *
-GetAudioClipAsset(game_assets *Assets, const char *Name)
-{
-    audio_clip *Result = HashTableLookup(&Assets->AudioClips, (char *) Name);
-    return Result;
-}
-
 internal entity_render_batch *
 GetEntityBatch(game_state *State, char *Name)
 {
@@ -476,16 +424,16 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform, memory_arena *A
             "assets\\Action 5.asset"
         },
         {
-            "Fx 1",
-            "assets\\Fx 1.asset"
+            "step_cloth1",
+            "assets\\step_cloth1.asset"
         },
         {
-            "completion_6_karen",
-            "assets\\completion_6_karen.asset"
+            "step_metal",
+            "assets\\step_metal.asset"
         },
         {
-            "grunting_1_meghan",
-            "assets\\grunting_1_meghan.asset"
+            "step2",
+            "assets\\step2.asset"
         }
     };
 
@@ -768,6 +716,13 @@ CreateGameEntity(game_state *State)
     return Entity;
 }
 
+inline game_entity *
+GetGameEntity(game_state *State, u32 EntityId)
+{
+    game_entity *Entity = State->Entities + EntityId;
+    return Entity;
+}
+
 inline void
 AddModelComponent(game_entity *Entity, game_assets *Assets, const char *ModelName, render_commands *RenderCommands, memory_arena *Arena)
 {
@@ -788,10 +743,10 @@ AddRigidBodyComponent(game_entity *Entity, vec3 Position, quat Orientation, vec3
 }
 
 inline void
-AddAnimationComponent(game_entity *Entity, const char *Animator, render_commands *RenderCommands, memory_arena *Arena)
+AddAnimationComponent(game_entity *Entity, const char *Animator, render_commands *RenderCommands, game_event_list *EventList, memory_arena *Arena)
 {
     Entity->Animation = PushType(Arena, animation_graph);
-    BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Animator, Arena);
+    BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Entity->Id, Animator, EventList, Arena);
 }
 
 inline void
@@ -1116,7 +1071,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 10.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->PermanentArena);
+    AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Pelegrini);
 
     // xBot
@@ -1124,7 +1079,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->xBot, &State->Assets, "xBot", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->xBot, vec3(8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->xBot, "Bot", RenderCommands, &State->PermanentArena);
+    AddAnimationComponent(State->xBot, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->xBot);
 
     // yBot
@@ -1132,7 +1087,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     State->yBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->yBot, &State->Assets, "yBot", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->PermanentArena);
+    AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->yBot);
 
     // Paladin
@@ -1140,7 +1095,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -10.f), vec3(3.7f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Paladin, &State->Assets, "Paladin", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.5f, 3.f, 1.75f), true, &State->PermanentArena);
-    AddAnimationComponent(State->Paladin, "Paladin", RenderCommands, &State->PermanentArena);
+    AddAnimationComponent(State->Paladin, "Paladin", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Paladin);
 
     // Warrok
@@ -1148,7 +1103,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     State->Warrok->Transform = CreateTransform(vec3(-16.f, 0.f, -10.f), vec3(4.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Warrok, &State->Assets, "Warrok", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->Warrok, vec3(-16.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f, 4.f, 3.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->Warrok, "Monstar", RenderCommands, &State->PermanentArena);
+    AddAnimationComponent(State->Warrok, "Monstar", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Warrok);
 
     // Maw
@@ -1156,7 +1111,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     State->Maw->Transform = CreateTransform(vec3(16.f, 0.f, -10.f), vec3(4.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Maw, &State->Assets, "Maw", RenderCommands, &State->PermanentArena);
     AddRigidBodyComponent(State->Maw, vec3(16.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f, 4.f, 3.f), true, &State->PermanentArena);
-    AddAnimationComponent(State->Maw, "Monstar", RenderCommands, &State->PermanentArena);
+    AddAnimationComponent(State->Maw, "Monstar", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Maw);
 
     State->PlayableEntityIndex = 0;
@@ -1243,6 +1198,14 @@ DLLExport GAME_INIT(GameInit)
 
     State->Processes.Count = 31;
     State->Processes.Values = PushArray(&State->PermanentArena, State->Processes.Count, game_process);
+
+    // Event System
+    game_event_list *EventList = &State->EventList;
+    EventList->MaxEventCount = 4096;
+    EventList->EventCount = 0;
+    EventList->Events = PushArray(&State->PermanentArena, EventList->MaxEventCount, game_event);
+    EventList->Platform = Platform;
+    EventList->Arena = SubMemoryArena(&State->PermanentArena, Megabytes(4));
 
     // Animator Setup
     State->Animator = {};
@@ -1397,6 +1360,7 @@ GetNextHero(game_state *State)
     }
 
     game_entity *Result = State->PlayableEntities[State->PlayableEntityIndex];
+
     return Result;
 }
 
@@ -1417,39 +1381,26 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     vec2 Move = Input->Move.Range;
 
-    // todo: handle when Move.x/y == 2
     if (Abs(Move.x) == 1.f && Abs(Move.y) == 1.f)
     {
         Move = Normalize(Move);
     }
+    else if (Abs(Move.x) == 2.f && Abs(Move.y) == 2.f)
+    {
+        Move = Normalize(Move) * 2.f;
+    }
 
     if (Input->Menu.IsActivated)
     {
-        Play2D(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
-
         if (State->Mode == GameMode_Menu)
         {
             State->Mode = State->PrevMode;
-
-            // todo: 
-            if (State->Assets.State == GameAssetsState_Ready)
-            {
-                Stop(AudioCommands, 3);
-                Play2D(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
-            }
         }
         else if (State->Mode == GameMode_World || State->Mode == GameMode_Edit)
         {
             State->PrevMode = State->Mode;
             State->Mode = GameMode_Menu;
             InitGameMenu(State);
-
-            // todo: 
-            if (State->Assets.State == GameAssetsState_Ready)
-            {
-                Stop(AudioCommands, 2);
-                Play2D(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
-            }
         }
     }
 
@@ -1805,8 +1756,6 @@ DLLExport GAME_RENDER(GameRender)
     audio_commands *AudioCommands = GetAudioCommands(Memory);
     platform_api *Platform = Memory->Platform;
 
-    ClearMemoryArena(&State->TransientArena);
-
     f32 ScreenWidthInUnits = 20.f;
     f32 PixelsPerUnit = (f32) Parameters->WindowWidth / ScreenWidthInUnits;
     f32 ScreenHeightInUnits = (f32) Parameters->WindowHeight / PixelsPerUnit;
@@ -1838,14 +1787,7 @@ DLLExport GAME_RENDER(GameRender)
 
         State->Assets.State = GameAssetsState_Ready;
 
-        //Play2D(AudioCommands, 1, GetAudioClipAsset(&State->Assets, "Fx 1"));
-        //Play2D(AudioCommands, 2, GetAudioClipAsset(&State->Assets, "Action 5"));
-        //Play2D(AudioCommands, 3, GetAudioClipAsset(&State->Assets, "Light Ambience 2"));
-        //Play2D(AudioCommands, 4, GetAudioClipAsset(&State->Assets, "completion_6_karen"));
-        //Play2D(AudioCommands, 5, GetAudioClipAsset(&State->Assets, "grunting_1_meghan"));
-
-        Play3D(AudioCommands, 6, GetAudioClipAsset(&State->Assets, "Action 5"), State->Player->Transform.Translation);
-        Play3D(AudioCommands, 7, GetAudioClipAsset(&State->Assets, "Light Ambience 2"), State->Paladin->Transform.Translation);
+        //Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Action 5"), 2);
     }
 
     SetTime(RenderCommands, Parameters->Time);
@@ -1860,15 +1802,7 @@ DLLExport GAME_RENDER(GameRender)
             game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->FreeCamera;
             b32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
-            // 
             SetListener(AudioCommands, Camera->Transform.Translation, -Camera->Direction);
-
-            if (State->Assets.State == GameAssetsState_Ready)
-            {
-                SetEmitter(AudioCommands, 6, State->Player->Transform.Translation);
-                SetEmitter(AudioCommands, 7, State->Paladin->Transform.Translation);
-            }
-            //
 
             mat4 WorldToCamera = GetCameraTransform(Camera);
 
@@ -2232,5 +2166,14 @@ DLLExport GAME_RENDER(GameRender)
 
             break;
         }
+    }
+
+    // todo: should probably go to FrameEnd ?
+    // todo: maybe move it out to platform layer to be more explicit? (maybe create FrameStart/FrameEnd functions?)
+    ClearMemoryArena(&State->TransientArena);
+
+    {
+        PROFILE(Memory->Profiler, "GameRender:ProcessEvents");
+        ProcessEvents(State, AudioCommands, RenderCommands);
     }
 }

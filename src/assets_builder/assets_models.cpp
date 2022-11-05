@@ -294,6 +294,9 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
         Animation.PoseSampleCount = AnimationHeader->PoseSampleCount;
         Animation.PoseSamples = (animation_sample *) (Buffer + AnimationHeader->PoseSamplesOffset);
 
+        Animation.EventCount = AnimationHeader->EventCount;
+        Animation.Events = (animation_event *) (Buffer + AnimationHeader->EventsOffset);
+
         u64 NextAnimationSampleHeaderOffset = 0;
 
         for (u32 AnimationPoseIndex = 0; AnimationPoseIndex < AnimationHeader->PoseSampleCount; ++AnimationPoseIndex)
@@ -310,7 +313,7 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
                 AnimationSampleHeader->KeyFrameCount * sizeof(key_frame);
         }
 
-        NextAnimationHeaderOffset += sizeof(model_asset_animation_header) + NextAnimationSampleHeaderOffset;
+        NextAnimationHeaderOffset += sizeof(model_asset_animation_header) + NextAnimationSampleHeaderOffset + AnimationHeader->EventCount * sizeof(animation_event);
     }
 
     fclose(AssetFile);
@@ -545,38 +548,58 @@ WriteAnimationClips(model_asset *Asset, u64 Offset, FILE *AssetFile)
 
     fwrite(&AnimationsHeader, sizeof(model_asset_animations_header), 1, AssetFile);
 
-    u64 TotalPrevKeyFrameSize = 0;
     for (u32 AnimationIndex = 0; AnimationIndex < Asset->AnimationCount; ++AnimationIndex)
     {
         animation_clip *Animation = Asset->Animations + AnimationIndex;
 
+        u64 AnimationHeaderStreamPosition = ftell(AssetFile);
+        u64 CurrentStreamPosition = ftell(AssetFile);
+
         model_asset_animation_header AnimationHeader = {};
         CopyString(Animation->Name, AnimationHeader.Name);
         AnimationHeader.Duration = Animation->Duration;
-        AnimationHeader.PoseSampleCount = Animation->PoseSampleCount;
-        AnimationHeader.PoseSamplesOffset = AnimationsHeader.AnimationsOffset + sizeof(model_asset_animation_header) +
-            AnimationIndex * sizeof(model_asset_animation_header) + TotalPrevKeyFrameSize;
 
         fwrite(&AnimationHeader, sizeof(model_asset_animation_header), 1, AssetFile);
 
-        u64 PrevKeyFrameSize = 0;
+        CurrentStreamPosition = ftell(AssetFile);
+
+        AnimationHeader.PoseSampleCount = Animation->PoseSampleCount;
+        AnimationHeader.PoseSamplesOffset = CurrentStreamPosition;
+
         for (u32 AnimationPoseIndex = 0; AnimationPoseIndex < Animation->PoseSampleCount; ++AnimationPoseIndex)
         {
             animation_sample *AnimationPose = Animation->PoseSamples + AnimationPoseIndex;
 
+            u64 PoseSampleHeaderStreamPosition = ftell(AssetFile);
+
             model_asset_animation_sample_header AnimationSampleHeader = {};
             AnimationSampleHeader.JointIndex = AnimationPose->JointIndex;
-            AnimationSampleHeader.KeyFrameCount = AnimationPose->KeyFrameCount;
-            AnimationSampleHeader.KeyFramesOffset = AnimationHeader.PoseSamplesOffset + sizeof(model_asset_animation_sample_header) +
-                PrevKeyFrameSize;
-
-            PrevKeyFrameSize += sizeof(model_asset_animation_sample_header) + AnimationSampleHeader.KeyFrameCount * sizeof(key_frame);
-
+            
             fwrite(&AnimationSampleHeader, sizeof(model_asset_animation_sample_header), 1, AssetFile);
+
+            CurrentStreamPosition = ftell(AssetFile);
+            AnimationSampleHeader.KeyFrameCount = AnimationPose->KeyFrameCount;
+            AnimationSampleHeader.KeyFramesOffset = CurrentStreamPosition;
+
             fwrite(AnimationPose->KeyFrames, sizeof(key_frame), AnimationPose->KeyFrameCount, AssetFile);
+
+            u64 BeforeSeekStreamPosition = ftell(AssetFile);
+            fseek(AssetFile, (long ) PoseSampleHeaderStreamPosition, SEEK_SET);
+            fwrite(&AnimationSampleHeader, sizeof(model_asset_animation_sample_header), 1, AssetFile);
+            fseek(AssetFile, (long) BeforeSeekStreamPosition, SEEK_SET);
         }
 
-        TotalPrevKeyFrameSize += PrevKeyFrameSize;
+        CurrentStreamPosition = ftell(AssetFile);
+
+        AnimationHeader.EventCount = Animation->EventCount;
+        AnimationHeader.EventsOffset = CurrentStreamPosition;
+
+        fwrite(Animation->Events, sizeof(animation_event), Animation->EventCount, AssetFile);
+        
+        u64 BeforeSeekStreamPosition = ftell(AssetFile);
+        fseek(AssetFile, (long) AnimationHeaderStreamPosition, SEEK_SET);
+        fwrite(&AnimationHeader, sizeof(model_asset_animation_header), 1, AssetFile);
+        fseek(AssetFile, (long) BeforeSeekStreamPosition, SEEK_SET);
     }
 }
 
@@ -687,7 +710,7 @@ LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
 }
 
 internal void
-LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, const char *AnimationName, u32 AnimationIndex)
+LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, animation_clip *Animation)
 {
     const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
 
@@ -695,13 +718,48 @@ LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, cons
     Assert(AssimpScene->mNumAnimations == 1);
 
     aiAnimation *AssimpAnimation = AssimpScene->mAnimations[0];
-    animation_clip *Animation = Asset->Animations + AnimationIndex;
 
     ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
 
-    CopyString(AnimationName, Animation->Name);
-
     aiReleaseImport(AssimpScene);
+}
+
+internal void
+LoadAnimationMetaAsset(const char *FilePath, animation_clip *Animation)
+{
+    char *Contents = ReadTextFile(FilePath);
+
+    if (Contents)
+    {
+        Document Document;
+        ParseResult ok = Document.Parse(Contents);
+
+        if (ok)
+        {
+            Value &Events = Document["events"].GetArray();
+
+            Animation->EventCount = Events.Size();
+            Animation->Events = AllocateMemory<animation_event>(Animation->EventCount);
+
+            for (u32 EventIndex = 0; EventIndex < Animation->EventCount; ++EventIndex)
+            {
+                animation_event *AnimationEvent = Animation->Events + EventIndex;
+
+                Value &Event = Events[EventIndex];
+
+                const char *Name = Event["name"].GetString();
+                f32 Time = Event["time"].GetFloat();
+
+                CopyString(Name, AnimationEvent->Name);
+                AnimationEvent->Time = Time;
+                AnimationEvent->IsFired = false;
+            }
+        }
+        else
+        {
+            Assert(!"Failed to parse animation meta");
+        }
+    }
 }
 
 internal void
@@ -856,7 +914,6 @@ LoadAnimationGrah(const char *FilePath, model_asset *Asset)
     }
 }
 
-// todo: https://github.com/f3d-app/f3d/issues/414 !!!
 internal void
 LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
 {
@@ -866,7 +923,7 @@ LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
 
         for (const fs::directory_entry &Entry : fs::directory_iterator(DirectoryPath))
         {
-            if (Entry.is_regular_file())
+            if (Entry.is_regular_file() && Entry.path().extension() == ".fbx")
             {
                 ++AnimationCount;
             }
@@ -881,12 +938,44 @@ LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
             if (Entry.is_regular_file())
             {
                 fs::path FileName = Entry.path().filename();
-                fs::path AnimationClipName = Entry.path().stem();
+                fs::path FileExtension = Entry.path().extension();
 
-                char FilePath[64];
-                FormatString(FilePath, "%s/%s", DirectoryPath, FileName.generic_string().c_str());
+                if (FileExtension == ".fbx")
+                {
+                    fs::path AnimationClipName = Entry.path().stem();
 
-                LoadAnimationClipAsset(FilePath, Flags, Asset, AnimationClipName.generic_string().c_str(), AnimationIndex++);
+                    animation_clip *Animation = Asset->Animations + AnimationIndex++;
+                    CopyString(AnimationClipName.generic_string().c_str(), Animation->Name);
+
+                    char AnimationClipFilePath[64];
+                    FormatString(AnimationClipFilePath, "%s/%s", DirectoryPath, FileName.generic_string().c_str());
+
+                    LoadAnimationClipAsset(AnimationClipFilePath, Flags, Asset, Animation);
+
+                    fs::path AnimationMetaFileName = FileName;
+                    AnimationMetaFileName.replace_extension(".json");
+
+                    char AnimationMetaFilePath[64];
+                    FormatString(AnimationMetaFilePath, "%s/%s", DirectoryPath, AnimationMetaFileName.generic_string().c_str());
+
+                    if (fs::exists(AnimationMetaFilePath))
+                    {
+                        LoadAnimationMetaAsset(AnimationMetaFilePath, Animation);
+                    }
+                    else
+                    {
+                        Animation->EventCount = 0;
+                        Animation->Events = 0;
+                    }
+                }
+                else if (FileExtension == ".json")
+                {
+                    // skip
+                }
+                else
+                {
+                    Assert(!"Invalid extension");
+                }
             }
         }
     }

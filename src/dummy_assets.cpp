@@ -260,6 +260,8 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
         Animation->Duration = AnimationHeader->Duration;
         Animation->PoseSampleCount = AnimationHeader->PoseSampleCount;
         Animation->PoseSamples = PushArray(Arena, Animation->PoseSampleCount, animation_sample);
+        Animation->EventCount = AnimationHeader->EventCount;
+        Animation->Events = (animation_event *) (Buffer + AnimationHeader->EventsOffset);
 
         u64 NextAnimationSampleHeaderOffset = 0;
         for (u32 AnimationPoseIndex = 0; AnimationPoseIndex < AnimationHeader->PoseSampleCount; ++AnimationPoseIndex)
@@ -277,7 +279,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
                 AnimationSampleHeader->KeyFrameCount * sizeof(key_frame);
         }
 
-        NextAnimationHeaderOffset += sizeof(model_asset_animation_header) + NextAnimationSampleHeaderOffset;
+        NextAnimationHeaderOffset += sizeof(model_asset_animation_header) + NextAnimationSampleHeaderOffset + AnimationHeader->EventCount * sizeof(animation_event);
     }
 
     return Result;
@@ -339,5 +341,26 @@ LoadAudioClipAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     Result->AudioBytes = AudioHeader->AudioBytes;
     Result->AudioData = (u8 *) (Buffer + AudioHeader->AudioDataOffset);
 
+    return Result;
+}
+
+internal model *
+GetModelAsset(game_assets *Assets, const char *Name)
+{
+    model *Result = HashTableLookup(&Assets->Models, (char *) Name);
+    return Result;
+}
+
+internal font *
+GetFontAsset(game_assets *Assets, const char *Name)
+{
+    font *Result = HashTableLookup(&Assets->Fonts, (char *) Name);
+    return Result;
+}
+
+internal audio_clip *
+GetAudioClipAsset(game_assets *Assets, const char *Name)
+{
+    audio_clip *Result = HashTableLookup(&Assets->AudioClips, (char *) Name);
     return Result;
 }

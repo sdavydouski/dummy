@@ -2,6 +2,7 @@
 
 #define MAX_JOINT_NAME_LENGTH 256
 #define MAX_ANIMATION_NAME_LENGTH 256
+#define MAX_ANIMATION_EVENT_NAME_LENGTH 32
 
 #define ROOT_POSE_INDEX 0
 #define ROOT_TRANSLATION_POSE_INDEX 1
@@ -53,6 +54,13 @@ struct animation_sample
     key_frame *KeyFrames;
 };
 
+struct animation_event
+{
+    char Name[MAX_ANIMATION_EVENT_NAME_LENGTH];
+    f32 Time;
+    b32 IsFired;
+};
+
 struct animation_clip
 {
     char Name[MAX_ANIMATION_NAME_LENGTH];
@@ -60,6 +68,9 @@ struct animation_clip
 
     u32 PoseSampleCount;
     animation_sample *PoseSamples;
+
+    u32 EventCount;
+    animation_event *Events;
 };
 
 struct animation_state
@@ -171,6 +182,9 @@ struct animation_graph
 
     char Animator[256];
     vec3 AccRootMotion;
+
+    u32 EntityId;
+    game_event_list *EventList;
 };
 
 #define ANIMATOR_CONTROLLER(name) void name(animation_graph *Graph, void *Params, f32 Delta)

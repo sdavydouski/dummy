@@ -1,0 +1,12 @@
+{
+	"events": [
+		{
+			"name": "footstep",
+			"time": 0.3
+		},
+		{
+			"name": "footstep",
+			"time": 0.64
+		}
+	]
+}

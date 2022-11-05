@@ -381,8 +381,12 @@ struct model_asset_animation_header
 {
     char Name[MAX_ANIMATION_NAME_LENGTH];
     f32 Duration;
+
     u32 PoseSampleCount;
     u64 PoseSamplesOffset;
+
+    u32 EventCount;
+    u64 EventsOffset;
 };
 
 struct model_asset_animation_sample_header

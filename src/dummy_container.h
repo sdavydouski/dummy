@@ -1,5 +1,8 @@
 #pragma once
 
+#define EMPTY_SLOT_KEY_STRING ""
+#define EMPTY_SLOT_KEY_U32 0
+
 // Closed hash table with quadratic probing
 template <typename T>
 struct hash_table
@@ -11,15 +14,27 @@ struct hash_table
 inline b32
 IsSlotEmpty(char *Key)
 {
-    b32 Result = StringEquals(Key, "");
+    b32 Result = StringEquals(Key, EMPTY_SLOT_KEY_STRING);
     return Result;
 }
 
 inline b32
 IsSlotEmpty(u32 Key)
 {
-    b32 Result = (Key == 0);
+    b32 Result = (Key == EMPTY_SLOT_KEY_U32);
     return Result;
+}
+
+inline void
+RemoveFromHashTable(char *Key)
+{
+    CopyString(EMPTY_SLOT_KEY_STRING, Key);
+}
+
+inline void
+RemoveFromHashTable(u32 *Key)
+{
+    *Key = EMPTY_SLOT_KEY_U32;
 }
 
 template <typename T>

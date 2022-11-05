@@ -120,6 +120,12 @@ typedef PLATFORM_DEBUG_PRINT_STRING(platform_debug_print_string);
 #define PLATFORM_LOAD_FUNCTION(name) void * name(void *PlatformHandle, char *FunctionName)
 typedef PLATFORM_LOAD_FUNCTION(platform_load_function);
 
+#define PLATFORM_ENTER_CRITICAL_SECTION(name) void name(void *PlatformHandle)
+typedef PLATFORM_ENTER_CRITICAL_SECTION(platform_enter_critical_section);
+
+#define PLATFORM_LEAVE_CRITICAL_SECTION(name) void name(void *PlatformHandle)
+typedef PLATFORM_LEAVE_CRITICAL_SECTION(platform_leave_critical_section);
+
 #define PLATFORM_KICK_JOB(name) void name(job_queue *JobQueue, job Job)
 typedef PLATFORM_KICK_JOB(platform_kick_job);
 
@@ -140,20 +146,15 @@ struct platform_api
     platform_debug_print_string *DebugPrintString;
     platform_load_function *LoadFunction;
 
+    platform_enter_critical_section *EnterCriticalSection;
+    platform_leave_critical_section *LeaveCriticalSection;
+
     platform_kick_job *KickJob;
     platform_kick_jobs *KickJobs;
     platform_kick_job_and_wait *KickJobAndWait;
     platform_kick_jobs_and_wait *KickJobsAndWait;
 };
 
-// todo: use audio_commands
-struct game_audio_output
-{
-    u32 AudioClipCount;
-    audio_clip **AudioClips;
-};
-
-// todo(continue): List of all playable sounds and music
 struct game_memory
 {
     umm PermanentStorageSize;
@@ -167,8 +168,6 @@ struct game_memory
 
     umm AudioCommandsStorageSize;
     void *AudioCommandsStorage;
-
-    game_audio_output AudioOutput;
 
     platform_api *Platform;
     platform_profiler *Profiler;

@@ -80,6 +80,7 @@ struct xaudio2_state
     vec3 ListenerPosition;
     vec3 ListenerDirection;
 
+    platform_profiler *Profiler;
     memory_arena Arena;
 };
 
@@ -190,8 +191,10 @@ Win32InitXAudio2(xaudio2_state *State)
     State->MasterVoiceChannelMask = MasterVoiceChannelMask;
 
     xaudio2_source_voice *VoiceSentinel = &State->VoiceSentinel;
+    VoiceSentinel->Key = 0;
     VoiceSentinel->SourceVoice = 0;
-    VoiceSentinel->Next = VoiceSentinel->Prev = VoiceSentinel;
+    VoiceSentinel->Prev = VoiceSentinel;
+    VoiceSentinel->Next = VoiceSentinel;
 
     State->Voices.Count = 31;
     State->Voices.Values = PushArray(&State->Arena, State->Voices.Count, xaudio2_source_voice);
@@ -203,12 +206,13 @@ XAudio2DestroySourceVoice(xaudio2_source_voice *Voice)
     // todo: could block! - https://learn.microsoft.com/en-us/windows/win32/api/xaudio2/nf-xaudio2-ixaudio2voice-destroyvoice
     Voice->SourceVoice->DestroyVoice();
     Voice->SourceVoice = 0;
-    Voice->Key = 0;
 }
 
 internal void
 XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 {
+    PROFILE(State->Profiler, "XAudio2ProcessAudioCommands");
+
     audio_commands_settings Settings = Commands->Settings;
 
     State->MasterVoice->SetVolume(Settings.Volume);
@@ -222,53 +226,6 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
             case AudioCommand_Play_2D:
             {
                 audio_command_play_2d *Command = (audio_command_play_2d *) Entry;
-
-                xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
-
-                audio_clip *AudioClip = Command->AudioClip;
-
-                WAVEFORMATEX wfx = {};
-                wfx.wFormatTag = AudioClip->Format;
-                wfx.nChannels = AudioClip->Channels;
-                wfx.nSamplesPerSec = AudioClip->SamplesPerSecond;
-                wfx.wBitsPerSample = AudioClip->BitsPerSample;
-                wfx.nBlockAlign = wfx.nChannels * wfx.wBitsPerSample / 8;
-                wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * wfx.wBitsPerSample / 8;
-
-                IXAudio2SourceVoice *SourceVoice;
-                State->XAudio2->CreateSourceVoice(&SourceVoice, &wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &State->VoiceCallback);
-
-                Voice->SourceVoice = SourceVoice;
-                Voice->Key = Command->Id;
-
-                AddToLinkedList(&State->VoiceSentinel, Voice);
-
-                XAUDIO2_BUFFER AudioBuffer = {};
-                AudioBuffer.AudioBytes = AudioClip->AudioBytes;
-                AudioBuffer.pAudioData = AudioClip->AudioData;
-                AudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
-
-                if (Command->IsLooping)
-                {
-                    AudioBuffer.LoopCount = XAUDIO2_LOOP_INFINITE;
-                }
-
-                SourceVoice->SubmitSourceBuffer(&AudioBuffer);
-                SourceVoice->Start(0);
-
-                break;
-            }
-            case AudioCommand_Play_3D:
-            {
-                audio_command_play_3d *Command = (audio_command_play_3d *) Entry;
-
-                vec3 EmitterPosition = Command->EmitterPosition;
-
-                vec3 ListenerPosition = State->ListenerPosition;
-                vec3 ListenerDirection = State->ListenerDirection;
-
-                //
-                xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
 
                 audio_clip *AudioClip = Command->AudioClip;
 
@@ -286,11 +243,57 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 XAUDIO2_VOICE_DETAILS VoiceDetails;
                 SourceVoice->GetVoiceDetails(&VoiceDetails);
 
-                Voice->SourceVoice = SourceVoice;
-                Voice->VoiceDetails = VoiceDetails;
-                Voice->Key = Command->Id;
+                XAUDIO2_BUFFER AudioBuffer = {};
+                AudioBuffer.AudioBytes = AudioClip->AudioBytes;
+                AudioBuffer.pAudioData = AudioClip->AudioData;
+                AudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
 
-                AddToLinkedList(&State->VoiceSentinel, Voice);
+                if (Command->IsLooping)
+                {
+                    AudioBuffer.LoopCount = XAUDIO2_LOOP_INFINITE;
+                }
+
+                SourceVoice->SubmitSourceBuffer(&AudioBuffer);
+                SourceVoice->Start(0);
+
+                if (Command->Id != 0)
+                {
+                    xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
+
+                    Voice->SourceVoice = SourceVoice;
+                    Voice->VoiceDetails = VoiceDetails;
+                    Voice->Key = Command->Id;
+
+                    AddToLinkedList(&State->VoiceSentinel, Voice);
+                }
+
+                break;
+            }
+            case AudioCommand_Play_3D:
+            {
+                audio_command_play_3d *Command = (audio_command_play_3d *) Entry;
+
+                vec3 EmitterPosition = Command->EmitterPosition;
+
+                vec3 ListenerPosition = State->ListenerPosition;
+                vec3 ListenerDirection = State->ListenerDirection;
+
+                //
+                audio_clip *AudioClip = Command->AudioClip;
+
+                WAVEFORMATEX wfx = {};
+                wfx.wFormatTag = AudioClip->Format;
+                wfx.nChannels = AudioClip->Channels;
+                wfx.nSamplesPerSec = AudioClip->SamplesPerSecond;
+                wfx.wBitsPerSample = AudioClip->BitsPerSample;
+                wfx.nBlockAlign = wfx.nChannels * wfx.wBitsPerSample / 8;
+                wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * wfx.wBitsPerSample / 8;
+
+                IXAudio2SourceVoice *SourceVoice;
+                State->XAudio2->CreateSourceVoice(&SourceVoice, &wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &State->VoiceCallback);
+
+                XAUDIO2_VOICE_DETAILS VoiceDetails;
+                SourceVoice->GetVoiceDetails(&VoiceDetails);
 
                 XAUDIO2_BUFFER AudioBuffer = {};
                 AudioBuffer.AudioBytes = AudioClip->AudioBytes;
@@ -301,15 +304,25 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 //
 
                 // todo: https://learn.microsoft.com/en-us/windows/win32/xaudio2/how-to--integrate-x3daudio-with-xaudio2 ?
-
                 f32 Volume = XAudio2CalculateVoiceVolume(EmitterPosition, ListenerPosition);
 
                 f32 OutputMatrix[8] = {};
                 XAudio2CalculateOutputMatrix(State, EmitterPosition, ListenerPosition, ListenerDirection, OutputMatrix);
 
                 SourceVoice->SetVolume(Volume);
-                SourceVoice->SetOutputMatrix(0, Voice->VoiceDetails.InputChannels, State->MasterVoiceDetails.InputChannels, OutputMatrix);
+                SourceVoice->SetOutputMatrix(0, VoiceDetails.InputChannels, State->MasterVoiceDetails.InputChannels, OutputMatrix);
                 SourceVoice->Start(0);
+
+                if (Command->Id != 0)
+                {
+                    xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
+
+                    Voice->SourceVoice = SourceVoice;
+                    Voice->VoiceDetails = VoiceDetails;
+                    Voice->Key = Command->Id;
+
+                    AddToLinkedList(&State->VoiceSentinel, Voice);
+                }
 
                 break;
             }
@@ -328,6 +341,8 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 
                 vec3 ListenerPosition = State->ListenerPosition;
                 vec3 ListenerDirection = State->ListenerDirection;
+
+                Assert(Command->Id != 0);
 
                 xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
 
@@ -382,7 +397,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
             }
             default:
             {
-                Assert(!"Render command is not supported");
+                Assert(!"Audio command is not supported");
             }
         }
 
@@ -413,6 +428,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 if (VoiceState.BuffersQueued == 0)
                 {
                     XAudio2DestroySourceVoice(Voice);
+                    RemoveFromHashTable(&Voice->Key);
                     RemoveFromLinkedList(Voice);
                 }
 

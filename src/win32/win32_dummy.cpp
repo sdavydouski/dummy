@@ -7,6 +7,7 @@
 #include "dummy_memory.h"
 #include "dummy_string.h"
 #include "dummy_container.h"
+#include "dummy_events.h"
 #include "dummy_input.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"
@@ -198,7 +199,7 @@ Win32HideMouseCursor()
 
 internal PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
 {
-    win32_platform_state *PlatformState = (win32_platform_state *)PlatformHandle;
+    win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
     wchar GameCodeDLLFullPath[WIN32_FILE_PATH];
     ConcatenateStrings(PlatformState->EXEDirectoryFullPath, L"dummy_temp.dll", GameCodeDLLFullPath);
@@ -820,7 +821,19 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
     return Result;
 }
 
-PLATFORM_KICK_JOB(Win32KickJob)
+internal PLATFORM_ENTER_CRITICAL_SECTION(Win32EnterCriticalSection)
+{
+    win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
+    EnterCriticalSection(&PlatformState->CriticalSection);
+}
+
+internal PLATFORM_LEAVE_CRITICAL_SECTION(Win32LeaveCriticalSection)
+{
+    win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
+    LeaveCriticalSection(&PlatformState->CriticalSection);
+}
+
+internal PLATFORM_KICK_JOB(Win32KickJob)
 {
     CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
 
@@ -837,7 +850,7 @@ PLATFORM_KICK_JOB(Win32KickJob)
     LeaveCriticalSection(CriticalSection);
 }
 
-PLATFORM_KICK_JOBS(Win32KickJobs)
+internal PLATFORM_KICK_JOBS(Win32KickJobs)
 {
     CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
 
@@ -854,14 +867,14 @@ PLATFORM_KICK_JOBS(Win32KickJobs)
     LeaveCriticalSection(CriticalSection);
 }
 
-PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
+internal PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
 {
     Win32KickJob(JobQueue, Job);
 
     while (JobQueue->CurrentJobCount > 0) {}
 }
 
-PLATFORM_KICK_JOBS_AND_WAIT(Win32KickJobsAndWait)
+internal PLATFORM_KICK_JOBS_AND_WAIT(Win32KickJobsAndWait)
 {
     Win32KickJobs(JobQueue, JobCount, Jobs);
 
@@ -958,7 +971,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SYSTEM_INFO SystemInfo;
     GetSystemInfo(&SystemInfo);
 
+#if 1
     u32 MaxWorkerThreadCount = SystemInfo.dwNumberOfProcessors - 1;
+#else
+    u32 MaxWorkerThreadCount = 1;
+#endif
 
     job_queue JobQueue = {};
     Win32MakeJobQueue(&JobQueue, MaxWorkerThreadCount, &PlatformState.JobQueueSync);
@@ -984,12 +1001,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     QueryPerformanceFrequency(&PerformanceFrequency);
     PlatformState.PerformanceFrequency = PerformanceFrequency.QuadPart;
 
+    InitializeCriticalSectionAndSpinCount(&PlatformState.CriticalSection, 0x00000400);
+
     platform_api PlatformApi = {};
     PlatformApi.PlatformHandle = (void *)&PlatformState;
     PlatformApi.SetMouseMode = Win32SetMouseMode;
     PlatformApi.ReadFile = Win32ReadFile;
     PlatformApi.DebugPrintString = Win32DebugPrintString;
     PlatformApi.LoadFunction = Win32LoadFunction;
+    PlatformApi.EnterCriticalSection = Win32EnterCriticalSection;
+    PlatformApi.LeaveCriticalSection = Win32LeaveCriticalSection;
     PlatformApi.KickJob = Win32KickJob;
     PlatformApi.KickJobs = Win32KickJobs;
     PlatformApi.KickJobAndWait = Win32KickJobAndWait;
@@ -1071,6 +1092,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         // XAudio2
         xaudio2_state XAudio2State = {};
+        XAudio2State.Profiler = &PlatformProfiler;
 
         umm XAudio2ArenaSize = Megabytes(32);
         InitMemoryArena(&XAudio2State.Arena, Win32AllocateMemory(0, XAudio2ArenaSize), XAudio2ArenaSize);
@@ -1097,7 +1119,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         DEBUG_UI_INIT(&PlatformState);
 
         game_parameters GameParameters = {};
-        game_input GameInput = {};
 
         platform_input_keyboard KeyboardInput = {};
         platform_input_mouse MouseInput = {};
@@ -1157,10 +1178,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameParameters.WindowHeight = PlatformState.WindowHeight;
 
                 // Input
-                GameInput = {};
-
                 {
                     PROFILE(&PlatformProfiler, "ProcessInput");
+
+                    game_input GameInput = {};
 
                     XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 

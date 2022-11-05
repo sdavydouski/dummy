@@ -11,11 +11,6 @@ enum game_mode
     GameMode_Edit
 };
 
-struct audio_source
-{
-    audio_clip *Clip;
-};
-
 struct game_entity
 {
     u32 Id;
@@ -27,7 +22,6 @@ struct game_entity
     rigid_body *Body;
     animation_graph *Animation;
     skinning_data *Skinning;
-    //audio_source *AudioSource;
 
     b32 Visible;
     b32 Controllable;   // todo: come up with smth better
@@ -189,6 +183,8 @@ struct game_state
     vec2 TargetMove;
 
     random_sequence Entropy;
+
+    game_event_list EventList;
 
     f32 MasterVolume;
 
