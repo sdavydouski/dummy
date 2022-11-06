@@ -205,7 +205,7 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
         GameInput->Move.Range = XboxControllerInput->LeftStick;
     }
 
-    if (XboxControllerInput->LeftThumb.IsPressed)
+    if (XboxControllerInput->RightThumb.IsPressed)
     {
         GameInput->Move.Range *= 2.f;
     }

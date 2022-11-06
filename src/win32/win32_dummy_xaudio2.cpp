@@ -228,6 +228,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 audio_command_play_2d *Command = (audio_command_play_2d *) Entry;
 
                 audio_clip *AudioClip = Command->AudioClip;
+                audio_play_options Params = Command->Options;
 
                 WAVEFORMATEX wfx = {};
                 wfx.wFormatTag = AudioClip->Format;
@@ -248,12 +249,13 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 AudioBuffer.pAudioData = AudioClip->AudioData;
                 AudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
 
-                if (Command->IsLooping)
+                if (Params.IsLooping)
                 {
                     AudioBuffer.LoopCount = XAUDIO2_LOOP_INFINITE;
                 }
 
                 SourceVoice->SubmitSourceBuffer(&AudioBuffer);
+                SourceVoice->SetVolume(Params.Volume);
                 SourceVoice->Start(0);
 
                 if (Command->Id != 0)
@@ -280,6 +282,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 
                 //
                 audio_clip *AudioClip = Command->AudioClip;
+                audio_play_options Params = Command->Options;
 
                 WAVEFORMATEX wfx = {};
                 wfx.wFormatTag = AudioClip->Format;
@@ -300,6 +303,11 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 AudioBuffer.pAudioData = AudioClip->AudioData;
                 AudioBuffer.Flags = XAUDIO2_END_OF_STREAM;
 
+                if (Params.IsLooping)
+                {
+                    AudioBuffer.LoopCount = XAUDIO2_LOOP_INFINITE;
+                }
+
                 SourceVoice->SubmitSourceBuffer(&AudioBuffer);
                 //
 
@@ -309,7 +317,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 f32 OutputMatrix[8] = {};
                 XAudio2CalculateOutputMatrix(State, EmitterPosition, ListenerPosition, ListenerDirection, OutputMatrix);
 
-                SourceVoice->SetVolume(Volume);
+                SourceVoice->SetVolume(Volume * Params.Volume);
                 SourceVoice->SetOutputMatrix(0, VoiceDetails.InputChannels, State->MasterVoiceDetails.InputChannels, OutputMatrix);
                 SourceVoice->Start(0);
 

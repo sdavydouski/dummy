@@ -83,7 +83,7 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
         animation_node *Node = Graph->Nodes + NodeIndex;
 
         ImGui::Text("%sNode Type: %s\n", Prefix, GetAnimationNodeTypeName(Node->Type));
-        ImGui::Text("%sNode Weight: %.3f\n", Prefix, Node->Weight);
+        ImGui::Text("%sNode Weight: %.6f\n", Prefix, Node->Weight);
 
         switch (Node->Type)
         {
@@ -102,7 +102,7 @@ RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
 
                     ImGui::Text("%s\tName: %s", Prefix, Value->AnimationState.Clip->Name);
                     ImGui::Text("%s\tTime: %.3f", Prefix, Value->AnimationState.Time);
-                    ImGui::Text("%s\tWeight: %.3f", Prefix, Value->Weight);
+                    ImGui::Text("%s\tWeight: %.6f", Prefix, Value->Weight);
 
                     ImGui::NewLine();
                 }

@@ -1,5 +1,11 @@
 #pragma once
 
+struct audio_play_options
+{
+    f32 Volume;
+    b32 IsLooping;
+};
+
 enum audio_command_type
 {
     AudioCommand_Play_2D,
@@ -22,8 +28,8 @@ struct audio_command_play_2d
     audio_command_header Header;
 
     u32 Id;
-    b32 IsLooping;
     audio_clip *AudioClip;
+    audio_play_options Options;
 };
 
 struct audio_command_play_3d
@@ -33,6 +39,7 @@ struct audio_command_play_3d
     u32 Id;
     vec3 EmitterPosition;
     audio_clip *AudioClip;
+    audio_play_options Options;
 };
 
 struct audio_command_set_listener

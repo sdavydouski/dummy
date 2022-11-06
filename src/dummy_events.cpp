@@ -30,7 +30,9 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
         if (StringEquals(Event->Name, "footstep"))
         {
             animation_footstep_event *Data = (animation_footstep_event *) Event->Params;
+            f32 Weight = Data->Weight;
 
+            if (Weight >= 0.5f)
             {
                 game_entity *Entity = GetGameEntity(State, Data->EntityId);
                 vec3 Position = Entity->Transform.Translation;
@@ -42,18 +44,22 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
                 {
                     AudioClip = GetAudioClipAsset(Assets, "step_metal");
                 }
-                else if (StringEquals(ModelName, "Pelegrini") || StringEquals(ModelName, "xBot") || StringEquals(ModelName, "yBot"))
+                else if (StringEquals(ModelName, "Pelegrini"))
+                {
+                    AudioClip = GetAudioClipAsset(Assets, "step_lth1");
+                }
+                else if (StringEquals(ModelName, "xBot") || StringEquals(ModelName, "yBot"))
                 {
                     AudioClip = GetAudioClipAsset(Assets, "step_cloth1");
                 }
                 else if (StringEquals(ModelName, "Warrok") || StringEquals(ModelName, "Maw"))
                 {
-                    AudioClip = GetAudioClipAsset(Assets, "step2");
+                    AudioClip = GetAudioClipAsset(Assets, "step_lth4");
                 }
 
                 Assert(AudioClip);
 
-                Play3D(AudioCommands, AudioClip, Position);
+                Play3D(AudioCommands, AudioClip, Position, SetVolume(Weight));
             }
         }
     }

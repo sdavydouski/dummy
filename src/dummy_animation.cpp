@@ -450,6 +450,15 @@ LinearLerpBlend(blend_space_1d *BlendSpace)
 
     Assert(t >= 0.f && t <= 1.f);
 
+    if (Abs(t - 0.f) < EPSILON)
+    {
+        t = 0.f;
+    }
+    else if (Abs(t - 1.f) < EPSILON)
+    {
+        t = 1.f;
+    }
+
     BlendValueFrom->Weight = 1.f - t;
     BlendValueTo->Weight = t;
 }

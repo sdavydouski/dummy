@@ -416,24 +416,28 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform, memory_arena *A
 {
     game_asset AudioClipAssets[] = {
         {
-            "Light Ambience 2",
-            "assets\\Light Ambience 2.asset"
+            "Ambient 5",
+            "assets\\Ambient 5.asset"
         },
         {
-            "Action 5",
-            "assets\\Action 5.asset"
-        },
-        {
-            "step_cloth1",
-            "assets\\step_cloth1.asset"
+            "samba",
+            "assets\\samba.asset"
         },
         {
             "step_metal",
             "assets\\step_metal.asset"
         },
         {
-            "step2",
-            "assets\\step2.asset"
+            "step_cloth1",
+            "assets\\step_cloth1.asset"
+        },
+        {
+            "step_lth1",
+            "assets\\step_lth1.asset"
+        },
+        {
+            "step_lth4",
+            "assets\\step_lth4.asset"
         }
     };
 
@@ -1224,7 +1228,7 @@ DLLExport GAME_INIT(GameInit)
 
     f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
     f32 FieldOfView = RADIANS(45.f);
-    InitCamera(&State->FreeCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f), RADIANS(-30.f), RADIANS(-90.f));
+    InitCamera(&State->FreeCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f), RADIANS(-25.f), RADIANS(-90.f));
     InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(0.f));
     // todo:
     State->PlayerCamera.Radius = 16.f;
@@ -1309,7 +1313,7 @@ DLLExport GAME_INIT(GameInit)
     State->Player = State->Dummy;
     State->Player->FutureControllable = true;
 
-    State->MasterVolume = 0.5f;
+    State->MasterVolume = 0.75f;
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1787,8 +1791,22 @@ DLLExport GAME_RENDER(GameRender)
 
         State->Assets.State = GameAssetsState_Ready;
 
-        //Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Action 5"), 2);
+        Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
     }
+
+    // todo:
+    if (State->DanceMode && !State->PrevDanceMode)
+    {
+        Pause(AudioCommands, 2);
+        Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "samba"), SetAudioPlayOptions(0.75f, true), 3);
+    }
+
+    if (!State->DanceMode && State->PrevDanceMode)
+    {
+        Stop(AudioCommands, 3);
+        Resume(AudioCommands, 2);
+    }
+    //
 
     SetTime(RenderCommands, Parameters->Time);
     SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);

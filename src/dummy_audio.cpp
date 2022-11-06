@@ -14,21 +14,64 @@ PushAudioCommand_(audio_commands *Commands, u32 Size, audio_command_type Type)
 
 #define PushAudioCommand(Buffer, Struct, Type) (Struct *) PushAudioCommand_(Buffer, sizeof(Struct), Type)
 
+inline audio_play_options
+DefaultAudioPlayOptions()
+{
+    audio_play_options Result = {};
+
+    Result.IsLooping = false;
+    Result.Volume = 1.f;
+
+    return Result;
+}
+
+inline audio_play_options
+SetVolume(f32 Volume)
+{
+    audio_play_options Result = DefaultAudioPlayOptions();
+
+    Result.Volume = Volume;
+
+    return Result;
+}
+
+inline audio_play_options
+SetLooping(b32 IsLooping)
+{
+    audio_play_options Result = DefaultAudioPlayOptions();
+
+    Result.IsLooping = IsLooping;
+
+    return Result;
+}
+
+inline audio_play_options
+SetAudioPlayOptions(f32 Volume, b32 IsLooping)
+{
+    audio_play_options Result = {};
+
+    Result.Volume = Volume;
+    Result.IsLooping = IsLooping;
+
+    return Result;
+}
+
 inline void
-Play2D(audio_commands *Commands, audio_clip *AudioClip, b32 IsLooping = false, u32 Id = 0)
+Play2D(audio_commands *Commands, audio_clip *AudioClip, audio_play_options Options = DefaultAudioPlayOptions(), u32 Id = 0)
 {
     audio_command_play_2d *Command = PushAudioCommand(Commands, audio_command_play_2d, AudioCommand_Play_2D);
     Command->AudioClip = AudioClip;
-    Command->IsLooping = IsLooping;
+    Command->Options = Options;
     Command->Id = Id;
 }
 
 inline void
-Play3D(audio_commands *Commands, audio_clip *AudioClip, vec3 EmitterPosition, u32 Id = 0)
+Play3D(audio_commands *Commands, audio_clip *AudioClip, vec3 EmitterPosition, audio_play_options Options = DefaultAudioPlayOptions(), u32 Id = 0)
 {
     audio_command_play_3d *Command = PushAudioCommand(Commands, audio_command_play_3d, AudioCommand_Play_3D);
     Command->AudioClip = AudioClip;
     Command->EmitterPosition = EmitterPosition;
+    Command->Options = Options;
     Command->Id = Id;
 }
 
