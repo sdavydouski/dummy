@@ -29,9 +29,7 @@ StartGameProcess_(game_state *State, const char *ProcessName, game_process_on_up
 {
     game_process *Process = GetGameProcess(State, (char *)ProcessName);
 
-    // todo: do a better job, for christ's sake
-    // if empty
-    if (StringEquals(Process->Key, ""))
+    if (IsSlotEmpty(Process->Key))
     {
         InitGameProcess(Process, (char *)ProcessName, OnUpdatePerFrame);
         AddGameProcess(State, Process);
@@ -53,8 +51,7 @@ EndGameProcess(game_state *State, const char *ProcessName)
             AddGameProcess(State, Process->Child);
         }
 
-        // todo: removing element from hashtable
-        CopyString("", Process->Key);
+        RemoveFromHashTable(Process->Key);
     }
 }
 
@@ -66,8 +63,7 @@ AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildPr
     game_process *ParentProcess = GetGameProcess(State, ParentProcessName);
     game_process *ChildProcess = GetGameProcess(State, ChildProcessName);
 
-    // todo: IsEmpty?
-    if (StringEquals(ChildProcess->Key, ""))
+    if (IsSlotEmpty(ChildProcess->Key))
     {
         InitGameProcess(ChildProcess, ChildProcessName, ChildOnUpdatePerFrame);
     }
@@ -75,7 +71,7 @@ AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildPr
     ParentProcess->Child = ChildProcess;
 }
 
-GAME_PROCESS_ON_UPDATE(DelayProcess)
+internal GAME_PROCESS_ON_UPDATE(DelayProcess)
 {
     State->DelayTime += Delta;
 
@@ -87,7 +83,7 @@ GAME_PROCESS_ON_UPDATE(DelayProcess)
     }
 }
 
-GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
+internal GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
 {
     f32 Red = Random01(&State->Entropy);
     f32 Green = Random01(&State->Entropy);
@@ -98,7 +94,7 @@ GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
     EndGameProcess(State, Process->Key);
 }
 
-GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
+internal GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
 {
     rigid_body *PlayerBody = State->Player->Body;
 
@@ -119,7 +115,7 @@ GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
     }
 }
 
-GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
+internal GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
 {
     if (State->PlayerCamera.PivotPositionLerp.Duration > 0.f)
     {
@@ -138,7 +134,7 @@ GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
     }
 }
 
-GAME_PROCESS_ON_UPDATE(PlayerMoveLerpProcess)
+internal GAME_PROCESS_ON_UPDATE(PlayerMoveLerpProcess)
 {
     f32 InterpolationTime = 0.2f;
     vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;

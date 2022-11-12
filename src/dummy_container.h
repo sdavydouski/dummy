@@ -25,6 +25,20 @@ IsSlotEmpty(u32 Key)
     return Result;
 }
 
+inline b32
+IsEquals(char *Key1, char *Key2)
+{
+    b32 Result = StringEquals(Key1, Key2);
+    return Result;
+}
+
+inline b32
+IsEquals(u32 Key1, u32 Key2)
+{
+    b32 Result = Key1 == Key2;
+    return Result;
+}
+
 inline void
 RemoveFromHashTable(char *Key)
 {
@@ -37,44 +51,18 @@ RemoveFromHashTable(u32 *Key)
     *Key = EMPTY_SLOT_KEY_U32;
 }
 
-template <typename T>
-internal T *
-HashTableLookup(hash_table<T> *HashTable, char *Key)
+template <typename TValue, typename TKey>
+internal TValue *
+HashTableLookup(hash_table<TValue> *HashTable, TKey Key)
 {
     u64 HashValue = Hash(Key);
     u32 HashSlot = HashValue % HashTable->Count;
 
-    T *Result = HashTable->Values + HashSlot;
+    TValue *Result = HashTable->Values + HashSlot;
 
     u32 IterationCount = 0;
 
-    while (!(IsSlotEmpty(Result->Key) || StringEquals(Result->Key, Key)))
-    {
-        // todo: round-robin?
-        u32 ProbIndex = (HashSlot + Square(IterationCount + 1)) % HashTable->Count;
-        Result = HashTable->Values + ProbIndex;
-
-        if (IterationCount++ >= HashTable->Count)
-        {
-            Assert(!"HashTable is full!");
-        }
-    }
-
-    return Result;
-}
-
-template <typename T>
-internal T *
-HashTableLookup(hash_table<T> *HashTable, u32 Key)
-{
-    u64 HashValue = Hash(Key);
-    u32 HashSlot = HashValue % HashTable->Count;
-
-    T *Result = HashTable->Values + HashSlot;
-
-    u32 IterationCount = 0;
-
-    while (!(IsSlotEmpty(Result->Key) || Result->Key == Key))
+    while (!(IsSlotEmpty(Result->Key) || IsEquals(Result->Key, Key)))
     {
         // todo: round-robin?
         u32 ProbIndex = (HashSlot + Square(IterationCount + 1)) % HashTable->Count;

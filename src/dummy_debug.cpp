@@ -138,17 +138,6 @@ RenderEntityInfo(game_entity *Entity, model *Model)
 
     ImGui::NewLine();
 
-    if (Entity->Body)
-    {
-        if (ImGui::CollapsingHeader("Ridig Body", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
-            ImGui::InputFloat3("HalfSize", Entity->Body->HalfSize.Elements);
-            ImGui::InputFloat4("Orientation", Entity->Body->Orientation.Elements);
-            ImGui::NewLine();
-        }
-    }
-
     if (Model)
     {
         if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen))
@@ -180,6 +169,29 @@ RenderEntityInfo(game_entity *Entity, model *Model)
             ImGui::Text("Total Vertices: %d", TotalVertexCount);
             ImGui::Text("Total Indices: %d", TotalIndexCount);
 
+            ImGui::NewLine();
+        }
+    }
+
+    if (Entity->Collider)
+    {
+        if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            // todo:
+            Assert(Entity->Collider->Type == Collider_Box);
+
+            ImGui::InputFloat3("Center", Entity->Collider->BoxCollider.Center.Elements);
+            ImGui::InputFloat3("Size", Entity->Collider->BoxCollider.Size.Elements);
+            ImGui::NewLine();
+        }
+    }
+
+    if (Entity->Body)
+    {
+        if (ImGui::CollapsingHeader("Ridig Body", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
+            ImGui::InputFloat4("Orientation", Entity->Body->Orientation.Elements);
             ImGui::NewLine();
         }
     }
@@ -293,6 +305,9 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
         ImGui::Checkbox("Show Bounding Volumes", (bool *) &GameState->Options.ShowBoundingVolumes);
         ImGui::TableNextColumn();
         ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
+
+        ImGui::TableNextColumn();
+        ImGui::Checkbox("Show Grid", (bool *) &GameState->Options.ShowGrid);
 
         ImGui::EndTable();
     }

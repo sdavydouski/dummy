@@ -69,7 +69,6 @@ BuildModelAssets(const char *Path)
             FormatString(FilePath, "%s/%s.fbx", DirectoryPath.generic_string().c_str(), DirectoryName.generic_string().c_str());
 
             char AnimationConfigPath[256];
-            // todo: move to yaml configs
             FormatString(AnimationConfigPath, "%s/animation_graph.json", DirectoryPath.generic_string().c_str());
 
             char AnimationClipsPath[256];

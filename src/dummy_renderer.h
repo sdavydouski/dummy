@@ -112,6 +112,7 @@ enum render_command_type
     RenderCommand_SetPointLights,
 
     RenderCommand_Clear,
+    RenderCommand_DrawPoint,
     RenderCommand_DrawLine,
     RenderCommand_DrawRectangle,
     RenderCommand_DrawBox,
@@ -147,8 +148,6 @@ struct render_command_add_mesh
 
     u32 IndexCount;
     u32 *Indices;
-
-    u32 MaxInstanceCount;
 };
 
 struct render_command_add_texture
@@ -230,6 +229,14 @@ struct render_command_clear
 {
     render_command_header Header;
     vec4 Color;
+};
+
+struct render_command_draw_point
+{
+    render_command_header Header;
+    vec3 Position;
+    vec4 Color;
+    f32 Size;
 };
 
 struct render_command_draw_line

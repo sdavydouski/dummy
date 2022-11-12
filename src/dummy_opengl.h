@@ -41,10 +41,12 @@ struct opengl_mesh_buffer
     u32 IndexCount;
 
     GLuint VAO;
-    GLuint VBO;
+    GLuint VertexBuffer;
+    GLuint InstanceBuffer;
     GLuint EBO;
 
     u32 BufferSize;
+    u32 InstanceCount;
 };
 
 struct opengl_skinning_buffer

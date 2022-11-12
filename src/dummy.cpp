@@ -186,7 +186,7 @@ GenerateSkinningBufferId()
 }
 
 inline void
-InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Arena, render_commands *RenderCommands, u32 MaxInstanceCount = 0)
+InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Arena, render_commands *RenderCommands)
 {
     *Model = {};
 
@@ -212,7 +212,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
         AddMesh(
             RenderCommands, Mesh->Id, Mesh->VertexCount,
             Mesh->Positions, Mesh->Normals, Mesh->Tangents, Mesh->Bitangents, Mesh->TextureCoords, Mesh->Weights, Mesh->JointIndices,
-            Mesh->IndexCount, Mesh->Indices, MaxInstanceCount
+            Mesh->IndexCount, Mesh->Indices
         );
 
         mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
@@ -320,9 +320,16 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
 }
 
 internal entity_render_batch *
-GetEntityBatch(game_state *State, char *Name)
+GetRenderBatch(game_state *State, char *Name)
 {
     entity_render_batch *Result = HashTableLookup(&State->EntityBatches, Name);
+    return Result;
+}
+
+inline b32
+IsRenderBatchEmpty(entity_render_batch *Batch)
+{
+    b32 Result = StringEquals(Batch->Key, "");
     return Result;
 }
 
@@ -356,14 +363,40 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
         },
         {
             "Cube",
-            "assets\\cube.asset",
-            8192
+            "assets\\cube.asset"
         },
         {
             "Sphere",
-            "assets\\sphere.asset",
-            4096
-        }
+            "assets\\sphere.asset"
+        },
+
+        // Dungeon Assets
+        {
+            "Cleric",
+            "assets\\cleric.asset"
+        },
+
+        {
+            "Floor_Standard",
+            "assets\\Floor_Standard.asset"
+        },
+        {
+            "Wall",
+            "assets\\Wall.asset"
+        },
+
+        {
+            "Barrel",
+            "assets\\Barrel.asset"
+        },
+        {
+            "Crate",
+            "assets\\Crate.asset"
+        },
+        {
+            "Torch",
+            "assets\\torch.asset"
+        },
     };
 
     Assets->ModelAssetCount = ArrayCount(ModelAssets);
@@ -497,7 +530,7 @@ InitGameModelAssets(game_assets *Assets, render_commands *RenderCommands, memory
         game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetModelIndex;
 
         model *Model = GetModelAsset(Assets, GameAssetModel->GameAsset.Name);
-        InitModel(GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, Arena, RenderCommands, GameAssetModel->GameAsset.MaxInstanceCount);
+        InitModel(GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, Arena, RenderCommands);
     }
 }
 
@@ -523,7 +556,7 @@ internal void
 InitGameAudioClipAssets(game_assets *Assets, memory_arena *Arena)
 {
     // todo:
-    Assets->AudioClips.Count = 11;
+    Assets->AudioClips.Count = 31;
     Assets->AudioClips.Values = PushArray(Arena, Assets->AudioClips.Count, audio_clip);
 
     Assert(Assets->AudioClips.Count > Assets->AudioClipAssetCount);
@@ -548,11 +581,11 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
-        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.05f), LocalJointPose->Rotation);
+        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.01f), LocalJointPose->Rotation);
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
-        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.4f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.1f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -613,30 +646,33 @@ RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
 internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
+    // Pivot point
+    DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
+
+    bounds Bounds = GetEntityBounds(Entity);
+    vec3 HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
+    // todo:
+    vec3 BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
+#if 0
+    quat Rotation = Entity->Transform.Rotation;
+#else
+    quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
+#endif
+
+    transform Transform = CreateTransform(BottomCenterPosition, HalfSize, Rotation);
+    vec4 Color = vec4(0.f, 1.f, 1.f, 1.f);
+
+    if (Entity->Collider)
+    {
+        Color = vec4(0.f, 1.f, 0.f, 1.f);
+    }
+
     if (Entity->Body)
     {
-        // Rigid Body
-        vec3 HalfSize = Entity->Body->HalfSize;
-        vec3 Position = Entity->Transform.Translation;
-        quat Rotation = Entity->Transform.Rotation;
-
-        transform Transform = CreateTransform(Position, HalfSize, Rotation);
-        vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
-
-        DrawBox(RenderCommands, Transform, Color);
+        Color = vec4(1.f, 0.f, 0.f, 1.f);
     }
-    else if (Entity->Model)
-    {
-        // Mesh Bounds
-        vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
-        vec3 Position = Entity->Transform.Translation;
-        quat Rotation = Entity->Transform.Rotation;
 
-        transform Transform = CreateTransform(Position, HalfSize, Rotation);
-        vec4 Color = vec4(0.f, 1.f, 1.f, 1.f);
-
-        DrawBox(RenderCommands, Transform, Color);
-    }
+    DrawBox(RenderCommands, Transform, Color);
 }
 
 internal void
@@ -740,10 +776,19 @@ AddModelComponent(game_entity *Entity, game_assets *Assets, const char *ModelNam
 }
 
 inline void
-AddRigidBodyComponent(game_entity *Entity, vec3 Position, quat Orientation, vec3 HalfSize, b32 RootMotionEnabled, memory_arena *Arena)
+AddBoxColliderComponent(game_entity *Entity, vec3 Size, memory_arena *Arena)
+{
+    Entity->Collider = PushType(Arena, collider);
+    Entity->Collider->Type = Collider_Box;
+    Entity->Collider->BoxCollider.Size = Size;
+    UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
+}
+
+inline void
+AddRigidBodyComponent(game_entity *Entity, b32 RootMotionEnabled, memory_arena *Arena)
 {
     Entity->Body = PushType(Arena, rigid_body);
-    BuildRigidBody(Entity->Body, Position, Orientation, HalfSize, RootMotionEnabled);
+    BuildRigidBody(Entity->Body, Entity->Transform.Translation, Entity->Transform.Rotation, RootMotionEnabled);
 }
 
 inline void
@@ -942,6 +987,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
     {
         game_entity *Entity = Data->Entities + EntityIndex;
         rigid_body *Body = Entity->Body;
+        collider *Collider = Entity->Collider;
 
         if (Body)
         {
@@ -962,29 +1008,36 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 Integrate(Body, Data->UpdateRate);
             }
 
-            u32 MaxNearbyEntityCount = 100;
-            game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-            aabb Bounds = { vec3(-5.f), vec3(5.f) };
-
-            u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
-
-            for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
+            if (Collider)
             {
-                game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
-                rigid_body *NearbyBody = NearbyEntity->Body;
+                UpdateColliderPosition(Collider, Entity->Body->Position);
 
-                if (Entity->Id == Data->PlayerId || Entity->DebugView)
-                {
-                    NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
-                }
+                u32 MaxNearbyEntityCount = 100;
+                game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
+                bounds Bounds = { vec3(-1.f), vec3(1.f) };
 
-                if (NearbyBody)
+                u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
+
+                for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
                 {
-                    // Collision detection and resolution
-                    vec3 mtv;
-                    if (TestAABBAABB(GetRigidBodyAABB(Entity->Body), GetRigidBodyAABB(NearbyBody), &mtv))
+                    game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
+                    rigid_body *NearbyBody = NearbyEntity->Body;
+                    collider *NearbyBodyCollider = NearbyEntity->Collider;
+
+                    if (Entity->Id == Data->PlayerId || Entity->DebugView)
                     {
-                        Entity->Body->Position += mtv;
+                        //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                    }
+
+                    if (NearbyBodyCollider)
+                    {
+                        // Collision detection and resolution
+                        vec3 mtv;
+                        if (TestColliders(Entity->Collider, NearbyEntity->Collider, &mtv))
+                        {
+                            Entity->Body->Position += mtv;
+                            UpdateColliderPosition(Collider, Entity->Body->Position);
+                        }
                     }
                 }
             }
@@ -1034,9 +1087,14 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
             Entity->Transform.Rotation = Entity->Body->Orientation;
         }
 
+        if (Entity->Collider)
+        {
+            UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
+        }
+
         if (Entity->Model)
         {
-            aabb BoundingBox = GetEntityBoundingBox(Entity);
+            bounds BoundingBox = GetEntityBounds(Entity);
 
             // Frustrum culling
             Entity->Visible = AxisAlignedBoxVisible(Data->ShadowPlaneCount, Data->ShadowPlanes, BoundingBox);
@@ -1070,92 +1128,319 @@ InitGameMenu(game_state *State)
 internal void
 InitGameEntities(game_state *State, render_commands *RenderCommands)
 {
+    // todo(continue): set scale in config file
+    f32 Scale = 0.01f * 1.f;
+
+#if 1
     // Pelegrini
     State->Pelegrini = CreateGameEntity(State);
-    State->Pelegrini->Transform = CreateTransform(vec3(0.f), vec3(3.f), quat(0.f, 0.f, 10.f, 1.f));
+    State->Pelegrini->Transform = CreateTransform(vec3(0.f, 0.f, 2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Pelegrini, &State->Assets, "Pelegrini", RenderCommands, &State->PermanentArena);
-    AddRigidBodyComponent(State->Pelegrini, vec3(0.f, 0.f, 10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddBoxColliderComponent(State->Pelegrini, vec3(0.8f, 2.f, 0.8f), &State->PermanentArena);
+    AddRigidBodyComponent(State->Pelegrini, true, &State->PermanentArena);
     AddAnimationComponent(State->Pelegrini, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Pelegrini);
 
     // xBot
     State->xBot = CreateGameEntity(State);
-    State->xBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
+    State->xBot->Transform = CreateTransform(vec3(2.f, 0.f, 0.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->xBot, &State->Assets, "xBot", RenderCommands, &State->PermanentArena);
-    AddRigidBodyComponent(State->xBot, vec3(8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddBoxColliderComponent(State->xBot, vec3(0.8f, 2.f, 0.8f), &State->PermanentArena);
+    AddRigidBodyComponent(State->xBot, true, &State->PermanentArena);
     AddAnimationComponent(State->xBot, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->xBot);
 
     // yBot
     State->yBot = CreateGameEntity(State);
-    State->yBot->Transform = CreateTransform(vec3(0.f), vec3(3.2f), quat(0.f, 0.f, 0.f, 1.f));
+    State->yBot->Transform = CreateTransform(vec3(-2.f, 0.f, 0.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->yBot, &State->Assets, "yBot", RenderCommands, &State->PermanentArena);
-    AddRigidBodyComponent(State->yBot, vec3(-8.f, 0.f, 0.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f, 3.f, 1.f), true, &State->PermanentArena);
+    AddBoxColliderComponent(State->yBot, vec3(0.8f, 2.f, 0.8f), &State->PermanentArena);
+    AddRigidBodyComponent(State->yBot, true, &State->PermanentArena);
     AddAnimationComponent(State->yBot, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->yBot);
 
     // Paladin
     State->Paladin = CreateGameEntity(State);
-    State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -10.f), vec3(3.7f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Paladin, &State->Assets, "Paladin", RenderCommands, &State->PermanentArena);
-    AddRigidBodyComponent(State->Paladin, vec3(0.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.5f, 3.f, 1.75f), true, &State->PermanentArena);
+    AddBoxColliderComponent(State->Paladin, vec3(1.f, 2.f, 1.f), &State->PermanentArena);
+    AddRigidBodyComponent(State->Paladin, true, &State->PermanentArena);
     AddAnimationComponent(State->Paladin, "Paladin", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Paladin);
 
     // Warrok
     State->Warrok = CreateGameEntity(State);
-    State->Warrok->Transform = CreateTransform(vec3(-16.f, 0.f, -10.f), vec3(4.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Warrok->Transform = CreateTransform(vec3(-4.f, 0.f, -2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Warrok, &State->Assets, "Warrok", RenderCommands, &State->PermanentArena);
-    AddRigidBodyComponent(State->Warrok, vec3(-16.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f, 4.f, 3.f), true, &State->PermanentArena);
+    AddBoxColliderComponent(State->Warrok, vec3(1.2f, 2.f, 1.2f), &State->PermanentArena);
+    AddRigidBodyComponent(State->Warrok, true, &State->PermanentArena);
     AddAnimationComponent(State->Warrok, "Monstar", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Warrok);
+#endif
 
     // Maw
     State->Maw = CreateGameEntity(State);
-    State->Maw->Transform = CreateTransform(vec3(16.f, 0.f, -10.f), vec3(4.f), quat(0.f, 0.f, 0.f, 1.f));
+    State->Maw->Transform = CreateTransform(vec3(4.f, 0.f, -2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Maw, &State->Assets, "Maw", RenderCommands, &State->PermanentArena);
-    AddRigidBodyComponent(State->Maw, vec3(16.f, 0.f, -10.f), quat(0.f, 0.f, 0.f, 1.f), vec3(3.f, 4.f, 3.f), true, &State->PermanentArena);
+    AddBoxColliderComponent(State->Maw, vec3(1.2f, 2.f, 1.2f), &State->PermanentArena);
+    AddRigidBodyComponent(State->Maw, true, &State->PermanentArena);
     AddAnimationComponent(State->Maw, "Monstar", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Maw);
 
-    State->PlayableEntityIndex = 0;
+    // Cleric
+    State->Cleric = CreateGameEntity(State);
+    State->Cleric->Transform = CreateTransform(vec3(0.f, 0.f, -4.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+    AddModelComponent(State->Cleric, &State->Assets, "Cleric", RenderCommands, &State->PermanentArena);
+    AddBoxColliderComponent(State->Cleric, vec3(0.6f, 1.8f, 0.6f), &State->PermanentArena);
+    AddRigidBodyComponent(State->Cleric, false, &State->PermanentArena);
+    AddToSpacialGrid(&State->SpatialGrid, State->Cleric);
 
-#if 1
-    u32 Count = 1000;
-    while (Count--)
+    State->PlayableEntityIndex = 6;
+
     {
-        game_entity *Entity = CreateGameEntity(State);
-        vec3 Position = vec3(RandomBetween(&State->Entropy, -200.f, 200.f), RandomBetween(&State->Entropy, 1.f, 4.f), RandomBetween(&State->Entropy, -200.f, 200.f));
-        Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
-        AddModelComponent(Entity, &State->Assets, "Cube", RenderCommands, &State->PermanentArena);
-        AddRigidBodyComponent(Entity, Position, quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
-        Entity->TestColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+        u32 Count = 5;
+        while (Count--)
+        {
+            game_entity *Entity = CreateGameEntity(State);
+            vec3 Position = vec3(RandomBetween(&State->Entropy, -10.f, 10.f), 0.f, RandomBetween(&State->Entropy, -10.f, 10.f));
+            Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
+            AddModelComponent(Entity, &State->Assets, "Barrel", RenderCommands, &State->PermanentArena);
+            AddBoxColliderComponent(Entity, vec3(0.8f, 1.f, 0.8f), &State->PermanentArena);
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+        }
+    }
 
-        AddToSpacialGrid(&State->SpatialGrid, Entity);
+    {
+        u32 Count = 5;
+        while (Count--)
+        {
+            game_entity *Entity = CreateGameEntity(State);
+            vec3 Position = vec3(RandomBetween(&State->Entropy, -10.f, 10.f), 0.f, RandomBetween(&State->Entropy, -10.f, 10.f));
+            Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
+            AddModelComponent(Entity, &State->Assets, "Crate", RenderCommands, &State->PermanentArena);
+            AddBoxColliderComponent(Entity, vec3(0.8f, 0.8f, 0.8f), &State->PermanentArena);
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+        }
+    }
+
+#if 0
+    {
+        u32 Count = 100;
+        while (Count--)
+        {
+            game_entity *Entity = CreateGameEntity(State);
+            vec3 Position = vec3(RandomBetween(&State->Entropy, -100.f, 100.f), 0.f, RandomBetween(&State->Entropy, -100.f, 100.f));
+            Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
+            AddModelComponent(Entity, &State->Assets, "Cube", RenderCommands, &State->PermanentArena);
+            Entity->TestColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+        }
     }
 #endif
 
-#if 0
-    for (i32 TileY = 0; TileY <= 3; ++TileY)
+#if 1
+    // Floor
+    for (i32 TileZ = -5; TileZ <= 5; ++TileZ)
     {
-        for (i32 TileX = -10; TileX <= 10; ++TileX)
+        for (i32 TileX = -5; TileX <= 5; ++TileX)
         {
-            vec3 HalfSize = vec3(1.f, 1.f, 1.f);
+            vec3 Size = vec3(2.f, 0.3f, 2.f);
+            vec3 HalfSize = Size / 2.f;
 
             f32 x = 2.f * HalfSize.x * TileX;
-            f32 y = 2.f * HalfSize.y * TileY;
-            f32 z = -40.f + RandomBetween(&State->Entropy, -0.2f, 0.2f);
+            f32 y = -Size.y;
+            f32 z = 2.f * HalfSize.z * TileZ;
 
             vec3 Position = vec3(x, y, z);
-            vec3 Scale = vec3(HalfSize);
+            vec3 Scale = vec3(1.f);
             quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
 
             game_entity *Entity = CreateGameEntity(State);
+            
             Entity->Transform = CreateTransform(Position, Scale, Rotation);
-            AddModelComponent(Entity, &State->Assets, "Cube");
-            AddRigidBodyComponent(Entity, Position, Rotation, Scale, false, &State->PermanentArena);
+            AddModelComponent(Entity, &State->Assets, "Floor_Standard", RenderCommands, &State->PermanentArena);
+            AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
             AddToSpacialGrid(&State->SpatialGrid, Entity);
-            Entity->TestColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
+        }
+    }
+
+    // Walls
+    {
+        for (i32 TileX = -5; TileX <= 5; ++TileX)
+        {
+            f32 TileZ = -11;
+
+            vec3 Size = vec3(2.f, 2.f, 0.3f);
+            vec3 HalfSize = Size / 2.f;
+
+            f32 x = 2.f * HalfSize.x * TileX;
+            f32 y = 0.f;
+            f32 z = TileZ + HalfSize.z;
+
+            vec3 Position = vec3(x, y, z);
+            vec3 Scale = vec3(1.f);
+            quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
+
+            game_entity *Entity = CreateGameEntity(State);
+
+            Entity->Transform = CreateTransform(Position, Scale, Rotation);
+            AddModelComponent(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
+            AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+            if (TileX == 0)
+            {
+                vec3 Size = vec3(0.28f, 1.2f, 0.44f);
+                vec3 HalfSize = Size / 2.f;
+
+                f32 x = 2.f * HalfSize.x * TileX;
+                f32 y = 0.6f;
+                f32 z = TileZ + Size.z;
+
+                vec3 Position = vec3(x, y, z);
+                vec3 Scale = vec3(1.f);
+                quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
+
+                game_entity *Entity = CreateGameEntity(State);
+
+                Entity->Transform = CreateTransform(Position, Scale, Rotation);
+                AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
+                AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+                AddToSpacialGrid(&State->SpatialGrid, Entity);
+            }
+        }
+
+        for (i32 TileX = -5; TileX <= 5; ++TileX)
+        {
+            f32 TileZ = 11;
+
+            vec3 Size = vec3(2.f, 2.f, 0.3f);
+            vec3 HalfSize = Size / 2.f;
+
+            f32 x = 2.f * HalfSize.x * TileX;
+            f32 y = 0.f;
+            f32 z = TileZ - HalfSize.z;
+
+            vec3 Position = vec3(x, y, z);
+            vec3 Scale = vec3(1.f);
+            quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
+
+            game_entity *Entity = CreateGameEntity(State);
+
+            Entity->Transform = CreateTransform(Position, Scale, Rotation);
+            AddModelComponent(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
+            AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+            if (TileX == 0)
+            {
+                vec3 Size = vec3(0.28f, 1.2f, 0.44f);
+                vec3 HalfSize = Size / 2.f;
+
+                f32 x = 2.f * HalfSize.x * TileX;
+                f32 y = 0.6f;
+                f32 z = TileZ - Size.z;
+
+                vec3 Position = vec3(x, y, z);
+                vec3 Scale = vec3(1.f);
+                quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI);
+
+                game_entity *Entity = CreateGameEntity(State);
+
+                Entity->Transform = CreateTransform(Position, Scale, Rotation);
+                AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
+                AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+                AddToSpacialGrid(&State->SpatialGrid, Entity);
+            }
+        }
+
+        for (i32 TileZ = -5; TileZ <= 5; ++TileZ)
+        {
+            f32 TileX = 11;
+
+            vec3 Size = vec3(0.3f, 2.f, 2.f);
+            vec3 HalfSize = Size / 2.f;
+
+            f32 x = TileX - HalfSize.x;
+            f32 y = 0.f;
+            f32 z = 2.f * HalfSize.z * TileZ;
+
+            vec3 Position = vec3(x, y, z);
+            vec3 Scale = vec3(1.f);
+            quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI / 2);
+
+            game_entity *Entity = CreateGameEntity(State);
+
+            Entity->Transform = CreateTransform(Position, Scale, Rotation);
+            AddModelComponent(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
+            AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+            if (TileZ == 0)
+            {
+                vec3 Size = vec3(0.44f, 1.2f, 0.28f);
+                vec3 HalfSize = Size / 2.f;
+
+                f32 x = TileX - Size.x;
+                f32 y = 0.6f;
+                f32 z = 2.f * HalfSize.z * TileZ;
+
+                vec3 Position = vec3(x, y, z);
+                vec3 Scale = vec3(1.f);
+                quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), -PI / 2);
+
+                game_entity *Entity = CreateGameEntity(State);
+
+                Entity->Transform = CreateTransform(Position, Scale, Rotation);
+                AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
+                AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+                AddToSpacialGrid(&State->SpatialGrid, Entity);
+            }
+        }
+
+        for (i32 TileZ = -5; TileZ <= 5; ++TileZ)
+        {
+            f32 TileX = -11;
+
+            vec3 Size = vec3(0.3f, 2.f, 2.f);
+            vec3 HalfSize = Size / 2.f;
+
+            f32 x = TileX + HalfSize.x;
+            f32 y = 0.f;
+            f32 z = 2.f * HalfSize.z * TileZ;
+
+            vec3 Position = vec3(x, y, z);
+            vec3 Scale = vec3(1.f);
+            quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI / 2);
+
+            game_entity *Entity = CreateGameEntity(State);
+
+            Entity->Transform = CreateTransform(Position, Scale, Rotation);
+            AddModelComponent(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
+            AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+            AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+            if (TileZ == 0)
+            {
+                vec3 Size = vec3(0.44f, 1.2f, 0.28f);
+                vec3 HalfSize = Size / 2.f;
+
+                f32 x = TileX + Size.x;
+                f32 y = 0.6f;
+                f32 z = 2.f * HalfSize.z * TileZ;
+
+                vec3 Position = vec3(x, y, z);
+                vec3 Scale = vec3(1.f);
+                quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI / 2);
+
+                game_entity *Entity = CreateGameEntity(State);
+
+                Entity->Transform = CreateTransform(Position, Scale, Rotation);
+                AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
+                AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
+                AddToSpacialGrid(&State->SpatialGrid, Entity);
+            }
         }
     }
 #endif
@@ -1228,10 +1513,10 @@ DLLExport GAME_INIT(GameInit)
 
     f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
     f32 FieldOfView = RADIANS(45.f);
-    InitCamera(&State->FreeCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 16.f, 32.f), RADIANS(-25.f), RADIANS(-90.f));
+    InitCamera(&State->FreeCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 4.f, 8.f), RADIANS(-25.f), RADIANS(-90.f));
     InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(0.f));
     // todo:
-    State->PlayerCamera.Radius = 16.f;
+    State->PlayerCamera.Radius = 4.f;
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
@@ -1275,11 +1560,13 @@ DLLExport GAME_INIT(GameInit)
     }
 
     State->Options = {};
+    State->Options.ShowBoundingVolumes = true;
+    State->Options.ShowGrid = false;
 
     InitGameMenu(State);
 
-    aabb WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
-    vec3 CellSize = vec3(10.f);
+    bounds WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
+    vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&State->SpatialGrid, WorldBounds, CellSize, &State->PermanentArena);
 
     State->EntityCount = 0;
@@ -1289,7 +1576,7 @@ DLLExport GAME_INIT(GameInit)
     // Dummy
     State->Dummy = CreateGameEntity(State);
     State->Dummy->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-    //AddRigidBodyComponent(State->Dummy, vec3(0.f, 20.f, -100.f), quat(0.f, 0.f, 0.f, 1.f), vec3(1.f), false, &State->PermanentArena);
+    AddBoxColliderComponent(State->Dummy, vec3(1.f), &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Dummy);
 
     LoadFontAssets(&State->Assets, Platform, &State->PermanentArena);
@@ -1313,7 +1600,7 @@ DLLExport GAME_INIT(GameInit)
     State->Player = State->Dummy;
     State->Player->FutureControllable = true;
 
-    State->MasterVolume = 0.75f;
+    State->MasterVolume = 0.5f;
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1432,22 +1719,22 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         State->Player->FutureControllable = false;
 
-        State->Pelegrini->Body->Position = vec3(0.f, 0.f, 10.f);
+        State->Pelegrini->Body->Position = vec3(0.f, 0.f, 2.f);
         State->Pelegrini->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
-        State->xBot->Body->Position = vec3(8.f, 0.f, 0.f);
+        State->xBot->Body->Position = vec3(2.f, 0.f, 0.f);
         State->xBot->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
-        State->yBot->Body->Position = vec3(-8.f, 0.f, 0.f);
+        State->yBot->Body->Position = vec3(-2.f, 0.f, 0.f);
         State->yBot->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
-        State->Paladin->Body->Position = vec3(0.f, 0.f, -10.f);
+        State->Paladin->Body->Position = vec3(0.f, 0.f, -2.f);
         State->Paladin->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
-        State->Warrok->Body->Position = vec3(-16.f, 0.f, -10.f);
+        State->Warrok->Body->Position = vec3(-4.f, 0.f, -2.f);
         State->Warrok->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
-        State->Maw->Body->Position = vec3(16.f, 0.f, -10.f);
+        State->Maw->Body->Position = vec3(4.f, 0.f, -2.f);
         State->Maw->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
 
         State->PlayableEntityIndex = 0;
@@ -1472,13 +1759,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             if (Entity->Model)
             {
                 Entity->DebugView = false;
-
-                vec3 HalfSize = Entity->Body
-                    ? Entity->Body->HalfSize
-                    : GetModelHalfSize(Entity->Model, Entity->Transform);
-
-                vec3 Center = Entity->Transform.Translation + vec3(0.f, HalfSize.y, 0.f);
-                aabb Box = CreateAABBCenterHalfSize(Center, HalfSize);
+                bounds Box = GetEntityBounds(Entity);
 
                 vec3 IntersectionPoint;
                 if (IntersectRayAABB(Ray, Box, IntersectionPoint))
@@ -1533,7 +1814,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             PlayerCamera->Yaw = Mod(PlayerCamera->Yaw, 2 * PI);
 
             PlayerCamera->Radius -= Input->ZoomDelta;
-            PlayerCamera->Radius = Clamp(PlayerCamera->Radius, 10.f, 70.f);
+            PlayerCamera->Radius = Clamp(PlayerCamera->Radius, 4.f, 16.f);
 
             f32 CameraHeight = Max(0.1f, PlayerCamera->Radius * Sin(PlayerCamera->Pitch));
 
@@ -1542,7 +1823,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             if (PlayerPosition != PlayerCamera->PivotPosition)
             {
                 f32 Distance = Magnitude(PlayerPosition - PlayerCamera->PivotPosition);
-                f32 Duration = LogisticFunction(0.4f, 0.5f, 5.f, Distance);
+                f32 Duration = LogisticFunction(0.8f, 0.5f, 5.f, Distance);
 
                 SetVec3Lerp(&PlayerCamera->PivotPositionLerp, 0.f, Duration, PlayerCamera->PivotPosition, PlayerPosition);
                 StartGameProcess(State, CameraPivotPositionLerpProcess);
@@ -1557,7 +1838,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             PlayerCamera->Transform.Rotation = Euler2Quat(PlayerCamera->Yaw, PlayerCamera->Pitch, 0.f);
 
             // todo:
-            vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 4.f, 0.f);
+            vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 1.f, 0.f);
             PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Transform.Translation);
 
             game_entity *Player = State->Player;
@@ -1583,8 +1864,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     StartGameProcess(State, PlayerMoveLerpProcess);
                 }
 
-                Player->Body->Acceleration.x = (xMoveX + xMoveY) * 120.f;
-                Player->Body->Acceleration.z = (zMoveX + zMoveY) * 120.f;
+                Player->Body->Acceleration.x = (xMoveX + xMoveY) * 20.f;
+                Player->Body->Acceleration.z = (zMoveX + zMoveY) * 20.f;
 
                 quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
 
@@ -1611,7 +1892,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             game_camera *FreeCamera = &State->FreeCamera;
 
-            f32 FreeCameraSpeed = 30.f;
+            f32 FreeCameraSpeed = 10.f;
 
             if (Input->EnableFreeCameraMovement.IsActive)
             {
@@ -1903,7 +2184,10 @@ DLLExport GAME_RENDER(GameRender)
                 // Camera is looking downwards
                 if (State->PlayerCamera.Direction.y < 0.f)
                 {
-                    ClipPolyhedron(&State->Frustrum, State->Ground, &VisibilityRegion);
+                    f32 MinY = 1.f;
+                    plane LowestPlane = ComputePlane(vec3(-1.f, MinY, 0.f), vec3(0.f, MinY, 1.f), vec3(1.f, MinY, 0.f));
+
+                    ClipPolyhedron(&State->Frustrum, LowestPlane, &VisibilityRegion);
                 }
 
                 vec4 LightPosition = vec4(-State->DirectionalLight.Direction * 100.f, 0.f);
@@ -2012,12 +2296,11 @@ DLLExport GAME_RENDER(GameRender)
                         if (!EnableFrustrumCulling || Entity->Visible)
                         {
                             // Grouping entities into render batches
-                            entity_render_batch *Batch = GetEntityBatch(State, Entity->Model->Key);
+                            entity_render_batch *Batch = GetRenderBatch(State, Entity->Model->Key);
 
-                            if (StringEquals(Batch->Key, ""))
+                            if (IsRenderBatchEmpty(Batch))
                             {
-                                // todo: max count?
-                                InitRenderBatch(Batch, Entity->Model, 10000, &State->TransientArena);
+                                InitRenderBatch(Batch, Entity->Model, State->MaxEntityCount, &State->TransientArena);
                             }
 
                             AddEntityToRenderBatch(Batch, Entity);
@@ -2041,9 +2324,10 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     entity_render_batch *Batch = State->EntityBatches.Values + EntityBatchIndex;
 
-                    u32 BatchThreshold = 0;
+                    u32 BatchThreshold = 1;
 
-                    if (Batch->EntityCount > BatchThreshold && Batch->Model->AnimationCount == 0)
+                    // todo: skinning!
+                    if (Batch->EntityCount > BatchThreshold)
                     {
                         RenderEntityBatch(RenderCommands, State, Batch);
                     }
@@ -2062,7 +2346,10 @@ DLLExport GAME_RENDER(GameRender)
             // todo:
             State->PrevDanceMode = State->DanceMode;
 
-            DrawGround(RenderCommands);
+            if (State->Options.ShowGrid)
+            {
+                DrawGround(RenderCommands);
+            }
 
             font *Font = GetFontAsset(&State->Assets, "Consolas");
 
@@ -2077,15 +2364,19 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     game_entity *PlayableEntity = State->PlayableEntities[PlaybleEntityIndex];
 
-                    if (PlayableEntity->Model)
+                    if (PlayableEntity && PlayableEntity->Model)
                     {
+                        bounds Bounds = GetEntityBounds(PlayableEntity);
+                        vec3 Size = Bounds.Max - Bounds.Min;
+                        f32 YOffset = 0.2f;
+
                         vec3 TextPosition = vec3(
                             PlayableEntity->Transform.Translation.x, 
-                            PlayableEntity->Transform.Translation.y + 2.f * PlayableEntity->Body->HalfSize.y + 0.2f, 
+                            Size.y + YOffset,
                             PlayableEntity->Transform.Translation.z
                         );
 
-                        DrawText(RenderCommands, PlayableEntity->Model->Key, Font, TextPosition, 0.75f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+                        DrawText(RenderCommands, PlayableEntity->Model->Key, Font, TextPosition, 0.25f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
                     }
                 }
             }
@@ -2186,12 +2477,12 @@ DLLExport GAME_RENDER(GameRender)
         }
     }
 
-    // todo: should probably go to FrameEnd ?
-    // todo: maybe move it out to platform layer to be more explicit? (maybe create FrameStart/FrameEnd functions?)
-    ClearMemoryArena(&State->TransientArena);
-
     {
         PROFILE(Memory->Profiler, "GameRender:ProcessEvents");
         ProcessEvents(State, AudioCommands, RenderCommands);
     }
+
+    // todo: should probably go to FrameEnd ?
+    // todo: maybe move it out to platform layer to be more explicit? (maybe create FrameStart/FrameEnd functions?)
+    ClearMemoryArena(&State->TransientArena);
 }

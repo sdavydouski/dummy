@@ -355,14 +355,14 @@ OpenGLAddMeshBuffer(
     vec4 *Weights,
     ivec4 *JointIndices,
     u32 IndexCount, 
-    u32 *Indices, 
-    u32 MaxInstanceCount
+    u32 *Indices
 )
 {
     Assert(State->CurrentMeshBufferCount < OPENGL_MAX_MESH_BUFFER_COUNT);
 
     GLuint VAO;
-    GLuint VBO;
+    GLuint VertexBuffer;
+    GLuint InstanceBuffer;
     GLuint EBO;
 
     glGenVertexArrays(1, &VAO);
@@ -370,9 +370,9 @@ OpenGLAddMeshBuffer(
 
     u32 BufferSize = GetMeshVerticesSize(VertexCount, Positions, Normals, Tangents, Bitangents, TextureCoords, Weights, JointIndices);
 
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, BufferSize + MaxInstanceCount * sizeof(render_instance), 0, GL_STREAM_DRAW);
+    glGenBuffers(1, &VertexBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, VertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER, BufferSize, 0, GL_STATIC_DRAW);
 
     // per-vertex attributes
     u64 Offset = 0;
@@ -439,29 +439,30 @@ OpenGLAddMeshBuffer(
         Offset += VertexCount * sizeof(ivec4);
     }
 
-    if (MaxInstanceCount > 0)
-    {
-        // per-instance attributes
-        glEnableVertexAttribArray(7);
-        glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + 0));
-        glVertexAttribDivisor(7, 1);
+    glGenBuffers(1, &InstanceBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
+    glBufferData(GL_ARRAY_BUFFER, 0, 0, GL_STREAM_DRAW);
 
-        glEnableVertexAttribArray(8);
-        glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + sizeof(vec4)));
-        glVertexAttribDivisor(8, 1);
+    // per-instance attributes
+    glEnableVertexAttribArray(7);
+    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + 0));
+    glVertexAttribDivisor(7, 1);
 
-        glEnableVertexAttribArray(9);
-        glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
-        glVertexAttribDivisor(9, 1);
+    glEnableVertexAttribArray(8);
+    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + sizeof(vec4)));
+    glVertexAttribDivisor(8, 1);
 
-        glEnableVertexAttribArray(10);
-        glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
-        glVertexAttribDivisor(10, 1);
+    glEnableVertexAttribArray(9);
+    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
+    glVertexAttribDivisor(9, 1);
 
-        glEnableVertexAttribArray(11);
-        glVertexAttribPointer(11, 3, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (BufferSize + StructOffset(render_instance, Color)));
-        glVertexAttribDivisor(11, 1);
-    }
+    glEnableVertexAttribArray(10);
+    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
+    glVertexAttribDivisor(10, 1);
+
+    glEnableVertexAttribArray(11);
+    glVertexAttribPointer(11, 3, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Color)));
+    glVertexAttribDivisor(11, 1);
 
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -474,10 +475,12 @@ OpenGLAddMeshBuffer(
     MeshBuffer->VertexCount = VertexCount;
     MeshBuffer->IndexCount = IndexCount;
     MeshBuffer->VAO = VAO;
-    MeshBuffer->VBO = VBO;
+    MeshBuffer->VertexBuffer = VertexBuffer;
+    MeshBuffer->InstanceBuffer = InstanceBuffer;
     MeshBuffer->EBO = EBO;
 
     MeshBuffer->BufferSize = BufferSize;
+    MeshBuffer->InstanceCount = 0;
 }
 
 inline GLint
@@ -942,10 +945,11 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
     State->ShadingLanguageVersion = (char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
     State->CascadeShadowMapSize = 4096;
-    State->CascadeBounds[0] = vec2(-0.1f, -20.f);
-    State->CascadeBounds[1] = vec2(-15.f, -50.f);
-    State->CascadeBounds[2] = vec2(-40.f, -120.f);
-    State->CascadeBounds[3] = vec2(-100.f, -320.f);
+    // todo: set by the game
+    State->CascadeBounds[0] = vec2(-0.1f, -6.f);
+    State->CascadeBounds[1] = vec2(-5.f, -20.f);
+    State->CascadeBounds[2] = vec2(-18.f, -60.f);
+    State->CascadeBounds[3] = vec2(-50.f, -320.f);
 
     OpenGLInitLine(State);
     OpenGLInitRectangle(State);
@@ -1006,8 +1010,8 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     OpenGLAddTexture(State, 0, &WhiteTexture);
 
-    //glEnable(GL_CULL_FACE);
-    //glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     glFrontFace(GL_CCW);
 
@@ -1038,8 +1042,8 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 
                 OpenGLAddMeshBuffer(
                     State, Command->MeshId, Command->VertexCount,
-                    Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, Command->Weights, Command->JointIndices,
-                    Command->IndexCount, Command->Indices, Command->MaxInstanceCount
+                    Command->Positions, Command->Normals, Command->Tangents, Command->Bitangents, Command->TextureCoords, 
+                    Command->Weights, Command->JointIndices, Command->IndexCount, Command->Indices
                 );
 
                 break;
@@ -1264,6 +1268,38 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 break;
             }
+            case RenderCommand_DrawPoint:
+            {
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_draw_point *Command = (render_command_draw_point *) Entry;
+
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+
+                    glPointSize(Command->Size);
+
+                    // todo: use separate PointVAO ?
+                    glBindVertexArray(State->LineVAO);
+                    glUseProgram(Shader->Program);
+                    {
+                        mat4 Model = Translate(Command->Position);
+
+                        // todo: world mode?
+                        glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
+                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                        glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    }
+
+                    glDrawArrays(GL_POINTS, 0, 1);
+
+                    glUseProgram(0);
+                    glBindVertexArray(0);
+
+                    glPointSize(1.f);
+                }
+
+                break;
+            }
             case RenderCommand_DrawLine:
             {
                 if (!Options->RenderShadowMap)
@@ -1281,6 +1317,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         mat4 S = Scale(Command->End - Command->Start);
                         mat4 Model = T * S;
 
+                        // todo: world mode?
                         glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
                         glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
                         glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
@@ -1600,15 +1637,22 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawMeshInstanced:
             {
-                render_command_draw_mesh_instanced *Command = (render_command_draw_mesh_instanced *)Entry;
+                render_command_draw_mesh_instanced *Command = (render_command_draw_mesh_instanced *) Entry;
 
                 if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
                 {
                     opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
 
                     glBindVertexArray(MeshBuffer->VAO);
-                    glBindBuffer(GL_ARRAY_BUFFER, MeshBuffer->VBO);
-                    glBufferSubData(GL_ARRAY_BUFFER, MeshBuffer->BufferSize, Command->InstanceCount * sizeof(render_instance), Command->Instances);
+                    glBindBuffer(GL_ARRAY_BUFFER, MeshBuffer->InstanceBuffer);
+
+                    if (MeshBuffer->InstanceCount < Command->InstanceCount)
+                    {
+                        MeshBuffer->InstanceCount = (u32) (Command->InstanceCount * 1.5f);
+                        glBufferData(GL_ARRAY_BUFFER, MeshBuffer->InstanceCount * sizeof(render_instance), 0, GL_STREAM_DRAW);
+                    }
+
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, Command->InstanceCount * sizeof(render_instance), Command->Instances);
 
                     switch (Command->Material.Type)
                     {

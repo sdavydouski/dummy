@@ -49,7 +49,6 @@ struct mesh
     u32 MaterialIndex;
     b32 Visible;
 
-    // todo: calculate bitangent instead of storing it? (fourth weight too) <- do I even care?
     u32 VertexCount;
     vec3 *Positions;
     vec3 *Normals;
@@ -69,7 +68,7 @@ struct model
 {
     char Key[64];
 
-    aabb Bounds;
+    bounds Bounds;
 
     skeleton *Skeleton;
     skeleton_pose *BindPose;
@@ -151,7 +150,7 @@ struct animation_graph_asset
 
 struct model_asset
 {
-    aabb Bounds;
+    bounds Bounds;
 
     skeleton Skeleton;
     skeleton_pose BindPose;
@@ -270,7 +269,7 @@ struct asset_header
 
 struct model_asset_header
 {
-    aabb Bounds;
+    bounds Bounds;
 
     u64 SkeletonHeaderOffset;
     u64 SkeletonPoseHeaderOffset;

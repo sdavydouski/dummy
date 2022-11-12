@@ -19,6 +19,7 @@ struct game_entity
     transform Transform;
 
     model *Model;
+    collider *Collider;
     rigid_body *Body;
     animation_graph *Animation;
     skinning_data *Skinning;
@@ -55,8 +56,6 @@ struct game_asset
 {
     char Name[64];
     char Path[64];
-    // todo:
-    u32 MaxInstanceCount;
 };
 
 struct game_asset_model
@@ -108,6 +107,7 @@ struct game_options
     b32 ShowBoundingVolumes;
     b32 ShowSkeletons;
     b32 ShowCamera;
+    b32 ShowGrid;
 };
 
 struct game_menu_quad
@@ -172,9 +172,11 @@ struct game_state
             game_entity *Paladin;
             game_entity *Warrok;
             game_entity *Maw;
+
+            game_entity *Cleric;
         };
 
-        game_entity *PlayableEntities[6];
+        game_entity *PlayableEntities[7];
     };
 
     game_entity *Dummy;

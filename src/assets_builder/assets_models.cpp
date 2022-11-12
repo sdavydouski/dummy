@@ -712,7 +712,9 @@ LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
 internal void
 LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, animation_clip *Animation)
 {
-    const aiScene *AssimpScene = aiImportFile(FilePath, Flags);
+    aiPropertyStore *AssimpPropertyStore = aiCreatePropertyStore();
+
+    const aiScene *AssimpScene = aiImportFileExWithProperties(FilePath, Flags, 0, AssimpPropertyStore);
 
     Assert(AssimpScene);
     Assert(AssimpScene->mNumAnimations == 1);
@@ -722,6 +724,7 @@ LoadAnimationClipAsset(const char *FilePath, u32 Flags, model_asset *Asset, anim
     ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
 
     aiReleaseImport(AssimpScene);
+    aiReleasePropertyStore(AssimpPropertyStore);
 }
 
 internal void
@@ -1117,7 +1120,6 @@ ProcessModelAsset(const char *FilePath, const char *AnimationConfigPath, const c
         aiProcess_LimitBoneWeights |
         aiProcess_RemoveRedundantMaterials |
         aiProcess_FixInfacingNormals |
-        aiProcess_GlobalScale |
         aiProcess_OptimizeGraph |
         aiProcess_OptimizeMeshes;
 

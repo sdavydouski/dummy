@@ -77,53 +77,6 @@ struct mat4
         return Result;
     }
 
-    inline __m128 MulVecMat_sse(const __m128 &Vector, const mat4 &M)
-    {
-        // First transpose vector
-        __m128 vX = _mm_shuffle_ps(Vector, Vector, 0x00);  // (vx,vx,vx,vx)
-        __m128 vY = _mm_shuffle_ps(Vector, Vector, 0x55);  // (vy,vy,vy,vy)
-        __m128 vZ = _mm_shuffle_ps(Vector, Vector, 0xAA);  // (vz,vz,vz,vz)
-        __m128 vW = _mm_shuffle_ps(Vector, Vector, 0xFF);  // (vw,vw,vw,vw)
-
-        __m128 Result = _mm_mul_ps(vX, M.Rows_4x[0]);
-        Result = _mm_add_ps(Result, _mm_mul_ps(vY, M.Rows_4x[1]));
-        Result = _mm_add_ps(Result, _mm_mul_ps(vZ, M.Rows_4x[2]));
-        Result = _mm_add_ps(Result, _mm_mul_ps(vW, M.Rows_4x[3]));
-
-        return Result;
-    }
-
-    inline mat4 operator *(mat4 &M)
-    {
-#if 0
-        vec4 Row0 = Rows[0];
-        vec4 Row1 = Rows[1];
-        vec4 Row2 = Rows[2];
-        vec4 Row3 = Rows[3];
-
-        vec4 Column0 = M.Column(0);
-        vec4 Column1 = M.Column(1);
-        vec4 Column2 = M.Column(2);
-        vec4 Column3 = M.Column(3);
-
-        mat4 Result = mat4(
-            Dot(Row0, Column0), Dot(Row0, Column1), Dot(Row0, Column2), Dot(Row0, Column3),
-            Dot(Row1, Column0), Dot(Row1, Column1), Dot(Row1, Column2), Dot(Row1, Column3),
-            Dot(Row2, Column0), Dot(Row2, Column1), Dot(Row2, Column2), Dot(Row2, Column3),
-            Dot(Row3, Column0), Dot(Row3, Column1), Dot(Row3, Column2), Dot(Row3, Column3)
-        );
-#else
-        mat4 Result;
-
-        Result.Rows_4x[0] = MulVecMat_sse(Rows_4x[0], M);
-        Result.Rows_4x[1] = MulVecMat_sse(Rows_4x[1], M);
-        Result.Rows_4x[2] = MulVecMat_sse(Rows_4x[2], M);
-        Result.Rows_4x[3] = MulVecMat_sse(Rows_4x[3], M);
-#endif
-
-        return Result;
-    }
-
     inline vec4 operator *(const vec4 &Vector)
     {
 #if 1
@@ -141,6 +94,53 @@ struct mat4
         return Result;
     }
 };
+
+inline __m128 MulVecMat_sse(const __m128 &Vector, const mat4 &M)
+{
+    // First transpose vector
+    __m128 vX = _mm_shuffle_ps(Vector, Vector, 0x00);  // (vx,vx,vx,vx)
+    __m128 vY = _mm_shuffle_ps(Vector, Vector, 0x55);  // (vy,vy,vy,vy)
+    __m128 vZ = _mm_shuffle_ps(Vector, Vector, 0xAA);  // (vz,vz,vz,vz)
+    __m128 vW = _mm_shuffle_ps(Vector, Vector, 0xFF);  // (vw,vw,vw,vw)
+
+    __m128 Result = _mm_mul_ps(vX, M.Rows_4x[0]);
+    Result = _mm_add_ps(Result, _mm_mul_ps(vY, M.Rows_4x[1]));
+    Result = _mm_add_ps(Result, _mm_mul_ps(vZ, M.Rows_4x[2]));
+    Result = _mm_add_ps(Result, _mm_mul_ps(vW, M.Rows_4x[3]));
+
+    return Result;
+}
+
+inline mat4 operator *(mat4 a, mat4 b)
+{
+#if 0
+    vec4 Row0 = a.Rows[0];
+    vec4 Row1 = a.Rows[1];
+    vec4 Row2 = a.Rows[2];
+    vec4 Row3 = a.Rows[3];
+
+    vec4 Column0 = b.Column(0);
+    vec4 Column1 = b.Column(1);
+    vec4 Column2 = b.Column(2);
+    vec4 Column3 = b.Column(3);
+
+    mat4 Result = mat4(
+        Dot(Row0, Column0), Dot(Row0, Column1), Dot(Row0, Column2), Dot(Row0, Column3),
+        Dot(Row1, Column0), Dot(Row1, Column1), Dot(Row1, Column2), Dot(Row1, Column3),
+        Dot(Row2, Column0), Dot(Row2, Column1), Dot(Row2, Column2), Dot(Row2, Column3),
+        Dot(Row3, Column0), Dot(Row3, Column1), Dot(Row3, Column2), Dot(Row3, Column3)
+    );
+#else
+    mat4 Result;
+
+    Result.Rows_4x[0] = MulVecMat_sse(a.Rows_4x[0], b);
+    Result.Rows_4x[1] = MulVecMat_sse(a.Rows_4x[1], b);
+    Result.Rows_4x[2] = MulVecMat_sse(a.Rows_4x[2], b);
+    Result.Rows_4x[3] = MulVecMat_sse(a.Rows_4x[3], b);
+#endif
+
+    return Result;
+}
 
 inline mat4
 Inverse(mat4 M)

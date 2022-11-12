@@ -45,9 +45,10 @@ void main()
     vec3 GroundPoint = fs_in.NearPlanePosition + t * (fs_in.FarPlanePosition - fs_in.NearPlanePosition);
 
     float DistanceFromCamera = length(u_CameraPosition.xz - GroundPoint.xz);
-    float Opacity = clamp(DistanceFromCamera * 0.004f, 0.f, 1.f);
+    float Opacity = clamp(DistanceFromCamera * 0.01f, 0.f, 1.f);
 
-    float GridScale = 4.f;
+    // todo: grid is 1x1 meters?
+    float GridScale = 1.f;
     vec2 Coord = GroundPoint.xz / GridScale;
 
     float LineWidth = 1.f;

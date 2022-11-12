@@ -1,11 +1,3 @@
-// todo: some models have weird bone transformations
-// https://github.com/assimp/assimp/issues/1974
-
-// assimp docs: https://assimp-docs.readthedocs.io/en/latest/usage/use_the_lib.html
-
-#undef AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY
-#define AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY 1.f
-
 #define INVALID_FLOAT -1.f
 #define INVALID_COLOR vec4(-1.f)
 
@@ -684,7 +676,7 @@ GetMeshVerticesSize(mesh *Mesh)
     return Size;
 }
 
-internal aabb
+internal bounds
 CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
 {
     vec3 vMin = Vertices[0];
@@ -698,7 +690,7 @@ CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
         vMax = Max(vMax, *Vertex);
     }
 
-    aabb Result = {};
+    bounds Result = {};
 
     Result.Min = vMin;
     Result.Max = vMax;
@@ -706,15 +698,15 @@ CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
     return Result;
 }
 
-internal aabb
+internal bounds
 CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
 {
-    aabb Result = {};
+    bounds Result = {};
 
     if (MeshCount > 0)
     {
         mesh *FirstMesh = First(Meshes);
-        aabb Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
+        bounds Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
 
         vec3 vMin = Box.Min;
         vec3 vMax = Box.Max;
@@ -722,7 +714,7 @@ CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
         for (u32 MeshIndex = 1; MeshIndex < MeshCount; ++MeshIndex)
         {
             mesh *Mesh = Meshes + MeshIndex;
-            aabb Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
+            bounds Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
 
             vMin = Min(vMin, Box.Min);
             vMax = Max(vMax, Box.Max);
@@ -816,6 +808,7 @@ ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
         }
     }
 
+#if 0
     if (AssimpScene->HasAnimations())
     {
         Asset->AnimationCount = AssimpScene->mNumAnimations;
@@ -829,4 +822,5 @@ ProcessAssimpScene(const aiScene *AssimpScene, model_asset *Asset)
             ProcessAssimpAnimation(AssimpAnimation, Animation, &Asset->Skeleton);
         }
     }
+#endif
 }

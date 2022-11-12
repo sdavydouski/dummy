@@ -38,8 +38,7 @@ AddMesh(
     vec4 *Weights,
     ivec4 *JointIndices,
     u32 IndexCount,
-    u32 *Indices,
-    u32 MaxInstanceCount
+    u32 *Indices
 )
 {
     render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh, 0);
@@ -54,7 +53,6 @@ AddMesh(
     Command->JointIndices = JointIndices;
     Command->IndexCount = IndexCount;
     Command->Indices = Indices;
-    Command->MaxInstanceCount = MaxInstanceCount;
 }
 
 inline void
@@ -129,6 +127,15 @@ Clear(render_commands *Commands, vec4 Color, u32 RenderTarget = 0)
 {
     render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear, RenderTarget);
     Command->Color = Color;
+}
+
+inline void
+DrawPoint(render_commands *Commands, vec3 Position, vec4 Color, f32 Size, u32 RenderTarget = 0)
+{
+    render_command_draw_point *Command = PushRenderCommand(Commands, render_command_draw_point, RenderCommand_DrawPoint, RenderTarget);
+    Command->Position = Position;
+    Command->Color = Color;
+    Command->Size = Size;
 }
 
 inline void

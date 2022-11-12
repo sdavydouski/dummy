@@ -1,7 +1,7 @@
-inline aabb
+inline bounds
 CreateAABBMinMax(vec3 Min, vec3 Max)
 {
-    aabb Result = {};
+    bounds Result = {};
 
     Result.Min = Min;
     Result.Max = Max;
@@ -9,10 +9,10 @@ CreateAABBMinMax(vec3 Min, vec3 Max)
     return Result;
 }
 
-inline aabb
+inline bounds
 CreateAABBCenterHalfSize(vec3 Center, vec3 HalfSize)
 {
-    aabb Result = {};
+    bounds Result = {};
 
     Result.Min = Center - HalfSize;
     Result.Max = Center + HalfSize;
@@ -21,23 +21,23 @@ CreateAABBCenterHalfSize(vec3 Center, vec3 HalfSize)
 }
 
 inline vec3
-GetAABBHalfSize(aabb Box)
+GetAABBHalfSize(bounds Box)
 {
     vec3 Result = (Box.Max - Box.Min) * 0.5f;
     return Result;
 }
 
 inline vec3
-GetAABBCenter(aabb Box)
+GetAABBCenter(bounds Box)
 {
     vec3 Result = Box.Min + GetAABBHalfSize(Box);
     return Result;
 }
 
-inline aabb
-Union(aabb a, aabb b)
+inline bounds
+Union(bounds a, bounds b)
 {
-    aabb Result;
+    bounds Result;
 
     Result.Min = Min(a.Min, b.Min);
     Result.Max = Max(a.Max, b.Max);
@@ -45,39 +45,102 @@ Union(aabb a, aabb b)
     return Result;
 }
 
-inline vec3
-GetModelHalfSize(model *Model, transform Transform)
+inline bounds
+ScaleBounds(bounds Bounds, vec3 Scale)
 {
-    vec3 Result = Transform.Scale * GetAABBHalfSize(Model->Bounds);
+    bounds Result = {};
+
+    vec3 ScaledHalfSize = (Bounds.Max - Bounds.Min) * Scale / 2.f;
+    // todo:
+    vec3 Center = vec3(0.f, ScaledHalfSize.y, 0.f);
+
+    Result.Min = Center - ScaledHalfSize;
+    Result.Max = Center + ScaledHalfSize;
+
     return Result;
 }
 
-inline aabb
-GetRigidBodyAABB(rigid_body *Body)
+inline bounds
+TranslateBounds(bounds Bounds, vec3 Translation)
 {
-    aabb Result = {};
+    bounds Result = {};
 
-    Result.Min = vec3(Body->Position - vec3(Body->HalfSize.x, 0.f, Body->HalfSize.z));
-    Result.Max = vec3(Body->Position + vec3(Body->HalfSize.x, 2.f * Body->HalfSize.y, Body->HalfSize.z));
+    Result.Min = Bounds.Min + Translation;
+    Result.Max = Bounds.Max + Translation;
 
     return Result;
 }
 
-internal aabb
-GetEntityBoundingBox(game_entity *Entity)
+inline bounds
+GetColliderBounds(collider *Collider)
 {
-    aabb Result = {};
+    bounds Result = {};
 
-    if (Entity->Body)
+    switch (Collider->Type)
     {
-        Result = GetRigidBodyAABB(Entity->Body);
+        case Collider_Box:
+        {
+            box_collider Box = Collider->BoxCollider;
+            vec3 HalfSize = Box.Size / 2;
+
+            Result.Min = Box.Center - HalfSize;
+            Result.Max = Box.Center + HalfSize;
+
+            break;
+        }
+        case Collider_Sphere:
+        {
+            sphere_collider Sphere = Collider->SphereCollider;
+
+            Result.Min = Sphere.Center - vec3(Sphere.Radius);
+            Result.Max = Sphere.Center + vec3(Sphere.Radius);
+
+            break;
+        }
+    }
+
+    return Result;
+}
+
+inline void
+UpdateColliderPosition(collider *Collider, vec3 BasePosition)
+{
+    switch (Collider->Type)
+    {
+        case Collider_Box:
+        {
+            box_collider *BoxCollider = &Collider->BoxCollider;
+            BoxCollider->Center = BasePosition + vec3(0.f, BoxCollider->Size.y / 2.f, 0.f);
+
+            break;
+        }
+        case Collider_Sphere:
+        {
+            sphere_collider *SphereCollider = &Collider->SphereCollider;
+            SphereCollider->Center = BasePosition + vec3(0.f, SphereCollider->Radius, 0.f);
+
+            break;
+        }
+    }
+}
+
+internal bounds
+GetEntityBounds(game_entity *Entity)
+{
+    bounds Result = {};
+
+    if (Entity->Collider)
+    {
+        Result = GetColliderBounds(Entity->Collider);
     }
     else if (Entity->Model)
     {
-        vec3 HalfSize = GetModelHalfSize(Entity->Model, Entity->Transform);
-        vec3 Center = Entity->Transform.Translation + vec3(0.f, HalfSize.y, 0.f);
-
-        Result = CreateAABBCenterHalfSize(Center, HalfSize);
+        Result = ScaleBounds(Entity->Model->Bounds, Entity->Transform.Scale);
+        Result = TranslateBounds(Result, Entity->Transform.Translation);
+    }
+    else
+    {
+        Assert(!"No bounds");
     }
 
     return Result;
@@ -132,7 +195,7 @@ TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *
 }
 
 internal b32
-TestAABBAABB(aabb a, aabb b, vec3 *mtv)
+TestAABBAABB(bounds a, bounds b, vec3 *mtv)
 {
     // [Minimum Translation Vector]
     f32 mtvDistance = F32_MAX;              // Set current minimum distance (max float value so next value is always less)
@@ -172,7 +235,7 @@ TestAABBAABB(aabb a, aabb b, vec3 *mtv)
 }
 
 inline b32
-TestAABBAABB(aabb a, aabb b)
+TestAABBAABB(bounds a, bounds b)
 {
     // Exit with no intersection if separated along an axis
     if (a.Max.x < b.Min.x || a.Min.x > b.Max.x) return false;
@@ -184,7 +247,7 @@ TestAABBAABB(aabb a, aabb b)
 }
 
 internal b32
-TestAABBPlane(aabb Box, plane Plane)
+TestAABBPlane(bounds Box, plane Plane)
 {
     vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
     vec3 BoxExtents = Box.Max - BoxCenter;
@@ -205,7 +268,7 @@ TestAABBPlane(aabb Box, plane Plane)
     by Andrew Woo
     from "Graphics Gems", Academic Press, 1990
 */
-b32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord)
+b32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
 {
     vec3 RayOrigin = Ray.Origin;
     vec3 RayDirection = Ray.Direction;
@@ -302,7 +365,7 @@ b32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord)
 }
 
 internal f32
-GetAABBPlaneMinDistance(aabb Box, plane Plane)
+GetAABBPlaneMinDistance(bounds Box, plane Plane)
 {
     vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
     vec3 BoxExtents = Box.Max - BoxCenter;
@@ -313,4 +376,19 @@ GetAABBPlaneMinDistance(aabb Box, plane Plane)
     f32 Result = Distance - Radius;
 
     return Result;
+}
+
+internal b32
+TestColliders(collider *a, collider *b, vec3 *mtv)
+{
+    if (a->Type == Collider_Box && b->Type == Collider_Box)
+    {
+        return TestAABBAABB(GetColliderBounds(a), GetColliderBounds(b), mtv);
+    }
+    else
+    {
+        Assert(!"Not implemented");
+    }
+
+    return false;
 }

@@ -27,12 +27,11 @@ HasFiniteMass(rigid_body *Body)
 }
 
 inline void
-BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, vec3 HalfSize, b32 RootMotionEnabled)
+BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, b32 RootMotionEnabled)
 {
     Body->PrevPosition = Position;
     Body->Position = Position;
     Body->Orientation = Orientation;
-    Body->HalfSize = HalfSize;
     Body->RootMotionEnabled = RootMotionEnabled;
 
     // todo: don't use at the moment? (except in Integrate)

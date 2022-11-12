@@ -2,8 +2,6 @@
 
 struct rigid_body
 {
-    vec3 HalfSize;
-    
     vec3 PrevPosition;
     vec3 Position;
 
