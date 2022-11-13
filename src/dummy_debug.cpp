@@ -7,6 +7,9 @@
 #include <imgui_widgets.cpp>
 #include <imgui_tables.cpp>
 
+#include <ImGuizmo.h>
+#include <ImGuizmo.cpp>
+
 #include "imgui_impl_win32.h"
 #include "imgui_impl_win32.cpp"
 
@@ -206,8 +209,10 @@ RenderEntityInfo(game_entity *Entity, model *Model)
 }
 
 internal void
-Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *RendererState, game_memory *GameMemory, game_parameters *GameParameters, memory_arena *Arena)
+Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *RendererState, game_memory *GameMemory, game_parameters *GameParameters, debug_state *DebugState)
 {
+    memory_arena *Arena = &DebugState->Arena;
+
     scoped_memory ScopedMemory(Arena);
 
     game_state *GameState = GetGameState(GameMemory);
@@ -216,6 +221,7 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
+    ImGuizmo::BeginFrame();
 
 #if 0
     ImGui::Begin("Menu", 0, ImGuiWindowFlags_MenuBar);
@@ -346,6 +352,70 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
             ImGui::Begin("Entity", (bool *) &Entity->DebugView);
             RenderEntityInfo(Entity, Entity->Model);
             ImGui::End();
+
+            // Gizmos
+            if (ImGui::IsKeyPressed(ImGuiKey_G))
+            {
+                DebugState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+            }
+
+            if (ImGui::IsKeyPressed(ImGuiKey_T))
+            {
+                DebugState->CurrentGizmoOperation = ImGuizmo::SCALE;
+            }
+
+            if (ImGui::IsKeyPressed(ImGuiKey_R))
+            {
+                DebugState->CurrentGizmoOperation = ImGuizmo::ROTATE;
+            }
+
+            ImGuiIO &io = ImGui::GetIO();
+            ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+            mat4 WorldToCamera = Transpose(GetCameraTransform(Camera));
+            mat4 WorldProjection = Transpose(FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane));
+            mat4 EntityTransform = Transpose(Transform(Entity->Transform));
+
+            b32 Snap = io.KeyCtrl;
+
+            f32 SnapValue = 0.5f;
+            if (DebugState->CurrentGizmoOperation == ImGuizmo::OPERATION::ROTATE)
+            {
+                SnapValue = 45.f;
+            }
+
+            f32 SnapValues[] = { SnapValue, SnapValue, SnapValue };
+
+            ImGuizmo::Manipulate(
+                (f32 *) WorldToCamera.Elements, 
+                (f32 *) WorldProjection.Elements, 
+                (ImGuizmo::OPERATION) DebugState->CurrentGizmoOperation, 
+                ImGuizmo::LOCAL, (f32 *) EntityTransform.Elements,
+                0,
+                Snap ? SnapValues : 0
+            );
+
+            if (ImGuizmo::IsUsing())
+            {
+                vec3 Translation;
+                vec3 Rotation;
+                vec3 Scale;
+                ImGuizmo::DecomposeMatrixToComponents((f32 *) EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
+
+                // todo: probably should update colliders or smth
+                if (Entity->Body)
+                {
+                    Entity->Body->Position = Translation;
+                    Entity->Body->Orientation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+                }
+                else
+                {
+                    Entity->Transform.Translation = Translation;
+                    Entity->Transform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+                }
+
+                Entity->Transform.Scale = Scale;
+            }
         }
     }
 

@@ -3,7 +3,7 @@
 	url = https://github.com/ocornut/imgui
 [submodule "src/external/assimp"]
 	path = src/external/assimp
-	url = https://github.com/assimp/assimp.git
+	url = https://github.com/assimp/assimp
 [submodule "src/external/stb"]
 	path = src/external/stb
 	url = https://github.com/nothings/stb
@@ -13,3 +13,6 @@
 [submodule "src/external/meshoptimizer"]
 	path = src/external/meshoptimizer
 	url = https://github.com/zeux/meshoptimizer
+[submodule "src/external/ImGuizmo"]
+	path = src/external/ImGuizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo

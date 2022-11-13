@@ -127,6 +127,12 @@ inline vec3 &operator *=(vec3 &Dest, f32 Value)
     return Dest;
 }
 
+inline vec3 &operator *=(vec3 &Dest, vec3 Vector)
+{
+    Dest = Dest * Vector;
+    return Dest;
+}
+
 inline b32 operator <=(vec3 a, vec3 b)
 {
     b32 Result = a < b || a == b;

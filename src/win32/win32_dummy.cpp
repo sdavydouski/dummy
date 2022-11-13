@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include <windows.h>
 #include <xinput.h>
 
@@ -34,6 +35,12 @@ Win32GetLastWriteTime(char *FileName)
 
     return LastWriteTime;
 }
+
+struct debug_state
+{
+    u32 CurrentGizmoOperation;
+    memory_arena Arena;
+};
 
 #include "win32_dummy_xaudio2.cpp"
 #include "dummy_text.cpp"
@@ -558,6 +565,11 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
                 KeyboardInput->Shift.IsPressed = IsKeyPressed;
                 break;
             }
+            case VK_BACK:
+            {
+                KeyboardInput->Backspace.IsPressed = IsKeyPressed;
+                break;
+            }
             case VK_OEM_PLUS:
             case VK_ADD:
             {
@@ -1007,7 +1019,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformApi.PlatformHandle = (void *)&PlatformState;
     PlatformApi.SetMouseMode = Win32SetMouseMode;
     PlatformApi.ReadFile = Win32ReadFile;
-    PlatformApi.DebugPrintString = Win32DebugPrintString;
     PlatformApi.LoadFunction = Win32LoadFunction;
     PlatformApi.EnterCriticalSection = Win32EnterCriticalSection;
     PlatformApi.LeaveCriticalSection = Win32LeaveCriticalSection;
@@ -1112,9 +1123,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
+        debug_state DebugState = {};
+        DebugState.CurrentGizmoOperation = 7;
         umm DebugArenaSize = Megabytes(32);
-        memory_arena DebugArena;
-        InitMemoryArena(&DebugArena, Win32AllocateMemory(0, DebugArenaSize), DebugArenaSize);
+        InitMemoryArena(&DebugState.Arena, Win32AllocateMemory(0, DebugArenaSize), DebugArenaSize);
 
         DEBUG_UI_INIT(&PlatformState);
 
@@ -1232,7 +1244,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             {
                 PROFILE(&PlatformProfiler, "DEBUG_UI_RENDER");
-                DEBUG_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &DebugArena);
+                DEBUG_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &DebugState);
             }
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)

@@ -114,9 +114,6 @@ typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
 #define PLATFORM_READ_FILE(name) read_file_result name(char *FileName, memory_arena *Arena, b32 Text)
 typedef PLATFORM_READ_FILE(platform_read_file);
 
-#define PLATFORM_DEBUG_PRINT_STRING(name) i32 name(const char *String, ...)
-typedef PLATFORM_DEBUG_PRINT_STRING(platform_debug_print_string);
-
 #define PLATFORM_LOAD_FUNCTION(name) void * name(void *PlatformHandle, char *FunctionName)
 typedef PLATFORM_LOAD_FUNCTION(platform_load_function);
 
@@ -141,18 +138,18 @@ typedef PLATFORM_KICK_JOBS_AND_WAIT(platform_kick_jobs_and_wait);
 struct platform_api
 {
     void *PlatformHandle;
+
     platform_set_mouse_mode *SetMouseMode;
     platform_read_file *ReadFile;
-    platform_debug_print_string *DebugPrintString;
     platform_load_function *LoadFunction;
-
-    platform_enter_critical_section *EnterCriticalSection;
-    platform_leave_critical_section *LeaveCriticalSection;
 
     platform_kick_job *KickJob;
     platform_kick_jobs *KickJobs;
     platform_kick_job_and_wait *KickJobAndWait;
     platform_kick_jobs_and_wait *KickJobsAndWait;
+
+    platform_enter_critical_section *EnterCriticalSection;
+    platform_leave_critical_section *LeaveCriticalSection;
 };
 
 struct game_memory

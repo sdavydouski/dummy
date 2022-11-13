@@ -1195,7 +1195,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddRigidBodyComponent(State->Cleric, false, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Cleric);
 
-    State->PlayableEntityIndex = 6;
+    State->PlayableEntityIndex = 0;
 
     {
         u32 Count = 5;
@@ -1265,6 +1265,10 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
         }
     }
 
+    u32 PointLightIndex = 0;
+    State->PointLightCount = 4;
+    State->PointLights = PushArray(&State->PermanentArena, State->PointLightCount, point_light);
+
     // Walls
     {
         for (i32 TileX = -5; TileX <= 5; ++TileX)
@@ -1308,6 +1312,13 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+                point_light *PointLight = State->PointLights + PointLightIndex++;
+                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
+                PointLight->Color = vec3(1.f, 0.65f, 0.f);
+                PointLight->Attenuation.Constant = 1.f;
+                PointLight->Attenuation.Linear = 0.09f;
+                PointLight->Attenuation.Quadratic = 0.032f;
             }
         }
 
@@ -1352,6 +1363,13 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+                point_light *PointLight = State->PointLights + PointLightIndex++;
+                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
+                PointLight->Color = vec3(1.f, 0.65f, 0.f);
+                PointLight->Attenuation.Constant = 1.f;
+                PointLight->Attenuation.Linear = 0.09f;
+                PointLight->Attenuation.Quadratic = 0.032f;
             }
         }
 
@@ -1396,6 +1414,13 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+                point_light *PointLight = State->PointLights + PointLightIndex++;
+                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
+                PointLight->Color = vec3(1.f, 0.65f, 0.f);
+                PointLight->Attenuation.Constant = 1.f;
+                PointLight->Attenuation.Linear = 0.09f;
+                PointLight->Attenuation.Quadratic = 0.032f;
             }
         }
 
@@ -1440,6 +1465,13 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
+
+                point_light *PointLight = State->PointLights + PointLightIndex++;
+                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
+                PointLight->Color = vec3(1.f, 0.65f, 0.f);
+                PointLight->Attenuation.Constant = 1.f;
+                PointLight->Attenuation.Linear = 0.09f;
+                PointLight->Attenuation.Quadratic = 0.032f;
             }
         }
     }
@@ -1534,33 +1566,8 @@ DLLExport GAME_INIT(GameInit)
     State->CurrentMove = vec2(0.f);
     State->TargetMove = vec2(0.f);
 
-    State->PointLightCount = 2;
-    State->PointLights = PushArray(&State->PermanentArena, State->PointLightCount, point_light);
-
-    {
-        point_light *PointLight = State->PointLights + 0;
-        vec4 PointLight1Color = vec4(1.f, 1.f, 0.f, 1.f);
-
-        PointLight->Position = vec3(0.f);
-        PointLight->Color = PointLight1Color.rgb;
-        PointLight->Attenuation.Constant = 1.f;
-        PointLight->Attenuation.Linear = 0.09f;
-        PointLight->Attenuation.Quadratic = 0.032f;
-    }
-
-    {
-        point_light *PointLight = State->PointLights + 1;
-        vec4 PointLight2Color = vec4(1.f, 0.f, 1.f, 1.f);
-
-        PointLight->Position = vec3(0.f);
-        PointLight->Color = PointLight2Color.rgb;
-        PointLight->Attenuation.Constant = 1.f;
-        PointLight->Attenuation.Linear = 0.09f;
-        PointLight->Attenuation.Quadratic = 0.032f;
-    }
-
     State->Options = {};
-    State->Options.ShowBoundingVolumes = true;
+    State->Options.ShowBoundingVolumes = false;
     State->Options.ShowGrid = false;
 
     InitGameMenu(State);
@@ -1600,7 +1607,7 @@ DLLExport GAME_INIT(GameInit)
     State->Player = State->Dummy;
     State->Player->FutureControllable = true;
 
-    State->MasterVolume = 0.5f;
+    State->MasterVolume = 0.f;
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1838,7 +1845,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             PlayerCamera->Transform.Rotation = Euler2Quat(PlayerCamera->Yaw, PlayerCamera->Pitch, 0.f);
 
             // todo:
-            vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 1.f, 0.f);
+            vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 1.2f, 0.f);
             PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Transform.Translation);
 
             game_entity *Player = State->Player;
@@ -2137,20 +2144,8 @@ DLLExport GAME_RENDER(GameRender)
 
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
 
-            f32 PointLightRadius = 4.f;
-            vec3 PointLight1Position = State->Player->Transform.Translation + vec3(0.f, 3.f, 0.f) +
-                vec3(Cos(Parameters->Time * 2.f) * PointLightRadius, 1.f, Sin(Parameters->Time * 2.f) * PointLightRadius);
-            vec3 PointLight2Position = State->Player->Transform.Translation + vec3(0.f, 3.f, 0.f) +
-                vec3(Cos(Parameters->Time * 2.f - PI) * PointLightRadius, -1.f, Sin(Parameters->Time * 2.f - PI) * PointLightRadius);
-
-            point_light *PointLight1 = State->PointLights + 0;
-            PointLight1->Position = PointLight1Position;
-
-            point_light *PointLight2 = State->PointLights + 1;
-            PointLight2->Position = PointLight2Position;
-
             // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
-            //SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
+            SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
 
             // Flying skulls
 #if 0

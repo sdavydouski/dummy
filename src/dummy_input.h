@@ -29,6 +29,7 @@ struct platform_input_keyboard
             platform_button_state Esc;
             platform_button_state Enter;
             platform_button_state Shift;
+            platform_button_state Backspace;
 
             platform_button_state Plus;
             platform_button_state Minus;
@@ -330,7 +331,7 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
 
     ProcessInputAction(&GameInput->Dance, &KeyboardInput->C);
     ProcessInputAction(&GameInput->Activate, &KeyboardInput->E);
-    ProcessInputAction(&GameInput->Reset, &KeyboardInput->R);
+    ProcessInputAction(&GameInput->Reset, &KeyboardInput->Backspace);
     ProcessInputAction(&GameInput->Menu, &KeyboardInput->Enter);
     ProcessInputAction(&GameInput->EditMode, &KeyboardInput->Tab);
     ProcessInputAction(&GameInput->ChoosePrevHero, &KeyboardInput->One);

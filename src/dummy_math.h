@@ -472,6 +472,7 @@ Euler2Direction(f32 Yaw, f32 Pitch)
     return Result;
 }
 
+// todo: change ther order!
 // Yaw (Z), Pitch (Y), Roll (X)
 inline quat
 Euler2Quat(f32 Yaw, f32 Pitch, f32 Roll)
