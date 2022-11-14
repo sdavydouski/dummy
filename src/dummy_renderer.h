@@ -37,7 +37,6 @@ struct point_light
 {
     vec3 Position;
     vec3 Color;
-
     light_attenuation Attenuation;
 };
 

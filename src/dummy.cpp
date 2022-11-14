@@ -708,7 +708,7 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
         game_entity *Entity = Batch->Entities[EntityIndex];
         //render_instance *Instance = Batch->Instances + EntityIndex;
 
-        if (Entity->DebugView || State->Options.ShowBoundingVolumes)
+        if ((State->SelectedEntity && State->SelectedEntity->Id == Entity->Id) || State->Options.ShowBoundingVolumes)
         {
             RenderBoundingBox(RenderCommands, State, Entity);
         }
@@ -799,6 +799,15 @@ AddAnimationComponent(game_entity *Entity, const char *Animator, render_commands
 }
 
 inline void
+AddPointLightComponent(game_entity *Entity, vec3 Color, light_attenuation Attenuation, memory_arena *Arena)
+{
+    Entity->PointLight = PushType(Arena, point_light);
+    Entity->PointLight->Position = Entity->Transform.Translation;
+    Entity->PointLight->Color = Color;
+    Entity->PointLight->Attenuation = Attenuation;
+}
+
+inline void
 GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
 {
     game_input *Input = &State->Input;
@@ -809,8 +818,8 @@ GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
     Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
     Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
 
-    Params->ToStateActionIdle = Entity->FutureControllable;
-    Params->ToStateStandingIdle = !Entity->FutureControllable;
+    Params->ToStateActionIdle = Entity->Controllable;
+    Params->ToStateStandingIdle = !Entity->Controllable;
 
     Params->ToStateActionIdle1 = Random < 0.5f;
     Params->ToStateActionIdle2 = Random >= 0.5f;
@@ -828,8 +837,8 @@ GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
 
     // todo:
     Params->MaxTime = 8.f;
-    Params->ToStateActionIdle = Entity->FutureControllable;
-    Params->ToStateStandingIdle = !Entity->FutureControllable;
+    Params->ToStateActionIdle = Entity->Controllable;
+    Params->ToStateStandingIdle = !Entity->Controllable;
     Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
     Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
 
@@ -892,6 +901,24 @@ GameLogic2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_
     Params->ToStateIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
 }
 
+inline void
+GameInput2ClericAnimatorParams(game_state *State, game_entity *Entity, cleric_animator_params *Params)
+{
+    game_input *Input = &State->Input;
+
+    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
+    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
+    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
+}
+
+inline void
+GameLogic2ClericAnimatorParams(game_state *State, game_entity *Entity, cleric_animator_params *Params)
+{
+    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
+    Params->ToStateIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+}
+
 internal void *
 GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
 {
@@ -934,6 +961,19 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
         else
         {
             GameLogic2MonstarAnimatorParams(State, Entity, (monstar_animator_params *) Params);
+        }
+    }
+    else if (StringEquals(Entity->Animation->Animator, "Cleric"))
+    {
+        Params = PushType(Arena, cleric_animator_params);
+
+        if (Entity->Controllable)
+        {
+            GameInput2ClericAnimatorParams(State, Entity, (cleric_animator_params *) Params);
+        }
+        else
+        {
+            GameInput2ClericAnimatorParams(State, Entity, (cleric_animator_params *) Params);
         }
     }
 
@@ -1024,7 +1064,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     rigid_body *NearbyBody = NearbyEntity->Body;
                     collider *NearbyBodyCollider = NearbyEntity->Collider;
 
-                    if (Entity->Id == Data->PlayerId || Entity->DebugView)
+                    if (Entity->Id == Data->PlayerId)
                     {
                         //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
                     }
@@ -1099,9 +1139,6 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
             // Frustrum culling
             Entity->Visible = AxisAlignedBoxVisible(Data->ShadowPlaneCount, Data->ShadowPlanes, BoundingBox);
         }
-
-        // todo:
-        Entity->Controllable = Entity->FutureControllable;
     }
 }
 
@@ -1125,6 +1162,7 @@ InitGameMenu(game_state *State)
     State->MenuQuads[3].Color = vec4(1.f, 1.f, 0.f, 1.f);
 }
 
+// todo(continue): particle emitters
 internal void
 InitGameEntities(game_state *State, render_commands *RenderCommands)
 {
@@ -1192,7 +1230,8 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     State->Cleric->Transform = CreateTransform(vec3(0.f, 0.f, -4.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
     AddModelComponent(State->Cleric, &State->Assets, "Cleric", RenderCommands, &State->PermanentArena);
     AddBoxColliderComponent(State->Cleric, vec3(0.6f, 1.8f, 0.6f), &State->PermanentArena);
-    AddRigidBodyComponent(State->Cleric, false, &State->PermanentArena);
+    AddRigidBodyComponent(State->Cleric, true, &State->PermanentArena);
+    AddAnimationComponent(State->Cleric, "Cleric", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Cleric);
 
     State->PlayableEntityIndex = 0;
@@ -1265,10 +1304,6 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
         }
     }
 
-    u32 PointLightIndex = 0;
-    State->PointLightCount = 4;
-    State->PointLights = PushArray(&State->PermanentArena, State->PointLightCount, point_light);
-
     // Walls
     {
         for (i32 TileX = -5; TileX <= 5; ++TileX)
@@ -1312,13 +1347,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-                point_light *PointLight = State->PointLights + PointLightIndex++;
-                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
-                PointLight->Color = vec3(1.f, 0.65f, 0.f);
-                PointLight->Attenuation.Constant = 1.f;
-                PointLight->Attenuation.Linear = 0.09f;
-                PointLight->Attenuation.Quadratic = 0.032f;
+                AddPointLightComponent(Entity, vec3(1.f, 0.f, 0.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
             }
         }
 
@@ -1363,13 +1392,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-                point_light *PointLight = State->PointLights + PointLightIndex++;
-                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
-                PointLight->Color = vec3(1.f, 0.65f, 0.f);
-                PointLight->Attenuation.Constant = 1.f;
-                PointLight->Attenuation.Linear = 0.09f;
-                PointLight->Attenuation.Quadratic = 0.032f;
+                AddPointLightComponent(Entity, vec3(0.f, 1.f, 0.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
             }
         }
 
@@ -1414,13 +1437,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-                point_light *PointLight = State->PointLights + PointLightIndex++;
-                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
-                PointLight->Color = vec3(1.f, 0.65f, 0.f);
-                PointLight->Attenuation.Constant = 1.f;
-                PointLight->Attenuation.Linear = 0.09f;
-                PointLight->Attenuation.Quadratic = 0.032f;
+                AddPointLightComponent(Entity, vec3(0.f, 0.f, 1.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
             }
         }
 
@@ -1465,13 +1482,7 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
                 AddModelComponent(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
                 AddBoxColliderComponent(Entity, Size, &State->PermanentArena);
                 AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-                point_light *PointLight = State->PointLights + PointLightIndex++;
-                PointLight->Position = Position + vec3(0.f, Size.y, 0.f);
-                PointLight->Color = vec3(1.f, 0.65f, 0.f);
-                PointLight->Attenuation.Constant = 1.f;
-                PointLight->Attenuation.Linear = 0.09f;
-                PointLight->Attenuation.Quadratic = 0.032f;
+                AddPointLightComponent(Entity, vec3(1.f, 0.f, 1.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
             }
         }
     }
@@ -1489,6 +1500,9 @@ LoadAnimators(animator *Animator)
 
     animator_controller *MonstarController = HashTableLookup(&Animator->Controllers, (char *) "Monstar");
     MonstarController->Func = MonstarAnimatorController;
+
+    animator_controller *ClericController = HashTableLookup(&Animator->Controllers, (char *) "Cleric");
+    ClericController->Func = ClericAnimatorController;
 
     animator_controller *SimpleController = HashTableLookup(&Animator->Controllers, (char *) "Simple");
     SimpleController->Func = SimpleAnimatorController;
@@ -1605,7 +1619,7 @@ DLLExport GAME_INIT(GameInit)
 #endif
 
     State->Player = State->Dummy;
-    State->Player->FutureControllable = true;
+    State->Player->Controllable = true;
 
     State->MasterVolume = 0.f;
 }
@@ -1662,6 +1676,13 @@ GetNextHero(game_state *State)
     return Result;
 }
 
+inline game_entity *
+GetPlayerEntity(game_state *State)
+{
+    game_entity *Result = State->PlayableEntities[State->PlayableEntityIndex];
+    return Result;
+}
+
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 {
     game_state *State = GetGameState(Memory);
@@ -1704,27 +1725,27 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     if (Input->ChoosePrevHero.IsActivated)
     {
-        State->Player->FutureControllable = false;
+        State->Player->Controllable = false;
         State->Player->Body->Acceleration = vec3(0.f);
 
         State->Player = GetPrevHero(State);
 
-        State->Player->FutureControllable = true;
+        State->Player->Controllable = true;
     }
 
     if (Input->ChooseNextHero.IsActivated)
     {
-        State->Player->FutureControllable = false;
+        State->Player->Controllable = false;
         State->Player->Body->Acceleration = vec3(0.f);
 
         State->Player = GetNextHero(State);
 
-        State->Player->FutureControllable = true;
+        State->Player->Controllable = true;
     }
 
     if (Input->Reset.IsActivated)
     {
-        State->Player->FutureControllable = false;
+        State->Player->Controllable = false;
 
         State->Pelegrini->Body->Position = vec3(0.f, 0.f, 2.f);
         State->Pelegrini->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
@@ -1748,7 +1769,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
         State->Player = State->PlayableEntities[State->PlayableEntityIndex];
 
-        State->Player->FutureControllable = true;
+        State->Player->Controllable = true;
     }
 
     if (State->Mode == GameMode_Edit && Input->LeftClick.IsActivated)
@@ -1765,7 +1786,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             if (Entity->Model)
             {
-                Entity->DebugView = false;
+                State->SelectedEntity = 0;
                 bounds Box = GetEntityBounds(Entity);
 
                 vec3 IntersectionPoint;
@@ -1784,7 +1805,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
         if (SelectedEntity)
         {
-            SelectedEntity->DebugView = true;
+            State->SelectedEntity = SelectedEntity;
         }
     }
 
@@ -2075,7 +2096,7 @@ DLLExport GAME_RENDER(GameRender)
         InitGameEntities(State, RenderCommands);
 
         State->Player = State->PlayableEntities[State->PlayableEntityIndex];
-        State->Player->FutureControllable = true;
+        State->Player->Controllable = true;
 
         State->Assets.State = GameAssetsState_Ready;
 
@@ -2144,28 +2165,29 @@ DLLExport GAME_RENDER(GameRender)
 
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
 
-            // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
-            SetPointLights(RenderCommands, State->PointLightCount, State->PointLights);
+            u32 MaxPointLightCount = 32;
+            u32 PointLightCount = 0;
+            point_light *PointLights = PushArray(&State->TransientArena, MaxPointLightCount, point_light);
 
-            // Flying skulls
-#if 0
-            if (State->Player->Body)
+            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
             {
+                game_entity *Entity = State->Entities + EntityIndex;
+
+                if (Entity->PointLight)
                 {
-                    game_entity *Skull = State->Skulls[0];
+                    point_light *PointLight = PointLights + PointLightCount++;
 
-                    Skull->Transform.Translation = PointLight1Position;
-                    Skull->Transform.Rotation = State->Player->Body->Orientation;
-                }
+                    Assert(PointLightCount <= MaxPointLightCount);
 
-                {
-                    game_entity *Skull = State->Skulls[1];
-
-                    Skull->Transform.Translation = PointLight2Position;
-                    Skull->Transform.Rotation = State->Player->Body->Orientation;
+                    PointLight->Position = Entity->Transform.Translation;
+                    PointLight->Color = Entity->PointLight->Color;
+                    PointLight->Attenuation = Entity->PointLight->Attenuation;
                 }
             }
-#endif
+
+            // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
+            SetPointLights(RenderCommands, PointLightCount, PointLights);
+
             u32 ShadowPlaneCount = 0;
             plane *ShadowPlanes = 0;
 
@@ -2304,7 +2326,7 @@ DLLExport GAME_RENDER(GameRender)
                         }
                     }
 
-                    if (Entity->DebugView || State->Options.ShowBoundingVolumes)
+                    if ((State->SelectedEntity && State->SelectedEntity->Id == Entity->Id) || State->Options.ShowBoundingVolumes)
                     {
                         RenderBoundingBox(RenderCommands, State, Entity);
                     }
@@ -2376,6 +2398,7 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
+#if 0
             if (State->Player->Model)
             {
                 {
@@ -2383,7 +2406,6 @@ DLLExport GAME_RENDER(GameRender)
                     FormatString(Text, "Active entity: %s", State->Player->Model->Key);
                     DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
                 }
-#if 0
                 {
                     vec3 Position = State->Player->Transform.Translation;
                     vec3 TextPosition = Position + vec3(-0.8f, 6.f, 0.f);
@@ -2392,8 +2414,8 @@ DLLExport GAME_RENDER(GameRender)
                     FormatString(Text, "%.2f, %.2f, %.2f", Position.x, Position.y, Position.z);
                     DrawText(RenderCommands, Text, Font, TextPosition, 1.f, vec4(1.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
                 }
-#endif
             }
+#endif
 
             break;
         }

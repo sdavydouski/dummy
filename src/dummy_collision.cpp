@@ -140,7 +140,8 @@ GetEntityBounds(game_entity *Entity)
     }
     else
     {
-        Assert(!"No bounds");
+        Result.Min = Entity->Transform.Translation;
+        Result.Max = Entity->Transform.Translation;
     }
 
     return Result;

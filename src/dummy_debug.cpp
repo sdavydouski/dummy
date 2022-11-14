@@ -1,5 +1,4 @@
-﻿//#pragma warning(push, 0)
-#define IMGUI_DEFINE_MATH_OPERATORS
+﻿#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui.cpp>
@@ -10,8 +9,8 @@
 #include <ImGuizmo.h>
 #include <ImGuizmo.cpp>
 
-#include "imgui_impl_win32.h"
-#include "imgui_impl_win32.cpp"
+#include <imgui_impl_win32.h>
+#include <imgui_impl_win32.cpp>
 
 #if NDEBUG
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM <release/glad.h>
@@ -21,7 +20,6 @@
 
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_opengl3.cpp>
-//#pragma warning(pop)
 
 internal void
 Win32InitImGui(win32_platform_state *PlatformState)
@@ -134,9 +132,9 @@ RenderEntityInfo(game_entity *Entity, model *Model)
 
     if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::InputFloat3("Position", Entity->Transform.Translation.Elements);
-        ImGui::InputFloat3("Scale", Entity->Transform.Scale.Elements);
-        ImGui::InputFloat4("Rotation", Entity->Transform.Rotation.Elements);
+        ImGui::InputFloat3("Position (T)", Entity->Transform.Translation.Elements);
+        ImGui::InputFloat3("Scale (Y)", Entity->Transform.Scale.Elements);
+        ImGui::InputFloat4("Rotation (R)", Entity->Transform.Rotation.Elements);
     }
 
     ImGui::NewLine();
@@ -206,6 +204,14 @@ RenderEntityInfo(game_entity *Entity, model *Model)
             RenderAnimationGraphInfo(Entity->Animation);
         }
     }
+
+    if (Entity->PointLight)
+    {
+        if (ImGui::CollapsingHeader("PointLight", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::ColorEdit3("Color", Entity->PointLight->Color.Elements);
+        }
+    }
 }
 
 internal void
@@ -223,109 +229,197 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
 
-#if 0
-    ImGui::Begin("Menu", 0, ImGuiWindowFlags_MenuBar);
+    const ImGuiViewport *Viewport = ImGui::GetMainViewport();
 
-    if (ImGui::BeginMenuBar())
-    {
-        if (ImGui::BeginMenu("Game"))
-        {
-            if (ImGui::MenuItem("Close"))
-            { 
-                PlatformState->IsGameRunning = false;
-            }
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(Viewport->Size.x, ImGui::GetFrameHeight()));
 
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Assets"))
-        {
-            if (ImGui::MenuItem("Viewer"))
-            {
-
-            }
-
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Animation"))
-        {
-            if (ImGui::MenuItem("Viewer"))
-            {
-
-            }
-
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndMenuBar();
-    }
-
-    ImGui::End();
-#endif
-
-    ImGui::Begin("Stats");
-
-    ImGui::Text("%.3f ms/frame (%.1f FPS)", GameParameters->Delta * 1000.f / PlatformState->TimeRate, PlatformState->TimeRate / GameParameters->Delta);
-    ImGui::Text("Window Size: %d, %d", PlatformState->WindowWidth, PlatformState->WindowHeight);
-    ImGui::Text("Time Rate: %.3f", PlatformState->TimeRate);
-    ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
-    ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
-
-    ImGui::End();
-
-    ImGui::Begin("Game State");
-
-    ImGui::Text("Total Entities: %d", GameState->EntityCount);
-    ImGui::Text("Renderable Entities: %d", GameState->RenderableEntityCount);
-
-    if (GameState->Player->Body)
-    {
-        ImGui::Text("Player Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
-    }
+    ImGuiWindowFlags Flags =
+        ImGuiWindowFlags_NoDecoration |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse |
+        ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground |
+        ImGuiWindowFlags_MenuBar;
 
     game_camera *Camera = GameState->Mode == GameMode_World
         ? &GameState->PlayerCamera
         : &GameState->FreeCamera;
 
-    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Transform.Translation.x, Camera->Transform.Translation.y, Camera->Transform.Translation.z);
-
-    ImGui::Checkbox("(| - _ - |)", (bool *) &GameState->DanceMode);
-
-    ImGui::End();
-
-    ImGui::Begin("Render Settings");
-    
-    ImGui::ColorEdit3("Dir Color", (f32 *) &GameState->DirectionalLight.Color);
-    ImGui::SliderFloat3("Dir Direction", (f32 *) &GameState->DirectionalLight.Direction, -1.f, 1.f);
-    GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
-
-    if (ImGui::BeginTable("Render toggles", 2))
+    if (ImGui::Begin("MenuBar", 0, Flags))
     {
-        ImGui::TableNextColumn();
-        ImGui::Checkbox("Show Camera", (bool *) &GameState->Options.ShowCamera);
-        ImGui::TableNextColumn();
-        ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
+        if (ImGui::BeginMenuBar())
+        {
+            if (ImGui::BeginMenu("Game"))
+            {
+                if (ImGui::BeginMenu("Stats"))
+                {
+                    if (GameState->Player->Body)
+                    {
+                        ImGui::Text("Player Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
+                    }
 
-        ImGui::TableNextColumn();
-        ImGui::Checkbox("Show Bounding Volumes", (bool *) &GameState->Options.ShowBoundingVolumes);
-        ImGui::TableNextColumn();
-        ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
+                    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Transform.Translation.x, Camera->Transform.Translation.y, Camera->Transform.Translation.z);
 
-        ImGui::TableNextColumn();
-        ImGui::Checkbox("Show Grid", (bool *) &GameState->Options.ShowGrid);
+                    ImGui::Checkbox("(| - _ - |)", (bool *) &GameState->DanceMode);
 
-        ImGui::EndTable();
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::MenuItem("Exit (Esc)"))
+                {
+                    PlatformState->IsGameRunning = false;
+                }
+
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("Settings"))
+            {
+                if (ImGui::BeginMenu("Graphics"))
+                {
+                    ImGui::ColorEdit3("Dir Color", (f32 *) &GameState->DirectionalLight.Color);
+                    ImGui::SliderFloat3("Dir Direction", (f32 *) &GameState->DirectionalLight.Direction, -1.f, 1.f);
+                    GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
+
+                    if (ImGui::BeginTable("Graphics toggles", 2))
+                    {
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("Show Camera", (bool *) &GameState->Options.ShowCamera);
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
+
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("Show Bounding Volumes", (bool *) &GameState->Options.ShowBoundingVolumes);
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
+
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("Show Grid", (bool *) &GameState->Options.ShowGrid);
+
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("FullScreen", (bool *) &PlatformState->IsFullScreen);
+
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("VSync", (bool *) &PlatformState->VSync);
+
+                        ImGui::EndTable();
+                    }
+
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Audio"))
+                {
+                    ImGui::SliderFloat("Master Volume", &GameState->MasterVolume, 0.f, 1.f);
+
+                    ImGui::EndMenu();
+                }
+
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("Profiler"))
+            {
+                platform_profiler *Profiler = GameMemory->Profiler;
+                profiler_frame_samples *FrameSamples = ProfilerGetPreviousFrameSamples(Profiler);
+
+                f32 *ElapsedMillisecondsValues = PushArray(ScopedMemory.Arena, FrameSamples->SampleCount, f32);
+
+                for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
+                {
+                    profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
+                    f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
+                    *ElapsedMilliseconds = Sample->ElapsedMilliseconds;
+                }
+
+                ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
+
+                if (ImGui::BeginTable("Profiler stats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
+                {
+                    ImGui::TableSetupColumn("Block", 0, 3.f);
+                    ImGui::TableSetupColumn("Ticks", 0, 1.f);
+                    ImGui::TableSetupColumn("Milliseconds", 0, 1.f);
+                    ImGui::TableHeadersRow();
+
+                    u64 TotalTicks = 0;
+                    f32 TotalMilliseconds = 0.f;
+
+                    for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
+                    {
+                        profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
+
+                        ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
+
+                        if (Sample->ElapsedMilliseconds >= 1.0f)
+                        {
+                            Color = ImVec4(1.f, 0.f, 0.f, 1.f);
+                        }
+                        else if (0.1f <= Sample->ElapsedMilliseconds && Sample->ElapsedMilliseconds < 1.f)
+                        {
+                            Color = ImVec4(1.f, 1.f, 0.f, 1.f);
+                        }
+
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(Color, "%s", Sample->Name);
+
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
+
+                        ImGui::TableNextColumn();
+                        ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMilliseconds);
+
+                        TotalTicks += Sample->ElapsedTicks;
+                        TotalMilliseconds += Sample->ElapsedMilliseconds;
+                    }
+
+                    ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
+
+                    if (TotalMilliseconds >= 4.0f)
+                    {
+                        Color = ImVec4(1.f, 0.f, 0.f, 1.f);
+                    }
+                    else if (1.f <= TotalMilliseconds && TotalMilliseconds < 4.f)
+                    {
+                        Color = ImVec4(1.f, 1.f, 0.f, 1.f);
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextColored(Color, "Total");
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextColored(Color, "%d ticks", TotalTicks);
+
+                    ImGui::TableNextColumn();
+                    ImGui::TextColored(Color, "%.3f ms", TotalMilliseconds);
+
+                    ImGui::EndTable();
+                }
+
+                ImGui::EndMenu();
+            }
+
+            char Text[256];
+            FormatString(
+                Text, "%.3f ms/frame (%.1f FPS) | Renderable Entities: %d | Total Entities: %d", 
+                GameParameters->Delta * 1000.f / PlatformState->TimeRate, PlatformState->TimeRate / GameParameters->Delta, GameState->RenderableEntityCount, GameState->EntityCount
+            );
+
+            ImVec2 TextSize = ImGui::CalcTextSize(Text);
+            ImGui::SetCursorPosX(Viewport->Size.x - TextSize.x - 10);
+            ImGui::Text(Text);
+
+            ImGui::EndMenuBar();
+        }
+
+        ImGui::End();
     }
 
-    ImGui::End();
+    ImGui::SetNextWindowPos(ImVec2(Viewport->Pos.x, ImGui::GetFrameHeight() + 5 ));
 
-    ImGui::Begin("Audio Settings");
-
-    ImGui::SliderFloat("Master Volume", &GameState->MasterVolume, 0.f, 1.f);
-
-    ImGui::End();
-
+#if 0
+    // todo: find a better place to put it
     ImGui::Begin("Cascaded Shadow Maps");
     {
         ImVec2 WindowSize = ImVec2(512, 512);
@@ -342,161 +436,95 @@ Win32RenderDebugInfo(win32_platform_state *PlatformState, opengl_state *Renderer
         }
     }
     ImGui::End();
+#endif
 
-    for (u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
+    bool SelectedEntity = true;
+
+    if (GameState->SelectedEntity)
     {
-        game_entity *Entity = GameState->Entities + EntityIndex;
+        game_entity *Entity = GameState->SelectedEntity;
 
-        if (Entity->DebugView)
+        ImGui::SetNextWindowPos(ImVec2(Viewport->Pos.x, ImGui::GetFrameHeight() + 5));
+        ImGui::SetNextWindowSize(ImVec2(0, 0));
+
+        ImGui::Begin("Entity", &SelectedEntity);
+        RenderEntityInfo(Entity, Entity->Model);
+        ImGui::End();
+
+        // Gizmos
+        if (ImGui::IsKeyPressed(ImGuiKey_T))
         {
-            ImGui::Begin("Entity", (bool *) &Entity->DebugView);
-            RenderEntityInfo(Entity, Entity->Model);
-            ImGui::End();
+            DebugState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+        }
 
-            // Gizmos
-            if (ImGui::IsKeyPressed(ImGuiKey_G))
+        if (ImGui::IsKeyPressed(ImGuiKey_Y))
+        {
+            DebugState->CurrentGizmoOperation = ImGuizmo::SCALE;
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_R))
+        {
+            DebugState->CurrentGizmoOperation = ImGuizmo::ROTATE;
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_U))
+        {
+            DebugState->CurrentGizmoOperation = 0;
+        }
+
+        ImGuiIO &io = ImGui::GetIO();
+        ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+        mat4 WorldToCamera = Transpose(GetCameraTransform(Camera));
+        mat4 WorldProjection = Transpose(FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane));
+        mat4 EntityTransform = Transpose(Transform(Entity->Transform));
+
+        b32 Snap = io.KeyCtrl;
+
+        f32 SnapValue = 0.5f;
+        if (DebugState->CurrentGizmoOperation == ImGuizmo::OPERATION::ROTATE)
+        {
+            SnapValue = 45.f;
+        }
+
+        f32 SnapValues[] = { SnapValue, SnapValue, SnapValue };
+
+        ImGuizmo::Manipulate(
+            (f32 *) WorldToCamera.Elements, 
+            (f32 *) WorldProjection.Elements, 
+            (ImGuizmo::OPERATION) DebugState->CurrentGizmoOperation, 
+            ImGuizmo::LOCAL, (f32 *) EntityTransform.Elements,
+            0,
+            Snap ? SnapValues : 0
+        );
+
+        if (ImGuizmo::IsUsing())
+        {
+            vec3 Translation;
+            vec3 Rotation;
+            vec3 Scale;
+            ImGuizmo::DecomposeMatrixToComponents((f32 *) EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
+
+            // todo: probably should update colliders or smth
+            if (Entity->Body)
             {
-                DebugState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+                Entity->Body->Position = Translation;
+                Entity->Body->Orientation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+            }
+            else
+            {
+                Entity->Transform.Translation = Translation;
+                Entity->Transform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
             }
 
-            if (ImGui::IsKeyPressed(ImGuiKey_T))
-            {
-                DebugState->CurrentGizmoOperation = ImGuizmo::SCALE;
-            }
-
-            if (ImGui::IsKeyPressed(ImGuiKey_R))
-            {
-                DebugState->CurrentGizmoOperation = ImGuizmo::ROTATE;
-            }
-
-            ImGuiIO &io = ImGui::GetIO();
-            ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-
-            mat4 WorldToCamera = Transpose(GetCameraTransform(Camera));
-            mat4 WorldProjection = Transpose(FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane));
-            mat4 EntityTransform = Transpose(Transform(Entity->Transform));
-
-            b32 Snap = io.KeyCtrl;
-
-            f32 SnapValue = 0.5f;
-            if (DebugState->CurrentGizmoOperation == ImGuizmo::OPERATION::ROTATE)
-            {
-                SnapValue = 45.f;
-            }
-
-            f32 SnapValues[] = { SnapValue, SnapValue, SnapValue };
-
-            ImGuizmo::Manipulate(
-                (f32 *) WorldToCamera.Elements, 
-                (f32 *) WorldProjection.Elements, 
-                (ImGuizmo::OPERATION) DebugState->CurrentGizmoOperation, 
-                ImGuizmo::LOCAL, (f32 *) EntityTransform.Elements,
-                0,
-                Snap ? SnapValues : 0
-            );
-
-            if (ImGuizmo::IsUsing())
-            {
-                vec3 Translation;
-                vec3 Rotation;
-                vec3 Scale;
-                ImGuizmo::DecomposeMatrixToComponents((f32 *) EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
-
-                // todo: probably should update colliders or smth
-                if (Entity->Body)
-                {
-                    Entity->Body->Position = Translation;
-                    Entity->Body->Orientation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
-                }
-                else
-                {
-                    Entity->Transform.Translation = Translation;
-                    Entity->Transform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
-                }
-
-                Entity->Transform.Scale = Scale;
-            }
+            Entity->Transform.Scale = Scale;
         }
     }
 
-    ImGui::Begin("Profiler");
-
-    platform_profiler *Profiler = GameMemory->Profiler;
-    profiler_frame_samples *FrameSamples = ProfilerGetPreviousFrameSamples(Profiler);
-
-    f32 *ElapsedMillisecondsValues = PushArray(ScopedMemory.Arena, FrameSamples->SampleCount, f32);
-
-    for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
+    if (!SelectedEntity)
     {
-        profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
-        f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
-        *ElapsedMilliseconds = Sample->ElapsedMilliseconds;
+        GameState->SelectedEntity = 0;
     }
-
-    ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
-
-    if (ImGui::BeginTable("Profiler stats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
-    {
-        ImGui::TableSetupColumn("Block", 0, 3.f);
-        ImGui::TableSetupColumn("Ticks", 0, 1.f);
-        ImGui::TableSetupColumn("Milliseconds", 0, 1.f);
-        ImGui::TableHeadersRow();
-
-        u64 TotalTicks = 0;
-        f32 TotalMilliseconds = 0.f;
-
-        for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
-        {
-            profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
-
-            ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
-
-            if (Sample->ElapsedMilliseconds >= 1.0f)
-            {
-                Color = ImVec4(1.f, 0.f, 0.f, 1.f);
-            }
-            else if (0.1f <= Sample->ElapsedMilliseconds && Sample->ElapsedMilliseconds < 1.f)
-            {
-                Color = ImVec4(1.f, 1.f, 0.f, 1.f);
-            }
-
-            ImGui::TableNextColumn();
-            ImGui::TextColored(Color, "%s", Sample->Name);
-
-            ImGui::TableNextColumn();
-            ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
-
-            ImGui::TableNextColumn();
-            ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMilliseconds);
-
-            TotalTicks += Sample->ElapsedTicks;
-            TotalMilliseconds += Sample->ElapsedMilliseconds;
-        }
-
-        ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
-
-        if (TotalMilliseconds >= 4.0f)
-        {
-            Color = ImVec4(1.f, 0.f, 0.f, 1.f);
-        }
-        else if (1.f <= TotalMilliseconds && TotalMilliseconds < 4.f)
-        {
-            Color = ImVec4(1.f, 1.f, 0.f, 1.f);
-        }
-
-        ImGui::TableNextColumn();
-        ImGui::TextColored(Color, "Total");
-
-        ImGui::TableNextColumn();
-        ImGui::TextColored(Color, "%d ticks", TotalTicks);
-
-        ImGui::TableNextColumn();
-        ImGui::TextColored(Color, "%.3f ms", TotalMilliseconds);
-
-        ImGui::EndTable();
-    }
-
-    ImGui::End();
 
     // Rendering
     ImGui::Render();

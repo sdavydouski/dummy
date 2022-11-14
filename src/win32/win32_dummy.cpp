@@ -1124,7 +1124,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
         debug_state DebugState = {};
-        DebugState.CurrentGizmoOperation = 7;
         umm DebugArenaSize = Megabytes(32);
         InitMemoryArena(&DebugState.Arena, Win32AllocateMemory(0, DebugArenaSize), DebugArenaSize);
 

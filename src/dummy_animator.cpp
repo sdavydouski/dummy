@@ -397,6 +397,56 @@ ANIMATOR_CONTROLLER(MonstarAnimatorController)
     }
 }
 
+struct cleric_animator_params
+{
+    f32 Move;
+    f32 MoveMagnitude;
+
+    b32 ToStateDancing;
+    b32 ToStateIdleFromDancing;
+};
+
+ANIMATOR_CONTROLLER(ClericAnimatorController)
+{
+    cleric_animator_params *ClericParams = (cleric_animator_params *) Params;
+
+    animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
+    WalkingNode->BlendSpace->Parameter = ClericParams->Move;
+
+    animation_node *Active = Graph->Active;
+
+    if (StringEquals(Active->Name, "ActionIdle"))
+    {
+        if (ClericParams->MoveMagnitude > 0.f)
+        {
+            TransitionToNode(Graph, "Moving");
+        }
+
+        if (ClericParams->ToStateDancing)
+        {
+            TransitionToNode(Graph, "Dancing");
+        }
+    }
+    else if (StringEquals(Active->Name, "Moving"))
+    {
+        if (ClericParams->MoveMagnitude < EPSILON)
+        {
+            TransitionToNode(Graph, "ActionIdle");
+        }
+    }
+    else if (StringEquals(Active->Name, "Dancing"))
+    {
+        if (ClericParams->ToStateIdleFromDancing && ClericParams->MoveMagnitude < EPSILON)
+        {
+            TransitionToNode(Graph, "ActionIdle");
+        }
+    }
+    else
+    {
+        Assert(!"Invalid state");
+    }
+}
+
 ANIMATOR_CONTROLLER(SimpleAnimatorController)
 {
     animation_node *Active = Graph->Active;

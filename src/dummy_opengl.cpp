@@ -1234,7 +1234,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             char AttenuationQuadraticUniformName[64];
                             FormatString(AttenuationQuadraticUniformName, "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
                             GLint AttenuationQuadraticUniformLocation = glGetUniformLocation(Shader->Program, AttenuationQuadraticUniformName);
-
+                            
                             glUniform3f(PositionUniformLocation, PointLight->Position.x, PointLight->Position.y, PointLight->Position.z);
                             glUniform3f(ColorUniformLocation, PointLight->Color.r, PointLight->Color.g, PointLight->Color.b);
                             glUniform1f(AttenuationConstantUniformLocation, PointLight->Attenuation.Constant);

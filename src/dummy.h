@@ -15,19 +15,17 @@ struct game_entity
 {
     u32 Id;
     ivec3 GridCellCoords[2];
-
     transform Transform;
 
     model *Model;
+    skinning_data *Skinning;
     collider *Collider;
     rigid_body *Body;
     animation_graph *Animation;
-    skinning_data *Skinning;
+    point_light *PointLight;
 
     b32 Visible;
-    b32 Controllable;   // todo: come up with smth better
-    b32 FutureControllable;   // todo: come up with smth better
-    b32 DebugView;
+    b32 Controllable;
     vec3 TestColor;
     vec3 DebugColor;
 };
@@ -150,9 +148,6 @@ struct game_state
 
     hash_table<entity_render_batch> EntityBatches;
 
-    u32 PointLightCount;
-    point_light *PointLights;
-
     directional_light DirectionalLight;
 
     hash_table<game_process> Processes;
@@ -160,6 +155,7 @@ struct game_state
     game_process ProcessSentinel;
 
     game_entity *Player;
+    game_entity *SelectedEntity;
 
     i32 PlayableEntityIndex;
     union
