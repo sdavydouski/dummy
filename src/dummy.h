@@ -23,6 +23,7 @@ struct game_entity
     rigid_body *Body;
     animation_graph *Animation;
     point_light *PointLight;
+    particle_emitter *ParticleEmitter;
 
     b32 Visible;
     b32 Controllable;

@@ -188,6 +188,30 @@ OpenGLInitText(opengl_state *State)
     glBindVertexArray(0);
 }
 
+internal void
+OpenGLInitParticles(opengl_state *State)
+{
+    u32 MaxParticleCount = 4096;
+
+    glGenVertexArrays(1, &State->ParticleVAO);
+    glBindVertexArray(State->ParticleVAO);
+
+    glGenBuffers(1, &State->ParticleVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, State->ParticleVBO);
+    glBufferData(GL_ARRAY_BUFFER, MaxParticleCount * sizeof(opengl_particle), 0, GL_STREAM_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_particle), (GLvoid *) StructOffset(opengl_particle, Position));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_particle), (GLvoid *) StructOffset(opengl_particle, Size));
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(opengl_particle), (GLvoid *) StructOffset(opengl_particle, Color));
+
+    glBindVertexArray(0);
+}
+
 // todo: use hashtable
 inline opengl_mesh_buffer *
 OpenGLGetMeshBuffer(opengl_state *State, u32 Id)
@@ -955,6 +979,7 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
     OpenGLInitRectangle(State);
     OpenGLInitBox(State);
     OpenGLInitText(State);
+    OpenGLInitParticles(State);
 
     OpenGLInitShaders(State);
     OpenGLInitFramebuffers(State, WindowWidth, WindowHeight);
@@ -1234,7 +1259,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             char AttenuationQuadraticUniformName[64];
                             FormatString(AttenuationQuadraticUniformName, "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
                             GLint AttenuationQuadraticUniformLocation = glGetUniformLocation(Shader->Program, AttenuationQuadraticUniformName);
-                            
+
                             glUniform3f(PositionUniformLocation, PointLight->Position.x, PointLight->Position.y, PointLight->Position.z);
                             glUniform3f(ColorUniformLocation, PointLight->Color.r, PointLight->Color.g, PointLight->Color.b);
                             glUniform1f(AttenuationConstantUniformLocation, PointLight->Attenuation.Constant);
@@ -1485,6 +1510,47 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     {
                         glEnable(GL_DEPTH_TEST);
                     }
+
+                    glUseProgram(0);
+                    glBindVertexArray(0);
+                }
+
+                break;
+            }
+            case RenderCommand_DrawParticles:
+            {
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_draw_particles *Command = (render_command_draw_particles *) Entry;
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PARTICLE_SHADER_ID);
+                    scoped_memory ScopedMemory(&State->Arena);
+
+                    glBindVertexArray(State->ParticleVAO);
+                    glUseProgram(Shader->Program);
+
+                    mat4 WorldToCamera = Commands->Settings.WorldToCamera;
+                    vec3 CameraXAsis = WorldToCamera[0].xyz;
+                    vec3 CameraYAxis = WorldToCamera[1].xyz;
+
+                    opengl_particle *Particles = PushArray(ScopedMemory.Arena, Command->ParticleCount, opengl_particle);
+
+                    for (u32 ParticleIndex = 0; ParticleIndex < Command->ParticleCount; ++ParticleIndex)
+                    {
+                        particle *SourceParticle = Command->Particles + ParticleIndex;
+                        opengl_particle *DestParticle = Particles + ParticleIndex;
+
+                        DestParticle->Position = SourceParticle->Position;
+                        DestParticle->Size = SourceParticle->Size;
+                        DestParticle->Color = SourceParticle->Color;
+                    }
+
+                    glBindBuffer(GL_ARRAY_BUFFER, State->ParticleVBO);
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, Command->ParticleCount * sizeof(opengl_particle), Particles);
+
+                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraXAxis"), CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
+                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
+
+                    glDrawArrays(GL_POINTS, 0, Command->ParticleCount);
 
                     glUseProgram(0);
                     glBindVertexArray(0);

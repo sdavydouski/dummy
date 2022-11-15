@@ -15,6 +15,7 @@
 #define OPENGL_GROUND_SHADER_ID 0x5
 #define OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID 0x6
 #define OPENGL_TEXT_SHADER_ID 0x7
+#define OPENGL_PARTICLE_SHADER_ID 0x8
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 32
 #define OPENGL_WORLD_SPACE_MODE 0x1
@@ -82,8 +83,8 @@ struct opengl_load_shader_params
 struct opengl_create_program_params
 {
     GLuint VertexShader;
-    GLuint GeometryShader;
     GLuint FragmentShader;
+    GLuint GeometryShader;
 };
 
 opengl_load_shader_params OpenGLShaders[] =
@@ -123,6 +124,12 @@ opengl_load_shader_params OpenGLShaders[] =
         "..\\src\\renderers\\OpenGL\\shaders\\text.vert",
         "..\\src\\renderers\\OpenGL\\shaders\\text.frag",
         "..\\src\\renderers\\OpenGL\\shaders\\text.geom"
+    },
+    {
+        OPENGL_PARTICLE_SHADER_ID,
+        "..\\src\\renderers\\OpenGL\\shaders\\particle.vert",
+        "..\\src\\renderers\\OpenGL\\shaders\\particle.frag",
+        "..\\src\\renderers\\OpenGL\\shaders\\particle.geom"
     }
 };
 
@@ -132,6 +139,13 @@ struct opengl_character_point
     vec2 Size;
     vec2 SpriteSize;
     vec2 SpriteOffset;
+};
+
+struct opengl_particle
+{
+    vec3 Position;
+    vec2 Size;
+    vec4 Color;
 };
 
 struct opengl_shader
@@ -222,6 +236,8 @@ struct opengl_state
     GLuint BoxVAO;
     GLuint TextVAO;
     GLuint TextVBO;
+    GLuint ParticleVAO;
+    GLuint ParticleVBO;
 
     GLuint ShaderStateUBO;
 

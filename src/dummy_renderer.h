@@ -52,6 +52,27 @@ struct spot_light
     light_attenuation Attenuation;
 };
 
+struct particle
+{
+    vec3 Position;
+    vec3 Velocity;
+    vec3 Acceleration;
+    vec4 Color;
+    vec4 dColor;
+    vec2 Size;
+    vec2 dSize;
+};
+
+struct particle_emitter
+{
+    u32 NextParticleIndex;
+
+    u32 ParticleCount;
+    particle *Particles;
+
+    vec4 Color;
+};
+
 struct game_camera
 {
     transform Transform;
@@ -119,13 +140,13 @@ enum render_command_type
     RenderCommand_DrawGround,
     RenderCommand_DrawMesh,
     RenderCommand_DrawSkinnedMesh,
-    RenderCommand_DrawMeshInstanced
+    RenderCommand_DrawMeshInstanced,
+    RenderCommand_DrawParticles
 };
 
 struct render_command_header
 {
     render_command_type Type;
-    u32 RenderTarget;
     u32 Size;
 };
 
@@ -327,6 +348,14 @@ struct render_command_draw_mesh_instanced
     render_instance *Instances;
 
     material Material;
+};
+
+struct render_command_draw_particles
+{
+    render_command_header Header;
+
+    u32 ParticleCount;
+    particle *Particles;
 };
 
 struct render_commands_settings

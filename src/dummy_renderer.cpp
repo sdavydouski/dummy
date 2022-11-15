@@ -9,21 +9,20 @@ InitRenderCommandsBuffer(render_commands *Commands, void *Memory, u32 Size)
 }
 
 inline render_command_header *
-PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type, u32 RenderTarget)
+PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type)
 {
     Assert(Commands->RenderCommandsBufferSize + Size < Commands->MaxRenderCommandsBufferSize);
 
     render_command_header *Result = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + Commands->RenderCommandsBufferSize);
     Result->Type = Type;
     Result->Size = Size;
-    Result->RenderTarget = RenderTarget;
 
     Commands->RenderCommandsBufferSize += Size;
 
     return Result;
 }
 
-#define PushRenderCommand(Buffer, Struct, Type, RenderTarget) (Struct *)PushRenderCommand_(Buffer, sizeof(Struct), Type, RenderTarget)
+#define PushRenderCommand(Buffer, Struct, Type) (Struct *)PushRenderCommand_(Buffer, sizeof(Struct), Type)
 
 inline void
 AddMesh(
@@ -41,7 +40,7 @@ AddMesh(
     u32 *Indices
 )
 {
-    render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh, 0);
+    render_command_add_mesh *Command = PushRenderCommand(Commands, render_command_add_mesh, RenderCommand_AddMesh);
     Command->MeshId = MeshId;
     Command->VertexCount = VertexCount;
     Command->Positions = Positions;
@@ -58,7 +57,7 @@ AddMesh(
 inline void
 AddTexture(render_commands *Commands, u32 Id, bitmap *Bitmap)
 {
-    render_command_add_texture *Command = PushRenderCommand(Commands, render_command_add_texture, RenderCommand_AddTexture, 0);
+    render_command_add_texture *Command = PushRenderCommand(Commands, render_command_add_texture, RenderCommand_AddTexture);
     Command->Id = Id;
     Command->Bitmap = Bitmap;
 }
@@ -66,16 +65,16 @@ AddTexture(render_commands *Commands, u32 Id, bitmap *Bitmap)
 inline void
 AddSkinningBuffer(render_commands *Commands, u32 SkinningBufferId, u32 SkinningMatrixCount)
 {
-    render_command_add_skinning_buffer *Command = PushRenderCommand(Commands, render_command_add_skinning_buffer, RenderCommand_AddSkinningBuffer, 0);
+    render_command_add_skinning_buffer *Command = PushRenderCommand(Commands, render_command_add_skinning_buffer, RenderCommand_AddSkinningBuffer);
 
     Command->SkinningBufferId = SkinningBufferId;
     Command->SkinningMatrixCount = SkinningMatrixCount;
 }
 
 inline void
-SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height, u32 RenderTarget = 0)
+SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height)
 {
-    render_command_set_viewport *Command = PushRenderCommand(Commands, render_command_set_viewport, RenderCommand_SetViewport, RenderTarget);
+    render_command_set_viewport *Command = PushRenderCommand(Commands, render_command_set_viewport, RenderCommand_SetViewport);
     Command->x = x;
     Command->y = y;
     Command->Width = Width;
@@ -83,10 +82,10 @@ SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height, u32 
 }
 
 inline void
-SetScreenProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far, u32 RenderTarget = 0)
+SetScreenProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 {
     render_command_set_screen_projection *Command = 
-        PushRenderCommand(Commands, render_command_set_screen_projection, RenderCommand_SetScreenProjection, RenderTarget);
+        PushRenderCommand(Commands, render_command_set_screen_projection, RenderCommand_SetScreenProjection);
     Command->Left = Left;
     Command->Right = Right;
     Command->Bottom = Bottom;
@@ -96,10 +95,10 @@ SetScreenProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, 
 }
 
 inline void
-SetWorldProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far, u32 RenderTarget = 0)
+SetWorldProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far)
 {
     render_command_set_world_projection *Command =
-        PushRenderCommand(Commands, render_command_set_world_projection, RenderCommand_SetWorldProjection, RenderTarget);
+        PushRenderCommand(Commands, render_command_set_world_projection, RenderCommand_SetWorldProjection);
     Command->FovY = FovY;
     Command->Aspect = Aspect;
     Command->Near = Near;
@@ -107,9 +106,9 @@ SetWorldProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f3
 }
 
 inline void
-SetCamera(render_commands *Commands, vec3 Position, vec3 Direction, vec3 Up, u32 RenderTarget = 0)
+SetCamera(render_commands *Commands, vec3 Position, vec3 Direction, vec3 Up)
 {
-    render_command_set_camera *Command = PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera, RenderTarget);
+    render_command_set_camera *Command = PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera);
     Command->Position = Position;
     Command->Direction = Direction;
     Command->Up = Up;
@@ -118,30 +117,30 @@ SetCamera(render_commands *Commands, vec3 Position, vec3 Direction, vec3 Up, u32
 inline void
 SetTime(render_commands *Commands, f32 Time)
 {
-    render_command_set_time *Command = PushRenderCommand(Commands, render_command_set_time, RenderCommand_SetTime, 0);
+    render_command_set_time *Command = PushRenderCommand(Commands, render_command_set_time, RenderCommand_SetTime);
     Command->Time = Time;
 }
 
 inline void
-Clear(render_commands *Commands, vec4 Color, u32 RenderTarget = 0)
+Clear(render_commands *Commands, vec4 Color)
 {
-    render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear, RenderTarget);
+    render_command_clear *Command = PushRenderCommand(Commands, render_command_clear, RenderCommand_Clear);
     Command->Color = Color;
 }
 
 inline void
-DrawPoint(render_commands *Commands, vec3 Position, vec4 Color, f32 Size, u32 RenderTarget = 0)
+DrawPoint(render_commands *Commands, vec3 Position, vec4 Color, f32 Size)
 {
-    render_command_draw_point *Command = PushRenderCommand(Commands, render_command_draw_point, RenderCommand_DrawPoint, RenderTarget);
+    render_command_draw_point *Command = PushRenderCommand(Commands, render_command_draw_point, RenderCommand_DrawPoint);
     Command->Position = Position;
     Command->Color = Color;
     Command->Size = Size;
 }
 
 inline void
-DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness, u32 RenderTarget = 0)
+DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness)
 {
-    render_command_draw_line *Command = PushRenderCommand(Commands, render_command_draw_line, RenderCommand_DrawLine, RenderTarget);
+    render_command_draw_line *Command = PushRenderCommand(Commands, render_command_draw_line, RenderCommand_DrawLine);
     Command->Start = Start;
     Command->End = End;
     Command->Color = Color;
@@ -149,17 +148,17 @@ DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickn
 }
 
 inline void
-DrawRectangle(render_commands *Commands, transform Transform, vec4 Color, u32 RenderTarget = 0)
+DrawRectangle(render_commands *Commands, transform Transform, vec4 Color)
 {
-    render_command_draw_rectangle *Command = PushRenderCommand(Commands, render_command_draw_rectangle, RenderCommand_DrawRectangle, RenderTarget);
+    render_command_draw_rectangle *Command = PushRenderCommand(Commands, render_command_draw_rectangle, RenderCommand_DrawRectangle);
     Command->Transform = Transform;
     Command->Color = Color;
 }
 
 inline void
-DrawBox(render_commands *Commands, transform Transform, vec4 Color, u32 RenderTarget = 0)
+DrawBox(render_commands *Commands, transform Transform, vec4 Color)
 {
-    render_command_draw_box *Command = PushRenderCommand(Commands, render_command_draw_box, RenderCommand_DrawBox, RenderTarget);
+    render_command_draw_box *Command = PushRenderCommand(Commands, render_command_draw_box, RenderCommand_DrawBox);
     Command->Transform = Transform;
     Command->Color = Color;
 }
@@ -174,11 +173,10 @@ DrawText(
     vec4 Color,
     draw_text_alignment Alignment,
     draw_text_mode Mode,
-    b32 DepthEnabled = false,
-    u32 RenderTarget = 0
+    b32 DepthEnabled = false
 )
 {
-    render_command_draw_text *Command = PushRenderCommand(Commands, render_command_draw_text, RenderCommand_DrawText, RenderTarget);
+    render_command_draw_text *Command = PushRenderCommand(Commands, render_command_draw_text, RenderCommand_DrawText);
     CopyString(Text, Command->Text);
     Command->Font = Font;
     Command->Position = Position;
@@ -199,20 +197,19 @@ DrawText(
     vec4 Color, 
     draw_text_alignment Alignment, 
     draw_text_mode Mode, 
-    b32 DepthEnabled = false, 
-    u32 RenderTarget = 0
+    b32 DepthEnabled = false
 )
 {
     wchar WideText[256];
     ConvertToWideString(Text, WideText);
 
-    DrawText(Commands, WideText, Font, Position, Scale, Color, Alignment, Mode, DepthEnabled, RenderTarget);
+    DrawText(Commands, WideText, Font, Position, Scale, Color, Alignment, Mode, DepthEnabled);
 }
 
 inline void
-DrawGround(render_commands *Commands, u32 RenderTarget = 0)
+DrawGround(render_commands *Commands)
 {
-    render_command_draw_ground *Command = PushRenderCommand(Commands, render_command_draw_ground, RenderCommand_DrawGround, RenderTarget);
+    render_command_draw_ground *Command = PushRenderCommand(Commands, render_command_draw_ground, RenderCommand_DrawGround);
 }
 
 inline void
@@ -220,11 +217,10 @@ DrawMesh(
     render_commands *Commands, 
     u32 MeshId,
     transform Transform,
-    material Material,
-    u32 RenderTarget = 0
+    material Material
 )
 {
-    render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh, RenderTarget);
+    render_command_draw_mesh *Command = PushRenderCommand(Commands, render_command_draw_mesh, RenderCommand_DrawMesh);
     Command->MeshId = MeshId;
     Command->Transform = Transform;
     Command->Material = Material;
@@ -238,12 +234,11 @@ DrawSkinnedMesh(
     material Material,
     u32 SkinningBufferId,
     u32 SkinningMatrixCount,
-    mat4 *SkinningMatrices,
-    u32 RenderTarget = 0
+    mat4 *SkinningMatrices
 )
 {
     render_command_draw_skinned_mesh *Command = 
-        PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh, RenderTarget);
+        PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh);
     Command->MeshId = MeshId;
     Command->Transform = Transform;
     Command->Material = Material;
@@ -258,12 +253,11 @@ DrawMeshInstanced(
     u32 MeshId,
     u32 InstanceCount,
     render_instance *Instances,
-    material Material,
-    u32 RenderTarget = 0
+    material Material
 )
 {
     render_command_draw_mesh_instanced *Command = 
-        PushRenderCommand(Commands, render_command_draw_mesh_instanced, RenderCommand_DrawMeshInstanced, RenderTarget);
+        PushRenderCommand(Commands, render_command_draw_mesh_instanced, RenderCommand_DrawMeshInstanced);
     Command->MeshId = MeshId;
     Command->InstanceCount = InstanceCount;
     Command->Instances = Instances;
@@ -271,18 +265,26 @@ DrawMeshInstanced(
 }
 
 inline void
-SetDirectionalLight(render_commands *Commands, directional_light Light, u32 RenderTarget = 0)
+DrawParticles(render_commands *Commands, u32 ParticleCount, particle *Particles)
+{
+    render_command_draw_particles *Command = PushRenderCommand(Commands, render_command_draw_particles, RenderCommand_DrawParticles);
+    Command->ParticleCount = ParticleCount;
+    Command->Particles = Particles;
+}
+
+inline void
+SetDirectionalLight(render_commands *Commands, directional_light Light)
 {
     render_command_set_directional_light *Command = 
-        PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight, RenderTarget);
+        PushRenderCommand(Commands, render_command_set_directional_light, RenderCommand_SetDirectionalLight);
     Command->Light = Light;
 }
 
 inline void
-SetPointLights(render_commands *Commands, u32 PointLightCount, point_light *PointLights, u32 RenderTarget = 0)
+SetPointLights(render_commands *Commands, u32 PointLightCount, point_light *PointLights)
 {
     render_command_set_point_lights *Command =
-        PushRenderCommand(Commands, render_command_set_point_lights, RenderCommand_SetPointLights, RenderTarget);
+        PushRenderCommand(Commands, render_command_set_point_lights, RenderCommand_SetPointLights);
     Command->PointLightCount = PointLightCount;
     Command->PointLights = PointLights;
 }
