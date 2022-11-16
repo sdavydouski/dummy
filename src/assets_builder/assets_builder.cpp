@@ -56,9 +56,9 @@ namespace fs = std::filesystem;
 
 // https://nilooy.github.io/character-animation-combiner/
 internal void
-BuildModelAssets(const char *Path)
+BuildModelAssets(const char *InputPath, const char *OutputPath)
 {
-    for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
+    for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
     {
         if (Entry.is_directory())
         {
@@ -74,50 +74,50 @@ BuildModelAssets(const char *Path)
             char AnimationClipsPath[256];
             FormatString(AnimationClipsPath, "%s/clips", DirectoryPath.generic_string().c_str());
 
-            char OutputPath[256];
-            FormatString(OutputPath, "assets/%s.asset", DirectoryName.generic_string().c_str());
+            char AssetPath[256];
+            FormatString(AssetPath, "%s/%s.asset", OutputPath, DirectoryName.generic_string().c_str());
 
             printf("Processing %s...\n", FilePath);
-            ProcessModelAsset(FilePath, AnimationConfigPath, AnimationClipsPath, OutputPath);
+            ProcessModelAsset(FilePath, AnimationConfigPath, AnimationClipsPath, AssetPath);
         }
     }
 }
 
 internal void
-BuildFontAssets(const char *Path)
+BuildFontAssets(const char *InputPath, const char *OutputPath)
 {
-    for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
+    for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
     {
         fs::path FilePath = Entry.path();
         fs::path FileName = Entry.path().stem();
 
-        char OutputPath[256];
-        FormatString(OutputPath, "assets/%s.asset", FileName.generic_string().c_str());
+        char AssetPath[256];
+        FormatString(AssetPath, "%s/%s.asset", OutputPath, FileName.generic_string().c_str());
 
         printf("Processing %s...\n", FilePath.generic_string().c_str());
-        ProcessFontAsset(FilePath.generic_string().c_str(), OutputPath);
+        ProcessFontAsset(FilePath.generic_string().c_str(), AssetPath);
     }
 }
 
 internal void
-BuildAudioAssets(const char *Path)
+BuildAudioAssets(const char *InputPath, const char *OutputPath)
 {
-    for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
+    for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
     {
         fs::path FilePath = Entry.path();
         fs::path FileName = Entry.path().stem();
 
-        char OutputPath[256];
-        FormatString(OutputPath, "assets/%s.asset", FileName.generic_string().c_str());
+        char AssetPath[256];
+        FormatString(AssetPath, "%s/%s.asset", OutputPath, FileName.generic_string().c_str());
 
         printf("Processing %s...\n", FilePath.generic_string().c_str());
-        ProcessAudioAsset(FilePath.generic_string().c_str(), OutputPath);
+        ProcessAudioAsset(FilePath.generic_string().c_str(), AssetPath);
     }
 }
 
 i32 main(i32 ArgCount, char **Args)
 {
-    BuildModelAssets("models/");
-    BuildFontAssets("fonts/");
-    BuildAudioAssets("audio/");
+    BuildModelAssets("assets/models", "game/assets");
+    BuildFontAssets("assets/fonts", "game/assets");
+    BuildAudioAssets("assets/audio", "game/assets");
 }

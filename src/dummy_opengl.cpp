@@ -551,34 +551,36 @@ OpenGLLoadShaderUniforms(opengl_shader *Shader)
 {
     GLuint Program = Shader->Program;
 
-    Shader->ModelUniformLocation = glGetUniformLocation(Program, "u_Model");
-    Shader->ModeUniformLocation = glGetUniformLocation(Program, "u_Mode");
-    Shader->SkinningMatricesSamplerUniformLocation = glGetUniformLocation(Program, "u_SkinningMatricesSampler");
+    Shader->ModelUniform = glGetUniformLocation(Program, "u_Model");
+    Shader->ModeUniform = glGetUniformLocation(Program, "u_Mode");
+    Shader->SkinningMatricesSamplerUniform = glGetUniformLocation(Program, "u_SkinningMatricesSampler");
 
-    Shader->ColorUniformLocation = glGetUniformLocation(Program, "u_Color");
+    Shader->ColorUniform = glGetUniformLocation(Program, "u_Color");
 
-    Shader->MaterialSpecularShininessUniformLocation = glGetUniformLocation(Program, "u_Material.SpecularShininess");
+    Shader->MaterialSpecularShininessUniform = glGetUniformLocation(Program, "u_Material.SpecularShininess");
 
-    Shader->MaterialAmbientColorUniformLocation = glGetUniformLocation(Program, "u_Material.AmbientColor");
-    Shader->MaterialDiffuseColorUniformLocation = glGetUniformLocation(Program, "u_Material.DiffuseColor");
-    Shader->MaterialSpecularColorUniformLocation = glGetUniformLocation(Program, "u_Material.SpecularColor");
+    Shader->MaterialAmbientColorUniform = glGetUniformLocation(Program, "u_Material.AmbientColor");
+    Shader->MaterialDiffuseColorUniform = glGetUniformLocation(Program, "u_Material.DiffuseColor");
+    Shader->MaterialSpecularColorUniform = glGetUniformLocation(Program, "u_Material.SpecularColor");
 
-    Shader->MaterialDiffuseMapUniformLocation = glGetUniformLocation(Program, "u_Material.DiffuseMap");
-    Shader->MaterialSpecularMapUniformLocation = glGetUniformLocation(Program, "u_Material.SpecularMap");
-    Shader->MaterialShininessMapUniformLocation = glGetUniformLocation(Program, "u_Material.ShininessMap");
-    Shader->MaterialNormalMapUniformLocation = glGetUniformLocation(Program, "u_Material.NormalMap");
+    Shader->MaterialDiffuseMapUniform = glGetUniformLocation(Program, "u_Material.DiffuseMap");
+    Shader->MaterialSpecularMapUniform = glGetUniformLocation(Program, "u_Material.SpecularMap");
+    Shader->MaterialShininessMapUniform = glGetUniformLocation(Program, "u_Material.ShininessMap");
+    Shader->MaterialNormalMapUniform = glGetUniformLocation(Program, "u_Material.NormalMap");
 
-    Shader->MaterialHasDiffuseMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasDiffuseMap");
-    Shader->MaterialHasSpecularMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasSpecularMap");
-    Shader->MaterialHasShininessMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasShininessMap");
-    Shader->MaterialHasNormalMapUniformLocation = glGetUniformLocation(Program, "u_Material.HasNormalMap");
+    Shader->MaterialHasDiffuseMapUniform = glGetUniformLocation(Program, "u_Material.HasDiffuseMap");
+    Shader->MaterialHasSpecularMapUniform = glGetUniformLocation(Program, "u_Material.HasSpecularMap");
+    Shader->MaterialHasShininessMapUniform = glGetUniformLocation(Program, "u_Material.HasShininessMap");
+    Shader->MaterialHasNormalMapUniform = glGetUniformLocation(Program, "u_Material.HasNormalMap");
 
-    Shader->DirectionalLightDirectionUniformLocation = glGetUniformLocation(Program, "u_DirectionalLight.Direction");
-    Shader->DirectionalLightColorUniformLocation = glGetUniformLocation(Program, "u_DirectionalLight.Color");
+    Shader->DirectionalLightDirectionUniform = glGetUniformLocation(Program, "u_DirectionalLight.Direction");
+    Shader->DirectionalLightColorUniform = glGetUniformLocation(Program, "u_DirectionalLight.Color");
+    Shader->PointLightCountUniform = glGetUniformLocation(Program, "u_PointLightCount");
 
-    Shader->PointLightCountUniformLocation = glGetUniformLocation(Program, "u_PointLightCount");
+    Shader->CameraXAxisUniform = glGetUniformLocation(Program, "u_CameraXAxis");
+    Shader->CameraYAxisUniform = glGetUniformLocation(Program, "u_CameraYAxis");
 
-    Shader->ScreenTextureUniformLocation = glGetUniformLocation(Program, "u_ScreenTexture");
+    Shader->ScreenTextureUniform = glGetUniformLocation(Program, "u_ScreenTexture");
 }
 
 inline char *
@@ -718,10 +720,10 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
         return;
     }
 
-    glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, false);
-    glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, false);
-    glUniform1i(Shader->MaterialHasShininessMapUniformLocation, false);
-    glUniform1i(Shader->MaterialHasNormalMapUniformLocation, false);
+    glUniform1i(Shader->MaterialHasDiffuseMapUniform, false);
+    glUniform1i(Shader->MaterialHasSpecularMapUniform, false);
+    glUniform1i(Shader->MaterialHasShininessMapUniform, false);
+    glUniform1i(Shader->MaterialHasNormalMapUniform, false);
 
     // todo: magic numbers
     opengl_texture *Texture = OpenGLGetTexture(State, 0);
@@ -768,8 +770,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
     {
         // default values
         vec3 DefaultAmbient = vec3(0.4f);
-        glUniform3f(Shader->MaterialAmbientColorUniformLocation, DefaultAmbient.x, DefaultAmbient.y, DefaultAmbient.z);
-        glUniform1f(Shader->MaterialSpecularShininessUniformLocation, 1.f);
+        glUniform3f(Shader->MaterialAmbientColorUniform, DefaultAmbient.x, DefaultAmbient.y, DefaultAmbient.z);
+        glUniform1f(Shader->MaterialSpecularShininessUniform, 1.f);
 
         for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
         {
@@ -779,7 +781,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
             {
                 case MaterialProperty_Float_Shininess:
                 {
-                    glUniform1f(Shader->MaterialSpecularShininessUniformLocation, MaterialProperty->Value);
+                    glUniform1f(Shader->MaterialSpecularShininessUniform, MaterialProperty->Value);
                     break;
                 }
                 case MaterialProperty_Color_Ambient:
@@ -790,7 +792,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     }
 
                     glUniform3f(
-                        Shader->MaterialAmbientColorUniformLocation,
+                        Shader->MaterialAmbientColorUniform,
                         MaterialProperty->Color.r,
                         MaterialProperty->Color.g,
                         MaterialProperty->Color.b
@@ -800,7 +802,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 case MaterialProperty_Color_Diffuse:
                 {
                     glUniform3f(
-                        Shader->MaterialDiffuseColorUniformLocation,
+                        Shader->MaterialDiffuseColorUniform,
                         MaterialProperty->Color.r,
                         MaterialProperty->Color.g,
                         MaterialProperty->Color.b
@@ -810,7 +812,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 case MaterialProperty_Color_Specular:
                 {
                     glUniform3f(
-                        Shader->MaterialSpecularColorUniformLocation,
+                        Shader->MaterialSpecularColorUniform,
                         MaterialProperty->Color.r,
                         MaterialProperty->Color.g,
                         MaterialProperty->Color.b
@@ -824,8 +826,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasDiffuseMapUniformLocation, true);
-                    glUniform1i(Shader->MaterialDiffuseMapUniformLocation, MaterialPropertyIndex);
+                    glUniform1i(Shader->MaterialHasDiffuseMapUniform, true);
+                    glUniform1i(Shader->MaterialDiffuseMapUniform, MaterialPropertyIndex);
                     break;
                 }
                 case MaterialProperty_Texture_Specular:
@@ -835,8 +837,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasSpecularMapUniformLocation, true);
-                    glUniform1i(Shader->MaterialSpecularMapUniformLocation, MaterialPropertyIndex);
+                    glUniform1i(Shader->MaterialHasSpecularMapUniform, true);
+                    glUniform1i(Shader->MaterialSpecularMapUniform, MaterialPropertyIndex);
                     break;
                 }
                 case MaterialProperty_Texture_Shininess:
@@ -846,8 +848,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasShininessMapUniformLocation, true);
-                    glUniform1i(Shader->MaterialShininessMapUniformLocation, MaterialPropertyIndex);
+                    glUniform1i(Shader->MaterialHasShininessMapUniform, true);
+                    glUniform1i(Shader->MaterialShininessMapUniform, MaterialPropertyIndex);
                     break;
                 }
                 case MaterialProperty_Texture_Normal:
@@ -857,8 +859,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasNormalMapUniformLocation, true);
-                    glUniform1i(Shader->MaterialNormalMapUniformLocation, MaterialPropertyIndex);
+                    glUniform1i(Shader->MaterialHasNormalMapUniform, true);
+                    glUniform1i(Shader->MaterialNormalMapUniform, MaterialPropertyIndex);
                     break;
                 }
                 default:
@@ -1214,8 +1216,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         opengl_shader *Shader = State->Shaders + ShaderIndex;
 
                         glUseProgram(Shader->Program);
-                        glUniform3f(Shader->DirectionalLightDirectionUniformLocation, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
-                        glUniform3f(Shader->DirectionalLightColorUniformLocation, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
+                        glUniform3f(Shader->DirectionalLightDirectionUniform, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
+                        glUniform3f(Shader->DirectionalLightColorUniform, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
                         glUseProgram(0);
                     }
                 }
@@ -1234,7 +1236,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                         glUseProgram(Shader->Program);
 
-                        glUniform1i(Shader->PointLightCountUniformLocation, Command->PointLightCount);
+                        glUniform1i(Shader->PointLightCountUniform, Command->PointLightCount);
 
                         for (u32 PointLightIndex = 0; PointLightIndex < Command->PointLightCount; ++PointLightIndex)
                         {
@@ -1310,9 +1312,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         mat4 Model = Translate(Command->Position);
 
                         // todo: world mode?
-                        glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
-                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
-                        glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                        glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
+                        glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                        glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
                     }
 
                     glDrawArrays(GL_POINTS, 0, 1);
@@ -1343,9 +1345,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         mat4 Model = T * S;
 
                         // todo: world mode?
-                        glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
-                        glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
-                        glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                        glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
+                        glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                        glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
                     }
 
                     glDrawArrays(GL_LINES, 0, 2);
@@ -1376,9 +1378,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
                     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-                    glUniform1i(Shader->ModeUniformLocation, OPENGL_SCREEN_SPACE_MODE);
-                    glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
-                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform1i(Shader->ModeUniform, OPENGL_SCREEN_SPACE_MODE);
+                    glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                    glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -1401,9 +1403,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     mat4 Model = Transform(Command->Transform);
 
-                    glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
-                    glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
-                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
+                    glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                    glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     // todo: configurable
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -1499,10 +1501,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, Texture->Handle);
 
-                    glUniform1i(Shader->ModeUniformLocation, Mode);
-                    glUniform4f(Shader->ColorUniformLocation, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
-                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraXAxis"), CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
-                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
+                    glUniform1i(Shader->ModeUniform, Mode);
+                    glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform3f(Shader->CameraXAxisUniform, CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
+                    glUniform3f(Shader->CameraYAxisUniform, CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
                     glDrawArrays(GL_POINTS, 0, CharacterCount);
 
@@ -1547,8 +1549,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glBindBuffer(GL_ARRAY_BUFFER, State->ParticleVBO);
                     glBufferSubData(GL_ARRAY_BUFFER, 0, Command->ParticleCount * sizeof(opengl_particle), Particles);
 
-                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraXAxis"), CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
-                    glUniform3f(glGetUniformLocation(Shader->Program, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
+                    glUniform3f(Shader->CameraXAxisUniform, CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
+                    glUniform3f(Shader->CameraYAxisUniform, CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
                     glDrawArrays(GL_POINTS, 0, Command->ParticleCount);
 
@@ -1602,7 +1604,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             glUseProgram(Shader->Program);
 
                             mat4 Model = Transform(Command->Transform);
-                            glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
+                            glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
 
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
@@ -1617,9 +1619,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             mat4 Model = Transform(Command->Transform);
                             material Material = Command->Material;
 
-                            glUniform1i(Shader->ModeUniformLocation, OPENGL_WORLD_SPACE_MODE);
-                            glUniformMatrix4fv(Shader->ModelUniformLocation, 1, GL_TRUE, (f32 *) Model.Elements);
-                            glUniform4f(Shader->ColorUniformLocation, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
+                            glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
+                            glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                            glUniform4f(Shader->ColorUniform, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
 
                             break;
                         }
@@ -1674,7 +1676,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             glBindTexture(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBOTexture);
                             glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, SkinningBuffer->SkinningTBO);
 
-                            glUniform1i(Shader->SkinningMatricesSamplerUniformLocation, 0);
+                            glUniform1i(Shader->SkinningMatricesSamplerUniform, 0);
 
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 

@@ -1214,7 +1214,6 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     // todo(continue): set scale in config file
     f32 Scale = 0.01f * 1.f;
 
-#if 1
     // Pelegrini
     State->Pelegrini = CreateGameEntity(State);
     State->Pelegrini->Transform = CreateTransform(vec3(0.f, 0.f, 2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
@@ -1259,7 +1258,6 @@ InitGameEntities(game_state *State, render_commands *RenderCommands)
     AddRigidBody(State->Warrok, true, &State->PermanentArena);
     AddAnimation(State->Warrok, "Monstar", RenderCommands, &State->EventList, &State->PermanentArena);
     AddToSpacialGrid(&State->SpatialGrid, State->Warrok);
-#endif
 
     // Maw
     State->Maw = CreateGameEntity(State);
@@ -2212,53 +2210,7 @@ DLLExport GAME_RENDER(GameRender)
             SetWorldProjection(RenderCommands, Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
             SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
 
-            // Scene lighting
-            //State->DirectionalLight.Direction = Normalize(vec3(Cos(Parameters->Time * 0.5f), -1.f, Sin(Parameters->Time * 0.5f)));
-
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
-
-            u32 MaxPointLightCount = 32;
-            u32 PointLightCount = 0;
-            point_light *PointLights = PushArray(&State->TransientArena, MaxPointLightCount, point_light);
-
-            for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
-            {
-                game_entity *Entity = State->Entities + EntityIndex;
-
-                if (Entity->PointLight)
-                {
-                    point_light *PointLight = PointLights + PointLightCount++;
-
-                    Assert(PointLightCount <= MaxPointLightCount);
-
-                    // todo: fix offset position
-                    PointLight->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f);
-                    PointLight->Color = Entity->PointLight->Color;
-                    PointLight->Attenuation = Entity->PointLight->Attenuation;
-                }
-
-                if (Entity->ParticleEmitter)
-                {
-                    particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
-
-                    for (u32 ParticleIndex = 0; ParticleIndex < ParticleEmitter->ParticleCount; ++ParticleIndex)
-                    {
-                        particle *Particle = ParticleEmitter->Particles + ParticleIndex;
-
-                        f32 dt = Parameters->Delta;
-
-                        Particle->Position += 0.5f * Particle->Acceleration * Square(dt) + Particle->Velocity * dt;
-                        Particle->Velocity += Particle->Acceleration * dt;
-                        Particle->Color = Particle->Color + Particle->dColor * dt;
-                        Particle->Size = Particle->Size + Particle->dSize * dt;
-                    }
-
-                    DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles);
-                }
-            }
-
-            // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
-            SetPointLights(RenderCommands, PointLightCount, PointLights);
 
             u32 ShadowPlaneCount = 0;
             plane *ShadowPlanes = 0;
@@ -2372,6 +2324,10 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:PrepareRenderBuffer");
 
+                u32 MaxPointLightCount = 32;
+                u32 PointLightCount = 0;
+                point_light *PointLights = PushArray(&State->TransientArena, MaxPointLightCount, point_light);
+
                 State->EntityBatches.Count = 32;
                 State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
                 State->RenderableEntityCount = 0;
@@ -2402,7 +2358,41 @@ DLLExport GAME_RENDER(GameRender)
                     {
                         RenderBoundingBox(RenderCommands, State, Entity);
                     }
+
+                    if (Entity->PointLight)
+                    {
+                        point_light *PointLight = PointLights + PointLightCount++;
+
+                        Assert(PointLightCount <= MaxPointLightCount);
+
+                        // todo: fix offset position
+                        PointLight->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f);
+                        PointLight->Color = Entity->PointLight->Color;
+                        PointLight->Attenuation = Entity->PointLight->Attenuation;
+                    }
+
+                    if (Entity->ParticleEmitter)
+                    {
+                        particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
+
+                        for (u32 ParticleIndex = 0; ParticleIndex < ParticleEmitter->ParticleCount; ++ParticleIndex)
+                        {
+                            particle *Particle = ParticleEmitter->Particles + ParticleIndex;
+
+                            f32 dt = Parameters->Delta;
+
+                            Particle->Position += 0.5f * Particle->Acceleration * Square(dt) + Particle->Velocity * dt;
+                            Particle->Velocity += Particle->Acceleration * dt;
+                            Particle->Color = Particle->Color + Particle->dColor * dt;
+                            Particle->Size = Particle->Size + Particle->dSize * dt;
+                        }
+
+                        DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles);
+                    }
                 }
+
+                // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
+                SetPointLights(RenderCommands, PointLightCount, PointLights);
             }
 
             {
@@ -2470,22 +2460,12 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
-#if 0
+#if 1
             if (State->Player->Model)
             {
-                {
-                    char Text[64];
-                    FormatString(Text, "Active entity: %s", State->Player->Model->Key);
-                    DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
-                }
-                {
-                    vec3 Position = State->Player->Transform.Translation;
-                    vec3 TextPosition = Position + vec3(-0.8f, 6.f, 0.f);
-
-                    char Text[64];
-                    FormatString(Text, "%.2f, %.2f, %.2f", Position.x, Position.y, Position.z);
-                    DrawText(RenderCommands, Text, Font, TextPosition, 1.f, vec4(1.f, 0.f, 1.f, 1.f), DrawText_WorldSpace, true);
-                }
+                char Text[64];
+                FormatString(Text, "Active entity: %s", State->Player->Model->Key);
+                DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
             }
 #endif
 

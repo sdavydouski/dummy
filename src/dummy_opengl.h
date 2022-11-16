@@ -161,32 +161,34 @@ struct opengl_shader
 #endif
     
     // Uniform locations
-    GLint ModelUniformLocation;
-    GLint ModeUniformLocation;
-    GLint SkinningMatricesSamplerUniformLocation;
+    GLint ModelUniform;
+    GLint ModeUniform;
+    GLint SkinningMatricesSamplerUniform;
 
-    GLint ColorUniformLocation;
+    GLint ColorUniform;
 
-    GLint MaterialSpecularShininessUniformLocation;
-    GLint MaterialAmbientColorUniformLocation;
-    GLint MaterialDiffuseColorUniformLocation;
-    GLint MaterialSpecularColorUniformLocation;
-    GLint MaterialDiffuseMapUniformLocation;
-    GLint MaterialSpecularMapUniformLocation;
-    GLint MaterialShininessMapUniformLocation;
-    GLint MaterialNormalMapUniformLocation;
+    GLint MaterialSpecularShininessUniform;
+    GLint MaterialAmbientColorUniform;
+    GLint MaterialDiffuseColorUniform;
+    GLint MaterialSpecularColorUniform;
+    GLint MaterialDiffuseMapUniform;
+    GLint MaterialSpecularMapUniform;
+    GLint MaterialShininessMapUniform;
+    GLint MaterialNormalMapUniform;
 
-    GLint MaterialHasDiffuseMapUniformLocation;
-    GLint MaterialHasSpecularMapUniformLocation;
-    GLint MaterialHasShininessMapUniformLocation;
-    GLint MaterialHasNormalMapUniformLocation;
+    GLint MaterialHasDiffuseMapUniform;
+    GLint MaterialHasSpecularMapUniform;
+    GLint MaterialHasShininessMapUniform;
+    GLint MaterialHasNormalMapUniform;
 
-    GLint DirectionalLightDirectionUniformLocation;
-    GLint DirectionalLightColorUniformLocation;
+    GLint DirectionalLightDirectionUniform;
+    GLint DirectionalLightColorUniform;
+    GLint PointLightCountUniform;
 
-    GLint PointLightCountUniformLocation;
+    GLint CameraXAxisUniform;
+    GLint CameraYAxisUniform;
 
-    GLint ScreenTextureUniformLocation;
+    GLint ScreenTextureUniform;
 };
 
 struct opengl_shader_state
