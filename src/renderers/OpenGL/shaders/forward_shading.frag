@@ -64,14 +64,6 @@ void main()
     
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
 
-#if 1
-    for (int PointLightIndex = 0; PointLightIndex < u_PointLightCount; ++PointLightIndex)
-    {
-        point_light PointLight = u_PointLights[PointLightIndex];
-        Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, fs_in.WorldPosition);
-    }
-#endif
-
     // Shadow
     vec3 CascadeBlend = fs_in.CascadeBlend;
 
@@ -91,6 +83,14 @@ void main()
     Result = Ambient + Result * Shadow;
 
     Result *= fs_in.Color;
+
+#if 1
+    for (int PointLightIndex = 0; PointLightIndex < u_PointLightCount; ++PointLightIndex)
+    {
+        point_light PointLight = u_PointLights[PointLightIndex];
+        Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, fs_in.WorldPosition);
+    }
+#endif
 
     if (u_ShowCascades)
     {

@@ -1,5 +1,6 @@
 {
    "version":"0.0.1",
+   "animator":"Paladin",
    "graph":{
       "name":"Paladin animation graph",
       "entry":"ActionIdle",

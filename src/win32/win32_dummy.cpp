@@ -1,6 +1,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <xinput.h>
+#include <shobjidl.h>
 
 #include "dummy_defs.h"
 #include "dummy_math.h"
@@ -18,6 +19,7 @@
 #include "dummy_assets.h"
 #include "dummy_audio.h"
 #include "dummy_renderer.h"
+#include "dummy_text.h"
 #include "dummy_job.h"
 #include "dummy_platform.h"
 #include "win32_dummy.h"
@@ -36,39 +38,31 @@ Win32GetLastWriteTime(char *FileName)
     return LastWriteTime;
 }
 
-struct debug_state
-{
-    u32 CurrentGizmoOperation;
-    memory_arena Arena;
-};
-
 #include "win32_dummy_xaudio2.cpp"
-#include "dummy_text.cpp"
 #include "win32_dummy_opengl.cpp"
 #include "dummy_opengl.cpp"
 
-#define DEBUG_UI 1
+#define EDITOR_UI 1
 
-#if DEBUG_UI
-#include "dummy.h"
-#include "dummy_debug.cpp"
+#if EDITOR_UI
+#include "dummy_editor.cpp"
 
-#define DEBUG_UI_INIT(...) Win32InitImGui(__VA_ARGS__)
-#define DEBUG_UI_RENDER(...) Win32RenderDebugInfo(__VA_ARGS__)
-#define DEBUG_UI_SHUTDOWN(...) Win32ShutdownImGui(__VA_ARGS__)
+#define EDITOR_UI_INIT(...) Win32InitEditor(__VA_ARGS__)
+#define EDITOR_UI_RENDER(...) Win32RenderEditor(__VA_ARGS__)
+#define EDITOR_UI_SHUTDOWN(...) Win32ShutdownEditor(__VA_ARGS__)
 
-#define DEBUG_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
-#define DEBUG_UI_REMOVE_FOCUS(...) ImGui::FocusWindow(0)
-#define DEBUG_UI_CAPTURE_KEYBOARD ImGui::GetIO().WantCaptureKeyboard
-#define DEBUG_UI_CAPTURE_MOUSE ImGui::GetIO().WantCaptureMouse
+#define EDITOR_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
+#define EDITOR_UI_REMOVE_FOCUS(...) ImGui::FocusWindow(0)
+#define EDITOR_UI_CAPTURE_KEYBOARD ImGui::GetIO().WantCaptureKeyboard
+#define EDITOR_UI_CAPTURE_MOUSE ImGui::GetIO().WantCaptureMouse
 #else
-#define DEBUG_UI_INIT(...)
-#define DEBUG_UI_RENDER(...)
-#define DEBUG_UI_SHUTDOWN(...)
-#define DEBUG_UI_WND_PROC_HANDLER(...)
-#define DEBUG_UI_REMOVE_FOCUS(...)
-#define DEBUG_UI_CAPTURE_KEYBOARD false
-#define DEBUG_UI_CAPTURE_MOUSE false
+#define EDITOR_UI_INIT(...)
+#define EDITOR_UI_RENDER(...)
+#define EDITOR_UI_SHUTDOWN(...)
+#define EDITOR_UI_WND_PROC_HANDLER(...)
+#define EDITOR_UI_REMOVE_FOCUS(...)
+#define EDITOR_UI_CAPTURE_KEYBOARD false
+#define EDITOR_UI_CAPTURE_MOUSE false
 #endif
 
 inline void *
@@ -320,7 +314,7 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
 
 LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, _In_ LPARAM lParam)
 {
-    DEBUG_UI_WND_PROC_HANDLER();
+    EDITOR_UI_WND_PROC_HANDLER();
 
     switch (uMsg)
     {
@@ -719,6 +713,10 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                     MouseInput->WheelDelta = GET_WHEEL_DELTA_WPARAM(WindowMessage.wParam) / WHEEL_DELTA;
                 }
 
+                // pass event to imgui
+                TranslateMessage(&WindowMessage);
+                DispatchMessage(&WindowMessage);
+
                 break;
             }
             default:
@@ -764,7 +762,7 @@ internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
                 RECT ClipRegion = GetCursorClipRect(PlatformState);
                 ClipCursor(&ClipRegion);
 
-                DEBUG_UI_REMOVE_FOCUS();
+                EDITOR_UI_REMOVE_FOCUS();
 
                 break;
             }
@@ -787,7 +785,7 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
 {
     read_file_result Result = {};
 
-    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
     if (FileHandle != INVALID_HANDLE_VALUE)
     {
         LARGE_INTEGER FileSize;
@@ -820,6 +818,36 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
         {
             DWORD Error = GetLastError();
             Assert(!"GetFileSizeEx failed");
+        }
+
+        CloseHandle(FileHandle);
+    }
+    else
+    {
+        DWORD Error = GetLastError();
+        Assert(!"CreateFileA failed");
+    }
+
+    return Result;
+}
+
+internal PLATFORM_WRITE_FILE(Win32WriteFile)
+{
+    b32 Result = false;
+
+    HANDLE FileHandle = CreateFileA(FileName, GENERIC_WRITE, 0, 0, OPEN_ALWAYS, 0, 0);
+    if (FileHandle != INVALID_HANDLE_VALUE)
+    {
+        DWORD BytesWritten;
+        if (WriteFile(FileHandle, Buffer, BufferSize, &BytesWritten, 0))
+        {
+            Assert(BytesWritten == BufferSize);
+            Result = true;
+        }
+        else
+        {
+            DWORD Error = GetLastError();
+            Assert(!"WriteFile failed");
         }
 
         CloseHandle(FileHandle);
@@ -974,8 +1002,81 @@ Win32InitProfiler(platform_profiler *Profiler)
     Profiler->GetTimestamp = Win32GetTimeStamp;
 }
 
+COMDLG_FILTERSPEC DialogFileTypes[] =
+{
+    { L"Dummy area", L"*.area"},
+    { L"Text", L"*.txt"},
+    { L"All", L"*.*"},
+};
+
+internal PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
+{
+    IFileOpenDialog *pFileOpen;
+
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, 0, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pFileOpen));
+
+    if (SUCCEEDED(hr))
+    {
+        pFileOpen->SetFileTypes(ArrayCount(DialogFileTypes), DialogFileTypes);
+
+        hr = pFileOpen->Show(0);
+
+        if (SUCCEEDED(hr))
+        {
+            IShellItem *pItem;
+            hr = pFileOpen->GetResult(&pItem);
+
+            if (SUCCEEDED(hr))
+            {
+                PWSTR pszFilePath;
+                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                CopyString_(pszFilePath, FilePath, FilePathLength);
+
+                pItem->Release();
+            }
+        }
+
+        pFileOpen->Release();
+    }
+}
+
+internal PLATFORM_SAVE_FILE_DIALOG(Win32SaveFileDialog)
+{
+    IFileSaveDialog *pFileSave;
+
+    HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, 0, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pFileSave));
+
+    if (SUCCEEDED(hr))
+    {
+        pFileSave->SetFileTypes(ArrayCount(DialogFileTypes), DialogFileTypes);
+        pFileSave->SetDefaultExtension(L"*.area");
+
+        hr = pFileSave->Show(0);
+
+        if (SUCCEEDED(hr))
+        {
+            IShellItem *pItem;
+            hr = pFileSave->GetResult(&pItem);
+
+            if (SUCCEEDED(hr))
+            {
+                PWSTR pszFilePath;
+                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                CopyString_(pszFilePath, FilePath, FilePathLength);
+
+                pItem->Release();
+            }
+        }
+
+        pFileSave->Release();
+    }
+}
+
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
+    CoInitializeEx(0, COINIT_MULTITHREADED);
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
@@ -1019,6 +1120,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformApi.PlatformHandle = (void *)&PlatformState;
     PlatformApi.SetMouseMode = Win32SetMouseMode;
     PlatformApi.ReadFile = Win32ReadFile;
+    PlatformApi.WriteFile = Win32WriteFile;
+    PlatformApi.OpenFileDialog = Win32OpenFileDialog;
+    PlatformApi.SaveFileDialog = Win32SaveFileDialog;
     PlatformApi.LoadFunction = Win32LoadFunction;
     PlatformApi.EnterCriticalSection = Win32EnterCriticalSection;
     PlatformApi.LeaveCriticalSection = Win32LeaveCriticalSection;
@@ -1123,11 +1227,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
-        debug_state DebugState = {};
-        umm DebugArenaSize = Megabytes(32);
-        InitMemoryArena(&DebugState.Arena, Win32AllocateMemory(0, DebugArenaSize), DebugArenaSize);
-
-        DEBUG_UI_INIT(&PlatformState);
+#if EDITOR_UI
+        editor_state EditorState = {};
+        umm EditorArenaSize = Megabytes(32);
+        InitMemoryArena(&EditorState.Arena, Win32AllocateMemory(0, EditorArenaSize), EditorArenaSize);
+#endif
+        EDITOR_UI_INIT(&PlatformState, &EditorState);
 
         game_parameters GameParameters = {};
 
@@ -1196,12 +1301,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                     XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
-                    if (!DEBUG_UI_CAPTURE_KEYBOARD)
+                    if (!EDITOR_UI_CAPTURE_KEYBOARD)
                     {
                         KeyboardInput2GameInput(&KeyboardInput, &GameInput);
                     }
 
-                    if (!DEBUG_UI_CAPTURE_MOUSE)
+                    if (!EDITOR_UI_CAPTURE_MOUSE)
                     {
                         MouseInput2GameInput(&MouseInput, &GameInput);
                     }
@@ -1242,8 +1347,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             win32_platform_state LastPlatformState = PlatformState;
 
             {
-                PROFILE(&PlatformProfiler, "DEBUG_UI_RENDER");
-                DEBUG_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &DebugState);
+                PROFILE(&PlatformProfiler, "EDITOR_UI_RENDER");
+                EDITOR_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &EditorState);
             }
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
@@ -1263,7 +1368,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
-            //if (!DEBUG_UI_CAPTURE_KEYBOARD)
+#if 0
+            //if (!EDITOR_UI_CAPTURE_KEYBOARD)
             {
                 if (IsButtonActivated(&KeyboardInput.Plus))
                 {
@@ -1276,6 +1382,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             }
 
             Clamp(&PlatformState.TimeRate, 0.125f, 2.f);
+#endif
 
             u64 DeltaPerformanceCounter = CurrentPerformanceCounter.QuadPart - LastPerformanceCounter.QuadPart;
             f32 Delta = (f32) DeltaPerformanceCounter / (f32) PlatformState.PerformanceFrequency;
@@ -1289,7 +1396,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         }
 
         // Cleanup
-        DEBUG_UI_SHUTDOWN();
+        EDITOR_UI_SHUTDOWN();
 
         Win32XAudio2Shutdown(&XAudio2State);
 
@@ -1297,6 +1404,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         DestroyWindow(PlatformState.WindowHandle);
         UnregisterClass(WindowClass.lpszClassName, hInstance);
+
+        CoUninitialize();
     }
 
     return 0;

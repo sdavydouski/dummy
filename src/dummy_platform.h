@@ -108,20 +108,23 @@ struct read_file_result
     void *Contents;
 };
 
-#define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformHandle, mouse_mode MouseMode)
-typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
-
 #define PLATFORM_READ_FILE(name) read_file_result name(char *FileName, memory_arena *Arena, b32 Text)
 typedef PLATFORM_READ_FILE(platform_read_file);
+
+#define PLATFORM_WRITE_FILE(name) b32 name(char *FileName, void *Buffer, u32 BufferSize)
+typedef PLATFORM_WRITE_FILE(platform_write_file);
+
+#define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformHandle, mouse_mode MouseMode)
+typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
 
 #define PLATFORM_LOAD_FUNCTION(name) void * name(void *PlatformHandle, char *FunctionName)
 typedef PLATFORM_LOAD_FUNCTION(platform_load_function);
 
-#define PLATFORM_ENTER_CRITICAL_SECTION(name) void name(void *PlatformHandle)
-typedef PLATFORM_ENTER_CRITICAL_SECTION(platform_enter_critical_section);
+#define PLATFORM_OPEN_FILE_DIALOG(name) void name(wchar *FilePath, u32 FilePathLength)
+typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
-#define PLATFORM_LEAVE_CRITICAL_SECTION(name) void name(void *PlatformHandle)
-typedef PLATFORM_LEAVE_CRITICAL_SECTION(platform_leave_critical_section);
+#define PLATFORM_SAVE_FILE_DIALOG(name) void name(wchar *FilePath, u32 FilePathLength)
+typedef PLATFORM_SAVE_FILE_DIALOG(platform_save_file_dialog);
 
 #define PLATFORM_KICK_JOB(name) void name(job_queue *JobQueue, job Job)
 typedef PLATFORM_KICK_JOB(platform_kick_job);
@@ -135,13 +138,23 @@ typedef PLATFORM_KICK_JOB_AND_WAIT(platform_kick_job_and_wait);
 #define PLATFORM_KICK_JOBS_AND_WAIT(name) void name(job_queue *JobQueue, u32 JobCount, job *Jobs)
 typedef PLATFORM_KICK_JOBS_AND_WAIT(platform_kick_jobs_and_wait);
 
+#define PLATFORM_ENTER_CRITICAL_SECTION(name) void name(void *PlatformHandle)
+typedef PLATFORM_ENTER_CRITICAL_SECTION(platform_enter_critical_section);
+
+#define PLATFORM_LEAVE_CRITICAL_SECTION(name) void name(void *PlatformHandle)
+typedef PLATFORM_LEAVE_CRITICAL_SECTION(platform_leave_critical_section);
+
 struct platform_api
 {
     void *PlatformHandle;
 
-    platform_set_mouse_mode *SetMouseMode;
     platform_read_file *ReadFile;
+    platform_write_file *WriteFile;
+
+    platform_set_mouse_mode *SetMouseMode;
     platform_load_function *LoadFunction;
+    platform_open_file_dialog *OpenFileDialog;
+    platform_save_file_dialog *SaveFileDialog;
 
     platform_kick_job *KickJob;
     platform_kick_jobs *KickJobs;

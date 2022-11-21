@@ -666,11 +666,11 @@ GetAnimationNode(animation_graph *Graph, const char *NodeName)
 }
 
 internal void
-BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model *Model, u32 EntityId, const char *Animator, game_event_list *EventList, memory_arena *Arena)
+BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model *Model, u32 EntityId, game_event_list *EventList, memory_arena *Arena)
 {
     Graph->NodeCount = Asset->NodeCount;
     Graph->Nodes = PushArray(Arena, Graph->NodeCount, animation_node);
-    CopyString(Animator, Graph->Animator);
+    CopyString(Asset->Animator, Graph->Animator);
 
     for (u32 NodeIndex = 0; NodeIndex < Asset->NodeCount; ++NodeIndex)
     {
@@ -714,7 +714,7 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
             {
                 animation_graph *NodeGraph = PushType(Arena, animation_graph);
 
-                BuildAnimationGraph(NodeGraph, NodeAsset->Graph, Model, EntityId, Animator, EventList, Arena);
+                BuildAnimationGraph(NodeGraph, NodeAsset->Graph, Model, EntityId, EventList, Arena);
                 BuildAnimationNode(Node, NodeAsset->Name, NodeGraph);
 
                 break;
@@ -966,6 +966,21 @@ UpdateGlobalJointPoses(skeleton_pose *Pose)
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
         *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Pose);
+    }
+}
+
+internal void
+UpdateSkinningMatrices(skinning_data *Skinning)
+{
+    skeleton *Skeleton = Skinning->Pose->Skeleton;
+
+    for (u32 JointIndex = 0; JointIndex < Skeleton->JointCount; ++JointIndex)
+    {
+        joint *Joint = Skeleton->Joints + JointIndex;
+        mat4 *GlobalJointPose = Skinning->Pose->GlobalJointPoses + JointIndex;
+        mat4 *SkinningMatrix = Skinning->SkinningMatrices + JointIndex;
+
+        *SkinningMatrix = *GlobalJointPose * Joint->InvBindTranform;
     }
 }
 

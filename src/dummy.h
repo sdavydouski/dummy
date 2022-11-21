@@ -5,10 +5,9 @@ typedef GAME_PROCESS_ON_UPDATE(game_process_on_update);
 
 enum game_mode
 {
-    GameMode_None,
     GameMode_World,
     GameMode_Menu,
-    GameMode_Edit
+    GameMode_Editor
 };
 
 struct game_entity
@@ -27,8 +26,115 @@ struct game_entity
 
     b32 Visible;
     b32 Controllable;
+    b32 Destroyed;
     vec3 TestColor;
     vec3 DebugColor;
+};
+
+struct model_spec
+{
+    b32 Has;
+    char ModelRef[64];
+};
+
+inline void
+Model2Spec(model *Model, model_spec *Spec)
+{
+    Spec->Has = true;
+    CopyString(Model->Key, Spec->ModelRef);
+}
+
+struct collider_spec
+{
+    b32 Has;
+    collider_type Type;
+    union
+    {
+        vec3 Size;
+        f32 Radius;
+    };
+};
+
+inline void
+Collider2Spec(collider *Collider, collider_spec *Spec)
+{
+    Spec->Has = true;
+    Spec->Type = Collider->Type;
+
+    switch (Collider->Type)
+    {
+        case Collider_Box:
+        {
+            Spec->Size = Collider->BoxCollider.Size;
+
+            break;
+        }
+        case Collider_Sphere:
+        {
+            Spec->Radius = Collider->SphereCollider.Radius;
+
+            break;
+        }
+        default:
+        {
+            Assert(!"Not implemented");
+        }
+    }
+}
+
+struct rigid_body_spec
+{
+    b32 Has;
+    b32 RootMotionEnabled;
+};
+
+inline void
+RigidBody2Spec(rigid_body *Body, rigid_body_spec *Spec)
+{
+    Spec->Has = true;
+    Spec->RootMotionEnabled = Body->RootMotionEnabled;
+}
+
+struct point_light_spec
+{
+    b32 Has;
+    vec3 Color;
+    light_attenuation Attenuation;
+};
+
+inline void
+PointLight2Spec(point_light *PointLight, point_light_spec *Spec)
+{
+    Spec->Has = true;
+    Spec->Color = PointLight->Color;
+    Spec->Attenuation = PointLight->Attenuation;
+}
+
+struct particle_emitter_spec
+{
+    b32 Has;
+    u32 ParticleCount;
+    vec4 Color;
+};
+
+inline void
+ParticleEmitter2Spec(particle_emitter *ParticleEmitter, particle_emitter_spec *Spec)
+{
+    Spec->Has = true;
+    Spec->ParticleCount = ParticleEmitter->ParticleCount;
+    Spec->Color = ParticleEmitter->Color;
+}
+
+struct game_entity_spec
+{
+    u32 Id;
+    transform Transform;
+
+    model_spec ModelSpec;
+    collider_spec ColliderSpec;
+    rigid_body_spec RigidBodySpec;
+    point_light_spec PointLightSpec;
+    particle_emitter_spec ParticleEmitterSpec;
 };
 
 struct entity_render_batch
@@ -130,8 +236,8 @@ struct game_state
 
     vec2 ViewFrustrumSize;
 
-    game_camera FreeCamera;
-    game_camera PlayerCamera;
+    game_camera GameCamera;
+    game_camera EditorCamera;
 
     polyhedron Frustrum;
 
@@ -140,7 +246,14 @@ struct game_state
     game_assets Assets;
     animator Animator;
 
+    u32 NextFreeEntityId;
+    u32 NextFreeMeshId;
+    u32 NextFreeTextureId;
+    u32 NextFreeSkinningId;
+
     u32 RenderableEntityCount;
+    u32 ActiveEntitiesCount;
+
     u32 EntityCount;
     u32 MaxEntityCount;
     game_entity *Entities;
@@ -181,7 +294,9 @@ struct game_state
     vec2 CurrentMove;
     vec2 TargetMove;
 
-    random_sequence Entropy;
+    random_sequence GeneralEntropy;
+    random_sequence WorldGenEntropy;
+    random_sequence ParticleEntropy;
 
     game_event_list EventList;
 

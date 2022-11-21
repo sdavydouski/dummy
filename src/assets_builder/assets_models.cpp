@@ -5,6 +5,7 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
     model_asset_animation_graph_header *AnimationGraphHeader = (model_asset_animation_graph_header *) (Buffer + Offset);
     CopyString(AnimationGraphHeader->Name, GraphAsset->Name);
     CopyString(AnimationGraphHeader->Entry, GraphAsset->Entry);
+    CopyString(AnimationGraphHeader->Animator, GraphAsset->Animator);
     GraphAsset->NodeCount = AnimationGraphHeader->NodeCount;
     GraphAsset->Nodes = AllocateMemory<animation_node_asset>(GraphAsset->NodeCount);
 
@@ -325,6 +326,7 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
     model_asset_animation_graph_header AnimationGraphHeader = {};
     CopyString(AnimationGraph->Name, AnimationGraphHeader.Name);
     CopyString(AnimationGraph->Entry, AnimationGraphHeader.Entry);
+    CopyString(AnimationGraph->Animator, AnimationGraphHeader.Animator);
     AnimationGraphHeader.NodeCount = AnimationGraph->NodeCount;
     AnimationGraphHeader.NodesOffset = Offset + sizeof(model_asset_animation_graph_header);
 
@@ -838,6 +840,7 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
 
             CopyString(Name, NodeAsset->Graph->Name);
             CopyString(Entry, NodeAsset->Graph->Entry);
+            CopyString("", NodeAsset->Graph->Animator);
 
             ProcessGraphNodes(NodeAsset->Graph, SubNodes);
         }
@@ -899,6 +902,7 @@ LoadAnimationGrah(const char *FilePath, model_asset *Asset)
             animation_graph_asset *GraphAsset = &Asset->AnimationGraph;
 
             const char *Version = Document["version"].GetString();
+            const char *Animator = Document["animator"].GetString();
             Value &Graph = Document["graph"];
 
             const char *Name = Graph["name"].GetString();
@@ -907,6 +911,7 @@ LoadAnimationGrah(const char *FilePath, model_asset *Asset)
 
             CopyString(Name, GraphAsset->Name);
             CopyString(Entry, GraphAsset->Entry);
+            CopyString(Animator, GraphAsset->Animator);
 
             ProcessGraphNodes(GraphAsset, Nodes);
         }

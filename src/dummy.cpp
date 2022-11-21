@@ -14,6 +14,7 @@
 #include "dummy_assets.h"
 #include "dummy_audio.h"
 #include "dummy_renderer.h"
+#include "dummy_text.h"
 #include "dummy_job.h"
 #include "dummy_platform.h"
 #include "dummy.h"
@@ -22,7 +23,6 @@
 //#define SID(String) Hash(String)
 
 #include "dummy_assets.cpp"
-#include "dummy_text.cpp"
 #include "dummy_audio.cpp"
 #include "dummy_renderer.cpp"
 #include "dummy_events.cpp"
@@ -89,15 +89,6 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
 {
     Assert(Model->Skeleton);
 
-    for (u32 JointIndex = 0; JointIndex < Model->Skeleton->JointCount; ++JointIndex)
-    {
-        joint *Joint = Model->Skeleton->Joints + JointIndex;
-        mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
-        mat4 *SkinningMatrix = Skinning->SkinningMatrices + JointIndex;
-
-        *SkinningMatrix = *GlobalJointPose * Joint->InvBindTranform;
-    }
-
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
@@ -149,44 +140,36 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
     }
 }
 
-// todo:
 inline u32
-GenerateEntityId()
+GenerateEntityId(game_state *State)
 {
-    persist u32 EntityId = 0;
-
-    return EntityId++;
+    u32 Result = State->NextFreeEntityId++;
+    return Result;
 }
 
-// todo:
 inline u32
-GenerateMeshId()
+GenerateMeshId(game_state *State)
 {
-    persist u32 MeshId = 1;
-
-    return MeshId++;
+    u32 Result = State->NextFreeMeshId++;
+    return Result;
 }
 
-// todo:
 inline u32
-GenerateTextureId()
+GenerateTextureId(game_state *State)
 {
-    persist u32 TextureId = 10;
-
-    return TextureId++;
+    u32 Result = State->NextFreeTextureId++;
+    return Result;
 }
 
-// todo:
 inline u32
-GenerateSkinningBufferId()
+GenerateSkinningBufferId(game_state *State)
 {
-    persist u32 SkinnningBufferId = 1;
-
-    return SkinnningBufferId++;
+    u32 Result = State->NextFreeSkinningId++;
+    return Result;
 }
 
 inline void
-InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Arena, render_commands *RenderCommands)
+InitModel(game_state *State, model_asset *Asset, model *Model, const char *Name, memory_arena *Arena, render_commands *RenderCommands)
 {
     *Model = {};
 
@@ -206,7 +189,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
 
-        Mesh->Id = GenerateMeshId();
+        Mesh->Id = GenerateMeshId(State);
         Mesh->Visible = true;
 
         AddMesh(
@@ -228,7 +211,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
                 MaterialProperty->Type == MaterialProperty_Texture_Normal
                 )
             {
-                MaterialProperty->TextureId = GenerateTextureId();
+                MaterialProperty->TextureId = GenerateTextureId(State);
                 AddTexture(RenderCommands, MaterialProperty->TextureId, &MaterialProperty->Bitmap);
             }
         }
@@ -236,7 +219,7 @@ InitModel(model_asset *Asset, model *Model, const char *Name, memory_arena *Aren
 }
 
 internal void
-InitFont(font_asset *Asset, font *Font, const char *Name, render_commands *RenderCommands)
+InitFont(game_state *State, font_asset *Asset, font *Font, const char *Name, render_commands *RenderCommands)
 {
     CopyString(Name, Font->Key);
     Font->TextureAtlas = Asset->TextureAtlas;
@@ -249,7 +232,7 @@ InitFont(font_asset *Asset, font *Font, const char *Name, render_commands *Rende
     Font->HorizontalAdvanceTable = Asset->HorizontalAdvanceTable;
     Font->GlyphCount = Asset->GlyphCount;
     Font->Glyphs = Asset->Glyphs;
-    Font->TextureId = GenerateTextureId();
+    Font->TextureId = GenerateTextureId(State);
 
     AddTexture(RenderCommands, Font->TextureId, &Font->TextureAtlas);
 }
@@ -267,7 +250,7 @@ InitAudioClip(audio_clip_asset *Asset, audio_clip *AudioClip, const char *Name)
 }
 
 inline void
-InitSkinningBuffer(skinning_data *Skinning, model *Model, memory_arena *Arena, render_commands *RenderCommands)
+InitSkinningBuffer(game_state *State, skinning_data *Skinning, model *Model, memory_arena *Arena, render_commands *RenderCommands)
 {
     *Skinning = {};
 
@@ -288,7 +271,7 @@ InitSkinningBuffer(skinning_data *Skinning, model *Model, memory_arena *Arena, r
 
     Skinning->SkinningMatrixCount = Model->Skeleton->JointCount;
     Skinning->SkinningMatrices = PushArray(Arena, SkinningMatrixCount, mat4, Align(16));
-    Skinning->SkinningBufferId = GenerateSkinningBufferId();
+    Skinning->SkinningBufferId = GenerateSkinningBufferId(State);
 
     AddSkinningBuffer(RenderCommands, Skinning->SkinningBufferId, Skinning->SkinningMatrixCount);
 }
@@ -338,63 +321,63 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
 {
     game_asset ModelAssets[] = {
         {
-            "Pelegrini",
+            "pelegrini",
             "assets\\pelegrini.asset"
         },
         {
-            "xBot",
+            "xbot",
             "assets\\xbot.asset"
         },
         {
-            "yBot",
+            "ybot",
             "assets\\ybot.asset"
         },
         {
-            "Paladin",
+            "paladin",
             "assets\\paladin.asset"
         },
         {
-            "Warrok",
+            "warrok",
             "assets\\warrok.asset"
         },
         {
-            "Maw",
+            "maw",
             "assets\\maw.asset"
         },
         {
-            "Cube",
+            "cube",
             "assets\\cube.asset"
         },
         {
-            "Sphere",
+            "sphere",
             "assets\\sphere.asset"
         },
 
         // Dungeon Assets
         {
-            "Cleric",
+            "cleric",
             "assets\\cleric.asset"
         },
 
         {
-            "Floor_Standard",
+            "floor_standard",
             "assets\\Floor_Standard.asset"
         },
         {
-            "Wall",
+            "wall",
             "assets\\Wall.asset"
         },
 
         {
-            "Barrel",
+            "barrel",
             "assets\\Barrel.asset"
         },
         {
-            "Crate",
+            "crate",
             "assets\\Crate.asset"
         },
         {
-            "Torch",
+            "torch",
             "assets\\torch.asset"
         },
     };
@@ -516,7 +499,7 @@ JOB_ENTRY_POINT(LoadGameAssetsJob)
 }
 
 internal void
-InitGameModelAssets(game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
+InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
 {
     // Using a prime table size in conjunction with quadratic probing tends to yield 
     // the best coverage of the available table slots with minimal clustering
@@ -530,12 +513,12 @@ InitGameModelAssets(game_assets *Assets, render_commands *RenderCommands, memory
         game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetModelIndex;
 
         model *Model = GetModelAsset(Assets, GameAssetModel->GameAsset.Name);
-        InitModel(GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, Arena, RenderCommands);
+        InitModel(State, GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, Arena, RenderCommands);
     }
 }
 
 internal void
-InitGameFontAssets(game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
+InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
 {
     // todo:
     Assets->Fonts.Count = 11;
@@ -548,7 +531,7 @@ InitGameFontAssets(game_assets *Assets, render_commands *RenderCommands, memory_
         game_asset_font *GameAssetFont = Assets->FontAssets + GameAssetFontIndex;
 
         font *Font = GetFontAsset(Assets, GameAssetFont->GameAsset.Name);
-        InitFont(GameAssetFont->FontAsset, Font, GameAssetFont->GameAsset.Name, RenderCommands);
+        InitFont(State, GameAssetFont->FontAsset, Font, GameAssetFont->GameAsset.Name, RenderCommands);
     }
 }
 
@@ -748,12 +731,19 @@ CreateGameEntity(game_state *State)
 
     Assert(State->EntityCount <= State->MaxEntityCount);
 
-    Entity->Id = GenerateEntityId();
+    Entity->Id = GenerateEntityId(State);
     // todo:
     Entity->TestColor = vec3(1.f);
     Entity->DebugColor = vec3(1.f);
 
     return Entity;
+}
+
+inline void
+RemoveGameEntity(game_entity *Entity)
+{
+    Assert(!Entity->Destroyed);
+    Entity->Destroyed = true;
 }
 
 inline game_entity *
@@ -764,14 +754,20 @@ GetGameEntity(game_state *State, u32 EntityId)
 }
 
 inline void
-AddModel(game_entity *Entity, game_assets *Assets, const char *ModelName, render_commands *RenderCommands, memory_arena *Arena)
+AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char *ModelName, render_commands *RenderCommands, memory_arena *Arena)
 {
     Entity->Model = GetModelAsset(Assets, ModelName);
 
     if (Entity->Model->Skeleton->JointCount > 1)
     {
         Entity->Skinning = PushType(Arena, skinning_data);
-        InitSkinningBuffer(Entity->Skinning, Entity->Model, Arena, RenderCommands);
+        InitSkinningBuffer(State, Entity->Skinning, Entity->Model, Arena, RenderCommands);
+
+        if (Entity->Model->AnimationCount > 0)
+        {
+            Entity->Animation = PushType(Arena, animation_graph);
+            BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Entity->Id, &State->EventList, Arena);
+        }
     }
 }
 
@@ -789,13 +785,6 @@ AddRigidBody(game_entity *Entity, b32 RootMotionEnabled, memory_arena *Arena)
 {
     Entity->Body = PushType(Arena, rigid_body);
     BuildRigidBody(Entity->Body, Entity->Transform.Translation, Entity->Transform.Rotation, RootMotionEnabled);
-}
-
-inline void
-AddAnimation(game_entity *Entity, const char *Animator, render_commands *RenderCommands, game_event_list *EventList, memory_arena *Arena)
-{
-    Entity->Animation = PushType(Arena, animation_graph);
-    BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Entity->Id, Animator, EventList, Arena);
 }
 
 inline void
@@ -821,7 +810,7 @@ inline void
 GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
 {
     game_input *Input = &State->Input;
-    f32 Random = Random01(&State->Entropy);
+    f32 Random = Random01(&State->GeneralEntropy);
 
     // todo:
     Params->MaxTime = 5.f;
@@ -843,7 +832,7 @@ GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
 inline void
 GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
 {
-    f32 Random = Random01(&State->Entropy);
+    f32 Random = Random01(&State->GeneralEntropy);
 
     // todo:
     Params->MaxTime = 8.f;
@@ -860,7 +849,7 @@ inline void
 GameInput2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_animator_params *Params)
 {
     game_input *Input = &State->Input;
-    f32 Random = Random01(&State->Entropy);
+    f32 Random = Random01(&State->GeneralEntropy);
 
     // todo:
     Params->MaxTime = 5.f;
@@ -881,7 +870,7 @@ GameInput2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_
 inline void
 GameLogic2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_animator_params *Params)
 {
-    f32 Random = Random01(&State->Entropy);
+    f32 Random = Random01(&State->GeneralEntropy);
 
     // todo:
     Params->MaxTime = 8.f;
@@ -1016,6 +1005,7 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
     Root->Scale = Entity->Transform.Scale;
 
     UpdateGlobalJointPoses(Pose);
+    UpdateSkinningMatrices(Entity->Skinning);
 }
 
 struct update_entity_batch_job
@@ -1037,95 +1027,99 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
     for (u32 EntityIndex = Data->StartIndex; EntityIndex < Data->EndIndex; ++EntityIndex)
     {
         game_entity *Entity = Data->Entities + EntityIndex;
-        rigid_body *Body = Entity->Body;
-        collider *Collider = Entity->Collider;
 
-        if (Body)
+        if (!Entity->Destroyed)
         {
-            if (Body->RootMotionEnabled)
+            rigid_body *Body = Entity->Body;
+            collider *Collider = Entity->Collider;
+
+            if (Body)
             {
-                Assert(Entity->Animation);
-
-                vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
-                vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
-
-                Entity->Body->PrevPosition = Entity->Body->Position;
-                Entity->Body->Position += RotatedScaledRootMotion;
-
-                Entity->Animation->AccRootMotion = vec3(0.f);
-            }
-            else
-            {
-                Integrate(Body, Data->UpdateRate);
-            }
-
-            if (Collider)
-            {
-                UpdateColliderPosition(Collider, Entity->Body->Position);
-
-                u32 MaxNearbyEntityCount = 100;
-                game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                bounds Bounds = { vec3(-1.f), vec3(1.f) };
-
-                u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
-
-                for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
+                if (Body->RootMotionEnabled)
                 {
-                    game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
-                    rigid_body *NearbyBody = NearbyEntity->Body;
-                    collider *NearbyBodyCollider = NearbyEntity->Collider;
+                    Assert(Entity->Animation);
 
-                    if (Entity->Id == Data->PlayerId)
-                    {
-                        //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
-                    }
+                    vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
+                    vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
 
-                    if (NearbyBodyCollider)
+                    Entity->Body->PrevPosition = Entity->Body->Position;
+                    Entity->Body->Position += RotatedScaledRootMotion;
+
+                    Entity->Animation->AccRootMotion = vec3(0.f);
+                }
+                else
+                {
+                    Integrate(Body, Data->UpdateRate);
+                }
+
+                if (Collider)
+                {
+                    UpdateColliderPosition(Collider, Entity->Body->Position);
+
+                    u32 MaxNearbyEntityCount = 100;
+                    game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
+                    bounds Bounds = { vec3(-1.f), vec3(1.f) };
+
+                    u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
+
+                    for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
                     {
-                        // Collision detection and resolution
-                        vec3 mtv;
-                        if (TestColliders(Entity->Collider, NearbyEntity->Collider, &mtv))
+                        game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
+                        rigid_body *NearbyBody = NearbyEntity->Body;
+                        collider *NearbyBodyCollider = NearbyEntity->Collider;
+
+                        if (Entity->Id == Data->PlayerId)
                         {
-                            Entity->Body->Position += mtv;
-                            UpdateColliderPosition(Collider, Entity->Body->Position);
+                            //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                        }
+
+                        if (NearbyBodyCollider)
+                        {
+                            // Collision detection and resolution
+                            vec3 mtv;
+                            if (TestColliders(Entity->Collider, NearbyEntity->Collider, &mtv))
+                            {
+                                Entity->Body->Position += mtv;
+                                UpdateColliderPosition(Collider, Entity->Body->Position);
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (Entity->ParticleEmitter)
-        {
-            particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
-
-            u32 ParticlesSpawn = 42;
-            for (u32 ParticleSpawnIndex = 0; ParticleSpawnIndex < ParticlesSpawn; ++ParticleSpawnIndex)
+            if (Entity->ParticleEmitter)
             {
-                particle *Particle = ParticleEmitter->Particles + ParticleEmitter->NextParticleIndex++;
+                particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
 
-                if (ParticleEmitter->NextParticleIndex >= ParticleEmitter->ParticleCount)
+                u32 ParticlesSpawn = 42;
+                for (u32 ParticleSpawnIndex = 0; ParticleSpawnIndex < ParticlesSpawn; ++ParticleSpawnIndex)
                 {
-                    ParticleEmitter->NextParticleIndex = 0;
+                    particle *Particle = ParticleEmitter->Particles + ParticleEmitter->NextParticleIndex++;
+
+                    if (ParticleEmitter->NextParticleIndex >= ParticleEmitter->ParticleCount)
+                    {
+                        ParticleEmitter->NextParticleIndex = 0;
+                    }
+
+                    random_sequence *Entropy = Data->Entropy;
+
+                    // todo: fix offset position
+                    Particle->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f) + vec3(
+                        RandomBetween(Entropy, -0.05f, 0.05f),
+                        RandomBetween(Entropy, 0.f, 0.1f),
+                        RandomBetween(Entropy, -0.05f, 0.05f)
+                    );
+                    Particle->Velocity = vec3(
+                        RandomBetween(Entropy, -0.5f, 0.5f),
+                        RandomBetween(Entropy, 3.f, 4.f),
+                        RandomBetween(Entropy, -0.5f, 0.5f)
+                    );
+                    Particle->Acceleration = vec3(0.f, -10.f, 0.f);
+                    Particle->Color = ParticleEmitter->Color;
+                    Particle->dColor = vec4(0.f, 0.f, 0.f, -4.0f);
+                    Particle->Size = vec2(0.025f);
+                    Particle->dSize = vec2(-0.05f);
                 }
-
-                random_sequence *Entropy = Data->Entropy;
-
-                // todo: fix offset position
-                Particle->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f) + vec3(
-                    RandomBetween(Entropy, -0.05f, 0.05f),
-                    RandomBetween(Entropy, 0.f, 0.1f),
-                    RandomBetween(Entropy, -0.05f, 0.05f)
-                );
-                Particle->Velocity = vec3(
-                    RandomBetween(Entropy, -0.5f, 0.5f),
-                    RandomBetween(Entropy, 3.f, 4.f),
-                    RandomBetween(Entropy, -0.5f, 0.5f)
-                );
-                Particle->Acceleration = vec3(0.f, -10.f, 0.f);
-                Particle->Color = ParticleEmitter->Color;
-                Particle->dColor = vec4(0.f, 0.f, 0.f, -4.0f);
-                Particle->Size = vec2(0.025f);
-                Particle->dSize = vec2(-0.05f);
             }
         }
     }
@@ -1165,25 +1159,28 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
     {
         game_entity *Entity = Data->Entities + EntityIndex;
 
-        UpdateInSpacialGrid(Data->SpatialGrid, Entity);
-
-        if (Entity->Body)
+        if (!Entity->Destroyed)
         {
-            Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Data->Lag, Entity->Body->Position);
-            Entity->Transform.Rotation = Entity->Body->Orientation;
-        }
+            UpdateInSpacialGrid(Data->SpatialGrid, Entity);
 
-        if (Entity->Collider)
-        {
-            UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
-        }
+            if (Entity->Body)
+            {
+                Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Data->Lag, Entity->Body->Position);
+                Entity->Transform.Rotation = Entity->Body->Orientation;
+            }
 
-        if (Entity->Model)
-        {
-            bounds BoundingBox = GetEntityBounds(Entity);
+            if (Entity->Collider)
+            {
+                UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
+            }
 
-            // Frustrum culling
-            Entity->Visible = AxisAlignedBoxVisible(Data->ShadowPlaneCount, Data->ShadowPlanes, BoundingBox);
+            if (Entity->Model)
+            {
+                bounds BoundingBox = GetEntityBounds(Entity);
+
+                // Frustrum culling
+                Entity->Visible = AxisAlignedBoxVisible(Data->ShadowPlaneCount, Data->ShadowPlanes, BoundingBox);
+            }
         }
     }
 }
@@ -1208,336 +1205,6 @@ InitGameMenu(game_state *State)
     State->MenuQuads[3].Color = vec4(1.f, 1.f, 0.f, 1.f);
 }
 
-internal void
-InitGameEntities(game_state *State, render_commands *RenderCommands)
-{
-    // todo(continue): set scale in config file
-    f32 Scale = 0.01f * 1.f;
-
-    // Pelegrini
-    State->Pelegrini = CreateGameEntity(State);
-    State->Pelegrini->Transform = CreateTransform(vec3(0.f, 0.f, 2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
-    AddModel(State->Pelegrini, &State->Assets, "Pelegrini", RenderCommands, &State->PermanentArena);
-    AddBoxCollider(State->Pelegrini, vec3(0.8f, 2.f, 0.8f), &State->PermanentArena);
-    AddRigidBody(State->Pelegrini, true, &State->PermanentArena);
-    AddAnimation(State->Pelegrini, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Pelegrini);
-
-    // xBot
-    State->xBot = CreateGameEntity(State);
-    State->xBot->Transform = CreateTransform(vec3(2.f, 0.f, 0.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
-    AddModel(State->xBot, &State->Assets, "xBot", RenderCommands, &State->PermanentArena);
-    AddBoxCollider(State->xBot, vec3(0.8f, 2.f, 0.8f), &State->PermanentArena);
-    AddRigidBody(State->xBot, true, &State->PermanentArena);
-    AddAnimation(State->xBot, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->xBot);
-
-    // yBot
-    State->yBot = CreateGameEntity(State);
-    State->yBot->Transform = CreateTransform(vec3(-2.f, 0.f, 0.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
-    AddModel(State->yBot, &State->Assets, "yBot", RenderCommands, &State->PermanentArena);
-    AddBoxCollider(State->yBot, vec3(0.8f, 2.f, 0.8f), &State->PermanentArena);
-    AddRigidBody(State->yBot, true, &State->PermanentArena);
-    AddAnimation(State->yBot, "Bot", RenderCommands, &State->EventList, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->yBot);
-
-    // Paladin
-    State->Paladin = CreateGameEntity(State);
-    State->Paladin->Transform = CreateTransform(vec3(0.f, 0.f, -2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
-    AddModel(State->Paladin, &State->Assets, "Paladin", RenderCommands, &State->PermanentArena);
-    AddBoxCollider(State->Paladin, vec3(1.f, 2.f, 1.f), &State->PermanentArena);
-    AddRigidBody(State->Paladin, true, &State->PermanentArena);
-    AddAnimation(State->Paladin, "Paladin", RenderCommands, &State->EventList, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Paladin);
-
-    // Warrok
-    State->Warrok = CreateGameEntity(State);
-    State->Warrok->Transform = CreateTransform(vec3(-4.f, 0.f, -2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
-    AddModel(State->Warrok, &State->Assets, "Warrok", RenderCommands, &State->PermanentArena);
-    AddBoxCollider(State->Warrok, vec3(1.2f, 2.f, 1.2f), &State->PermanentArena);
-    AddRigidBody(State->Warrok, true, &State->PermanentArena);
-    AddAnimation(State->Warrok, "Monstar", RenderCommands, &State->EventList, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Warrok);
-
-    // Maw
-    State->Maw = CreateGameEntity(State);
-    State->Maw->Transform = CreateTransform(vec3(4.f, 0.f, -2.f), vec3(Scale), quat(0.f, 0.f, 0.f, 1.f));
-    AddModel(State->Maw, &State->Assets, "Maw", RenderCommands, &State->PermanentArena);
-    AddBoxCollider(State->Maw, vec3(1.2f, 2.f, 1.2f), &State->PermanentArena);
-    AddRigidBody(State->Maw, true, &State->PermanentArena);
-    AddAnimation(State->Maw, "Monstar", RenderCommands, &State->EventList, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Maw);
-
-    // Cleric
-    State->Cleric = CreateGameEntity(State);
-    State->Cleric->Transform = CreateTransform(vec3(0.f, 0.f, -6.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddModel(State->Cleric, &State->Assets, "Cleric", RenderCommands, &State->PermanentArena);
-    AddBoxCollider(State->Cleric, vec3(0.6f, 1.8f, 0.6f), &State->PermanentArena);
-    AddRigidBody(State->Cleric, true, &State->PermanentArena);
-    AddAnimation(State->Cleric, "Cleric", RenderCommands, &State->EventList, &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Cleric);
-
-    State->PlayableEntityIndex = 6;
-
-    {
-        u32 Count = 5;
-        while (Count--)
-        {
-            game_entity *Entity = CreateGameEntity(State);
-            vec3 Position = vec3(RandomBetween(&State->Entropy, -10.f, 10.f), 0.f, RandomBetween(&State->Entropy, -10.f, 10.f));
-            Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
-            AddModel(Entity, &State->Assets, "Barrel", RenderCommands, &State->PermanentArena);
-            AddBoxCollider(Entity, vec3(0.8f, 1.f, 0.8f), &State->PermanentArena);
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-        }
-    }
-
-    {
-        u32 Count = 5;
-        while (Count--)
-        {
-            game_entity *Entity = CreateGameEntity(State);
-            vec3 Position = vec3(RandomBetween(&State->Entropy, -10.f, 10.f), 0.f, RandomBetween(&State->Entropy, -10.f, 10.f));
-            Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
-            AddModel(Entity, &State->Assets, "Crate", RenderCommands, &State->PermanentArena);
-            AddBoxCollider(Entity, vec3(0.8f, 0.8f, 0.8f), &State->PermanentArena);
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-        }
-    }
-
-#if 0
-    {
-        u32 Count = 100;
-        while (Count--)
-        {
-            game_entity *Entity = CreateGameEntity(State);
-            vec3 Position = vec3(RandomBetween(&State->Entropy, -100.f, 100.f), 0.f, RandomBetween(&State->Entropy, -100.f, 100.f));
-            Entity->Transform = CreateTransform(Position, vec3(1.f), quat(0.f));
-            AddModelComponent(Entity, &State->Assets, "Cube", RenderCommands, &State->PermanentArena);
-            Entity->TestColor = vec3(RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f), RandomBetween(&State->Entropy, 0.f, 1.f));
-
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-        }
-    }
-#endif
-
-#if 1
-    // Floor
-    for (i32 TileZ = -5; TileZ <= 5; ++TileZ)
-    {
-        for (i32 TileX = -5; TileX <= 5; ++TileX)
-        {
-            vec3 Size = vec3(2.f, 0.3f, 2.f);
-            vec3 HalfSize = Size / 2.f;
-
-            f32 x = 2.f * HalfSize.x * TileX;
-            f32 y = -Size.y;
-            f32 z = 2.f * HalfSize.z * TileZ;
-
-            vec3 Position = vec3(x, y, z);
-            vec3 Scale = vec3(1.f);
-            quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
-
-            game_entity *Entity = CreateGameEntity(State);
-            
-            Entity->Transform = CreateTransform(Position, Scale, Rotation);
-            AddModel(Entity, &State->Assets, "Floor_Standard", RenderCommands, &State->PermanentArena);
-            AddBoxCollider(Entity, Size, &State->PermanentArena);
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-        }
-    }
-
-    // Walls
-    {
-        for (i32 TileX = -5; TileX <= 5; ++TileX)
-        {
-            f32 TileZ = -11;
-
-            vec3 Size = vec3(2.f, 2.f, 0.3f);
-            vec3 HalfSize = Size / 2.f;
-
-            f32 x = 2.f * HalfSize.x * TileX;
-            f32 y = 0.f;
-            f32 z = TileZ + HalfSize.z;
-
-            vec3 Position = vec3(x, y, z);
-            vec3 Scale = vec3(1.f);
-            quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
-
-            game_entity *Entity = CreateGameEntity(State);
-
-            Entity->Transform = CreateTransform(Position, Scale, Rotation);
-            AddModel(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
-            AddBoxCollider(Entity, Size, &State->PermanentArena);
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-            if (TileX == 0)
-            {
-                vec3 Size = vec3(0.28f, 1.2f, 0.44f);
-                vec3 HalfSize = Size / 2.f;
-
-                f32 x = 2.f * HalfSize.x * TileX;
-                f32 y = 0.6f;
-                f32 z = TileZ + Size.z;
-
-                vec3 Position = vec3(x, y, z);
-                vec3 Scale = vec3(1.f);
-                quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
-
-                game_entity *Entity = CreateGameEntity(State);
-
-                Entity->Transform = CreateTransform(Position, Scale, Rotation);
-                AddModel(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
-                AddBoxCollider(Entity, Size, &State->PermanentArena);
-                AddToSpacialGrid(&State->SpatialGrid, Entity);
-                // todo: move to separate entities!
-                AddPointLight(Entity, vec3(1.f, 0.f, 0.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
-                AddParticleEmitter(Entity, 256, vec4(1.f, 0.f, 0.f, 1.f), &State->PermanentArena);
-            }
-        }
-
-        for (i32 TileX = -5; TileX <= 5; ++TileX)
-        {
-            f32 TileZ = 11;
-
-            vec3 Size = vec3(2.f, 2.f, 0.3f);
-            vec3 HalfSize = Size / 2.f;
-
-            f32 x = 2.f * HalfSize.x * TileX;
-            f32 y = 0.f;
-            f32 z = TileZ - HalfSize.z;
-
-            vec3 Position = vec3(x, y, z);
-            vec3 Scale = vec3(1.f);
-            quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
-
-            game_entity *Entity = CreateGameEntity(State);
-
-            Entity->Transform = CreateTransform(Position, Scale, Rotation);
-            AddModel(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
-            AddBoxCollider(Entity, Size, &State->PermanentArena);
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-            if (TileX == 0)
-            {
-                vec3 Size = vec3(0.28f, 1.2f, 0.44f);
-                vec3 HalfSize = Size / 2.f;
-
-                f32 x = 2.f * HalfSize.x * TileX;
-                f32 y = 0.6f;
-                f32 z = TileZ - Size.z;
-
-                vec3 Position = vec3(x, y, z);
-                vec3 Scale = vec3(1.f);
-                quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI);
-
-                game_entity *Entity = CreateGameEntity(State);
-
-                Entity->Transform = CreateTransform(Position, Scale, Rotation);
-                AddModel(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
-                AddBoxCollider(Entity, Size, &State->PermanentArena);
-                AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-                AddPointLight(Entity, vec3(0.f, 1.f, 0.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
-                AddParticleEmitter(Entity, 256, vec4(0.f, 1.f, 0.f, 1.f), &State->PermanentArena);
-            }
-        }
-
-        for (i32 TileZ = -5; TileZ <= 5; ++TileZ)
-        {
-            f32 TileX = 11;
-
-            vec3 Size = vec3(0.3f, 2.f, 2.f);
-            vec3 HalfSize = Size / 2.f;
-
-            f32 x = TileX - HalfSize.x;
-            f32 y = 0.f;
-            f32 z = 2.f * HalfSize.z * TileZ;
-
-            vec3 Position = vec3(x, y, z);
-            vec3 Scale = vec3(1.f);
-            quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI / 2);
-
-            game_entity *Entity = CreateGameEntity(State);
-
-            Entity->Transform = CreateTransform(Position, Scale, Rotation);
-            AddModel(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
-            AddBoxCollider(Entity, Size, &State->PermanentArena);
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-            if (TileZ == 0)
-            {
-                vec3 Size = vec3(0.44f, 1.2f, 0.28f);
-                vec3 HalfSize = Size / 2.f;
-
-                f32 x = TileX - Size.x;
-                f32 y = 0.6f;
-                f32 z = 2.f * HalfSize.z * TileZ;
-
-                vec3 Position = vec3(x, y, z);
-                vec3 Scale = vec3(1.f);
-                quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), -PI / 2);
-
-                game_entity *Entity = CreateGameEntity(State);
-
-                Entity->Transform = CreateTransform(Position, Scale, Rotation);
-                AddModel(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
-                AddBoxCollider(Entity, Size, &State->PermanentArena);
-                AddToSpacialGrid(&State->SpatialGrid, Entity);
-                AddPointLight(Entity, vec3(0.f, 0.f, 1.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
-                AddParticleEmitter(Entity, 256, vec4(0.f, 0.f, 1.f, 1.f), &State->PermanentArena);
-            }
-        }
-
-        for (i32 TileZ = -5; TileZ <= 5; ++TileZ)
-        {
-            f32 TileX = -11;
-
-            vec3 Size = vec3(0.3f, 2.f, 2.f);
-            vec3 HalfSize = Size / 2.f;
-
-            f32 x = TileX + HalfSize.x;
-            f32 y = 0.f;
-            f32 z = 2.f * HalfSize.z * TileZ;
-
-            vec3 Position = vec3(x, y, z);
-            vec3 Scale = vec3(1.f);
-            quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI / 2);
-
-            game_entity *Entity = CreateGameEntity(State);
-
-            Entity->Transform = CreateTransform(Position, Scale, Rotation);
-            AddModel(Entity, &State->Assets, "Wall", RenderCommands, &State->PermanentArena);
-            AddBoxCollider(Entity, Size, &State->PermanentArena);
-            AddToSpacialGrid(&State->SpatialGrid, Entity);
-
-            if (TileZ == 0)
-            {
-                vec3 Size = vec3(0.44f, 1.2f, 0.28f);
-                vec3 HalfSize = Size / 2.f;
-
-                f32 x = TileX + Size.x;
-                f32 y = 0.6f;
-                f32 z = 2.f * HalfSize.z * TileZ;
-
-                vec3 Position = vec3(x, y, z);
-                vec3 Scale = vec3(1.f);
-                quat Rotation = AxisAngle2Quat(vec3(0.f, 1.f, 0.f), PI / 2);
-
-                game_entity *Entity = CreateGameEntity(State);
-
-                Entity->Transform = CreateTransform(Position, Scale, Rotation);
-                AddModel(Entity, &State->Assets, "Torch", RenderCommands, &State->PermanentArena);
-                AddBoxCollider(Entity, Size, &State->PermanentArena);
-                AddToSpacialGrid(&State->SpatialGrid, Entity);
-                AddPointLight(Entity, vec3(1.f, 0.f, 1.f), { 1.f, 0.09f, 0.032f }, &State->PermanentArena);
-                AddParticleEmitter(Entity, 256, vec4(1.f, 0.f, 1.f, 1.f), &State->PermanentArena);
-            }
-        }
-    }
-#endif
-}
-
 inline void
 LoadAnimators(animator *Animator)
 {
@@ -1555,6 +1222,135 @@ LoadAnimators(animator *Animator)
 
     animator_controller *SimpleController = HashTableLookup(&Animator->Controllers, (char *) "Simple");
     SimpleController->Func = SimpleAnimatorController;
+}
+
+inline void
+Entity2Spec(game_entity *Entity, game_entity_spec *Spec)
+{
+    Spec->Id = Entity->Id;
+    Spec->Transform = Entity->Transform;
+
+    if (Entity->Model)
+    {
+        Model2Spec(Entity->Model, &Spec->ModelSpec);
+    }
+
+    if (Entity->Collider)
+    {
+        Collider2Spec(Entity->Collider, &Spec->ColliderSpec);
+    }
+
+    if (Entity->Body)
+    {
+        RigidBody2Spec(Entity->Body, &Spec->RigidBodySpec);
+    }
+
+    if (Entity->PointLight)
+    {
+        PointLight2Spec(Entity->PointLight, &Spec->PointLightSpec);
+    }
+
+    if (Entity->ParticleEmitter)
+    {
+        ParticleEmitter2Spec(Entity->ParticleEmitter, &Spec->ParticleEmitterSpec);
+    }
+}
+
+internal void
+Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, render_commands *RenderCommands, memory_arena *Arena)
+{
+    Entity->Transform = Spec->Transform;
+
+    if (Spec->ModelSpec.Has)
+    {
+        model *Model = GetModelAsset(&State->Assets, Spec->ModelSpec.ModelRef);
+        AddModel(State, Entity, &State->Assets, Model->Key, RenderCommands, Arena);
+    }
+
+    if (Spec->ColliderSpec.Has)
+    {
+        collider_spec ColliderSpec = Spec->ColliderSpec;
+
+        switch (ColliderSpec.Type)
+        {
+            case Collider_Box:
+            {
+                AddBoxCollider(Entity, ColliderSpec.Size, Arena);
+                break;
+            }
+            default:
+            {
+                Assert(!"Not implemented");
+            }
+        }
+    }
+
+    if (Spec->RigidBodySpec.Has)
+    {
+        rigid_body_spec RigidBodySpec = Spec->RigidBodySpec;
+        AddRigidBody(Entity, RigidBodySpec.RootMotionEnabled, Arena);
+    }
+
+    if (Spec->PointLightSpec.Has)
+    {
+        point_light_spec PointLightSpec = Spec->PointLightSpec;
+        AddPointLight(Entity, PointLightSpec.Color, PointLightSpec.Attenuation, Arena);
+    }
+
+    if (Spec->ParticleEmitterSpec.Has)
+    {
+        particle_emitter_spec ParticleEmitterSpec = Spec->ParticleEmitterSpec;
+        AddParticleEmitter(Entity, ParticleEmitterSpec.ParticleCount, ParticleEmitterSpec.Color, Arena);
+    }
+}
+
+internal void
+SaveArea(game_state *State, char *FileName,  platform_api *Platform, memory_arena *Arena)
+{
+    u32 HeaderSize = sizeof(u32);
+    u32 BufferSize = HeaderSize + State->ActiveEntitiesCount * sizeof(game_entity_spec);
+    void *Buffer = PushSize(Arena, BufferSize);
+
+    u32 *EntityCount = (u32 *) ((u8 *) Buffer + 0);
+    *EntityCount = State->ActiveEntitiesCount;
+
+    game_entity_spec *Specs = (game_entity_spec *) ((u8 *) Buffer + HeaderSize);
+
+    u32 SpecIndex = 0;
+    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+    {
+        game_entity *Entity = State->Entities + EntityIndex;
+
+        if (!Entity->Destroyed)
+        {
+            game_entity_spec *Spec = Specs + SpecIndex++;
+            Entity2Spec(Entity, Spec);
+        }
+
+        Assert(SpecIndex <= State->ActiveEntitiesCount);
+    }
+
+    Platform->WriteFile(FileName, Buffer, BufferSize);
+}
+
+internal void
+LoadArea(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *Arena)
+{
+    read_file_result Result = Platform->ReadFile(FileName, Arena, false);
+
+    u32 *EntityCount = (u32 *) Result.Contents;
+    game_entity_spec *Specs = (game_entity_spec *) ((u8 *) Result.Contents + sizeof(u32));
+
+    for (u32 EntityIndex = 0; EntityIndex < *EntityCount; ++EntityIndex)
+    {
+        game_entity_spec *Spec = Specs + EntityIndex;
+
+        game_entity *Entity = CreateGameEntity(State);
+
+        Spec2Entity(Spec, Entity, State, RenderCommands, Arena);
+
+        AddToSpacialGrid(&State->SpatialGrid, Entity);
+    }
 }
 
 DLLExport GAME_INIT(GameInit)
@@ -1575,6 +1371,11 @@ DLLExport GAME_INIT(GameInit)
     scoped_memory ScopedMemory(&State->TransientArena);
 
     State->JobQueue = Memory->JobQueue;
+
+    State->NextFreeEntityId = 1;
+    State->NextFreeMeshId = 1;
+    State->NextFreeTextureId = 1;
+    State->NextFreeSkinningId = 1;
 
     game_process *Sentinel = &State->ProcessSentinel;
     CopyString("Sentinel", Sentinel->Key);
@@ -1602,16 +1403,16 @@ DLLExport GAME_INIT(GameInit)
     State->DelayTime = 0.f;
     State->DelayDuration = 0.5f;
 
-    State->Mode = GameMode_World;
+    State->Mode = GameMode_Editor;
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
     f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
     f32 FieldOfView = RADIANS(45.f);
-    InitCamera(&State->FreeCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 4.f, 8.f), RADIANS(-25.f), RADIANS(-90.f));
-    InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(0.f));
+    InitCamera(&State->EditorCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 4.f, 8.f), RADIANS(-20.f), RADIANS(-90.f));
+    InitCamera(&State->GameCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(0.f));
     // todo:
-    State->PlayerCamera.Radius = 4.f;
+    State->GameCamera.Radius = 4.f;
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
@@ -1619,7 +1420,9 @@ DLLExport GAME_INIT(GameInit)
     State->DirectionalLight.Color = vec3(1.f);
     State->DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
 
-    State->Entropy = RandomSequence(451);
+    State->GeneralEntropy = RandomSequence(451);
+    State->WorldGenEntropy = RandomSequence(307);
+    State->ParticleEntropy = RandomSequence(217);
 
     ClearRenderCommands(Memory);
     render_commands *RenderCommands = GetRenderCommands(Memory);
@@ -1631,7 +1434,7 @@ DLLExport GAME_INIT(GameInit)
 
     State->Options = {};
     State->Options.ShowBoundingVolumes = false;
-    State->Options.ShowGrid = false;
+    State->Options.ShowGrid = true;
 
     InitGameMenu(State);
 
@@ -1644,13 +1447,13 @@ DLLExport GAME_INIT(GameInit)
     State->Entities = PushArray(&State->PermanentArena, State->MaxEntityCount, game_entity);
 
     // Dummy
-    State->Dummy = CreateGameEntity(State);
-    State->Dummy->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-    AddBoxCollider(State->Dummy, vec3(1.f), &State->PermanentArena);
-    AddToSpacialGrid(&State->SpatialGrid, State->Dummy);
+    //State->Dummy = CreateGameEntity(State);
+    //State->Dummy->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+    ////AddBoxCollider(State->Dummy, vec3(1.f), &State->PermanentArena);
+    //AddToSpacialGrid(&State->SpatialGrid, State->Dummy);
 
     LoadFontAssets(&State->Assets, Platform, &State->PermanentArena);
-    InitGameFontAssets(&State->Assets, RenderCommands, &State->PermanentArena);
+    InitGameFontAssets(State, &State->Assets, RenderCommands, &State->PermanentArena);
 
 #if 0
     LoadGameAssets(&State->Assets, Platform, &State->PermanentArena);
@@ -1667,8 +1470,8 @@ DLLExport GAME_INIT(GameInit)
     Platform->KickJob(State->JobQueue, Job);
 #endif
 
-    State->Player = State->Dummy;
-    State->Player->Controllable = true;
+    /*State->Player = State->Dummy;
+    State->Player->Controllable = true;*/
 
     State->MasterVolume = 0.f;
 }
@@ -1764,7 +1567,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             State->Mode = State->PrevMode;
         }
-        else if (State->Mode == GameMode_World || State->Mode == GameMode_Edit)
+        else if (State->Mode == GameMode_World || State->Mode == GameMode_Editor)
         {
             State->PrevMode = State->Mode;
             State->Mode = GameMode_Menu;
@@ -1821,9 +1624,9 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         State->Player->Controllable = true;
     }
 
-    if (State->Mode == GameMode_Edit && Input->LeftClick.IsActivated)
+    if (State->Mode == GameMode_Editor && Input->LeftClick.IsActivated)
     {
-        ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->FreeCamera);
+        ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->EditorCamera);
 
         f32 MinDistance = F32_MAX;
 
@@ -1833,7 +1636,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             game_entity *Entity = State->Entities + EntityIndex;
 
-            if (Entity->Model)
+            if (!Entity->Destroyed && Entity->Model)
             {
                 State->SelectedEntity = 0;
                 bounds Box = GetEntityBounds(Entity);
@@ -1841,7 +1644,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 vec3 IntersectionPoint;
                 if (IntersectRayAABB(Ray, Box, IntersectionPoint))
                 {
-                    f32 Distance = Magnitude(IntersectionPoint - State->FreeCamera.Transform.Translation);
+                    f32 Distance = Magnitude(IntersectionPoint - State->EditorCamera.Transform.Translation);
 
                     if (Distance < MinDistance)
                     {
@@ -1862,7 +1665,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         if (State->Mode == GameMode_World || State->Mode == GameMode_Menu)
         {
-            State->Mode = GameMode_Edit;
+            State->Mode = GameMode_Editor;
             Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
         }
         else
@@ -1882,7 +1685,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             // Camera
             // https://www.gamasutra.com/blogs/YoannPignole/20150928/249412/Third_person_camera_design_with_free_move_zone.php
-            game_camera *PlayerCamera = &State->PlayerCamera;
+            game_camera *PlayerCamera = &State->GameCamera;
 
             PlayerCamera->Pitch -= Input->Camera.Range.y;
             PlayerCamera->Pitch = Clamp(PlayerCamera->Pitch, RADIANS(0.f), RADIANS(89.f));
@@ -1916,14 +1719,14 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             // todo:
             vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 1.2f, 0.f);
-            PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->PlayerCamera.Transform.Translation);
+            PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->GameCamera.Transform.Translation);
 
             game_entity *Player = State->Player;
 
             // todo:
             if (Player->Controllable && Player->Body)
             {
-                vec3 yMoveAxis = Normalize(Projection(State->PlayerCamera.Direction, State->Ground));
+                vec3 yMoveAxis = Normalize(Projection(State->GameCamera.Direction, State->Ground));
                 vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
 
                 f32 xMoveY = Dot(yMoveAxis, xAxis) * Move.y;
@@ -1965,9 +1768,9 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             break;
         }
-        case GameMode_Edit:
+        case GameMode_Editor:
         {
-            game_camera *FreeCamera = &State->FreeCamera;
+            game_camera *FreeCamera = &State->EditorCamera;
 
             f32 FreeCameraSpeed = 10.f;
 
@@ -2019,15 +1822,19 @@ DLLExport GAME_UPDATE(GameUpdate)
     for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
     {
         game_entity *Entity = State->Entities + EntityIndex;
-        Entity->DebugColor = Entity->TestColor;
+
+        if (!Entity->Destroyed)
+        {
+            Entity->DebugColor = Entity->TestColor;
 
 #if 0
-        if (Entity->Body)
-        {
-            rigid_body *Body = Entity->Body;
-            Body->Acceleration = vec3(RandomBetween(&State->Entropy, -500.f, 500.f), 0.f, RandomBetween(&State->Entropy, -500.f, 500.f));
-        }
+            if (Entity->Body)
+            {
+                rigid_body *Body = Entity->Body;
+                Body->Acceleration = vec3(RandomBetween(&State->Entropy, -500.f, 500.f), 0.f, RandomBetween(&State->Entropy, -500.f, 500.f));
+            }
 #endif
+        }
     }
 #endif
 
@@ -2048,7 +1855,7 @@ DLLExport GAME_UPDATE(GameUpdate)
         JobData->PlayerId = State->Player->Id;
         JobData->Entities = State->Entities;
         JobData->SpatialGrid = &State->SpatialGrid;
-        JobData->Entropy = &State->Entropy;
+        JobData->Entropy = &State->ParticleEntropy;
         JobData->Arena = SubMemoryArena(ScopedMemory.Arena, Megabytes(1), NoClear());
 
         Job->EntryPoint = UpdateEntityBatchJob;
@@ -2141,11 +1948,11 @@ DLLExport GAME_RENDER(GameRender)
     if (State->Assets.State == GameAssetsState_Loaded)
     {
         // todo: render commands buffer is not multithread-safe!
-        InitGameModelAssets(&State->Assets, RenderCommands, &State->PermanentArena);
+        InitGameModelAssets(State, &State->Assets, RenderCommands, &State->PermanentArena);
         InitGameAudioClipAssets(&State->Assets, &State->PermanentArena);
-        InitGameEntities(State, RenderCommands);
 
-        State->Player = State->PlayableEntities[State->PlayableEntityIndex];
+        //State->Player = State->PlayableEntities[State->PlayableEntityIndex];
+        State->Player = State->Entities + 1;
         State->Player->Controllable = true;
 
         State->Assets.State = GameAssetsState_Ready;
@@ -2174,9 +1981,9 @@ DLLExport GAME_RENDER(GameRender)
     switch (State->Mode)
     {
         case GameMode_World:
-        case GameMode_Edit:
+        case GameMode_Editor:
         {
-            game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->FreeCamera;
+            game_camera *Camera = State->Mode == GameMode_World ? &State->GameCamera : &State->EditorCamera;
             b32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
             SetListener(AudioCommands, Camera->Transform.Translation, -Camera->Direction);
@@ -2218,12 +2025,12 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:BuildVisibilityRegion");
 
-                BuildFrustrumPolyhedron(&State->PlayerCamera, &State->Frustrum);
+                BuildFrustrumPolyhedron(&State->GameCamera, &State->Frustrum);
 
                 polyhedron VisibilityRegion = State->Frustrum;
 
                 // Camera is looking downwards
-                if (State->PlayerCamera.Direction.y < 0.f)
+                if (State->GameCamera.Direction.y < 0.f)
                 {
                     f32 MinY = 1.f;
                     plane LowestPlane = ComputePlane(vec3(-1.f, MinY, 0.f), vec3(0.f, MinY, 1.f), vec3(1.f, MinY, 0.f));
@@ -2241,7 +2048,7 @@ DLLExport GAME_RENDER(GameRender)
                     RenderFrustrum(RenderCommands, &VisibilityRegion);
 
                     // Render camera axes
-                    game_camera *Camera = &State->PlayerCamera;
+                    game_camera *Camera = &State->GameCamera;
                     mat4 CameraTransform = GetCameraTransform(Camera);
 
                     vec3 xAxis = CameraTransform[0].xyz;
@@ -2301,7 +2108,7 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     game_entity *Entity = State->Entities + EntityIndex;
 
-                    if (Entity->Model && Entity->Model->Skeleton->JointCount > 1)
+                    if (!Entity->Destroyed && Entity->Model && Entity->Model->Skeleton->JointCount > 1)
                     {
                         job *Job = AnimationJobs + AnimationJobCount;
                         animate_entity_job *JobData = AnimationJobParams + AnimationJobCount;
@@ -2331,63 +2138,69 @@ DLLExport GAME_RENDER(GameRender)
                 State->EntityBatches.Count = 32;
                 State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
                 State->RenderableEntityCount = 0;
+                State->ActiveEntitiesCount = 0;
 
                 for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
                 {
                     game_entity *Entity = State->Entities + EntityIndex;
 
-                    if (Entity->Model)
+                    if (!Entity->Destroyed)
                     {
-                        if (!EnableFrustrumCulling || Entity->Visible)
-                        {
-                            // Grouping entities into render batches
-                            entity_render_batch *Batch = GetRenderBatch(State, Entity->Model->Key);
+                        ++State->ActiveEntitiesCount;
 
-                            if (IsRenderBatchEmpty(Batch))
+                        if (Entity->Model)
+                        {
+                            if (!EnableFrustrumCulling || Entity->Visible)
                             {
-                                InitRenderBatch(Batch, Entity->Model, State->MaxEntityCount, &State->TransientArena);
+                                // Grouping entities into render batches
+                                entity_render_batch *Batch = GetRenderBatch(State, Entity->Model->Key);
+
+                                if (IsRenderBatchEmpty(Batch))
+                                {
+                                    InitRenderBatch(Batch, Entity->Model, State->MaxEntityCount, &State->TransientArena);
+                                }
+
+                                AddEntityToRenderBatch(Batch, Entity);
+
+                                ++State->RenderableEntityCount;
+                            }
+                        }
+
+                        if ((State->SelectedEntity && State->SelectedEntity->Id == Entity->Id) || State->Options.ShowBoundingVolumes)
+                        {
+                            RenderBoundingBox(RenderCommands, State, Entity);
+                        }
+
+                        if (Entity->PointLight)
+                        {
+                            point_light *PointLight = PointLights + PointLightCount++;
+
+                            Assert(PointLightCount <= MaxPointLightCount);
+
+                            // todo: fix offset position
+                            PointLight->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f);
+                            PointLight->Color = Entity->PointLight->Color;
+                            PointLight->Attenuation = Entity->PointLight->Attenuation;
+                        }
+
+                        if (Entity->ParticleEmitter)
+                        {
+                            particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
+
+                            for (u32 ParticleIndex = 0; ParticleIndex < ParticleEmitter->ParticleCount; ++ParticleIndex)
+                            {
+                                particle *Particle = ParticleEmitter->Particles + ParticleIndex;
+
+                                f32 dt = Parameters->Delta;
+
+                                Particle->Position += 0.5f * Particle->Acceleration * Square(dt) + Particle->Velocity * dt;
+                                Particle->Velocity += Particle->Acceleration * dt;
+                                Particle->Color = Particle->Color + Particle->dColor * dt;
+                                Particle->Size = Particle->Size + Particle->dSize * dt;
                             }
 
-                            AddEntityToRenderBatch(Batch, Entity);
-
-                            ++State->RenderableEntityCount;
+                            DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles);
                         }
-                    }
-
-                    if ((State->SelectedEntity && State->SelectedEntity->Id == Entity->Id) || State->Options.ShowBoundingVolumes)
-                    {
-                        RenderBoundingBox(RenderCommands, State, Entity);
-                    }
-
-                    if (Entity->PointLight)
-                    {
-                        point_light *PointLight = PointLights + PointLightCount++;
-
-                        Assert(PointLightCount <= MaxPointLightCount);
-
-                        // todo: fix offset position
-                        PointLight->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f);
-                        PointLight->Color = Entity->PointLight->Color;
-                        PointLight->Attenuation = Entity->PointLight->Attenuation;
-                    }
-
-                    if (Entity->ParticleEmitter)
-                    {
-                        particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
-
-                        for (u32 ParticleIndex = 0; ParticleIndex < ParticleEmitter->ParticleCount; ++ParticleIndex)
-                        {
-                            particle *Particle = ParticleEmitter->Particles + ParticleIndex;
-
-                            f32 dt = Parameters->Delta;
-
-                            Particle->Position += 0.5f * Particle->Acceleration * Square(dt) + Particle->Velocity * dt;
-                            Particle->Velocity += Particle->Acceleration * dt;
-                            Particle->Color = Particle->Color + Particle->dColor * dt;
-                            Particle->Size = Particle->Size + Particle->dSize * dt;
-                        }
-
-                        DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles);
                     }
                 }
 
@@ -2406,7 +2219,7 @@ DLLExport GAME_RENDER(GameRender)
                     u32 BatchThreshold = 1;
 
                     // todo: skinning!
-                    if (Batch->EntityCount > BatchThreshold)
+                    if (Batch->EntityCount > BatchThreshold && Batch->Model->Skeleton->JointCount == 1)
                     {
                         RenderEntityBatch(RenderCommands, State, Batch);
                     }
@@ -2443,7 +2256,7 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     game_entity *PlayableEntity = State->PlayableEntities[PlaybleEntityIndex];
 
-                    if (PlayableEntity && PlayableEntity->Model)
+                    if (PlayableEntity && !PlayableEntity->Destroyed && PlayableEntity->Model)
                     {
                         bounds Bounds = GetEntityBounds(PlayableEntity);
                         vec3 Size = Bounds.Max - Bounds.Min;
@@ -2461,7 +2274,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
 #if 1
-            if (State->Player->Model)
+            if (State->Player && State->Player->Model)
             {
                 char Text[64];
                 FormatString(Text, "Active entity: %s", State->Player->Model->Key);

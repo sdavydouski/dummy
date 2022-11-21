@@ -1,5 +1,6 @@
 {
    "version":"0.0.1",
+   "animator":"Cleric",
    "graph":{
       "name":"Cleric animation graph",
       "entry":"ActionIdle",

@@ -40,19 +40,19 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
                 audio_clip *AudioClip = 0;
                 char *ModelName = Entity->Model->Key;
 
-                if (StringEquals(ModelName, "Paladin"))
+                if (StringEquals(ModelName, "paladin"))
                 {
                     AudioClip = GetAudioClipAsset(Assets, "step_metal");
                 }
-                else if (StringEquals(ModelName, "Pelegrini"))
+                else if (StringEquals(ModelName, "pelegrini"))
                 {
                     AudioClip = GetAudioClipAsset(Assets, "step_lth1");
                 }
-                else if (StringEquals(ModelName, "xBot") || StringEquals(ModelName, "yBot"))
+                else if (StringEquals(ModelName, "xbot") || StringEquals(ModelName, "ybot"))
                 {
                     AudioClip = GetAudioClipAsset(Assets, "step_cloth1");
                 }
-                else if (StringEquals(ModelName, "Warrok") || StringEquals(ModelName, "Maw"))
+                else if (StringEquals(ModelName, "warrok") || StringEquals(ModelName, "maw"))
                 {
                     AudioClip = GetAudioClipAsset(Assets, "step_lth4");
                 }

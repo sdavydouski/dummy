@@ -1,5 +1,6 @@
 {
    "version":"0.0.1",
+   "animator":"Monstar",
    "graph":{
       "name":"Monstar animation graph",
       "entry":"Idle",

@@ -4,6 +4,7 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
     model_asset_animation_graph_header *AnimationGraphHeader = (model_asset_animation_graph_header *)(Buffer + Offset);
     CopyString(AnimationGraphHeader->Name, GraphAsset->Name);
     CopyString(AnimationGraphHeader->Entry, GraphAsset->Entry);
+    CopyString(AnimationGraphHeader->Animator, GraphAsset->Animator);
     GraphAsset->NodeCount = AnimationGraphHeader->NodeCount;
     GraphAsset->Nodes = (animation_node_asset *)malloc(sizeof(animation_node_asset) * GraphAsset->NodeCount);
 

@@ -769,7 +769,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
     if (MeshMaterial)
     {
         // default values
-        vec3 DefaultAmbient = vec3(0.4f);
+        vec3 DefaultAmbient = vec3(0.2f);
         glUniform3f(Shader->MaterialAmbientColorUniform, DefaultAmbient.x, DefaultAmbient.y, DefaultAmbient.z);
         glUniform1f(Shader->MaterialSpecularShininessUniform, 1.f);
 

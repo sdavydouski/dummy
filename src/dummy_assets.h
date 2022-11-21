@@ -143,6 +143,7 @@ struct animation_graph_asset
 {
     char Name[256];
     char Entry[256];
+    char Animator[256];
 
     u32 NodeCount;
     animation_node_asset *Nodes;
@@ -295,6 +296,7 @@ struct model_asset_animation_graph_header
 {
     char Name[256];
     char Entry[256];
+    char Animator[256];
     u32 NodeCount;
     u64 NodesOffset;
 };

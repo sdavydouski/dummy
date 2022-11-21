@@ -1,5 +1,6 @@
 {
    "version":"0.0.1",
+   "animator":"Bot",
    "graph":{
       "name":"Bot animation graph",
       "entry":"StandingIdle",

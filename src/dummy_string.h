@@ -142,3 +142,25 @@ ConvertToWideString(const char *Source, wchar *Dest)
 
     mbstowcs_s(0, Dest, SourceLength + 1, Source, SourceLength);
 }
+
+inline void
+ConvertToString(const wchar *Source, char *Dest)
+{
+    u32 SourceLength = StringLength(Source);
+    u32 DestLength = StringLength(Dest);
+
+    //Assert(SourceLength < DestLength);
+
+    wcstombs_s(0, Dest, SourceLength + 1, Source, SourceLength);
+}
+
+inline b32
+StringIncludes(char *Str1, char *Str2)
+{
+    if (strstr(Str1, Str2))
+    {
+        return true;
+    }
+
+    return false;
+}

@@ -155,33 +155,37 @@ FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, bounds Bounds, 
                 for (u32 CellEntityIndex = 0; CellEntityIndex < Cell->EntityCount; ++CellEntityIndex)
                 {
                     game_entity *CellEntity = Cell->Entities[CellEntityIndex];
-                    bounds CellEntityBounds = GetEntityBounds(CellEntity);
 
-                    if (CellEntity->Id != Entity->Id && TestAABBAABB(AreaBounds, CellEntityBounds))
+                    if (!CellEntity->Destroyed)
                     {
-                        b32 ShouldAdd = true;
+                        bounds CellEntityBounds = GetEntityBounds(CellEntity);
 
-                        // Filtering duplicates
-                        for (u32 EntityIndex = 0; EntityIndex < EntityCount; ++EntityIndex)
+                        if (CellEntity->Id != Entity->Id && TestAABBAABB(AreaBounds, CellEntityBounds))
                         {
-                            game_entity *Entity = Entities[EntityIndex];
+                            b32 ShouldAdd = true;
 
-                            if (Entity->Id == CellEntity->Id)
+                            // Filtering duplicates
+                            for (u32 EntityIndex = 0; EntityIndex < EntityCount; ++EntityIndex)
                             {
-                                ShouldAdd = false;
-                                break;
+                                game_entity *Entity = Entities[EntityIndex];
+
+                                if (Entity->Id == CellEntity->Id)
+                                {
+                                    ShouldAdd = false;
+                                    break;
+                                }
                             }
-                        }
 
-                        if (ShouldAdd)
-                        {
-                            Entities[EntityCount++] = CellEntity;
-
-                            Assert(EntityCount <= MaxEntityCount);
-
-                            if (EntityCount == MaxEntityCount)
+                            if (ShouldAdd)
                             {
-                                return EntityCount;
+                                Entities[EntityCount++] = CellEntity;
+
+                                Assert(EntityCount <= MaxEntityCount);
+
+                                if (EntityCount == MaxEntityCount)
+                                {
+                                    return EntityCount;
+                                }
                             }
                         }
                     }

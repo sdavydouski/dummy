@@ -128,6 +128,10 @@
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "$(SolutionDir)..\game"</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -173,6 +177,10 @@
     <PostBuildEvent>
       <Command>copy "$(TargetPath)" "$(SolutionDir)..\game"</Command>
     </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+      </Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="win32_dummy.cpp" />
