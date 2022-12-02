@@ -600,11 +600,11 @@ OpenGLLoadShaderFile(opengl_state *State, u32 Id, const char *ShaderFileName, u3
 
     for (u32 FileIndex = 0; FileIndex < OPENGL_COMMON_SHADER_COUNT; ++FileIndex)
     {
-        read_file_result CommonShaderFile = State->Platform->ReadFile((char *) OpenGLCommonShaders[FileIndex], Arena, true);
+        read_file_result CommonShaderFile = State->Platform->ReadFile((char *) OpenGLCommonShaders[FileIndex], Arena, ReadText());
         Sources[FileIndex] = OpenGLPreprocessShader((char *) CommonShaderFile.Contents, CommonShaderFile.Size, Arena);
     }
 
-    read_file_result ShaderFile = State->Platform->ReadFile((char *) ShaderFileName, Arena, true);
+    read_file_result ShaderFile = State->Platform->ReadFile((char *) ShaderFileName, Arena, ReadText());
     Sources[OPENGL_COMMON_SHADER_COUNT] = (char *) ShaderFile.Contents;
 
     return Sources;

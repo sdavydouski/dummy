@@ -1,8 +1,5 @@
 #pragma once
 
-#define GAME_PROCESS_ON_UPDATE(Name) void Name(struct game_state *State, struct game_process *Process, f32 Delta)
-typedef GAME_PROCESS_ON_UPDATE(game_process_on_update);
-
 enum game_mode
 {
     GameMode_World,
@@ -29,6 +26,16 @@ struct game_entity
     b32 Destroyed;
     vec3 TestColor;
     vec3 DebugColor;
+};
+
+struct world_area
+{
+    u32 MaxEntityCount;
+    u32 EntityCount;
+    game_entity *Entities;
+    spatial_hash_grid SpatialGrid;
+
+    memory_arena Arena;
 };
 
 struct model_spec
@@ -127,9 +134,8 @@ ParticleEmitter2Spec(particle_emitter *ParticleEmitter, particle_emitter_spec *S
 
 struct game_entity_spec
 {
-    u32 Id;
+    u32 Id; // <-- todo: remove
     transform Transform;
-
     model_spec ModelSpec;
     collider_spec ColliderSpec;
     rigid_body_spec RigidBodySpec;
@@ -204,6 +210,8 @@ struct game_assets
     game_asset_audio_clip *AudioClipAssets;
 
     game_assets_state State;
+
+    memory_arena Arena;
 };
 
 struct game_options
@@ -226,6 +234,8 @@ struct game_state
 {
     memory_arena PermanentArena;
     memory_arena TransientArena;
+
+    world_area WorldArea;
 
     job_queue *JobQueue;
 
@@ -254,11 +264,8 @@ struct game_state
     u32 RenderableEntityCount;
     u32 ActiveEntitiesCount;
 
-    u32 EntityCount;
-    u32 MaxEntityCount;
-    game_entity *Entities;
-
-    spatial_hash_grid SpatialGrid;
+    game_entity *Player;
+    game_entity *SelectedEntity;
 
     hash_table<entity_render_batch> EntityBatches;
 
@@ -268,34 +275,10 @@ struct game_state
     // linked-list (for efficient adding/removal and traversing)
     game_process ProcessSentinel;
 
-    game_entity *Player;
-    game_entity *SelectedEntity;
-
-    i32 PlayableEntityIndex;
-    union
-    {
-        struct
-        {
-            game_entity *Pelegrini;
-            game_entity *yBot;
-            game_entity *xBot;
-            game_entity *Paladin;
-            game_entity *Warrok;
-            game_entity *Maw;
-
-            game_entity *Cleric;
-        };
-
-        game_entity *PlayableEntities[7];
-    };
-
-    game_entity *Dummy;
-
     vec2 CurrentMove;
     vec2 TargetMove;
 
     random_sequence GeneralEntropy;
-    random_sequence WorldGenEntropy;
     random_sequence ParticleEntropy;
 
     game_event_list EventList;

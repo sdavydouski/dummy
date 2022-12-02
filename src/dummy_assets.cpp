@@ -1,31 +1,33 @@
+#define GET_DATA_AT(Buffer, Offset, Type) (Type *) ((Buffer) + (Offset))
+
 internal u32
-ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
+ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, memory_arena *Arena)
 {
-    model_asset_animation_graph_header *AnimationGraphHeader = (model_asset_animation_graph_header *)(Buffer + Offset);
+    model_asset_animation_graph_header *AnimationGraphHeader = GET_DATA_AT(Buffer, Offset, model_asset_animation_graph_header);
     CopyString(AnimationGraphHeader->Name, GraphAsset->Name);
     CopyString(AnimationGraphHeader->Entry, GraphAsset->Entry);
     CopyString(AnimationGraphHeader->Animator, GraphAsset->Animator);
     GraphAsset->NodeCount = AnimationGraphHeader->NodeCount;
-    GraphAsset->Nodes = (animation_node_asset *)malloc(sizeof(animation_node_asset) * GraphAsset->NodeCount);
+    GraphAsset->Nodes = PushArray(Arena, GraphAsset->NodeCount, animation_node_asset);
 
     u32 TotalPrevNodeSize = 0;
     for (u32 NodeIndex = 0; NodeIndex < GraphAsset->NodeCount; ++NodeIndex)
     {
-        model_asset_animation_node_header *NodeHeader = (model_asset_animation_node_header *)(Buffer + AnimationGraphHeader->NodesOffset + TotalPrevNodeSize);
+        model_asset_animation_node_header *NodeHeader = GET_DATA_AT(Buffer, AnimationGraphHeader->NodesOffset + TotalPrevNodeSize, model_asset_animation_node_header);
         animation_node_asset *NodeAsset = GraphAsset->Nodes + NodeIndex;
 
         NodeAsset->Type = NodeHeader->Type;
         CopyString(NodeHeader->Name, NodeAsset->Name);
         NodeAsset->TransitionCount = NodeHeader->TransitionCount;
-        NodeAsset->Transitions = (animation_transition_asset *)(Buffer + NodeHeader->TransitionsOffset);
+        NodeAsset->Transitions = GET_DATA_AT(Buffer, NodeHeader->TransitionsOffset, animation_transition_asset);
 
         switch (NodeAsset->Type)
         {
             case AnimationNodeType_Clip:
             {
-                model_asset_animation_state_header *AnimationStateHeader = (model_asset_animation_state_header *)(Buffer + NodeHeader->Offset);
+                model_asset_animation_state_header *AnimationStateHeader = GET_DATA_AT(Buffer, NodeHeader->Offset, model_asset_animation_state_header);
 
-                NodeAsset->Animation = (animation_state_asset *)malloc(sizeof(animation_state_asset) * 1);
+                NodeAsset->Animation = PushType(Arena, animation_state_asset);
                 CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
                 NodeAsset->Animation->EnableRootMotion = AnimationStateHeader->EnableRootMotion;
@@ -35,20 +37,20 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
             }
             case AnimationNodeType_BlendSpace:
             {
-                model_asset_blend_space_1d_header *BlendSpaceHeader = (model_asset_blend_space_1d_header *)(Buffer + NodeHeader->Offset);
+                model_asset_blend_space_1d_header *BlendSpaceHeader = GET_DATA_AT(Buffer, NodeHeader->Offset, model_asset_blend_space_1d_header);
 
-                NodeAsset->Blendspace = (blend_space_1d_asset *)malloc(sizeof(blend_space_1d_asset) * 1);
+                NodeAsset->Blendspace = PushType(Arena, blend_space_1d_asset);
                 NodeAsset->Blendspace->ValueCount = BlendSpaceHeader->ValueCount;
-                NodeAsset->Blendspace->Values = (blend_space_1d_value_asset *)(Buffer + BlendSpaceHeader->ValuesOffset);
+                NodeAsset->Blendspace->Values = GET_DATA_AT(Buffer, BlendSpaceHeader->ValuesOffset, blend_space_1d_value_asset);
 
                 TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader->ValueCount * sizeof(blend_space_1d_value_asset);
                 break;
             }
             case AnimationNodeType_Graph:
             {
-                NodeAsset->Graph = (animation_graph_asset *)malloc(sizeof(animation_graph_asset) * 1);
+                NodeAsset->Graph = PushType(Arena, animation_graph_asset);
 
-                u32 NodeSize = ReadAnimationGraph(NodeAsset->Graph, NodeHeader->Offset, Buffer);
+                u32 NodeSize = ReadAnimationGraph(NodeAsset->Graph, NodeHeader->Offset, Buffer, Arena);
 
                 TotalPrevNodeSize += NodeSize + sizeof(model_asset_animation_graph_header);
                 break;
@@ -66,24 +68,24 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     model_asset *Result = PushType(Arena, model_asset);
 
-    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, false);
+    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, ReadBinary());
     u8 *Buffer = (u8 *)AssetFile.Contents;
 
-    asset_header *Header = (asset_header *) Buffer;
+    asset_header *Header = GET_DATA_AT(Buffer, 0, asset_header);
 
     Assert(Header->Type == AssetType_Model);
 
-    model_asset_header *ModelHeader = (model_asset_header *) (Buffer + Header->DataOffset);
+    model_asset_header *ModelHeader = GET_DATA_AT(Buffer, Header->DataOffset, model_asset_header);
 
     Result->Bounds = ModelHeader->Bounds;
 
     // Skeleton
-    model_asset_skeleton_header *SkeletonHeader = (model_asset_skeleton_header *)(Buffer + ModelHeader->SkeletonHeaderOffset);
+    model_asset_skeleton_header *SkeletonHeader = GET_DATA_AT(Buffer, ModelHeader->SkeletonHeaderOffset, model_asset_skeleton_header);
     Result->Skeleton.JointCount = SkeletonHeader->JointCount;
 #if 0
     Result->Skeleton.Joints = (joint *)(Buffer + SkeletonHeader->JointsOffset);
 #else
-    joint *Joints = (joint *)(Buffer + SkeletonHeader->JointsOffset);
+    joint *Joints = GET_DATA_AT(Buffer, SkeletonHeader->JointsOffset, joint);
 
     Result->Skeleton.Joints = PushArray(Arena, Result->Skeleton.JointCount, joint, Align(16));
 
@@ -99,7 +101,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     // Skeleton Bind Pose
     model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)(Buffer + ModelHeader->SkeletonPoseHeaderOffset);
     Result->BindPose.Skeleton = &Result->Skeleton;
-    Result->BindPose.LocalJointPoses = (joint_pose *)(Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
+    Result->BindPose.LocalJointPoses = GET_DATA_AT(Buffer, SkeletonPoseHeader->LocalJointPosesOffset, joint_pose);
 #if 0
     Result->BindPose.GlobalJointPoses = (mat4 *)(Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
 #else
@@ -107,18 +109,17 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 #endif
 
     // Animation Graph
-    ReadAnimationGraph(&Result->AnimationGraph, ModelHeader->AnimationGraphHeaderOffset, Buffer);
+    ReadAnimationGraph(&Result->AnimationGraph, ModelHeader->AnimationGraphHeaderOffset, Buffer, Arena);
 
     // Meshes
-    model_asset_meshes_header *MeshesHeader = (model_asset_meshes_header *)(Buffer + ModelHeader->MeshesHeaderOffset);
+    model_asset_meshes_header *MeshesHeader = GET_DATA_AT(Buffer, ModelHeader->MeshesHeaderOffset, model_asset_meshes_header);
     Result->MeshCount = MeshesHeader->MeshCount;
     Result->Meshes = PushArray(Arena, Result->MeshCount, mesh);
 
     u64 NextMeshHeaderOffset = 0;
     for (u32 MeshIndex = 0; MeshIndex < MeshesHeader->MeshCount; ++MeshIndex)
     {
-        model_asset_mesh_header *MeshHeader = (model_asset_mesh_header *)(Buffer +
-            MeshesHeader->MeshesOffset + NextMeshHeaderOffset);
+        model_asset_mesh_header *MeshHeader = GET_DATA_AT(Buffer, MeshesHeader->MeshesOffset + NextMeshHeaderOffset, model_asset_mesh_header);
         
         mesh *Mesh = Result->Meshes + MeshIndex;
 
@@ -130,53 +131,53 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
         if (MeshHeader->HasPositions)
         {
-            Mesh->Positions = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh->Positions = GET_DATA_AT(Buffer, MeshHeader->VerticesOffset + VerticesOffset, vec3);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasNormals)
         {
-            Mesh->Normals = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh->Normals = GET_DATA_AT(Buffer, MeshHeader->VerticesOffset + VerticesOffset, vec3);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasTangents)
         {
-            Mesh->Tangents = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh->Tangents = GET_DATA_AT(Buffer, MeshHeader->VerticesOffset + VerticesOffset, vec3);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasBitangets)
         {
-            Mesh->Bitangents = (vec3 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh->Bitangents = GET_DATA_AT(Buffer, MeshHeader->VerticesOffset + VerticesOffset, vec3);
             VerticesOffset += sizeof(vec3) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasTextureCoords)
         {
-            Mesh->TextureCoords = (vec2 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh->TextureCoords = GET_DATA_AT(Buffer, MeshHeader->VerticesOffset + VerticesOffset, vec2);
             VerticesOffset += sizeof(vec2) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasWeights)
         {
-            Mesh->Weights = (vec4 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh->Weights = GET_DATA_AT(Buffer, MeshHeader->VerticesOffset + VerticesOffset, vec4);
             VerticesOffset += sizeof(vec4) * MeshHeader->VertexCount;
         }
 
         if (MeshHeader->HasJointIndices)
         {
-            Mesh->JointIndices = (ivec4 *)(Buffer + MeshHeader->VerticesOffset + VerticesOffset);
+            Mesh->JointIndices = GET_DATA_AT(Buffer, MeshHeader->VerticesOffset + VerticesOffset, ivec4);
             VerticesOffset += sizeof(ivec4) * MeshHeader->VertexCount;
         }
 
-        Mesh->Indices = (u32 *)(Buffer + MeshHeader->IndicesOffset);
+        Mesh->Indices = GET_DATA_AT(Buffer, MeshHeader->IndicesOffset, u32);
 
         NextMeshHeaderOffset += sizeof(model_asset_mesh_header) + VerticesOffset + MeshHeader->IndexCount * sizeof(u32);
     }
 
     // Materials
-    model_asset_materials_header *MaterialsHeader = (model_asset_materials_header *)(Buffer + ModelHeader->MaterialsHeaderOffset);
+    model_asset_materials_header *MaterialsHeader = GET_DATA_AT(Buffer, ModelHeader->MaterialsHeaderOffset, model_asset_materials_header);
 
     Result->MaterialCount = MaterialsHeader->MaterialCount;
     Result->Materials = PushArray(Arena, Result->MaterialCount, mesh_material);
@@ -184,8 +185,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     u64 NextMaterialHeaderOffset = 0;
     for (u32 MaterialIndex = 0; MaterialIndex < MaterialsHeader->MaterialCount; ++MaterialIndex)
     {
-        model_asset_material_header *MaterialHeader = (model_asset_material_header *)(Buffer +
-            MaterialsHeader->MaterialsOffset + NextMaterialHeaderOffset);
+        model_asset_material_header *MaterialHeader = GET_DATA_AT(Buffer, MaterialsHeader->MaterialsOffset + NextMaterialHeaderOffset, model_asset_material_header);
         mesh_material *Material = Result->Materials + MaterialIndex;
         Material->PropertyCount = MaterialHeader->PropertyCount;
         Material->Properties = PushArray(Arena, Material->PropertyCount, material_property);
@@ -193,8 +193,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
         u64 NextMaterialPropertyHeaderOffset = 0;
         for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MaterialHeader->PropertyCount; ++MaterialPropertyIndex)
         {
-            model_asset_material_property_header *MaterialPropertyHeader = (model_asset_material_property_header *)
-                (Buffer + MaterialHeader->PropertiesOffset + NextMaterialPropertyHeaderOffset);
+            model_asset_material_property_header *MaterialPropertyHeader = GET_DATA_AT(Buffer, MaterialHeader->PropertiesOffset + NextMaterialPropertyHeaderOffset, model_asset_material_property_header);
 
             material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
             MaterialProperty->Type = MaterialPropertyHeader->Type;
@@ -225,7 +224,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
                 case MaterialProperty_Texture_Normal:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
-                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
+                    MaterialProperty->Bitmap.Pixels = GET_DATA_AT(Buffer, MaterialPropertyHeader->BitmapOffset, void);
 
                     u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
 
@@ -244,16 +243,14 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     }
 
     // Animations
-    model_asset_animations_header *AnimationsHeader = (model_asset_animations_header *)
-        (Buffer + ModelHeader->AnimationsHeaderOffset);
+    model_asset_animations_header *AnimationsHeader = GET_DATA_AT(Buffer, ModelHeader->AnimationsHeaderOffset, model_asset_animations_header);
     Result->AnimationCount = AnimationsHeader->AnimationCount;
     Result->Animations = PushArray(Arena, Result->AnimationCount, animation_clip);
 
     u64 NextAnimationHeaderOffset = 0;
     for (u32 AnimationIndex = 0; AnimationIndex < AnimationsHeader->AnimationCount; ++AnimationIndex)
     {
-        model_asset_animation_header *AnimationHeader = (model_asset_animation_header *)
-            (Buffer +AnimationsHeader->AnimationsOffset + NextAnimationHeaderOffset);
+        model_asset_animation_header *AnimationHeader = GET_DATA_AT(Buffer, AnimationsHeader->AnimationsOffset + NextAnimationHeaderOffset, model_asset_animation_header);
 
         animation_clip *Animation = Result->Animations + AnimationIndex;
 
@@ -262,22 +259,20 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
         Animation->PoseSampleCount = AnimationHeader->PoseSampleCount;
         Animation->PoseSamples = PushArray(Arena, Animation->PoseSampleCount, animation_sample);
         Animation->EventCount = AnimationHeader->EventCount;
-        Animation->Events = (animation_event *) (Buffer + AnimationHeader->EventsOffset);
+        Animation->Events = GET_DATA_AT(Buffer, AnimationHeader->EventsOffset, animation_event);
 
         u64 NextAnimationSampleHeaderOffset = 0;
         for (u32 AnimationPoseIndex = 0; AnimationPoseIndex < AnimationHeader->PoseSampleCount; ++AnimationPoseIndex)
         {
-            model_asset_animation_sample_header *AnimationSampleHeader = (model_asset_animation_sample_header *)
-                (Buffer + AnimationHeader->PoseSamplesOffset + NextAnimationSampleHeaderOffset);
+            model_asset_animation_sample_header *AnimationSampleHeader = GET_DATA_AT(Buffer, AnimationHeader->PoseSamplesOffset + NextAnimationSampleHeaderOffset, model_asset_animation_sample_header);
 
             animation_sample *AnimationSample = Animation->PoseSamples + AnimationPoseIndex;
 
             AnimationSample->JointIndex = AnimationSampleHeader->JointIndex;
             AnimationSample->KeyFrameCount = AnimationSampleHeader->KeyFrameCount;
-            AnimationSample->KeyFrames = (key_frame *)(Buffer + AnimationSampleHeader->KeyFramesOffset);
+            AnimationSample->KeyFrames = GET_DATA_AT(Buffer, AnimationSampleHeader->KeyFramesOffset, key_frame);
 
-            NextAnimationSampleHeaderOffset += sizeof(model_asset_animation_sample_header) +
-                AnimationSampleHeader->KeyFrameCount * sizeof(key_frame);
+            NextAnimationSampleHeaderOffset += sizeof(model_asset_animation_sample_header) + AnimationSampleHeader->KeyFrameCount * sizeof(key_frame);
         }
 
         NextAnimationHeaderOffset += sizeof(model_asset_animation_header) + NextAnimationSampleHeaderOffset + AnimationHeader->EventCount * sizeof(animation_event);
@@ -291,32 +286,32 @@ LoadFontAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     font_asset *Result = PushType(Arena, font_asset);
 
-    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, false);
+    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, ReadBinary());
     u8 *Buffer = (u8 *) AssetFile.Contents;
 
-    asset_header *Header = (asset_header *) Buffer;
+    asset_header *Header = GET_DATA_AT(Buffer, 0, asset_header);
 
     Assert(Header->Type == AssetType_Font);
 
-    font_asset_header *FontHeader = (font_asset_header *) (Buffer + Header->DataOffset);
+    font_asset_header *FontHeader = GET_DATA_AT(Buffer, Header->DataOffset, font_asset_header);
 
     Result->TextureAtlas.Width = FontHeader->TextureAtlasWidth;
     Result->TextureAtlas.Height = FontHeader->TextureAtlasHeight;
     Result->TextureAtlas.Channels = FontHeader->TextureAtlasChannels;
-    Result->TextureAtlas.Pixels = (u8 *) (Buffer + FontHeader->TextureAtlasOffset);
+    Result->TextureAtlas.Pixels = GET_DATA_AT(Buffer, FontHeader->TextureAtlasOffset, u8);
 
     Result->VerticalAdvance = FontHeader->VerticalAdvance;
     Result->Ascent = FontHeader->Ascent;
     Result->Descent = FontHeader->Descent;
 
     Result->CodepointsRangeCount = FontHeader->CodepointsRangeCount;
-    Result->CodepointsRanges = (codepoints_range *) (Buffer + FontHeader->CodepointsRangesOffset);
+    Result->CodepointsRanges = GET_DATA_AT(Buffer, FontHeader->CodepointsRangesOffset, codepoints_range);
 
     Result->HorizontalAdvanceTableCount = FontHeader->HorizontalAdvanceTableCount;
-    Result->HorizontalAdvanceTable = (f32 *) (Buffer + FontHeader->HorizontalAdvanceTableOffset);
+    Result->HorizontalAdvanceTable = GET_DATA_AT(Buffer, FontHeader->HorizontalAdvanceTableOffset, f32);
 
     Result->GlyphCount = FontHeader->GlyphCount;
-    Result->Glyphs = (glyph *) (Buffer + FontHeader->GlyphsOffset);
+    Result->Glyphs = GET_DATA_AT(Buffer, FontHeader->GlyphsOffset, glyph);
 
     return Result;
 }
@@ -326,21 +321,21 @@ LoadAudioClipAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     audio_clip_asset *Result = PushType(Arena, audio_clip_asset);
 
-    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, false);
+    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, ReadBinary());
     u8 *Buffer = (u8 *) AssetFile.Contents;
 
-    asset_header *Header = (asset_header *) Buffer;
+    asset_header *Header = GET_DATA_AT(Buffer, 0, asset_header);
 
     Assert(Header->Type == AssetType_AudioClip);
 
-    audio_clip_asset_header *AudioHeader = (audio_clip_asset_header *) (Buffer + Header->DataOffset);
+    audio_clip_asset_header *AudioHeader = GET_DATA_AT(Buffer, Header->DataOffset, audio_clip_asset_header);
 
     Result->Format = AudioHeader->Format;
     Result->Channels = AudioHeader->Channels;
     Result->SamplesPerSecond = AudioHeader->SamplesPerSecond;
     Result->BitsPerSample = AudioHeader->BitsPerSample;
     Result->AudioBytes = AudioHeader->AudioBytes;
-    Result->AudioData = (u8 *) (Buffer + AudioHeader->AudioDataOffset);
+    Result->AudioData = GET_DATA_AT(Buffer, AudioHeader->AudioDataOffset, u8);
 
     return Result;
 }

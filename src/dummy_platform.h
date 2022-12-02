@@ -108,7 +108,29 @@ struct read_file_result
     void *Contents;
 };
 
-#define PLATFORM_READ_FILE(name) read_file_result name(char *FileName, memory_arena *Arena, b32 Text)
+struct read_file_options
+{
+    b32 ReadAsText;
+};
+
+inline read_file_options
+ReadBinary()
+{
+    read_file_options Result = {};
+    return Result;
+}
+
+inline read_file_options
+ReadText()
+{
+    read_file_options Result = {};
+
+    Result.ReadAsText = true;
+
+    return Result;
+}
+
+#define PLATFORM_READ_FILE(name) read_file_result name(char *FileName, memory_arena *Arena, read_file_options Options)
 typedef PLATFORM_READ_FILE(platform_read_file);
 
 #define PLATFORM_WRITE_FILE(name) b32 name(char *FileName, void *Buffer, u32 BufferSize)

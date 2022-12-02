@@ -43,7 +43,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
     // Init State
-    EditorState->AssetType = AssetType_Model;
+    //EditorState->AssetType = AssetType_Model;
 }
 
 internal void
@@ -67,69 +67,144 @@ GetAnimationNodeTypeName(animation_node_type NodeType)
 }
 
 internal void
-RenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
+EditorRenderModelInfo(model *Model)
 {
-    if (!Graph) return;
-
-    char Prefix[8];
-
-    for (u32 DepthLevel = 0; DepthLevel < Depth; ++DepthLevel)
+    if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        Prefix[DepthLevel] = '\t';
-    }
+        ImGui::Text("Meshes: %d", Model->MeshCount);
+        ImGui::Text("Materials: %d", Model->MaterialCount);
+        ImGui::Text("\n");
 
-    Prefix[Depth] = 0;
+        u32 TotalVertexCount = 0;
+        u32 TotalIndexCount = 0;
 
-    ImGui::Text("%sAnimator: %s", Prefix, Graph->Animator);
-    ImGui::Text("%sActive Node: %s", Prefix, Graph->Active->Name);
-
-    ImGui::NewLine();
-
-    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
-    {
-        animation_node *Node = Graph->Nodes + NodeIndex;
-
-        ImGui::Text("%sNode Type: %s\n", Prefix, GetAnimationNodeTypeName(Node->Type));
-        ImGui::Text("%sNode Weight: %.6f\n", Prefix, Node->Weight);
-
-        switch (Node->Type)
+        for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
         {
-            case AnimationNodeType_Clip:
-            {
-                ImGui::Text("%s\tName: %s", Prefix, Node->Animation.Clip->Name);
-                ImGui::Text("%s\tTime: %.3f", Prefix, Node->Animation.Time);
+            mesh *Mesh = Model->Meshes + MeshIndex;
 
-                break;
-            }
-            case AnimationNodeType_BlendSpace:
-            {
-                for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
-                {
-                    blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
+            char CheckboxLabel[32];
+            FormatString(CheckboxLabel, "Visible (Mesh Id: %d)", Mesh->Id);
+            ImGui::Checkbox(CheckboxLabel, (bool *)&Mesh->Visible);
 
-                    ImGui::Text("%s\tName: %s", Prefix, Value->AnimationState.Clip->Name);
-                    ImGui::Text("%s\tTime: %.3f", Prefix, Value->AnimationState.Time);
-                    ImGui::Text("%s\tWeight: %.6f", Prefix, Value->Weight);
+            ImGui::Text("Vertices: %d", Mesh->VertexCount);
+            ImGui::Text("Indices: %d", Mesh->IndexCount);
 
-                    ImGui::NewLine();
-                }
+            ImGui::NewLine();
 
-                break;
-            }
-            case AnimationNodeType_Graph:
-            {
-                RenderAnimationGraphInfo(Node->Graph, Depth + 1);
-
-                break;
-            }
+            TotalVertexCount += Mesh->VertexCount;
+            TotalIndexCount += Mesh->IndexCount;
         }
+
+        ImGui::Text("Total Vertices: %d", TotalVertexCount);
+        ImGui::Text("Total Indices: %d", TotalIndexCount);
 
         ImGui::NewLine();
     }
 }
 
 internal void
-RenderEntityInfo(game_state *GameState, game_entity *Entity, model *Model)
+EditorRenderColliderInfo(collider *Collider)
+{
+    if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        // todo:
+        Assert(Collider->Type == Collider_Box);
+
+        ImGui::InputFloat3("Center", Collider->BoxCollider.Center.Elements);
+        ImGui::InputFloat3("Size", Collider->BoxCollider.Size.Elements);
+        ImGui::NewLine();
+    }
+}
+
+internal void
+EditorRenderRigidBodyInfo(rigid_body *Body)
+{
+    if (ImGui::CollapsingHeader("Rigid Body", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::InputFloat3("Position", Body->Position.Elements);
+        ImGui::InputFloat4("Orientation", Body->Orientation.Elements);
+        ImGui::NewLine();
+    }
+}
+
+internal void
+EditorRenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
+{
+    if (!Graph) return;
+
+    if (ImGui::CollapsingHeader("Animation Graph", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        char Prefix[8];
+
+        for (u32 DepthLevel = 0; DepthLevel < Depth; ++DepthLevel)
+        {
+            Prefix[DepthLevel] = '\t';
+        }
+
+        Prefix[Depth] = 0;
+
+        ImGui::Text("%sAnimator: %s", Prefix, Graph->Animator);
+        ImGui::Text("%sActive Node: %s", Prefix, Graph->Active->Name);
+
+        ImGui::NewLine();
+
+        for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
+        {
+            animation_node *Node = Graph->Nodes + NodeIndex;
+
+            ImGui::Text("%sNode Type: %s\n", Prefix, GetAnimationNodeTypeName(Node->Type));
+            ImGui::Text("%sNode Weight: %.6f\n", Prefix, Node->Weight);
+
+            switch (Node->Type)
+            {
+                case AnimationNodeType_Clip:
+                {
+                    ImGui::Text("%s\tName: %s", Prefix, Node->Animation.Clip->Name);
+                    ImGui::Text("%s\tTime: %.3f", Prefix, Node->Animation.Time);
+
+                    break;
+                }
+                case AnimationNodeType_BlendSpace:
+                {
+                    for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
+                    {
+                        blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
+
+                        ImGui::Text("%s\tName: %s", Prefix, Value->AnimationState.Clip->Name);
+                        ImGui::Text("%s\tTime: %.3f", Prefix, Value->AnimationState.Time);
+                        ImGui::Text("%s\tWeight: %.6f", Prefix, Value->Weight);
+
+                        ImGui::NewLine();
+                    }
+
+                    break;
+                }
+                case AnimationNodeType_Graph:
+                {
+                    EditorRenderAnimationGraphInfo(Node->Graph, Depth + 1);
+
+                    break;
+                }
+            }
+
+            ImGui::NewLine();
+        }
+    }
+}
+
+internal void
+EditorRenderPointLightInfo(point_light *PointLight)
+{
+    if (ImGui::CollapsingHeader("PointLight", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::ColorEdit3("Color", PointLight->Color.Elements);
+
+        ImGui::NewLine();
+    }
+}
+
+internal void
+EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, game_entity *Entity, render_commands *RenderCommands)
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
 
@@ -143,83 +218,94 @@ RenderEntityInfo(game_state *GameState, game_entity *Entity, model *Model)
         ImGui::InputFloat3("Position (T)", Entity->Transform.Translation.Elements);
         ImGui::InputFloat3("Scale (Y)", Entity->Transform.Scale.Elements);
         ImGui::InputFloat4("Rotation (R)", Entity->Transform.Rotation.Elements);
+
+        ImGui::NewLine();
     }
 
-    ImGui::NewLine();
-
-    if (Model)
+    if (Entity->Model)
     {
-        if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen))
+        EditorRenderModelInfo(Entity->Model);
+    }
+    else
+    {
+        if (ImGui::CollapsingHeader("Add Model"))
         {
-            ImGui::Text("Meshes: %d", Model->MeshCount);
-            ImGui::Text("Materials: %d", Model->MaterialCount);
-            ImGui::Text("\n");
+            game_assets *Assets = &GameState->Assets;
 
-            u32 TotalVertexCount = 0;
-            u32 TotalIndexCount = 0;
-
-            for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
+            if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
             {
-                mesh *Mesh = Model->Meshes + MeshIndex;
+                for (u32 ModelIndex = 0; ModelIndex < Assets->Models.Count; ++ModelIndex)
+                {
+                    model *Model = Assets->Models.Values + ModelIndex;
 
-                char CheckboxLabel[32];
-                FormatString(CheckboxLabel, "Visible (Mesh Id: %d)", Mesh->Id);
-                ImGui::Checkbox(CheckboxLabel, (bool *) &Mesh->Visible);
+                    if (!IsSlotEmpty(Model->Key))
+                    {
+                        if (ImGui::Selectable(Model->Key))
+                        {
+                            AddModel(GameState, Entity, Assets, Model->Key, RenderCommands, &GameState->WorldArea.Arena);
+                        }
+                    }
+                }
 
-                ImGui::Text("Vertices: %d", Mesh->VertexCount);
-                ImGui::Text("Indices: %d", Mesh->IndexCount);
-
-                ImGui::NewLine();
-
-                TotalVertexCount += Mesh->VertexCount;
-                TotalIndexCount += Mesh->IndexCount;
+                ImGui::EndListBox();
             }
-
-            ImGui::Text("Total Vertices: %d", TotalVertexCount);
-            ImGui::Text("Total Indices: %d", TotalIndexCount);
-
-            ImGui::NewLine();
         }
     }
 
     if (Entity->Collider)
     {
-        if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen))
+        EditorRenderColliderInfo(Entity->Collider);
+    }
+    else
+    {
+        if (ImGui::CollapsingHeader("Add Collider"))
         {
-            // todo:
-            Assert(Entity->Collider->Type == Collider_Box);
+            ImGui::InputFloat3("Size", EditorState->Size.Elements);
 
-            ImGui::InputFloat3("Center", Entity->Collider->BoxCollider.Center.Elements);
-            ImGui::InputFloat3("Size", Entity->Collider->BoxCollider.Size.Elements);
-            ImGui::NewLine();
+            if (ImGui::Button("Add"))
+            {
+                AddBoxCollider(Entity, EditorState->Size, &GameState->WorldArea.Arena);
+            }
         }
     }
 
     if (Entity->Body)
     {
-        if (ImGui::CollapsingHeader("Ridig Body", ImGuiTreeNodeFlags_DefaultOpen))
+        EditorRenderRigidBodyInfo(Entity->Body);
+    }
+    else
+    {
+        if (ImGui::CollapsingHeader("Add Rigid Body"))
         {
-            ImGui::InputFloat3("Position", Entity->Body->Position.Elements);
-            ImGui::InputFloat4("Orientation", Entity->Body->Orientation.Elements);
-            ImGui::NewLine();
+            if (Entity->Animation)
+            {
+                ImGui::Checkbox("Root Motion", (bool *) &EditorState->RootMotion);
+            }
+
+            if (ImGui::Button("Add"))
+            {
+                AddRigidBody(Entity, EditorState->RootMotion, &GameState->WorldArea.Arena);
+            }
         }
     }
 
     if (Entity->Animation)
     {
-        if (ImGui::CollapsingHeader("Animation Graph", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            RenderAnimationGraphInfo(Entity->Animation);
-        }
+        EditorRenderAnimationGraphInfo(Entity->Animation);
     }
 
     if (Entity->PointLight)
     {
-        if (ImGui::CollapsingHeader("PointLight", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            ImGui::ColorEdit3("Color", Entity->PointLight->Color.Elements);
-        }
+        EditorRenderPointLightInfo(Entity->PointLight);
     }
+
+    if (ImGui::Button("Playable"))
+    {
+        Entity->Controllable = true;
+        GameState->Player = Entity;
+    }
+
+    ImGui::NewLine();
 
     if (ImGui::ButtonEx("Remove (X)", ImVec2(WindowSize.x, 0)))
     {
@@ -232,6 +318,20 @@ RenderEntityInfo(game_state *GameState, game_entity *Entity, model *Model)
         RemoveGameEntity(Entity);
         GameState->SelectedEntity = 0;
     }
+}
+
+internal void
+EditorAddEntity(editor_state *EditorState, game_state *GameState)
+{
+    game_entity *Entity = CreateGameEntity(GameState);
+
+    Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+
+    //AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
+
+    GameState->SelectedEntity = Entity;
+
+    EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
 }
 
 internal void
@@ -274,21 +374,33 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         {
             if (ImGui::BeginMenu("Game"))
             {
-                if (ImGui::BeginMenu("Stats"))
+                if (ImGui::MenuItem("Add Entity"))
                 {
-                    if (GameState->Player->Body)
-                    {
-                        ImGui::Text("Player Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
-                    }
-
-                    ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Transform.Translation.x, Camera->Transform.Translation.y, Camera->Transform.Translation.z);
-
-                    ImGui::Checkbox("(| - _ - |)", (bool *) &GameState->DanceMode);
-
-                    ImGui::EndMenu();
+                    EditorAddEntity(EditorState, GameState);
                 }
 
-                if (ImGui::MenuItem("Save Area"))
+                ImGui::Separator();
+
+                if (ImGui::MenuItem("Load Area..."))
+                {
+                    scoped_memory ScopedMemory(&EditorState->Arena);
+
+                    wchar WideFilePath[256] = L"";
+                    Platform->OpenFileDialog(WideFilePath, ArrayCount(WideFilePath));
+
+                    if (!StringEquals(WideFilePath, L""))
+                    {
+                        char FilePath[256];
+                        ConvertToString(WideFilePath, FilePath);
+
+                        ClearWorldArea(GameState);
+                        LoadWorldArea(GameState, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
+
+                        GameState->Options.ShowGrid = false;
+                    }
+                }
+
+                if (ImGui::MenuItem("Save Area..."))
                 {
                     scoped_memory ScopedMemory(&EditorState->Arena);
 
@@ -305,20 +417,30 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
                 }
 
-                if (ImGui::MenuItem("Load Area"))
+                if (ImGui::MenuItem("Clear Area"))
                 {
-                    wchar WideFilePath[256] = L"";
-                    Platform->OpenFileDialog(WideFilePath, ArrayCount(WideFilePath));
+                    ClearWorldArea(GameState);
 
-                    if (!StringEquals(WideFilePath, L""))
-                    {
-                        char FilePath[256];
-                        ConvertToString(WideFilePath, FilePath);
-
-                        LoadArea(GameState, FilePath, Platform, RenderCommands, &GameState->PermanentArena);
-                        GameState->Options.ShowGrid = false;
-                    }
+                    GameState->Options.ShowGrid = true;
                 }
+
+                ImGui::Separator();
+
+                if (ImGui::BeginMenu("Misc"))
+                {
+                    /*if (GameState->Player->Body)
+                    {
+                        ImGui::Text("Player Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
+                    }*/
+
+                    //ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Transform.Translation.x, Camera->Transform.Translation.y, Camera->Transform.Translation.z);
+
+                    ImGui::Checkbox("(| - _ - |)", (bool *)&GameState->DanceMode);
+
+                    ImGui::EndMenu();
+                }
+
+                ImGui::Separator();
 
                 if (ImGui::MenuItem("Exit (Esc)"))
                 {
@@ -374,6 +496,140 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
                 ImGui::EndMenu();
             }
+
+#if 0
+            if (ImGui::BeginMenu("Assets"))
+            {
+                game_assets *Assets = &GameState->Assets;
+                char *Search = EditorState->Search;
+                u32 SearchSize = ArrayCount(EditorState->Search);
+
+                ImGui::RadioButton("Models", &EditorState->AssetType, AssetType_Model);
+                ImGui::SameLine();
+                ImGui::RadioButton("Fonts", &EditorState->AssetType, AssetType_Font);
+                ImGui::SameLine();
+                ImGui::RadioButton("Audio", &EditorState->AssetType, AssetType_AudioClip);
+
+                ImGui::InputText("Search", Search, SearchSize);
+
+                if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
+                {
+                    switch (EditorState->AssetType)
+                    {
+                        case AssetType_Model:
+                        {
+                            for (u32 ModelIndex = 0; ModelIndex < Assets->Models.Count; ++ModelIndex)
+                            {
+                                model *Model = Assets->Models.Values + ModelIndex;
+                                char *Key = Model->Key;
+                                b32 Selected = EditorState->SelectedAssetIndex == ModelIndex;
+
+                                if (StringLength(Search) > 0)
+                                {
+                                    if (StringIncludes(Model->Key, Search))
+                                    {
+                                        if (ImGui::Selectable(Model->Key, Selected))
+                                        {
+                                            EditorState->SelectedAssetIndex = ModelIndex;
+                                        }
+                                    }
+                                }
+                                else if (!IsSlotEmpty(Model->Key))
+                                {
+                                    if (ImGui::Selectable(Model->Key, Selected))
+                                    {
+                                        EditorState->SelectedAssetIndex = ModelIndex;
+                                        EditorState->SelectedModel = Model;
+
+                                        // todo: move out to utility function
+                                        game_entity *Entity = CreateGameEntity(GameState);
+
+                                        Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+                                        AddModel(GameState, Entity, &GameState->Assets, Model->Key, RenderCommands, &GameState->PermanentArena);
+
+                                        // todo(continue): add other components?
+                                        /*bounds ModelBounds = GetEntityBounds(Entity);
+                                        vec3 Size = ModelBounds.Max - ModelBounds.Min;
+                                        AddBoxCollider(Entity, Size, &GameState->PermanentArena);*/
+
+                                        AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
+
+                                        GameState->SelectedEntity = Entity;
+
+                                        EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+                                        //
+                                    }
+                                }
+                            }
+
+                            break;
+                        }
+                        case AssetType_Font:
+                        {
+                            for (u32 FontIndex = 0; FontIndex < Assets->Fonts.Count; ++FontIndex)
+                            {
+                                font *Font = Assets->Fonts.Values + FontIndex;
+                                char *Key = Font->Key;
+                                b32 Selected = EditorState->SelectedAssetIndex == FontIndex;
+
+                                if (StringLength(Search) > 0)
+                                {
+                                    if (StringIncludes(Key, Search))
+                                    {
+                                        if (ImGui::Selectable(Key, Selected))
+                                        {
+                                            EditorState->SelectedAssetIndex = FontIndex;
+                                        }
+                                    }
+                                }
+                                else if (!IsSlotEmpty(Key))
+                                {
+                                    if (ImGui::Selectable(Key, Selected))
+                                    {
+                                        EditorState->SelectedAssetIndex = FontIndex;
+                                    }
+                                }
+                            }
+
+                            break;
+                        }
+                        case AssetType_AudioClip:
+                        {
+                            for (u32 AudioClipIndex = 0; AudioClipIndex < Assets->AudioClips.Count; ++AudioClipIndex)
+                            {
+                                audio_clip *AudioClip = Assets->AudioClips.Values + AudioClipIndex;
+                                char *Key = AudioClip->Key;
+                                b32 Selected = EditorState->SelectedAssetIndex == AudioClipIndex;
+
+                                if (StringLength(Search) > 0)
+                                {
+                                    if (StringIncludes(Key, Search))
+                                    {
+                                        if (ImGui::Selectable(Key, Selected))
+                                        {
+                                            EditorState->SelectedAssetIndex = AudioClipIndex;
+                                        }
+                                    }
+                                }
+                                else if (!IsSlotEmpty(Key))
+                                {
+                                    if (ImGui::Selectable(Key, Selected))
+                                    {
+                                        EditorState->SelectedAssetIndex = AudioClipIndex;
+                                    }
+                                }
+                            }
+
+                            break;
+                        }
+                    }
+
+                    ImGui::EndListBox();
+                }
+
+                ImGui::EndMenu();
+            }
+#endif
 
             if (ImGui::BeginMenu("Profiler"))
             {
@@ -457,8 +713,14 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
             char Text[256];
             FormatString(
-                Text, "%.3f ms/frame (%.1f FPS) | Renderable Entities: %d | Total Active Entities: %d", 
-                GameParameters->Delta * 1000.f / PlatformState->TimeRate, PlatformState->TimeRate / GameParameters->Delta, GameState->RenderableEntityCount, GameState->ActiveEntitiesCount
+                Text, 
+                "%.3f ms/frame (%.1f FPS) | Memory usage: %d (MB) | Renderable Entities: %d | Total Active Entities: %d", 
+                GameParameters->Delta * 1000.f / PlatformState->TimeRate, 
+                PlatformState->TimeRate / GameParameters->Delta, 
+                // todo: collect more correct data
+                GameState->PermanentArena.Used / (1024L * 1024L),
+                GameState->RenderableEntityCount, 
+                GameState->ActiveEntitiesCount
             );
 
             ImVec2 TextSize = ImGui::CalcTextSize(Text);
@@ -503,7 +765,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::SetNextWindowSize(ImVec2(500, 0));
 
         ImGui::Begin("Entity", &SelectedEntity);
-        RenderEntityInfo(GameState, Entity, Entity->Model);
+        EditorRenderEntityInfo(EditorState, GameState, Entity, RenderCommands);
         ImGui::End();
 
         // Gizmos
@@ -539,20 +801,19 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
             vec3 Scale;
             ImGuizmo::DecomposeMatrixToComponents((f32 *) EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
 
+            Entity->Transform.Translation = Translation;
+            Entity->Transform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+
             // todo: probably should update colliders or smth
             if (Entity->Body)
             {
                 Entity->Body->Position = Translation;
                 Entity->Body->Orientation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
             }
-            else
-            {
-                Entity->Transform.Translation = Translation;
-                Entity->Transform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
-            }
 
             if (Entity->Collider)
             {
+                // todo: rotate collider?
                 UpdateColliderPosition(Entity->Collider, Translation);
             }
 
@@ -564,141 +825,6 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     {
         GameState->SelectedEntity = 0;
     }
-
-    //
-#if 1
-    game_assets *Assets = &GameState->Assets;
-    char *Search = EditorState->Search;
-    u32 SearchSize = ArrayCount(EditorState->Search);
-
-    ImGui::Begin("Assets");
-
-    ImGui::RadioButton("Models", &EditorState->AssetType, AssetType_Model);
-    ImGui::SameLine();
-    ImGui::RadioButton("Fonts", &EditorState->AssetType, AssetType_Font);
-    ImGui::SameLine();
-    ImGui::RadioButton("Audio", &EditorState->AssetType, AssetType_AudioClip);
-
-    ImGui::InputText("Search", Search, SearchSize);
-
-    if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
-    {
-        switch (EditorState->AssetType)
-        {
-            case AssetType_Model:
-            {
-                for (u32 ModelIndex = 0; ModelIndex < Assets->Models.Count; ++ModelIndex)
-                {
-                    model *Model = Assets->Models.Values + ModelIndex;
-                    char *Key = Model->Key;
-                    b32 Selected = EditorState->SelectedAssetIndex == ModelIndex;
-
-                    if (StringLength(Search) > 0)
-                    {
-                        if (StringIncludes(Model->Key, Search))
-                        {
-                            if (ImGui::Selectable(Model->Key, Selected))
-                            {
-                                EditorState->SelectedAssetIndex = ModelIndex;
-                            }
-                        }
-                    }
-                    else if (!IsSlotEmpty(Model->Key))
-                    {
-                        if (ImGui::Selectable(Model->Key, Selected))
-                        {
-                            EditorState->SelectedAssetIndex = ModelIndex;
-                            EditorState->SelectedModel = Model;
-
-                            // todo: move out to utility function
-                            game_entity *Entity = CreateGameEntity(GameState);
-
-                            Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-                            AddModel(GameState, Entity, &GameState->Assets, Model->Key, RenderCommands, &GameState->PermanentArena);
-
-                            bounds ModelBounds = GetEntityBounds(Entity);
-                            vec3 Size = ModelBounds.Max - ModelBounds.Min;
-                            AddBoxCollider(Entity, Size, &GameState->PermanentArena);
-
-                            AddToSpacialGrid(&GameState->SpatialGrid, Entity);
-                            
-                            GameState->SelectedEntity = Entity;
-
-                            EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-                            //
-                        }
-                    }
-                }
-
-                break;
-            }
-            case AssetType_Font:
-            {
-                for (u32 FontIndex = 0; FontIndex < Assets->Fonts.Count; ++FontIndex)
-                {
-                    font *Font = Assets->Fonts.Values + FontIndex;
-                    char *Key = Font->Key;
-                    b32 Selected = EditorState->SelectedAssetIndex == FontIndex;
-
-                    if (StringLength(Search) > 0)
-                    {
-                        if (StringIncludes(Key, Search))
-                        {
-                            if (ImGui::Selectable(Key, Selected))
-                            {
-                                EditorState->SelectedAssetIndex = FontIndex;
-                            }
-                        }
-                    }
-                    else if (!IsSlotEmpty(Key))
-                    {
-                        if (ImGui::Selectable(Key, Selected))
-                        {
-                            EditorState->SelectedAssetIndex = FontIndex;
-                        }
-                    }
-                }
-
-                break;
-            }
-            case AssetType_AudioClip:
-            {
-                for (u32 AudioClipIndex = 0; AudioClipIndex < Assets->AudioClips.Count; ++AudioClipIndex)
-                {
-                    audio_clip *AudioClip = Assets->AudioClips.Values + AudioClipIndex;
-                    char *Key = AudioClip->Key;
-                    b32 Selected = EditorState->SelectedAssetIndex == AudioClipIndex;
-
-                    if (StringLength(Search) > 0)
-                    {
-                        if (StringIncludes(Key, Search))
-                        {
-                            if (ImGui::Selectable(Key, Selected))
-                            {
-                                EditorState->SelectedAssetIndex = AudioClipIndex;
-                            }
-                        }
-                    }
-                    else if (!IsSlotEmpty(Key))
-                    {
-                        if (ImGui::Selectable(Key, Selected))
-                        {
-                            EditorState->SelectedAssetIndex = AudioClipIndex;
-                        }
-                    }
-                }
-
-                break;
-            }
-        }
-
-        ImGui::EndListBox();
-    }
-
-    ImGui::End();
-
-#endif
-    //
 
     if (GameState->Mode == GameMode_Editor)
     {
@@ -722,6 +848,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
             EditorState->CurrentGizmoOperation = 0;
         }
 
+#if 0
         if (ImGui::IsKeyPressed(ImGuiKey_Z))
         {
             if (EditorState->SelectedModel)
@@ -732,11 +859,11 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                 Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
                 AddModel(GameState, Entity, &GameState->Assets, EditorState->SelectedModel->Key, RenderCommands, &GameState->PermanentArena);
 
-                bounds ModelBounds = GetEntityBounds(Entity);
+                /*bounds ModelBounds = GetEntityBounds(Entity);
                 vec3 Size = ModelBounds.Max - ModelBounds.Min;
-                AddBoxCollider(Entity, Size, &GameState->PermanentArena);
+                AddBoxCollider(Entity, Size, &GameState->PermanentArena);*/
 
-                AddToSpacialGrid(&GameState->SpatialGrid, Entity);
+                AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
 
                 GameState->SelectedEntity = Entity;
 
@@ -744,6 +871,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                 //
             }
         }
+#endif
     }
 
     // Rendering

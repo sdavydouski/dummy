@@ -45,6 +45,28 @@ Union(bounds a, bounds b)
     return Result;
 }
 
+internal bounds
+CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
+{
+    vec3 vMin = Vertices[0];
+    vec3 vMax = Vertices[0];
+
+    for (u32 VertexIndex = 1; VertexIndex < VertexCount; ++VertexIndex)
+    {
+        vec3 *Vertex = Vertices + VertexIndex;
+
+        vMin = Min(vMin, *Vertex);
+        vMax = Max(vMax, *Vertex);
+    }
+
+    bounds Result = {};
+
+    Result.Min = vMin;
+    Result.Max = vMax;
+
+    return Result;
+}
+
 inline bounds
 ScaleBounds(bounds Bounds, vec3 Scale)
 {
@@ -67,6 +89,39 @@ TranslateBounds(bounds Bounds, vec3 Translation)
 
     Result.Min = Bounds.Min + Translation;
     Result.Max = Bounds.Max + Translation;
+
+    return Result;
+}
+
+inline bounds
+UpdateBounds(bounds Bounds, transform T)
+{
+    bounds Result = {};
+
+    vec3 Translation = T.Translation;
+    mat4 M = Transform(T);
+
+    for (u32 Axis = 0; Axis < 3; ++Axis)
+    {
+        Result.Min[Axis] = Result.Max[Axis] = Translation[Axis];
+
+        for (u32 Element = 0; Element < 3; ++Element)
+        {
+            f32 e = M[Axis][Element] * Bounds.Min[Element];
+            f32 f = M[Axis][Element] * Bounds.Max[Element];
+
+            if (e < f)
+            {
+                Result.Min[Axis] += e;
+                Result.Max[Axis] += f;
+            }
+            else
+            {
+                Result.Min[Axis] += f;
+                Result.Max[Axis] += e;
+            }
+        }
+    }
 
     return Result;
 }
@@ -135,8 +190,7 @@ GetEntityBounds(game_entity *Entity)
     }
     else if (Entity->Model)
     {
-        Result = ScaleBounds(Entity->Model->Bounds, Entity->Transform.Scale);
-        Result = TranslateBounds(Result, Entity->Transform.Translation);
+        Result = UpdateBounds(Entity->Model->Bounds, Entity->Transform);
     }
     else
     {

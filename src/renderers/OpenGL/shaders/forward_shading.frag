@@ -45,11 +45,13 @@ float GetMaterial(bool HasMap, sampler2D Map, float Fallback)
 
 void main()
 {
+
     vec3 AmbientColor = u_Material.AmbientColor;
     vec3 DiffuseColor = GetMaterial(u_Material.HasDiffuseMap, u_Material.DiffuseMap, u_Material.DiffuseColor);
     vec3 SpecularColor = GetMaterial(u_Material.HasSpecularMap, u_Material.SpecularMap, u_Material.SpecularColor);
     float SpecularShininess = GetMaterial(u_Material.HasShininessMap, u_Material.ShininessMap, u_Material.SpecularShininess);
    
+#if 1
     vec3 Normal = GetMaterial(u_Material.HasNormalMap, u_Material.NormalMap, fs_in.Normal);
 
     if (u_Material.HasNormalMap)
@@ -114,4 +116,7 @@ void main()
     }
     
     out_Color = vec4(Result, 1.f);
+#else
+    out_Color = vec4(DiffuseColor, 1.f);
+#endif
 }

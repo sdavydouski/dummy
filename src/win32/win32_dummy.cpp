@@ -15,6 +15,7 @@
 #include "dummy_physics.h"
 #include "dummy_visibility.h"
 #include "dummy_spatial.h"
+#include "dummy_process.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy_audio.h"
@@ -747,7 +748,7 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
 
 internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
 {
-    win32_platform_state *PlatformState = (win32_platform_state *)PlatformHandle;
+    win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
     if (MouseMode != PlatformState->MouseMode)
     {
@@ -793,7 +794,7 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
         {
             u32 FileSize32 = (u32)FileSize.QuadPart;
             // Save room for the terminating NULL character. 
-            u32 BufferSize = Text ? FileSize32 + 1 : FileSize32;
+            u32 BufferSize = Options.ReadAsText ? FileSize32 + 1 : FileSize32;
 
             Result.Contents = PushSize(Arena, BufferSize);
 
@@ -802,7 +803,7 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
             {
                 Result.Size = FileSize32;
                 
-                if (Text)
+                if (Options.ReadAsText)
                 {
                     u8 *NullTerminator = (u8 *)Result.Contents + BytesRead;
                     *NullTerminator = 0;
@@ -1107,7 +1108,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.VSync = false;
+    PlatformState.VSync = true;
     PlatformState.TimeRate = 1.f;
 
     LARGE_INTEGER PerformanceFrequency;
@@ -1135,7 +1136,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     Win32InitProfiler(&PlatformProfiler);
 
     game_memory GameMemory = {};
-    GameMemory.PermanentStorageSize = Megabytes(256);
+    GameMemory.PermanentStorageSize = Megabytes(512);
     GameMemory.TransientStorageSize = Megabytes(256);
     GameMemory.RenderCommandsStorageSize = Megabytes(16);
     GameMemory.AudioCommandsStorageSize = Megabytes(16);

@@ -2,6 +2,8 @@
 
 #include <memory.h>
 
+#undef CopyMemory
+
 #define Kilobytes(Bytes) (Bytes * 1024LL)
 #define Megabytes(Bytes) (Kilobytes(Bytes) * 1024LL)
 #define Gigabytes(Bytes) (Megabytes(Bytes) * 1024LL)
@@ -12,6 +14,13 @@ ClearMemory(void *Memory, umm Size)
 {
     // todo: abysmally slow
     memset(Memory, 0, Size);
+}
+
+inline void
+CopyMemory(void *From, void *To, umm Size)
+{
+    // todo: use smth better?
+    memcpy(To, From, Size);
 }
 
 inline umm

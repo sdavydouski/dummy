@@ -676,6 +676,7 @@ GetMeshVerticesSize(mesh *Mesh)
     return Size;
 }
 
+// todo: duplicate
 internal bounds
 CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
 {

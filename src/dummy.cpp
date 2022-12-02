@@ -10,6 +10,7 @@
 #include "dummy_physics.h"
 #include "dummy_visibility.h"
 #include "dummy_spatial.h"
+#include "dummy_process.h"
 #include "dummy_animation.h"
 #include "dummy_assets.h"
 #include "dummy_audio.h"
@@ -317,7 +318,7 @@ IsRenderBatchEmpty(entity_render_batch *Batch)
 }
 
 internal void
-LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+LoadModelAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset ModelAssets[] = {
         {
@@ -383,14 +384,14 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
     };
 
     Assets->ModelAssetCount = ArrayCount(ModelAssets);
-    Assets->ModelAssets = PushArray(Arena, Assets->ModelAssetCount, game_asset_model);
+    Assets->ModelAssets = PushArray(&Assets->Arena, Assets->ModelAssetCount, game_asset_model);
 
     for (u32 ModelAssetIndex = 0; ModelAssetIndex < ArrayCount(ModelAssets); ++ModelAssetIndex)
     {
         game_asset GameAsset = ModelAssets[ModelAssetIndex];
         game_asset_model *GameAssetModel = Assets->ModelAssets + ModelAssetIndex;
 
-        model_asset *LoadedAsset = LoadModelAsset(Platform, GameAsset.Path, Arena);
+        model_asset *LoadedAsset = LoadModelAsset(Platform, GameAsset.Path, &Assets->Arena);
 
         GameAssetModel->GameAsset = GameAsset;
         GameAssetModel->ModelAsset = LoadedAsset;
@@ -398,7 +399,7 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena
 }
 
 internal void
-LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+LoadFontAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset FontAssets[] = {
         {
@@ -412,7 +413,7 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
     };
 
     Assets->FontAssetCount = ArrayCount(FontAssets);
-    Assets->FontAssets = PushArray(Arena, Assets->FontAssetCount, game_asset_font);
+    Assets->FontAssets = PushArray(&Assets->Arena, Assets->FontAssetCount, game_asset_font);
 
     for (u32 FontAssetIndex = 0; FontAssetIndex < ArrayCount(FontAssets); ++FontAssetIndex)
     {
@@ -420,7 +421,7 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 
         game_asset_font *GameAssetFont = Assets->FontAssets + FontAssetIndex;
 
-        font_asset *LoadedAsset = LoadFontAsset(Platform, GameAsset.Path, Arena);
+        font_asset *LoadedAsset = LoadFontAsset(Platform, GameAsset.Path, &Assets->Arena);
 
         GameAssetFont->GameAsset = GameAsset;
         GameAssetFont->FontAsset = LoadedAsset;
@@ -428,7 +429,7 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
 }
 
 internal void
-LoadAudioClipAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+LoadAudioClipAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset AudioClipAssets[] = {
         {
@@ -458,7 +459,7 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform, memory_arena *A
     };
 
     Assets->AudioClipAssetCount = ArrayCount(AudioClipAssets);
-    Assets->AudioClipAssets = PushArray(Arena, Assets->AudioClipAssetCount, game_asset_audio_clip);
+    Assets->AudioClipAssets = PushArray(&Assets->Arena, Assets->AudioClipAssetCount, game_asset_audio_clip);
 
     for (u32 AudioClipAssetIndex = 0; AudioClipAssetIndex < ArrayCount(AudioClipAssets); ++AudioClipAssetIndex)
     {
@@ -466,7 +467,7 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform, memory_arena *A
 
         game_asset_audio_clip *GameAssetAudioClip = Assets->AudioClipAssets + AudioClipAssetIndex;
 
-        audio_clip_asset *LoadedAsset = LoadAudioClipAsset(Platform, GameAsset.Path, Arena);
+        audio_clip_asset *LoadedAsset = LoadAudioClipAsset(Platform, GameAsset.Path, &Assets->Arena);
 
         GameAssetAudioClip->GameAsset = GameAsset;
         GameAssetAudioClip->AudioAsset = LoadedAsset;
@@ -474,13 +475,13 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform, memory_arena *A
 }
 
 internal void
-LoadGameAssets(game_assets *Assets, platform_api *Platform, memory_arena *Arena)
+LoadGameAssets(game_assets *Assets, platform_api *Platform)
 {
     // todo:
     Assets->State = GameAssetsState_Unloaded;
 
-    LoadModelAssets(Assets, Platform, Arena);
-    LoadAudioClipAssets(Assets, Platform, Arena);
+    LoadModelAssets(Assets, Platform);
+    LoadAudioClipAssets(Assets, Platform);
 
     Assets->State = GameAssetsState_Loaded;
 }
@@ -489,22 +490,21 @@ struct load_game_assets_job
 {
     game_assets *Assets;
     platform_api *Platform;
-    memory_arena *Arena;
 };
 
 JOB_ENTRY_POINT(LoadGameAssetsJob)
 {
     load_game_assets_job *Data = (load_game_assets_job *) Parameters;
-    LoadGameAssets(Data->Assets, Data->Platform, Data->Arena);
+    LoadGameAssets(Data->Assets, Data->Platform);
 }
 
 internal void
-InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
+InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
     // Using a prime table size in conjunction with quadratic probing tends to yield 
     // the best coverage of the available table slots with minimal clustering
     Assets->Models.Count = 251;
-    Assets->Models.Values = PushArray(Arena, Assets->Models.Count, model);
+    Assets->Models.Values = PushArray(&Assets->Arena, Assets->Models.Count, model);
 
     Assert(Assets->Models.Count > Assets->ModelAssetCount);
 
@@ -513,16 +513,16 @@ InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *Ren
         game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetModelIndex;
 
         model *Model = GetModelAsset(Assets, GameAssetModel->GameAsset.Name);
-        InitModel(State, GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, Arena, RenderCommands);
+        InitModel(State, GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, &Assets->Arena, RenderCommands);
     }
 }
 
 internal void
-InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands, memory_arena *Arena)
+InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
     // todo:
     Assets->Fonts.Count = 11;
-    Assets->Fonts.Values = PushArray(Arena, Assets->Fonts.Count, font);
+    Assets->Fonts.Values = PushArray(&Assets->Arena, Assets->Fonts.Count, font);
 
     Assert(Assets->Fonts.Count > Assets->FontAssetCount);
 
@@ -536,11 +536,11 @@ InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *Rend
 }
 
 internal void
-InitGameAudioClipAssets(game_assets *Assets, memory_arena *Arena)
+InitGameAudioClipAssets(game_assets *Assets)
 {
     // todo:
     Assets->AudioClips.Count = 31;
-    Assets->AudioClips.Values = PushArray(Arena, Assets->AudioClips.Count, audio_clip);
+    Assets->AudioClips.Values = PushArray(&Assets->Arena, Assets->AudioClips.Count, audio_clip);
 
     Assert(Assets->AudioClips.Count > Assets->AudioClipAssetCount);
 
@@ -633,9 +633,15 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
 
     bounds Bounds = GetEntityBounds(Entity);
-    vec3 HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
-    // todo:
-    vec3 BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
+    vec3 HalfSize = vec3(0.5f);
+    vec3 BottomCenterPosition = Entity->Transform.Translation;
+
+    if (Bounds.Min != Bounds.Max)
+    {
+        HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
+        BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
+    }
+
 #if 0
     quat Rotation = Entity->Transform.Rotation;
 #else
@@ -643,11 +649,16 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
 #endif
 
     transform Transform = CreateTransform(BottomCenterPosition, HalfSize, Rotation);
-    vec4 Color = vec4(0.f, 1.f, 1.f, 1.f);
+    vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
+
+    if (Entity->Model)
+    {
+        Color = vec4(0.f, 1.f, 1.f, 1.f);
+    }
 
     if (Entity->Collider)
     {
-        Color = vec4(0.f, 1.f, 0.f, 1.f);
+        Color = vec4(0.f, 0.f, 1.f, 1.f);
     }
 
     if (Entity->Body)
@@ -727,9 +738,11 @@ AddEntityToRenderBatch(entity_render_batch *Batch, game_entity *Entity)
 inline game_entity *
 CreateGameEntity(game_state *State)
 {
-    game_entity *Entity = State->Entities + State->EntityCount++;
+    world_area *Area = &State->WorldArea;
 
-    Assert(State->EntityCount <= State->MaxEntityCount);
+    game_entity *Entity = Area->Entities + Area->EntityCount++;
+
+    Assert(Area->EntityCount <= Area->MaxEntityCount);
 
     Entity->Id = GenerateEntityId(State);
     // todo:
@@ -749,7 +762,9 @@ RemoveGameEntity(game_entity *Entity)
 inline game_entity *
 GetGameEntity(game_state *State, u32 EntityId)
 {
-    game_entity *Entity = State->Entities + EntityId;
+    // todo:
+    world_area *Area = &State->WorldArea;
+    game_entity *Entity = Area->Entities + EntityId;
     return Entity;
 }
 
@@ -1227,7 +1242,6 @@ LoadAnimators(animator *Animator)
 inline void
 Entity2Spec(game_entity *Entity, game_entity_spec *Spec)
 {
-    Spec->Id = Entity->Id;
     Spec->Transform = Entity->Transform;
 
     if (Entity->Model)
@@ -1316,10 +1330,12 @@ SaveArea(game_state *State, char *FileName,  platform_api *Platform, memory_aren
 
     game_entity_spec *Specs = (game_entity_spec *) ((u8 *) Buffer + HeaderSize);
 
+    world_area *Area = &State->WorldArea;
+
     u32 SpecIndex = 0;
-    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+    for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
     {
-        game_entity *Entity = State->Entities + EntityIndex;
+        game_entity *Entity = Area->Entities + EntityIndex;
 
         if (!Entity->Destroyed)
         {
@@ -1334,12 +1350,22 @@ SaveArea(game_state *State, char *FileName,  platform_api *Platform, memory_aren
 }
 
 internal void
-LoadArea(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *Arena)
+LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
 {
-    read_file_result Result = Platform->ReadFile(FileName, Arena, false);
+    read_file_result Result = Platform->ReadFile(FileName, TempArena, ReadBinary());
+
+    world_area *Area = &State->WorldArea;
 
     u32 *EntityCount = (u32 *) Result.Contents;
     game_entity_spec *Specs = (game_entity_spec *) ((u8 *) Result.Contents + sizeof(u32));
+
+    bounds WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
+    vec3 CellSize = vec3(5.f);
+    InitSpatialHashGrid(&Area->SpatialGrid, WorldBounds, CellSize, &Area->Arena);
+
+    Area->MaxEntityCount = 10000;
+    Area->EntityCount = 0;
+    Area->Entities = PushArray(&Area->Arena, Area->MaxEntityCount, game_entity);
 
     for (u32 EntityIndex = 0; EntityIndex < *EntityCount; ++EntityIndex)
     {
@@ -1347,10 +1373,28 @@ LoadArea(game_state *State, char *FileName, platform_api *Platform, render_comma
 
         game_entity *Entity = CreateGameEntity(State);
 
-        Spec2Entity(Spec, Entity, State, RenderCommands, Arena);
+        Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
 
-        AddToSpacialGrid(&State->SpatialGrid, Entity);
+        AddToSpacialGrid(&Area->SpatialGrid, Entity);
+
+        // todo(continue): properly add player
+        if (Entity->Body)
+        {
+            State->Player = Entity;
+            State->Player->Controllable = true;
+        }
     }
+}
+
+internal void
+ClearWorldArea(game_state *State)
+{
+    State->NextFreeEntityId = 0;
+
+    State->WorldArea.EntityCount = 0;
+    ClearMemoryArena(&State->WorldArea.Arena);
+
+    State->SelectedEntity = 0;
 }
 
 DLLExport GAME_INIT(GameInit)
@@ -1368,7 +1412,15 @@ DLLExport GAME_INIT(GameInit)
     u8 *TransientArenaBase = (u8 *) Memory->TransientStorage;
     InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
 
-    scoped_memory ScopedMemory(&State->TransientArena);
+    State->WorldArea = {};
+    State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(32));
+    State->WorldArea.EntityCount = 0;
+    State->WorldArea.MaxEntityCount = 10000;
+    State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
+
+    bounds WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
+    vec3 CellSize = vec3(5.f);
+    InitSpatialHashGrid(&State->WorldArea.SpatialGrid, WorldBounds, CellSize, &State->WorldArea.Arena);
 
     State->JobQueue = Memory->JobQueue;
 
@@ -1421,7 +1473,6 @@ DLLExport GAME_INIT(GameInit)
     State->DirectionalLight.Direction = Normalize(vec3(0.4f, -0.8f, -0.4f));
 
     State->GeneralEntropy = RandomSequence(451);
-    State->WorldGenEntropy = RandomSequence(307);
     State->ParticleEntropy = RandomSequence(217);
 
     ClearRenderCommands(Memory);
@@ -1438,30 +1489,19 @@ DLLExport GAME_INIT(GameInit)
 
     InitGameMenu(State);
 
-    bounds WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
-    vec3 CellSize = vec3(5.f);
-    InitSpatialHashGrid(&State->SpatialGrid, WorldBounds, CellSize, &State->PermanentArena);
+    State->Assets = {};
+    State->Assets.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(256));
 
-    State->EntityCount = 0;
-    State->MaxEntityCount = 10000;
-    State->Entities = PushArray(&State->PermanentArena, State->MaxEntityCount, game_entity);
-
-    // Dummy
-    //State->Dummy = CreateGameEntity(State);
-    //State->Dummy->Transform = CreateTransform(vec3(0.f, 0.f, 0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-    ////AddBoxCollider(State->Dummy, vec3(1.f), &State->PermanentArena);
-    //AddToSpacialGrid(&State->SpatialGrid, State->Dummy);
-
-    LoadFontAssets(&State->Assets, Platform, &State->PermanentArena);
-    InitGameFontAssets(State, &State->Assets, RenderCommands, &State->PermanentArena);
+    LoadFontAssets(&State->Assets, Platform);
+    InitGameFontAssets(State, &State->Assets, RenderCommands);
 
 #if 0
-    LoadGameAssets(&State->Assets, Platform, &State->PermanentArena);
+    LoadGameAssets(&State->Assets, Platform);
 #else
+    // todo: should not be a PermanentArena
     load_game_assets_job *JobParams = PushType(&State->PermanentArena, load_game_assets_job);
     JobParams->Assets = &State->Assets;
     JobParams->Platform = Platform;
-    JobParams->Arena = &State->PermanentArena;
 
     job Job = {};
     Job.EntryPoint = LoadGameAssetsJob;
@@ -1499,40 +1539,6 @@ DLLExport GAME_RELOAD(GameReload)
 
     // Reloading animators
     LoadAnimators(&State->Animator);
-}
-
-inline game_entity *
-GetPrevHero(game_state *State)
-{
-    State->PlayableEntityIndex -= 1;
-    if (State->PlayableEntityIndex < 0)
-    {
-        State->PlayableEntityIndex = ArrayCount(State->PlayableEntities) - 1;
-    }
-
-    game_entity *Result = State->PlayableEntities[State->PlayableEntityIndex];
-    return Result;
-}
-
-inline game_entity *
-GetNextHero(game_state *State)
-{
-    State->PlayableEntityIndex += 1;
-    if (State->PlayableEntityIndex > ArrayCount(State->PlayableEntities) - 1)
-    {
-        State->PlayableEntityIndex = 0;
-    }
-
-    game_entity *Result = State->PlayableEntities[State->PlayableEntityIndex];
-
-    return Result;
-}
-
-inline game_entity *
-GetPlayerEntity(game_state *State)
-{
-    game_entity *Result = State->PlayableEntities[State->PlayableEntityIndex];
-    return Result;
 }
 
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
@@ -1575,7 +1581,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
     }
 
-    if (Input->ChoosePrevHero.IsActivated)
+    /*if (Input->ChoosePrevHero.IsActivated)
     {
         State->Player->Controllable = false;
         State->Player->Body->Acceleration = vec3(0.f);
@@ -1593,33 +1599,13 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         State->Player = GetNextHero(State);
 
         State->Player->Controllable = true;
-    }
+    }*/
 
     if (Input->Reset.IsActivated)
     {
         State->Player->Controllable = false;
 
-        State->Pelegrini->Body->Position = vec3(0.f, 0.f, 2.f);
-        State->Pelegrini->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-
-        State->xBot->Body->Position = vec3(2.f, 0.f, 0.f);
-        State->xBot->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-
-        State->yBot->Body->Position = vec3(-2.f, 0.f, 0.f);
-        State->yBot->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-
-        State->Paladin->Body->Position = vec3(0.f, 0.f, -2.f);
-        State->Paladin->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-
-        State->Warrok->Body->Position = vec3(-4.f, 0.f, -2.f);
-        State->Warrok->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-
-        State->Maw->Body->Position = vec3(4.f, 0.f, -2.f);
-        State->Maw->Body->Orientation = quat(0.f, 0.f, 0.f, 1.f);
-
-        State->PlayableEntityIndex = 0;
-
-        State->Player = State->PlayableEntities[State->PlayableEntityIndex];
+        // ...
 
         State->Player->Controllable = true;
     }
@@ -1632,9 +1618,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
         game_entity *SelectedEntity = 0;
 
-        for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+        world_area *Area = &State->WorldArea;
+
+        for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
         {
-            game_entity *Entity = State->Entities + EntityIndex;
+            game_entity *Entity = Area->Entities + EntityIndex;
 
             if (!Entity->Destroyed && Entity->Model)
             {
@@ -1815,13 +1803,14 @@ DLLExport GAME_UPDATE(GameUpdate)
 
     game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
+    world_area *Area = &State->WorldArea;
 
     scoped_memory ScopedMemory(&State->TransientArena);
 
 #if 1
-    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+    for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
     {
-        game_entity *Entity = State->Entities + EntityIndex;
+        game_entity *Entity = Area->Entities + EntityIndex;
 
         if (!Entity->Destroyed)
         {
@@ -1840,7 +1829,7 @@ DLLExport GAME_UPDATE(GameUpdate)
 
 #if 1
     u32 EntityBatchCount = 100;
-    u32 UpdateEntityBatchJobCount = Ceil((f32) State->EntityCount / (f32) EntityBatchCount);
+    u32 UpdateEntityBatchJobCount = Ceil((f32) Area->EntityCount / (f32) EntityBatchCount);
     job *UpdateEntityBatchJobs = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, job);
     update_entity_batch_job *UpdateEntityBatchJobParams = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, update_entity_batch_job);
 
@@ -1850,11 +1839,14 @@ DLLExport GAME_UPDATE(GameUpdate)
         update_entity_batch_job *JobData = UpdateEntityBatchJobParams + EntityBatchIndex;
 
         JobData->StartIndex = EntityBatchIndex * EntityBatchCount;
-        JobData->EndIndex = Min((i32) JobData->StartIndex + EntityBatchCount, (i32) State->EntityCount);
+        JobData->EndIndex = Min((i32) JobData->StartIndex + EntityBatchCount, (i32) Area->EntityCount);
         JobData->UpdateRate = Parameters->UpdateRate;
-        JobData->PlayerId = State->Player->Id;
-        JobData->Entities = State->Entities;
-        JobData->SpatialGrid = &State->SpatialGrid;
+        if (State->Player)
+        {
+            JobData->PlayerId = State->Player->Id;
+        }
+        JobData->Entities = Area->Entities;
+        JobData->SpatialGrid = &Area->SpatialGrid;
         JobData->Entropy = &State->ParticleEntropy;
         JobData->Arena = SubMemoryArena(ScopedMemory.Arena, Megabytes(1), NoClear());
 
@@ -1925,6 +1917,7 @@ DLLExport GAME_RENDER(GameRender)
     render_commands *RenderCommands = GetRenderCommands(Memory);
     audio_commands *AudioCommands = GetAudioCommands(Memory);
     platform_api *Platform = Memory->Platform;
+    world_area *Area = &State->WorldArea;
 
     f32 ScreenWidthInUnits = 20.f;
     f32 PixelsPerUnit = (f32) Parameters->WindowWidth / ScreenWidthInUnits;
@@ -1948,12 +1941,12 @@ DLLExport GAME_RENDER(GameRender)
     if (State->Assets.State == GameAssetsState_Loaded)
     {
         // todo: render commands buffer is not multithread-safe!
-        InitGameModelAssets(State, &State->Assets, RenderCommands, &State->PermanentArena);
-        InitGameAudioClipAssets(&State->Assets, &State->PermanentArena);
+        InitGameModelAssets(State, &State->Assets, RenderCommands);
+        InitGameAudioClipAssets(&State->Assets);
 
         //State->Player = State->PlayableEntities[State->PlayableEntityIndex];
-        State->Player = State->Entities + 1;
-        State->Player->Controllable = true;
+        //State->Player = State->Entities + 1;
+        //State->Player->Controllable = true;
 
         State->Assets.State = GameAssetsState_Ready;
 
@@ -2070,7 +2063,7 @@ DLLExport GAME_RENDER(GameRender)
                 scoped_memory ScopedMemory(&State->TransientArena);
 
                 u32 EntityBatchCount = 100;
-                u32 ProcessEntityBatchJobCount = Ceil((f32) State->EntityCount / (f32) EntityBatchCount);
+                u32 ProcessEntityBatchJobCount = Ceil((f32) Area->EntityCount / (f32) EntityBatchCount);
                 job *ProcessEntityBatchJobs = PushArray(&State->TransientArena, ProcessEntityBatchJobCount, job);
                 process_entity_batch_job *ProcessEntityBatchJobParams = PushArray(ScopedMemory.Arena, ProcessEntityBatchJobCount, process_entity_batch_job);
 
@@ -2080,10 +2073,10 @@ DLLExport GAME_RENDER(GameRender)
                     process_entity_batch_job *JobData = ProcessEntityBatchJobParams + EntityBatchIndex;
 
                     JobData->StartIndex = EntityBatchIndex * EntityBatchCount;
-                    JobData->EndIndex = Min((i32) JobData->StartIndex + EntityBatchCount, (i32) State->EntityCount);
+                    JobData->EndIndex = Min((i32) JobData->StartIndex + EntityBatchCount, (i32) Area->EntityCount);
                     JobData->Lag = Lag;
-                    JobData->Entities = State->Entities;
-                    JobData->SpatialGrid = &State->SpatialGrid;
+                    JobData->Entities = Area->Entities;
+                    JobData->SpatialGrid = &Area->SpatialGrid;
                     JobData->ShadowPlaneCount = ShadowPlaneCount;
                     JobData->ShadowPlanes = ShadowPlanes;
 
@@ -2100,13 +2093,13 @@ DLLExport GAME_RENDER(GameRender)
                 scoped_memory ScopedMemory(&State->TransientArena);
 
                 u32 AnimationJobCount = 0;
-                u32 MaxAnimationJobCount = State->EntityCount;
+                u32 MaxAnimationJobCount = Area->EntityCount;
                 job *AnimationJobs = PushArray(ScopedMemory.Arena, MaxAnimationJobCount, job);
                 animate_entity_job *AnimationJobParams = PushArray(ScopedMemory.Arena, MaxAnimationJobCount, animate_entity_job);
 
-                for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+                for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
                 {
-                    game_entity *Entity = State->Entities + EntityIndex;
+                    game_entity *Entity = Area->Entities + EntityIndex;
 
                     if (!Entity->Destroyed && Entity->Model && Entity->Model->Skeleton->JointCount > 1)
                     {
@@ -2140,9 +2133,9 @@ DLLExport GAME_RENDER(GameRender)
                 State->RenderableEntityCount = 0;
                 State->ActiveEntitiesCount = 0;
 
-                for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
+                for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
                 {
-                    game_entity *Entity = State->Entities + EntityIndex;
+                    game_entity *Entity = Area->Entities + EntityIndex;
 
                     if (!Entity->Destroyed)
                     {
@@ -2157,7 +2150,7 @@ DLLExport GAME_RENDER(GameRender)
 
                                 if (IsRenderBatchEmpty(Batch))
                                 {
-                                    InitRenderBatch(Batch, Entity->Model, State->MaxEntityCount, &State->TransientArena);
+                                    InitRenderBatch(Batch, Entity->Model, Area->MaxEntityCount, &State->TransientArena);
                                 }
 
                                 AddEntityToRenderBatch(Batch, Entity);
@@ -2250,6 +2243,7 @@ DLLExport GAME_RENDER(GameRender)
                 DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 1.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
             }
 
+#if 0
             if (State->Assets.State == GameAssetsState_Ready)
             {
                 for (u32 PlaybleEntityIndex = 0; PlaybleEntityIndex < ArrayCount(State->PlayableEntities); ++PlaybleEntityIndex)
@@ -2272,6 +2266,7 @@ DLLExport GAME_RENDER(GameRender)
                     }
                 }
             }
+#endif
 
 #if 1
             if (State->Player && State->Player->Model)
