@@ -1098,7 +1098,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 1
+#if 0
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1108,7 +1108,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.VSync = true;
+    PlatformState.VSync = false;
     PlatformState.TimeRate = 1.f;
 
     LARGE_INTEGER PerformanceFrequency;

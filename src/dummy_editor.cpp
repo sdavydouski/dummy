@@ -40,7 +40,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 
     // Init State
     //EditorState->AssetType = AssetType_Model;
@@ -198,6 +198,20 @@ EditorRenderPointLightInfo(point_light *PointLight)
     if (ImGui::CollapsingHeader("PointLight", ImGuiTreeNodeFlags_DefaultOpen))
     {
         ImGui::ColorEdit3("Color", PointLight->Color.Elements);
+        ImGui::InputFloat("Contant", &PointLight->Attenuation.Constant);
+        ImGui::InputFloat("Linear", &PointLight->Attenuation.Linear);
+        ImGui::InputFloat("Quadratic", &PointLight->Attenuation.Quadratic);
+
+        ImGui::NewLine();
+    }
+}
+
+internal void
+EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
+{
+    if (ImGui::CollapsingHeader("ParticleEmitter", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::ColorEdit3("Color", ParticleEmitter->Color.Elements);
 
         ImGui::NewLine();
     }
@@ -298,10 +312,42 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, game_en
     {
         EditorRenderPointLightInfo(Entity->PointLight);
     }
+    else
+    {
+        if (ImGui::CollapsingHeader("Add Point Light"))
+        {
+            ImGui::ColorEdit3("Color", EditorState->Color.Elements);
+            ImGui::InputFloat("Contant", &EditorState->Attenuation.Constant);
+            ImGui::InputFloat("Linear", &EditorState->Attenuation.Linear);
+            ImGui::InputFloat("Quadratic", &EditorState->Attenuation.Quadratic);
+
+            if (ImGui::Button("Add"))
+            {
+                AddPointLight(Entity, EditorState->Color, EditorState->Attenuation, &GameState->WorldArea.Arena);
+            }
+        }
+    }
+
+    if (Entity->ParticleEmitter)
+    {
+        EditorRenderParticleEmitterInfo(Entity->ParticleEmitter);
+    }
+    else
+    {
+        if (ImGui::CollapsingHeader("Add Particle Emitter"))
+        {
+            ImGui::InputInt("Particle Count", (i32 *) &EditorState->ParticleCount);
+            ImGui::ColorEdit4("Particle Color", EditorState->ParticleColor.Elements);
+
+            if (ImGui::Button("Add"))
+            {
+                AddParticleEmitter(Entity, EditorState->ParticleCount, EditorState->ParticleColor, &GameState->WorldArea.Arena);
+            }
+        }
+    }
 
     if (ImGui::Button("Playable"))
     {
-        Entity->Controllable = true;
         GameState->Player = Entity;
     }
 
@@ -374,7 +420,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         {
             if (ImGui::BeginMenu("Game"))
             {
-                if (ImGui::MenuItem("Add Entity"))
+                if (ImGui::MenuItem("Add Entity (E)"))
                 {
                     EditorAddEntity(EditorState, GameState);
                 }
@@ -733,8 +779,6 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::End();
     }
 
-    ImGui::SetNextWindowPos(ImVec2(Viewport->Pos.x, ImGui::GetFrameHeight() + 5 ));
-
 #if 0
     // todo: find a better place to put it
     ImGui::Begin("Cascaded Shadow Maps");
@@ -754,6 +798,34 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     }
     ImGui::End();
 #endif
+
+    ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetFrameHeight() + 5));
+    ImGui::SetNextWindowSize(ImVec2(200, 0));
+
+    ImGui::Begin("Entity List", 0, ImGuiWindowFlags_NoTitleBar);
+    
+    if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
+    {
+        for (u32 EntityIndex = 0; EntityIndex < GameState->WorldArea.EntityCount; ++EntityIndex)
+        {
+            game_entity *Entity = GameState->WorldArea.Entities + EntityIndex;
+
+            if (!Entity->Destroyed)
+            {
+                char EntityName[256];
+                FormatString(EntityName, "Id: %d", Entity->Id);
+
+                if (ImGui::Selectable(EntityName))
+                {
+                    GameState->SelectedEntity = Entity;
+                }
+            }
+        }
+
+        ImGui::EndListBox();
+    }
+
+    ImGui::End();
 
     bool SelectedEntity = true;
 
@@ -846,6 +918,11 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         if (ImGui::IsKeyPressed(ImGuiKey_U))
         {
             EditorState->CurrentGizmoOperation = 0;
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_E))
+        {
+            EditorAddEntity(EditorState, GameState);
         }
 
 #if 0

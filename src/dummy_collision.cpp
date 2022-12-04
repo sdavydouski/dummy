@@ -187,6 +187,7 @@ GetEntityBounds(game_entity *Entity)
     if (Entity->Collider)
     {
         Result = GetColliderBounds(Entity->Collider);
+        //Result = UpdateBounds(Result, Entity->Transform);
     }
     else if (Entity->Model)
     {

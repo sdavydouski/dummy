@@ -7,6 +7,7 @@ enum game_mode
     GameMode_Editor
 };
 
+// todo(continue): parent transform?
 struct game_entity
 {
     u32 Id;
@@ -15,14 +16,13 @@ struct game_entity
 
     model *Model;
     skinning_data *Skinning;
+    animation_graph *Animation;
     collider *Collider;
     rigid_body *Body;
-    animation_graph *Animation;
     point_light *PointLight;
     particle_emitter *ParticleEmitter;
 
     b32 Visible;
-    b32 Controllable;
     b32 Destroyed;
     vec3 TestColor;
     vec3 DebugColor;

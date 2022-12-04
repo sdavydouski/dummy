@@ -8,6 +8,10 @@ struct editor_state
 
     vec3 Size;
     b32 RootMotion;
+    vec3 Color;
+    light_attenuation Attenuation;
+    vec4 ParticleColor;
+    u32 ParticleCount;
 
 #if 0
     char Search[256];

@@ -832,8 +832,8 @@ GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
     Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
     Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
 
-    Params->ToStateActionIdle = Entity->Controllable;
-    Params->ToStateStandingIdle = !Entity->Controllable;
+    Params->ToStateActionIdle = State->Player == Entity;
+    Params->ToStateStandingIdle = !(State->Player == Entity);
 
     Params->ToStateActionIdle1 = Random < 0.5f;
     Params->ToStateActionIdle2 = Random >= 0.5f;
@@ -851,8 +851,8 @@ GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
 
     // todo:
     Params->MaxTime = 8.f;
-    Params->ToStateActionIdle = Entity->Controllable;
-    Params->ToStateStandingIdle = !Entity->Controllable;
+    Params->ToStateActionIdle = State->Player == Entity;
+    Params->ToStateStandingIdle = !(State->Player == Entity);
     Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
     Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
 
@@ -942,7 +942,7 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
     {
         Params = PushType(Arena, bot_animator_params);
 
-        if (Entity->Controllable)
+        if (State->Player == Entity)
         {
             GameInput2BotAnimatorParams(State, Entity, (bot_animator_params *) Params);
         }
@@ -955,7 +955,7 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
     {
         Params = PushType(Arena, paladin_animator_params);
 
-        if (Entity->Controllable)
+        if (State->Player == Entity)
         {
             GameInput2PaladinAnimatorParams(State, Entity, (paladin_animator_params *) Params);
         }
@@ -968,7 +968,7 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
     {
         Params = PushType(Arena, monstar_animator_params);
 
-        if (Entity->Controllable)
+        if (State->Player = Entity)
         {
             GameInput2MonstarAnimatorParams(State, Entity, (monstar_animator_params *) Params);
         }
@@ -981,7 +981,7 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
     {
         Params = PushType(Arena, cleric_animator_params);
 
-        if (Entity->Controllable)
+        if (State->Player == Entity)
         {
             GameInput2ClericAnimatorParams(State, Entity, (cleric_animator_params *) Params);
         }
@@ -1131,7 +1131,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     );
                     Particle->Acceleration = vec3(0.f, -10.f, 0.f);
                     Particle->Color = ParticleEmitter->Color;
-                    Particle->dColor = vec4(0.f, 0.f, 0.f, -4.0f);
+                    Particle->dColor = vec4(0.f, 0.f, 0.f, -1.0f);
                     Particle->Size = vec2(0.025f);
                     Particle->dSize = vec2(-0.05f);
                 }
@@ -1381,7 +1381,6 @@ LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_
         if (Entity->Body)
         {
             State->Player = Entity;
-            State->Player->Controllable = true;
         }
     }
 }
@@ -1603,11 +1602,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     if (Input->Reset.IsActivated)
     {
-        State->Player->Controllable = false;
-
         // ...
-
-        State->Player->Controllable = true;
     }
 
     if (State->Mode == GameMode_Editor && Input->LeftClick.IsActivated)
@@ -1686,7 +1681,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             f32 CameraHeight = Max(0.1f, PlayerCamera->Radius * Sin(PlayerCamera->Pitch));
 
-            vec3 PlayerPosition = State->Player->Transform.Translation;
+            vec3 PlayerPosition = State->Player ? State->Player->Transform.Translation : vec3(0.f);
 
             if (PlayerPosition != PlayerCamera->PivotPosition)
             {
@@ -1712,7 +1707,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             game_entity *Player = State->Player;
 
             // todo:
-            if (Player->Controllable && Player->Body)
+            if (Player && Player->Body)
             {
                 vec3 yMoveAxis = Normalize(Projection(State->GameCamera.Direction, State->Ground));
                 vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
