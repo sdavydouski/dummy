@@ -39,7 +39,6 @@ struct win32_platform_state
     void *GameMemoryBlock;
 
     b32 IsGameRunning;
-    f32 TimeRate;
 
     mouse_mode MouseMode;
 

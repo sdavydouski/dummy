@@ -252,6 +252,10 @@ struct game_parameters
 
     f32 Time;
     f32 Delta;
+    f32 UnscaledTime;
+    f32 UnscaledDelta;
+    f32 PrevTimeScale;
+    f32 TimeScale;
     f32 UpdateRate;
     f32 UpdateLag;
 };

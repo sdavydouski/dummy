@@ -505,6 +505,49 @@ Transform(transform Transform)
     return Result;
 }
 
+inline transform
+Decompose(mat4 M)
+{
+    vec3 Column0 = M.Column(0).xyz;
+    vec3 Column1 = M.Column(1).xyz;
+    vec3 Column2 = M.Column(2).xyz;
+    vec3 Translation = M.Column(3).xyz;
+
+    vec3 Scale = vec3(Magnitude(Column0), Magnitude(Column1), Magnitude(Column2));
+
+    vec3 NormalizedColumn0 = Column0 / Scale.x;
+    vec3 NormalizedColumn1 = Column1 / Scale.y;
+    vec3 NormalizedColumn2 = Column2 / Scale.z;
+
+    mat4 RotationM = mat4(
+        NormalizedColumn0.x, NormalizedColumn1.x, NormalizedColumn2.x, 0.f,
+        NormalizedColumn0.y, NormalizedColumn1.y, NormalizedColumn2.y, 0.f,
+        NormalizedColumn0.z, NormalizedColumn1.z, NormalizedColumn2.z, 0.f,
+        0.f, 0.f, 0.f, 1.f
+    );
+    quat Rotation = LookRotation(RotationM);
+
+    transform Result = {};
+
+    Result.Translation = Translation;
+    Result.Rotation = Rotation;
+    Result.Scale = Scale;
+
+    return Result;
+}
+
+inline transform
+ParentTransform(transform Local, transform Parent)
+{
+    mat4 LocalM = Transform(Local);
+    mat4 ParentM = Transform(Parent);
+    mat4 ResultM = LocalM * ParentM;
+
+    transform Result = Decompose(ResultM);
+
+    return Result;
+}
+
 inline vec3
 GetTranslation(mat4 M)
 {

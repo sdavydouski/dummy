@@ -12,6 +12,10 @@ struct game_entity
 {
     u32 Id;
     ivec3 GridCellCoords[2];
+
+    b32 HasParent;
+    transform Local;
+    transform Parent;
     transform Transform;
 
     model *Model;
@@ -27,6 +31,37 @@ struct game_entity
     vec3 TestColor;
     vec3 DebugColor;
 };
+
+inline void
+SetParentTransform(game_entity *Entity, game_entity *Parent)
+{
+    Entity->HasParent = true;
+    Entity->Parent = Parent->Local;
+}
+
+inline void
+RemoveParentTransform(game_entity *Entity)
+{
+    Entity->HasParent = false;
+    Entity->Parent = {};
+}
+
+inline void
+CalculateEntityTransform(game_entity *Entity)
+{
+    if (Entity->HasParent)
+    {
+        mat4 LocalM = Transform(Entity->Local);
+        mat4 ParentM = Transform(Entity->Parent);
+        mat4 TransformM = ParentM * LocalM;
+
+        Entity->Transform = Decompose(TransformM);
+    }
+    else
+    {
+        Entity->Transform = Entity->Local;
+    }
+}
 
 struct world_area
 {

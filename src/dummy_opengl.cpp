@@ -1037,10 +1037,9 @@ OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
 
     OpenGLAddTexture(State, 0, &WhiteTexture);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-
-    glFrontFace(GL_CCW);
+    //glEnable(GL_CULL_FACE);
+    //glCullFace(GL_BACK);
+    //glFrontFace(GL_CCW);
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
@@ -1552,7 +1551,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glUniform3f(Shader->CameraXAxisUniform, CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
                     glUniform3f(Shader->CameraYAxisUniform, CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
                     glDrawArrays(GL_POINTS, 0, Command->ParticleCount);
+
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
                     glUseProgram(0);
                     glBindVertexArray(0);

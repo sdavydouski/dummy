@@ -12,7 +12,7 @@ out VS_OUT
 
 void main()
 {
-    vs_out.NearPlanePosition = UnprojectPoint(vec3(in_Position.xy, -1.f), u_View, u_WorldProjection);
+    vs_out.NearPlanePosition = UnprojectPoint(vec3(in_Position.xy, 0.f), u_View, u_WorldProjection);
     vs_out.FarPlanePosition = UnprojectPoint(vec3(in_Position.xy, 1.f), u_View, u_WorldProjection);
 
     gl_Position = vec4(in_Position, 1.f);

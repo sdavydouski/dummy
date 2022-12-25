@@ -1098,7 +1098,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 0
+#if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1109,7 +1109,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
     PlatformState.VSync = false;
-    PlatformState.TimeRate = 1.f;
 
     LARGE_INTEGER PerformanceFrequency;
     QueryPerformanceFrequency(&PerformanceFrequency);
@@ -1247,6 +1246,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         GameParameters.WindowWidth = PlatformState.WindowWidth;
         GameParameters.WindowHeight = PlatformState.WindowHeight;
         GameParameters.UpdateRate = 1.f / 20.f;
+        GameParameters.TimeScale = 1.f;
 
         u32 UpdateCount = 0;
         u32 MaxUpdateCount = 5;
@@ -1260,9 +1260,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         {
             PROFILER_START_FRAME(&PlatformProfiler);
 
+#if 0
             char WindowTitle[64];
             FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
             SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
+#endif
 
             {
                 PROFILE(&PlatformProfiler, "Win32ProcessWindowMessages");
@@ -1390,8 +1392,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             // ?
             Delta = Min(Delta, 1.f);
 
-            GameParameters.Delta = PlatformState.TimeRate * Delta;
-            GameParameters.Time += GameParameters.Delta;
+            GameParameters.UnscaledDelta = Delta;
+            GameParameters.UnscaledTime += GameParameters.UnscaledDelta;
+
+            GameParameters.Time = GameParameters.UnscaledTime * GameParameters.TimeScale;
+            GameParameters.Delta = GameParameters.UnscaledDelta * GameParameters.TimeScale;
 
             LastPerformanceCounter = CurrentPerformanceCounter;
         }

@@ -50,8 +50,6 @@ void main()
     vec3 DiffuseColor = GetMaterial(u_Material.HasDiffuseMap, u_Material.DiffuseMap, u_Material.DiffuseColor);
     vec3 SpecularColor = GetMaterial(u_Material.HasSpecularMap, u_Material.SpecularMap, u_Material.SpecularColor);
     float SpecularShininess = GetMaterial(u_Material.HasShininessMap, u_Material.ShininessMap, u_Material.SpecularShininess);
-   
-#if 1
     vec3 Normal = GetMaterial(u_Material.HasNormalMap, u_Material.NormalMap, fs_in.Normal);
 
     if (u_Material.HasNormalMap)
@@ -62,6 +60,7 @@ void main()
     
     Normal = normalize(Normal);
 
+#if 1
     vec3 EyeDirection = normalize(u_CameraPosition - fs_in.WorldPosition);
     
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
@@ -69,11 +68,9 @@ void main()
     // Shadow
     vec3 CascadeBlend = fs_in.CascadeBlend;
 
-#if 1
     vec3 LightDirection = normalize(-u_DirectionalLight.Direction);
     float CosTheta = clamp(dot(Normal, LightDirection), 0.f, 1.f);
     float Bias = clamp(0.005 * tan(acos(CosTheta)), 0.f, 0.01f);
-#endif
 
     vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, fs_in.WorldPosition, Bias);
 
@@ -86,13 +83,11 @@ void main()
 
     Result *= fs_in.Color;
 
-#if 1
     for (int PointLightIndex = 0; PointLightIndex < u_PointLightCount; ++PointLightIndex)
     {
         point_light PointLight = u_PointLights[PointLightIndex];
         Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, fs_in.WorldPosition);
     }
-#endif
 
     if (u_ShowCascades)
     {

@@ -635,18 +635,14 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     bounds Bounds = GetEntityBounds(Entity);
     vec3 HalfSize = vec3(0.5f);
     vec3 BottomCenterPosition = Entity->Transform.Translation;
+    quat Rotation = Entity->Transform.Rotation;
 
     if (Bounds.Min != Bounds.Max)
     {
         HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
         BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
+        Rotation = quat(0.f, 0.f, 0.f, 1.f);
     }
-
-#if 0
-    quat Rotation = Entity->Transform.Rotation;
-#else
-    quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
-#endif
 
     transform Transform = CreateTransform(BottomCenterPosition, HalfSize, Rotation);
     vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
@@ -816,7 +812,7 @@ AddParticleEmitter(game_entity *Entity, u32 ParticleCount, vec4 Color, memory_ar
 {
     Entity->ParticleEmitter = PushType(Arena, particle_emitter);
     Entity->ParticleEmitter->ParticleCount = ParticleCount;
-    Entity->ParticleEmitter->Particles = PushArray(Arena, ParticleCount, particle);
+    Entity->ParticleEmitter->Particles = PushArray(Arena, ParticleCount, particle, Align(16));
     Entity->ParticleEmitter->Color = Color;
     Entity->ParticleEmitter->NextParticleIndex = 0;
 }
@@ -1118,20 +1114,15 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                     random_sequence *Entropy = Data->Entropy;
 
-                    // todo: fix offset position
-                    Particle->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f) + vec3(
+                    Particle->Position = Entity->Transform.Translation + vec3(
                         RandomBetween(Entropy, -0.05f, 0.05f),
                         RandomBetween(Entropy, 0.f, 0.1f),
                         RandomBetween(Entropy, -0.05f, 0.05f)
                     );
-                    Particle->Velocity = vec3(
-                        RandomBetween(Entropy, -0.5f, 0.5f),
-                        RandomBetween(Entropy, 3.f, 4.f),
-                        RandomBetween(Entropy, -0.5f, 0.5f)
-                    );
-                    Particle->Acceleration = vec3(0.f, -10.f, 0.f);
+                    Particle->Velocity = Rotate(vec3(RandomBetween(Entropy, -0.5f, 0.5f), RandomBetween(Entropy, 3.f, 4.f), RandomBetween(Entropy, -0.5f, 0.5f)), Entity->Transform.Rotation);
+                    Particle->Acceleration = Rotate(vec3(0.f, -10.f, 0.f), Entity->Transform.Rotation);
                     Particle->Color = ParticleEmitter->Color;
-                    Particle->dColor = vec4(0.f, 0.f, 0.f, -1.0f);
+                    Particle->dColor = vec4(0.f, 0.f, 0.f, -0.01f);
                     Particle->Size = vec2(0.025f);
                     Particle->dSize = vec2(-0.05f);
                 }
@@ -1423,7 +1414,7 @@ DLLExport GAME_INIT(GameInit)
 
     State->JobQueue = Memory->JobQueue;
 
-    State->NextFreeEntityId = 1;
+    State->NextFreeEntityId = 0;
     State->NextFreeMeshId = 1;
     State->NextFreeTextureId = 1;
     State->NextFreeSkinningId = 1;
@@ -1619,7 +1610,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         {
             game_entity *Entity = Area->Entities + EntityIndex;
 
-            if (!Entity->Destroyed && Entity->Model)
+            if (!Entity->Destroyed)
             {
                 State->SelectedEntity = 0;
                 bounds Box = GetEntityBounds(Entity);
@@ -1777,7 +1768,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             FreeCamera->Transform.Translation += (
                 Move.x * (Normalize(Cross(FreeCamera->Direction, FreeCamera->Up))) +
-                Move.y * FreeCamera->Direction) * FreeCameraSpeed * Parameters->Delta;
+                Move.y * FreeCamera->Direction) * FreeCameraSpeed * Parameters->UnscaledDelta;
 
             break;
         }
@@ -2165,8 +2156,7 @@ DLLExport GAME_RENDER(GameRender)
 
                             Assert(PointLightCount <= MaxPointLightCount);
 
-                            // todo: fix offset position
-                            PointLight->Position = Entity->Transform.Translation + vec3(0.f, 0.6f, 0.f);
+                            PointLight->Position = Entity->Transform.Translation;
                             PointLight->Color = Entity->PointLight->Color;
                             PointLight->Attenuation = Entity->PointLight->Attenuation;
                         }
@@ -2183,8 +2173,8 @@ DLLExport GAME_RENDER(GameRender)
 
                                 Particle->Position += 0.5f * Particle->Acceleration * Square(dt) + Particle->Velocity * dt;
                                 Particle->Velocity += Particle->Acceleration * dt;
-                                Particle->Color = Particle->Color + Particle->dColor * dt;
-                                Particle->Size = Particle->Size + Particle->dSize * dt;
+                                Particle->Color += Particle->dColor * dt;
+                                Particle->Size += Particle->dSize * dt;
                             }
 
                             DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles);

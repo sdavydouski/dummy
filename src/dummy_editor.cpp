@@ -40,7 +40,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
     // Init State
     //EditorState->AssetType = AssetType_Model;
@@ -211,7 +211,7 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 {
     if (ImGui::CollapsingHeader("ParticleEmitter", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::ColorEdit3("Color", ParticleEmitter->Color.Elements);
+        ImGui::ColorEdit4("Color", ParticleEmitter->Color.Elements, ImGuiColorEditFlags_AlphaBar);
 
         ImGui::NewLine();
     }
@@ -337,7 +337,7 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, game_en
         if (ImGui::CollapsingHeader("Add Particle Emitter"))
         {
             ImGui::InputInt("Particle Count", (i32 *) &EditorState->ParticleCount);
-            ImGui::ColorEdit4("Particle Color", EditorState->ParticleColor.Elements);
+            ImGui::ColorEdit4("Particle Color", EditorState->ParticleColor.Elements, ImGuiColorEditFlags_AlphaBar);
 
             if (ImGui::Button("Add"))
             {
@@ -760,13 +760,10 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
             char Text[256];
             FormatString(
                 Text, 
-                "%.3f ms/frame (%.1f FPS) | Memory usage: %d (MB) | Renderable Entities: %d | Total Active Entities: %d", 
-                GameParameters->Delta * 1000.f / PlatformState->TimeRate, 
-                PlatformState->TimeRate / GameParameters->Delta, 
-                // todo: collect more correct data
-                GameState->PermanentArena.Used / (1024L * 1024L),
-                GameState->RenderableEntityCount, 
-                GameState->ActiveEntitiesCount
+                "%.3f ms/frame (%.1f FPS) | Time scale: %.2f",
+                GameParameters->UnscaledDelta * 1000.f, 
+                1.f / GameParameters->UnscaledDelta,
+                GameParameters->TimeScale
             );
 
             ImVec2 TextSize = ImGui::CalcTextSize(Text);
@@ -898,7 +895,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         GameState->SelectedEntity = 0;
     }
 
-    if (GameState->Mode == GameMode_Editor)
+    if (GameState->Mode == GameMode_Editor || io.KeyCtrl)
     {
         if (ImGui::IsKeyPressed(ImGuiKey_T))
         {
@@ -923,6 +920,29 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         if (ImGui::IsKeyPressed(ImGuiKey_E))
         {
             EditorAddEntity(EditorState, GameState);
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd))
+        {
+            GameParameters->TimeScale *= 2.f;
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract))
+        {
+            GameParameters->TimeScale /= 2.f;
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_Space))
+        {
+            if (GameParameters->TimeScale == 0.f)
+            {
+                GameParameters->TimeScale = GameParameters->PrevTimeScale;
+            }
+            else
+            {
+                GameParameters->PrevTimeScale = GameParameters->TimeScale;
+                GameParameters->TimeScale = 0.f;
+            }
         }
 
 #if 0
