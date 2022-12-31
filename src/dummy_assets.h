@@ -11,6 +11,18 @@ enum material_property_type
     MaterialProperty_Texture_Diffuse,
     MaterialProperty_Texture_Specular,
     MaterialProperty_Texture_Shininess,
+
+    /*
+        todo:
+
+        aiTextureType_DIFFUSE == MaterialProperty_Texture_Albedo
+        aiTextureType_METALNESS == MaterialProperty_Texture_Metalnessss
+        aiTextureType_SHININESS == MaterialProperty_Texture_Roughness ?
+    */
+    MaterialProperty_Texture_Albedo,
+    MaterialProperty_Texture_Metalness,
+    MaterialProperty_Texture_Roughness,
+
     MaterialProperty_Texture_Normal
 };
 

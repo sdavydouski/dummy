@@ -269,6 +269,20 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
         ++MaterialPropertyIndex;
     }
 
+    u32 MetalnessMapCount = 0;
+    bitmap *MetalnessMaps = 0;
+    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_METALNESS, &MetalnessMapCount, &MetalnessMaps);
+    for (u32 MetalnessMapIndex = 0; MetalnessMapIndex < MetalnessMapCount; ++MetalnessMapIndex)
+    {
+        bitmap *MetalnessMap = MetalnessMaps + MetalnessMapIndex;
+
+        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+        MaterialProperty->Type = MaterialProperty_Texture_Metalness;
+        MaterialProperty->Bitmap = *MetalnessMap;
+
+        ++MaterialPropertyIndex;
+    }
+
     u32 NormalsMapCount = 0;
     bitmap *NormalsMaps = 0;
     ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_NORMALS, &NormalsMapCount, &NormalsMaps);
@@ -282,6 +296,106 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
 
         ++MaterialPropertyIndex;
     }
+
+#if 0
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_BASE_COLOR, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_NORMAL_CAMERA, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_EMISSION_COLOR, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DIFFUSE_ROUGHNESS, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_AMBIENT_OCCLUSION, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DISPLACEMENT, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_EMISSIVE, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_HEIGHT, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+
+    {
+        u32 MapCount = 0;
+        bitmap *Maps = 0;
+        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_UNKNOWN, &MetalnessMapCount, &MetalnessMaps);
+
+        if (MapCount > 0)
+        {
+            Assert(!"Rumble");
+        }
+    }
+#endif
 
     Material->PropertyCount = MaterialPropertyIndex;
 

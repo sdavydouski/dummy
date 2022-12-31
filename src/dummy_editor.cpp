@@ -40,7 +40,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 
     // Init State
     //EditorState->AssetType = AssetType_Model;
@@ -99,6 +99,103 @@ EditorRenderModelInfo(model *Model)
         ImGui::Text("Total Indices: %d", TotalIndexCount);
 
         ImGui::NewLine();
+    }
+}
+
+internal void
+EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
+{
+    if (ImGui::CollapsingHeader("Materials", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        for (u32 MaterialIndex = 0; MaterialIndex < Model->MaterialCount; ++MaterialIndex)
+        {
+            mesh_material *Material = Model->Materials + MaterialIndex;
+
+            for (u32 PropertyIndex = 0; PropertyIndex < Material->PropertyCount; ++PropertyIndex)
+            {
+                material_property *Property = Material->Properties + PropertyIndex;
+
+                switch (Property->Type)
+                {
+                    case MaterialProperty_Float_Shininess:
+                    {
+                        char Label[64];
+                        FormatString(Label, "%s##%d", "Shininess", MaterialIndex);
+
+                        ImGui::InputFloat(Label, &Property->Value);
+
+                        break;
+                    }
+                    case MaterialProperty_Color_Ambient:
+                    {
+                        char Label[64];
+                        FormatString(Label, "%s##%d", "Ambient Color", MaterialIndex);
+
+                        ImGui::ColorEdit3(Label, Property->Color.Elements);
+
+                        break;
+                    }
+                    case MaterialProperty_Color_Diffuse:
+                    {
+                        char Label[64];
+                        FormatString(Label, "%s##%d", "Diffuse Color", MaterialIndex);
+
+                        ImGui::ColorEdit3(Label, Property->Color.Elements);
+
+                        break;
+                    }
+                    case MaterialProperty_Color_Specular:
+                    {
+                        char Label[64];
+                        FormatString(Label, "%s##%d", "Specular Color", MaterialIndex);
+
+                        ImGui::ColorEdit3(Label, Property->Color.Elements);
+
+                        break;
+                    }
+                    case MaterialProperty_Texture_Diffuse:
+                    {
+                        ImGui::Text("Diffuse Texture");
+
+                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+
+                        break;
+                    }
+                    case MaterialProperty_Texture_Specular:
+                    {
+                        ImGui::Text("Specular Texture");
+
+                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+
+                        break;
+                    }
+                    case MaterialProperty_Texture_Shininess:
+                    {
+                        ImGui::Text("Shininess Texture");
+
+                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+
+                        break;
+                    }
+                    case MaterialProperty_Texture_Normal:
+                    {
+                        ImGui::Text("Normal Texture");
+
+                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+
+                        break;
+                    }
+                    default:
+                    {
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -218,7 +315,7 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 }
 
 internal void
-EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, game_entity *Entity, render_commands *RenderCommands)
+EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, opengl_state *RendererState, game_entity *Entity, render_commands *RenderCommands)
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
 
@@ -239,6 +336,7 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, game_en
     if (Entity->Model)
     {
         EditorRenderModelInfo(Entity->Model);
+        EditorRenderMaterialsInfo(RendererState, Entity->Model);
     }
     else
     {
@@ -376,6 +474,18 @@ EditorAddEntity(editor_state *EditorState, game_state *GameState)
     //AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
 
     GameState->SelectedEntity = Entity;
+
+    EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+}
+
+internal void
+EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_commands *RenderCommands, game_entity *SourceEntity)
+{
+    game_entity *DestEntity = CreateGameEntity(GameState);
+
+    CopyGameEntity(GameState, RenderCommands, SourceEntity, DestEntity);
+
+    GameState->SelectedEntity = DestEntity;
 
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
 }
@@ -834,7 +944,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::SetNextWindowSize(ImVec2(500, 0));
 
         ImGui::Begin("Entity", &SelectedEntity);
-        EditorRenderEntityInfo(EditorState, GameState, Entity, RenderCommands);
+        EditorRenderEntityInfo(EditorState, GameState, RendererState, Entity, RenderCommands);
         ImGui::End();
 
         // Gizmos
@@ -920,6 +1030,14 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         if (ImGui::IsKeyPressed(ImGuiKey_E))
         {
             EditorAddEntity(EditorState, GameState);
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_C))
+        {
+            if (SelectedEntity)
+            {
+                EditorCopyEntity(EditorState, GameState, RenderCommands, GameState->SelectedEntity);
+            }
         }
 
         if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd))

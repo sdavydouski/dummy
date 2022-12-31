@@ -252,6 +252,24 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
 
                     break;
                 }
+                case MaterialProperty_Texture_Metalness:
+                {
+                    MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
+                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
+
+#if 0
+                    char FileName[64];
+                    FormatString(FileName, "Metalness - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+
+                    stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
+#endif
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header) + BitmapSize;
+
+                    break;
+                }
                 case MaterialProperty_Texture_Normal:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
@@ -516,6 +534,9 @@ WriteMaterials(model_asset *Asset, u64 Offset, FILE *AssetFile)
                 case MaterialProperty_Texture_Diffuse:
                 case MaterialProperty_Texture_Specular:
                 case MaterialProperty_Texture_Shininess:
+                case MaterialProperty_Texture_Albedo:
+                case MaterialProperty_Texture_Metalness:
+                case MaterialProperty_Texture_Roughness:
                 case MaterialProperty_Texture_Normal:
                 {
                     MaterialPropertyHeader.Bitmap = MaterialProperty->Bitmap;
@@ -1134,7 +1155,7 @@ ProcessModelAsset(const char *FilePath, const char *AnimationConfigPath, const c
     LoadAnimationGrah(AnimationConfigPath, &Asset);
     LoadAnimationClips(AnimationClipsPath, Flags, &Asset);
 
-    OptimizeModelAsset(&Asset);
+    //OptimizeModelAsset(&Asset);
 
     WriteModelAsset(OutputPath, &Asset);
 

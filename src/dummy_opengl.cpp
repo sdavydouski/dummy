@@ -852,6 +852,17 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     glUniform1i(Shader->MaterialShininessMapUniform, MaterialPropertyIndex);
                     break;
                 }
+                case MaterialProperty_Texture_Metalness:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
+
+                    //glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
+                    //glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+
+                    //glUniform1i(Shader->MaterialHasShininessMapUniform, true);
+                    //glUniform1i(Shader->MaterialShininessMapUniform, MaterialPropertyIndex);
+                    break;
+                }
                 case MaterialProperty_Texture_Normal:
                 {
                     opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);

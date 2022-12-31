@@ -346,6 +346,18 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "assets\\maw.asset"
         },
         {
+            "Ganfaul",
+            "assets\\Ganfaul.asset"
+        },
+       /* {
+            "Morak",
+            "assets\\Morak.asset"
+        },
+        {
+            "cerberus",
+            "assets\\cerberus.asset"
+        },*/
+        {
             "cube",
             "assets\\cube.asset"
         },
@@ -815,6 +827,41 @@ AddParticleEmitter(game_entity *Entity, u32 ParticleCount, vec4 Color, memory_ar
     Entity->ParticleEmitter->Particles = PushArray(Arena, ParticleCount, particle, Align(16));
     Entity->ParticleEmitter->Color = Color;
     Entity->ParticleEmitter->NextParticleIndex = 0;
+}
+
+inline void
+CopyGameEntity(game_state *State, render_commands *RenderCommands, game_entity *Source, game_entity *Dest)
+{
+    world_area *Area = &State->WorldArea;
+
+    Dest->Transform = Source->Transform;
+
+    if (Source->Model)
+    {
+        AddModel(State, Dest, &State->Assets, Source->Model->Key, RenderCommands, &Area->Arena);
+    }
+
+    if (Source->Collider)
+    {
+        Assert(Source->Collider->Type == Collider_Box);
+
+        AddBoxCollider(Dest, Source->Collider->BoxCollider.Size, &Area->Arena);
+    }
+
+    if (Source->Body)
+    {
+        AddRigidBody(Dest, Source->Body->RootMotionEnabled, &Area->Arena);
+    }
+
+    if (Source->PointLight)
+    {
+        AddPointLight(Dest, Source->PointLight->Color, Source->PointLight->Attenuation, &Area->Arena);
+    }
+
+    if (Source->ParticleEmitter)
+    {
+        AddParticleEmitter(Dest, Source->ParticleEmitter->ParticleCount, Source->ParticleEmitter->Color, &Area->Arena);
+    }
 }
 
 inline void
@@ -1480,7 +1527,7 @@ DLLExport GAME_INIT(GameInit)
     InitGameMenu(State);
 
     State->Assets = {};
-    State->Assets.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(256));
+    State->Assets.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(768));
 
     LoadFontAssets(&State->Assets, Platform);
     InitGameFontAssets(State, &State->Assets, RenderCommands);

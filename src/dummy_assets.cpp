@@ -221,6 +221,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
                 case MaterialProperty_Texture_Diffuse:
                 case MaterialProperty_Texture_Specular:
                 case MaterialProperty_Texture_Shininess:
+                case MaterialProperty_Texture_Metalness:
                 case MaterialProperty_Texture_Normal:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;

@@ -1,6 +1,6 @@
 #pragma once
 
-#define WIN32_RELOADABLE_SHADERS 0
+#define WIN32_RELOADABLE_SHADERS 1
 
 #define OPENGL_MAX_MESH_BUFFER_COUNT 256
 #define OPENGL_MAX_SKINNING_BUFFER_COUNT 256
@@ -87,6 +87,7 @@ struct opengl_create_program_params
     GLuint GeometryShader;
 };
 
+// todo: designed initializers?
 opengl_load_shader_params OpenGLShaders[] =
 {
     {

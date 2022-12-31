@@ -1098,7 +1098,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 1
+#if 0
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1135,7 +1135,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     Win32InitProfiler(&PlatformProfiler);
 
     game_memory GameMemory = {};
-    GameMemory.PermanentStorageSize = Megabytes(512);
+    GameMemory.PermanentStorageSize = Megabytes(1024);
     GameMemory.TransientStorageSize = Megabytes(256);
     GameMemory.RenderCommandsStorageSize = Megabytes(16);
     GameMemory.AudioCommandsStorageSize = Megabytes(16);
@@ -1224,6 +1224,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         );
 
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
+
+        Win32ToggleFullScreen(&PlatformState);
         
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
