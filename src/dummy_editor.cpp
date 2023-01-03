@@ -490,6 +490,49 @@ EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_comman
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
 }
 
+// https://github.com/ocornut/imgui/blob/master/imgui_demo.cpp#L6925
+internal void 
+EditorRenderLog(editor_state *EditorState, stream *Stream, const char *Id, f32 Flush = false)
+{
+    ImGui::Begin(Id);
+
+    char Label[256];
+    FormatString(Label, "%s##%s", "Scrolling", Id);
+
+    if (ImGui::BeginChild(Label, ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar))
+    {
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+
+        stream_chunk *Chunk = Stream->First;
+        while (Chunk)
+        {
+            char *Text = (char *) Chunk->Contents;
+            char *TextEnd = (char *) (Chunk->Contents + Chunk->Size);
+            ImGui::TextUnformatted(Text, TextEnd);
+
+            Chunk = Chunk->Next;
+        }
+
+        ImGui::PopStyleVar();
+
+        b32 AutoScroll = true;
+
+        if (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+        {
+            ImGui::SetScrollHereY(1.f);
+        }
+
+        ImGui::EndChild();
+    }
+
+    if (Flush)
+    {
+        ClearStream(Stream);
+    }
+
+    ImGui::End();
+}
+
 internal void
 Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererState, game_memory *GameMemory, game_parameters *GameParameters, editor_state *EditorState)
 {
@@ -886,6 +929,9 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::End();
     }
 
+    EditorRenderLog(EditorState, &PlatformState->Stream, "Platform Log", false);
+    EditorRenderLog(EditorState, &RendererState->Stream, "Renderer Log", true);
+
 #if 0
     // todo: find a better place to put it
     ImGui::Begin("Cascaded Shadow Maps");
@@ -909,6 +955,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetFrameHeight() + 5));
     ImGui::SetNextWindowSize(ImVec2(200, 0));
 
+#if 0
     ImGui::Begin("Entity List", 0, ImGuiWindowFlags_NoTitleBar);
     
     if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
@@ -933,6 +980,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     }
 
     ImGui::End();
+#endif
 
     bool SelectedEntity = true;
 

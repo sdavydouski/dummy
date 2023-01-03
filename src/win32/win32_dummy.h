@@ -43,6 +43,9 @@ struct win32_platform_state
     mouse_mode MouseMode;
 
     win32_job_queue_sync JobQueueSync;
+
+    memory_arena Arena;
+    stream Stream;
 };
 
 struct win32_game_code

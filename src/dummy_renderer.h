@@ -144,6 +144,33 @@ enum render_command_type
     RenderCommand_DrawParticles
 };
 
+const char *RenderCommandNames[] =
+{
+    "AddMesh",
+    "AddTexture",
+    "AddSkinningBuffer",
+
+    "SetViewport",
+    "SetScreenProjection",
+    "SetWorldProjection",
+    "SetCamera",
+    "SetTime",
+    "SetDirectionalLight",
+    "SetPointLights",
+
+    "Clear",
+    "DrawPoint",
+    "DrawLine",
+    "DrawRectangle",
+    "DrawBox",
+    "DrawText",
+    "DrawGround",
+    "DrawMesh",
+    "DrawSkinnedMesh",
+    "DrawMeshInstanced",
+    "DrawParticles"
+};
+
 struct render_command_header
 {
     render_command_type Type;

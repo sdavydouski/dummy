@@ -94,24 +94,35 @@ CopyStringUnsafe(const char *Source, char *Dest, u32 DestLength)
     Dest[DestLength] = 0;
 }
 
-inline void
+inline u32
 FormatString_(char *String, u32 Size, const char *Format, ...)
 {
     va_list ArgPtr;
 
     va_start(ArgPtr, Format);
-    vsnprintf(String, Size, Format, ArgPtr);
+    u32 StringSize = vsnprintf(String, Size, Format, ArgPtr);
     va_end(ArgPtr);
+
+    return StringSize;
 }
 
-inline void
+inline u32
+FormatStringArgs(char *String, u32 Size, const char *Format, va_list Args)
+{
+    u32 StringSize = vsnprintf(String, Size, Format, Args);
+    return StringSize;
+}
+
+inline u32
 FormatString_(wchar *String, u32 Size, const wchar *Format, ...)
 {
     va_list ArgPtr;
 
     va_start(ArgPtr, Format);
-    _vsnwprintf_s(String, Size, Size, Format, ArgPtr);
+    u32 StringSize = _vsnwprintf_s(String, Size, Size, Format, ArgPtr);
     va_end(ArgPtr);
+
+    return StringSize;
 }
 
 #define FormatString(String, Format, ...) FormatString_(String, ArrayCount(String), Format, __VA_ARGS__)

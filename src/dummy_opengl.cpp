@@ -974,12 +974,14 @@ OpenGLOnWindowResize(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
 }
 
 internal void
-OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight)
+OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
 {
     State->Vendor = (char*)glGetString(GL_VENDOR);
     State->Renderer = (char*)glGetString(GL_RENDERER);
     State->Version = (char*)glGetString(GL_VERSION);
     State->ShadingLanguageVersion = (char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
+
+    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Kilobytes(32)));
 
     State->CascadeShadowMapSize = 4096;
     // todo: set by the game
@@ -1148,6 +1150,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
         render_command_header *Entry = (render_command_header*)((u8*)Commands->RenderCommandsBuffer + BaseAddress);
+
+        if (!Options->RenderShadowMap)
+        {
+            Out(&State->Stream, "Renderer::%s", RenderCommandNames[Entry->Type]);
+        }
 
         switch (Entry->Type)
         {

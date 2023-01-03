@@ -1149,7 +1149,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
             {
                 particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
 
-                u32 ParticlesSpawn = 42;
+                u32 ParticlesSpawn = 10;
                 for (u32 ParticleSpawnIndex = 0; ParticleSpawnIndex < ParticlesSpawn; ++ParticleSpawnIndex)
                 {
                     particle *Particle = ParticleEmitter->Particles + ParticleEmitter->NextParticleIndex++;

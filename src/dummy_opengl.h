@@ -1,6 +1,6 @@
 #pragma once
 
-#define WIN32_RELOADABLE_SHADERS 1
+#define WIN32_RELOADABLE_SHADERS 0
 
 #define OPENGL_MAX_MESH_BUFFER_COUNT 256
 #define OPENGL_MAX_SKINNING_BUFFER_COUNT 256
@@ -221,6 +221,7 @@ struct opengl_state
     u32 WindowWidth;
     u32 WindowHeight;
 
+    stream Stream;
     memory_arena Arena;
     platform_api *Platform;
     platform_profiler *Profiler;

@@ -1081,6 +1081,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     SetProcessDPIAware();
 
     win32_platform_state PlatformState = {};
+
+    umm PlatformStateArenaSize = Megabytes(4);
+    InitMemoryArena(&PlatformState.Arena, Win32AllocateMemory(0, PlatformStateArenaSize), PlatformStateArenaSize);
+    PlatformState.Stream = CreateStream(SubMemoryArena(&PlatformState.Arena, Kilobytes(64)));
     
     SYSTEM_INFO SystemInfo;
     GetSystemInfo(&SystemInfo);
@@ -1108,7 +1112,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
+    PlatformState.IsFullScreen = true;
     PlatformState.VSync = false;
+
+    Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
+    Out(&PlatformState.Stream, "Platform::Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
+    Out(&PlatformState.Stream, "Platform::Screen Size: %d, %d", PlatformState.ScreenWidth, PlatformState.ScreenHeight);
 
     LARGE_INTEGER PerformanceFrequency;
     QueryPerformanceFrequency(&PerformanceFrequency);
@@ -1225,7 +1234,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
 
-        Win32ToggleFullScreen(&PlatformState);
+        if (PlatformState.IsFullScreen)
+        {
+            Win32ToggleFullScreen(&PlatformState);
+        }
         
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
