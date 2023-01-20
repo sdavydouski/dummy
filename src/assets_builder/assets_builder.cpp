@@ -53,6 +53,7 @@ namespace fs = std::filesystem;
 #include "assets_models.cpp"
 #include "assets_fonts.cpp"
 #include "assets_audio.cpp"
+#include "assets_textures.cpp"
 
 // https://nilooy.github.io/character-animation-combiner/
 internal void
@@ -75,7 +76,7 @@ BuildModelAssets(const char *InputPath, const char *OutputPath)
             FormatString(AnimationClipsPath, "%s/clips", DirectoryPath.generic_string().c_str());
 
             char AssetPath[256];
-            FormatString(AssetPath, "%s/%s.asset", OutputPath, DirectoryName.generic_string().c_str());
+            FormatString(AssetPath, "%s/%s.model.asset", OutputPath, DirectoryName.generic_string().c_str());
 
             printf("Processing %s...\n", FilePath);
             ProcessModelAsset(FilePath, AnimationConfigPath, AnimationClipsPath, AssetPath);
@@ -92,7 +93,7 @@ BuildFontAssets(const char *InputPath, const char *OutputPath)
         fs::path FileName = Entry.path().stem();
 
         char AssetPath[256];
-        FormatString(AssetPath, "%s/%s.asset", OutputPath, FileName.generic_string().c_str());
+        FormatString(AssetPath, "%s/%s.font.asset", OutputPath, FileName.generic_string().c_str());
 
         printf("Processing %s...\n", FilePath.generic_string().c_str());
         ProcessFontAsset(FilePath.generic_string().c_str(), AssetPath);
@@ -108,10 +109,26 @@ BuildAudioAssets(const char *InputPath, const char *OutputPath)
         fs::path FileName = Entry.path().stem();
 
         char AssetPath[256];
-        FormatString(AssetPath, "%s/%s.asset", OutputPath, FileName.generic_string().c_str());
+        FormatString(AssetPath, "%s/%s.audio.asset", OutputPath, FileName.generic_string().c_str());
 
         printf("Processing %s...\n", FilePath.generic_string().c_str());
         ProcessAudioAsset(FilePath.generic_string().c_str(), AssetPath);
+    }
+}
+
+internal void
+BuildTextureAssets(const char *InputPath, const char *OutputPath)
+{
+    for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
+    {
+        fs::path FilePath = Entry.path();
+        fs::path FileName = Entry.path().stem();
+
+        char AssetPath[256];
+        FormatString(AssetPath, "%s/%s.texture.asset", OutputPath, FileName.generic_string().c_str());
+
+        printf("Processing %s...\n", FilePath.generic_string().c_str());
+        ProcessTextureAsset(FilePath.generic_string().c_str(), AssetPath);
     }
 }
 
@@ -120,4 +137,5 @@ i32 main(i32 ArgCount, char **Args)
     BuildModelAssets("assets/models", "game/assets");
     BuildFontAssets("assets/fonts", "game/assets");
     BuildAudioAssets("assets/audio", "game/assets");
+    BuildTextureAssets("assets/textures", "game/assets");
 }

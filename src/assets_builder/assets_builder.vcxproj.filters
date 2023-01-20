@@ -8,5 +8,6 @@
     <None Include="assets_fonts.cpp" />
     <None Include="assets_models.cpp" />
     <None Include="assets_audio.cpp" />
+    <None Include="assets_textures.cpp" />
   </ItemGroup>
 </Project>

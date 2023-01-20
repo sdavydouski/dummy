@@ -176,6 +176,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <None Include="assets_textures.cpp" />
     <None Include="assets_audio.cpp" />
     <ClCompile Include="assets_builder.cpp" />
     <None Include="assets_fonts.cpp" />

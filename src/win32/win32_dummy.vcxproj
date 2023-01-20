@@ -90,6 +90,9 @@
     <OutDir>$(SolutionDir)\..\build\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\..\build\intermediate\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
+  <PropertyGroup>
+    <DisableFastUpToDateCheck>True</DisableFastUpToDateCheck>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -112,7 +115,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ExceptionHandling>false</ExceptionHandling>
@@ -126,7 +129,8 @@
       </IgnoreAllDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(TargetPath)" "$(SolutionDir)..\game"</Command>
+      <Command>copy "$(TargetPath)" "$(SolutionDir)..\game"
+xcopy "$(SolutionDir)shaders" "$(SolutionDir)..\game\shaders" /s /e /y /i</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>
@@ -160,7 +164,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\renderers\OpenGL\loader\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -175,7 +179,8 @@
       </IgnoreAllDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(TargetPath)" "$(SolutionDir)..\game"</Command>
+      <Command>copy "$(TargetPath)" "$(SolutionDir)..\game"
+xcopy "$(SolutionDir)shaders" "$(SolutionDir)..\game\shaders" /s /e /y /i</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>

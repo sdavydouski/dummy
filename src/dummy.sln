@@ -19,46 +19,46 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "renderers", "renderers", "{3E191EB3-512A-46B4-A48B-DE0918E1FF94}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "OpenGL", "OpenGL", "{68A7B3C9-664F-4610-813C-8954F4AAE036}"
+	ProjectSection(SolutionItems) = preProject
+		renderers\OpenGL\glad.c = renderers\OpenGL\glad.c
+		renderers\OpenGL\glad.h = renderers\OpenGL\glad.h
+		renderers\OpenGL\khrplatform.h = renderers\OpenGL\khrplatform.h
+		renderers\OpenGL\wglext.h = renderers\OpenGL\wglext.h
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "assets_builder", "assets_builder\assets_builder.vcxproj", "{0964849F-7896-4266-9242-BEAAAAF15CD5}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shaders", "shaders", "{01085C6A-6694-4A34-8EDD-211E6D4B9BBC}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shaders", "shaders", "{61A35A49-1A01-4708-9D0B-DBEC88DA6F49}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "glsl", "glsl", "{CDE21B5E-2772-4FB8-8715-4FF426E86A72}"
 	ProjectSection(SolutionItems) = preProject
-		renderers\OpenGL\shaders\empty.frag = renderers\OpenGL\shaders\empty.frag
-		renderers\OpenGL\shaders\forward_shading.frag = renderers\OpenGL\shaders\forward_shading.frag
-		renderers\OpenGL\shaders\forward_shading.vert = renderers\OpenGL\shaders\forward_shading.vert
-		renderers\OpenGL\shaders\framebuffer.frag = renderers\OpenGL\shaders\framebuffer.frag
-		renderers\OpenGL\shaders\framebuffer.vert = renderers\OpenGL\shaders\framebuffer.vert
-		renderers\OpenGL\shaders\ground.frag = renderers\OpenGL\shaders\ground.frag
-		renderers\OpenGL\shaders\ground.vert = renderers\OpenGL\shaders\ground.vert
-		renderers\OpenGL\shaders\instanced_forward_shading.vert = renderers\OpenGL\shaders\instanced_forward_shading.vert
-		renderers\OpenGL\shaders\particle.frag = renderers\OpenGL\shaders\particle.frag
-		renderers\OpenGL\shaders\particle.geom = renderers\OpenGL\shaders\particle.geom
-		renderers\OpenGL\shaders\particle.vert = renderers\OpenGL\shaders\particle.vert
-		renderers\OpenGL\shaders\simple.frag = renderers\OpenGL\shaders\simple.frag
-		renderers\OpenGL\shaders\simple.vert = renderers\OpenGL\shaders\simple.vert
-		renderers\OpenGL\shaders\skinned_mesh.vert = renderers\OpenGL\shaders\skinned_mesh.vert
-		renderers\OpenGL\shaders\text.frag = renderers\OpenGL\shaders\text.frag
-		renderers\OpenGL\shaders\text.geom = renderers\OpenGL\shaders\text.geom
-		renderers\OpenGL\shaders\text.vert = renderers\OpenGL\shaders\text.vert
+		shaders\glsl\empty.frag = shaders\glsl\empty.frag
+		shaders\glsl\forward_shading.frag = shaders\glsl\forward_shading.frag
+		shaders\glsl\forward_shading.vert = shaders\glsl\forward_shading.vert
+		shaders\glsl\framebuffer.frag = shaders\glsl\framebuffer.frag
+		shaders\glsl\framebuffer.vert = shaders\glsl\framebuffer.vert
+		shaders\glsl\ground.frag = shaders\glsl\ground.frag
+		shaders\glsl\ground.vert = shaders\glsl\ground.vert
+		shaders\glsl\instanced_forward_shading.vert = shaders\glsl\instanced_forward_shading.vert
+		shaders\glsl\particle.frag = shaders\glsl\particle.frag
+		shaders\glsl\particle.geom = shaders\glsl\particle.geom
+		shaders\glsl\particle.vert = shaders\glsl\particle.vert
+		shaders\glsl\simple.frag = shaders\glsl\simple.frag
+		shaders\glsl\simple.vert = shaders\glsl\simple.vert
+		shaders\glsl\skinned_mesh.vert = shaders\glsl\skinned_mesh.vert
+		shaders\glsl\text.frag = shaders\glsl\text.frag
+		shaders\glsl\text.geom = shaders\glsl\text.geom
+		shaders\glsl\text.vert = shaders\glsl\text.vert
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{E838FA38-32E5-4E28-829C-93D44A18AF91}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{C7E19F44-70AB-4088-BCCB-76E7375129B2}"
 	ProjectSection(SolutionItems) = preProject
-		renderers\OpenGL\shaders\common\blinn_phong.glsl = renderers\OpenGL\shaders\common\blinn_phong.glsl
-		renderers\OpenGL\shaders\common\constants.glsl = renderers\OpenGL\shaders\common\constants.glsl
-		renderers\OpenGL\shaders\common\math.glsl = renderers\OpenGL\shaders\common\math.glsl
-		renderers\OpenGL\shaders\common\shadows.glsl = renderers\OpenGL\shaders\common\shadows.glsl
-		renderers\OpenGL\shaders\common\uniform.glsl = renderers\OpenGL\shaders\common\uniform.glsl
-		renderers\OpenGL\shaders\common\version.glsl = renderers\OpenGL\shaders\common\version.glsl
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "loader", "loader", "{A9456357-4F53-4C44-8676-3A1385DA7693}"
-	ProjectSection(SolutionItems) = preProject
-		renderers\OpenGL\loader\glad.c = renderers\OpenGL\loader\glad.c
-		renderers\OpenGL\loader\glad.h = renderers\OpenGL\loader\glad.h
-		renderers\OpenGL\loader\khrplatform.h = renderers\OpenGL\loader\khrplatform.h
-		renderers\OpenGL\loader\wglext.h = renderers\OpenGL\loader\wglext.h
+		shaders\glsl\common\blinn_phong.glsl = shaders\glsl\common\blinn_phong.glsl
+		shaders\glsl\common\constants.glsl = shaders\glsl\common\constants.glsl
+		shaders\glsl\common\math.glsl = shaders\glsl\common\math.glsl
+		shaders\glsl\common\shadows.glsl = shaders\glsl\common\shadows.glsl
+		shaders\glsl\common\uniform.glsl = shaders\glsl\common\uniform.glsl
+		shaders\glsl\common\version.glsl = shaders\glsl\common\version.glsl
 	EndProjectSection
 EndProject
 Global
@@ -85,9 +85,8 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{68A7B3C9-664F-4610-813C-8954F4AAE036} = {3E191EB3-512A-46B4-A48B-DE0918E1FF94}
-		{01085C6A-6694-4A34-8EDD-211E6D4B9BBC} = {68A7B3C9-664F-4610-813C-8954F4AAE036}
-		{E838FA38-32E5-4E28-829C-93D44A18AF91} = {01085C6A-6694-4A34-8EDD-211E6D4B9BBC}
-		{A9456357-4F53-4C44-8676-3A1385DA7693} = {68A7B3C9-664F-4610-813C-8954F4AAE036}
+		{CDE21B5E-2772-4FB8-8715-4FF426E86A72} = {61A35A49-1A01-4708-9D0B-DBEC88DA6F49}
+		{C7E19F44-70AB-4088-BCCB-76E7375129B2} = {CDE21B5E-2772-4FB8-8715-4FF426E86A72}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3FF4CA08-A1FC-4054-A392-813D6849B305}

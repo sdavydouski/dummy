@@ -1,5 +1,3 @@
-#define GET_DATA_AT(Buffer, Offset, Type) (Type *) ((Buffer) + (Offset))
-
 internal u32
 ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, memory_arena *Arena)
 {
@@ -341,9 +339,33 @@ LoadAudioClipAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     return Result;
 }
 
+internal texture_asset *
+LoadTextureAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
+{
+    texture_asset *Result = PushType(Arena, texture_asset);
+
+    read_file_result AssetFile = Platform->ReadFile(FileName, Arena, ReadBinary());
+    u8 *Buffer = (u8 *)AssetFile.Contents;
+
+    asset_header *Header = GET_DATA_AT(Buffer, 0, asset_header);
+
+    Assert(Header->Type == AssetType_Texture);
+
+    texture_asset_header *AudioHeader = GET_DATA_AT(Buffer, Header->DataOffset, texture_asset_header);
+
+    Result->Bitmap.Width = AudioHeader->Width;
+    Result->Bitmap.Height = AudioHeader->Height;
+    Result->Bitmap.Channels = AudioHeader->Channels;
+    Result->Bitmap.Pixels = GET_DATA_AT(Buffer, AudioHeader->PixelsOffset, u8);
+
+    return Result;
+}
+
 internal model *
 GetModelAsset(game_assets *Assets, const char *Name)
 {
+    Assert(Assets->State != GameAssetsState_Unloaded)
+
     model *Result = HashTableLookup(&Assets->Models, (char *) Name);
     return Result;
 }
@@ -359,5 +381,12 @@ internal audio_clip *
 GetAudioClipAsset(game_assets *Assets, const char *Name)
 {
     audio_clip *Result = HashTableLookup(&Assets->AudioClips, (char *) Name);
+    return Result;
+}
+
+internal texture *
+GetTextureAsset(game_assets *Assets, const char *Name)
+{
+    texture *Result = HashTableLookup(&Assets->Textures, (char *) Name);
     return Result;
 }

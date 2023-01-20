@@ -40,10 +40,11 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
     // Init State
     //EditorState->AssetType = AssetType_Model;
+    EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
 }
 
 internal void
@@ -499,7 +500,7 @@ EditorRenderLog(editor_state *EditorState, stream *Stream, const char *Id, f32 F
     char Label[256];
     FormatString(Label, "%s##%s", "Scrolling", Id);
 
-    if (ImGui::BeginChild(Label, ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar))
+    ImGui::BeginChild(Label, ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
     {
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
@@ -522,8 +523,8 @@ EditorRenderLog(editor_state *EditorState, stream *Stream, const char *Id, f32 F
             ImGui::SetScrollHereY(1.f);
         }
 
-        ImGui::EndChild();
     }
+    ImGui::EndChild();
 
     if (Flush)
     {
@@ -534,7 +535,7 @@ EditorRenderLog(editor_state *EditorState, stream *Stream, const char *Id, f32 F
 }
 
 internal void
-Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererState, game_memory *GameMemory, game_parameters *GameParameters, editor_state *EditorState)
+Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererState, game_memory *GameMemory, game_parameters *GameParameters, game_input *GameInput, editor_state *EditorState)
 {
     memory_arena *Arena = &EditorState->Arena;
 
@@ -955,7 +956,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetFrameHeight() + 5));
     ImGui::SetNextWindowSize(ImVec2(200, 0));
 
-#if 0
+#if 1
     ImGui::Begin("Entity List", 0, ImGuiWindowFlags_NoTitleBar);
     
     if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
@@ -996,6 +997,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::End();
 
         // Gizmos
+        ImGuizmo::Enable(!GameInput->EnableFreeCameraMovement.IsActive);
         ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
         mat4 WorldToCamera = Transpose(GetCameraTransform(Camera));
@@ -1013,10 +1015,10 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         f32 SnapValues[] = { SnapValue, SnapValue, SnapValue };
 
         ImGuizmo::Manipulate(
-            (f32 *) WorldToCamera.Elements, 
-            (f32 *) WorldProjection.Elements, 
-            (ImGuizmo::OPERATION) EditorState->CurrentGizmoOperation,
-            ImGuizmo::LOCAL, (f32 *) EntityTransform.Elements,
+            (f32 *)WorldToCamera.Elements,
+            (f32 *)WorldProjection.Elements,
+            (ImGuizmo::OPERATION)EditorState->CurrentGizmoOperation,
+            ImGuizmo::LOCAL, (f32 *)EntityTransform.Elements,
             0,
             Snap ? SnapValues : 0
         );
@@ -1026,10 +1028,15 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
             vec3 Translation;
             vec3 Rotation;
             vec3 Scale;
-            ImGuizmo::DecomposeMatrixToComponents((f32 *) EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
+            ImGuizmo::DecomposeMatrixToComponents((f32 *)EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
 
-            Entity->Transform.Translation = Translation;
-            Entity->Transform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+            transform EntityTransform = {};
+
+            EntityTransform.Translation = Translation;
+            EntityTransform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+            EntityTransform.Scale = Scale;
+
+            Entity->Transform = EntityTransform;
 
             // todo: probably should update colliders or smth
             if (Entity->Body)
@@ -1043,8 +1050,6 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                 // todo: rotate collider?
                 UpdateColliderPosition(Entity->Collider, Translation);
             }
-
-            Entity->Transform.Scale = Scale;
         }
     }
 
@@ -1070,10 +1075,10 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
             EditorState->CurrentGizmoOperation = ImGuizmo::ROTATE;
         }
 
-        if (ImGui::IsKeyPressed(ImGuiKey_U))
+        /*if (ImGui::IsKeyPressed(ImGuiKey_U))
         {
             EditorState->CurrentGizmoOperation = 0;
-        }
+        }*/
 
         if (ImGui::IsKeyPressed(ImGuiKey_E))
         {

@@ -7,15 +7,11 @@ enum game_mode
     GameMode_Editor
 };
 
-// todo(continue): parent transform?
 struct game_entity
 {
     u32 Id;
     ivec3 GridCellCoords[2];
 
-    b32 HasParent;
-    transform Local;
-    transform Parent;
     transform Transform;
 
     model *Model;
@@ -31,37 +27,6 @@ struct game_entity
     vec3 TestColor;
     vec3 DebugColor;
 };
-
-inline void
-SetParentTransform(game_entity *Entity, game_entity *Parent)
-{
-    Entity->HasParent = true;
-    Entity->Parent = Parent->Local;
-}
-
-inline void
-RemoveParentTransform(game_entity *Entity)
-{
-    Entity->HasParent = false;
-    Entity->Parent = {};
-}
-
-inline void
-CalculateEntityTransform(game_entity *Entity)
-{
-    if (Entity->HasParent)
-    {
-        mat4 LocalM = Transform(Entity->Local);
-        mat4 ParentM = Transform(Entity->Parent);
-        mat4 TransformM = ParentM * LocalM;
-
-        Entity->Transform = Decompose(TransformM);
-    }
-    else
-    {
-        Entity->Transform = Entity->Local;
-    }
-}
 
 struct world_area
 {
@@ -216,6 +181,12 @@ struct game_asset_font
     font_asset *FontAsset;
 };
 
+struct game_asset_texture
+{
+    game_asset GameAsset;
+    texture_asset *TextureAsset;
+};
+
 struct game_asset_audio_clip
 {
     game_asset GameAsset;
@@ -233,6 +204,7 @@ struct game_assets
 {
     hash_table<model> Models;
     hash_table<font> Fonts;
+    hash_table<texture> Textures;
     hash_table<audio_clip> AudioClips;
 
     u32 ModelAssetCount;
@@ -240,6 +212,9 @@ struct game_assets
 
     u32 FontAssetCount;
     game_asset_font *FontAssets;
+
+    u32 TextureAssetCount;
+    game_asset_texture *TextureAssets;
 
     u32 AudioClipAssetCount;
     game_asset_audio_clip *AudioClipAssets;

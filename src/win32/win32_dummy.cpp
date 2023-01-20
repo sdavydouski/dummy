@@ -1102,7 +1102,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 0
+#if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1112,7 +1112,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.IsFullScreen = true;
+    PlatformState.IsFullScreen = false;
     PlatformState.VSync = false;
 
     Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
@@ -1249,6 +1249,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         EDITOR_UI_INIT(&PlatformState, &EditorState);
 
         game_parameters GameParameters = {};
+        game_input GameInput = {};
 
         platform_input_keyboard KeyboardInput = {};
         platform_input_mouse MouseInput = {};
@@ -1314,8 +1315,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 {
                     PROFILE(&PlatformProfiler, "ProcessInput");
 
-                    game_input GameInput = {};
-
                     XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
                     if (!EDITOR_UI_CAPTURE_KEYBOARD)
@@ -1365,8 +1364,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             {
                 PROFILE(&PlatformProfiler, "EDITOR_UI_RENDER");
-                EDITOR_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &EditorState);
+                EDITOR_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &GameInput, &EditorState);
             }
+
+            GameInput = {};
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
             {

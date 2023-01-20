@@ -239,6 +239,16 @@ InitFont(game_state *State, font_asset *Asset, font *Font, const char *Name, ren
 }
 
 internal void
+InitTexture(game_state *State, texture_asset *Asset, texture *Texture, const char *Name, render_commands *RenderCommands)
+{
+    CopyString(Name, Texture->Key);
+    Texture->Bitmap = Asset->Bitmap;
+    Texture->TextureId = GenerateTextureId(State);
+
+    AddTexture(RenderCommands, Texture->TextureId, &Texture->Bitmap);
+}
+
+internal void
 InitAudioClip(audio_clip_asset *Asset, audio_clip *AudioClip, const char *Name)
 {
     CopyString(Name, AudioClip->Key);
@@ -323,75 +333,75 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
     game_asset ModelAssets[] = {
         {
             "pelegrini",
-            "assets\\pelegrini.asset"
+            "assets\\pelegrini.model.asset"
         },
         {
             "xbot",
-            "assets\\xbot.asset"
+            "assets\\xbot.model.asset"
         },
         {
             "ybot",
-            "assets\\ybot.asset"
+            "assets\\ybot.model.asset"
         },
         {
             "paladin",
-            "assets\\paladin.asset"
+            "assets\\paladin.model.asset"
         },
         {
             "warrok",
-            "assets\\warrok.asset"
+            "assets\\warrok.model.asset"
         },
         {
             "maw",
-            "assets\\maw.asset"
+            "assets\\maw.model.asset"
         },
         {
             "Ganfaul",
-            "assets\\Ganfaul.asset"
+            "assets\\Ganfaul.model.asset"
         },
        /* {
             "Morak",
-            "assets\\Morak.asset"
+            "assets\\Morak.model.asset"
         },
         {
             "cerberus",
-            "assets\\cerberus.asset"
+            "assets\\cerberus.model.asset"
         },*/
         {
             "cube",
-            "assets\\cube.asset"
+            "assets\\cube.model.asset"
         },
         {
             "sphere",
-            "assets\\sphere.asset"
+            "assets\\sphere.model.asset"
         },
 
         // Dungeon Assets
         {
             "cleric",
-            "assets\\cleric.asset"
+            "assets\\cleric.model.asset"
         },
 
         {
             "floor_standard",
-            "assets\\Floor_Standard.asset"
+            "assets\\Floor_Standard.model.asset"
         },
         {
             "wall",
-            "assets\\Wall.asset"
+            "assets\\Wall.model.asset"
         },
 
         {
             "barrel",
-            "assets\\Barrel.asset"
+            "assets\\Barrel.model.asset"
         },
         {
             "crate",
-            "assets\\Crate.asset"
+            "assets\\Crate.model.asset"
         },
         {
             "torch",
-            "assets\\torch.asset"
+            "assets\\torch.model.asset"
         },
     };
 
@@ -416,11 +426,11 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform)
     game_asset FontAssets[] = {
         {
             "Consolas",
-            "assets\\Consolas.asset"
+            "assets\\Consolas.font.asset"
         },
         {
             "Where My Keys",
-            "assets\\Where My Keys.asset"
+            "assets\\Where My Keys.font.asset"
         }
     };
 
@@ -446,27 +456,27 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform)
     game_asset AudioClipAssets[] = {
         {
             "Ambient 5",
-            "assets\\Ambient 5.asset"
+            "assets\\Ambient 5.audio.asset"
         },
         {
             "samba",
-            "assets\\samba.asset"
+            "assets\\samba.audio.asset"
         },
         {
             "step_metal",
-            "assets\\step_metal.asset"
+            "assets\\step_metal.audio.asset"
         },
         {
             "step_cloth1",
-            "assets\\step_cloth1.asset"
+            "assets\\step_cloth1.audio.asset"
         },
         {
             "step_lth1",
-            "assets\\step_lth1.asset"
+            "assets\\step_lth1.audio.asset"
         },
         {
             "step_lth4",
-            "assets\\step_lth4.asset"
+            "assets\\step_lth4.audio.asset"
         }
     };
 
@@ -487,6 +497,32 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform)
 }
 
 internal void
+LoadTextureAssets(game_assets *Assets, platform_api *Platform)
+{
+    game_asset TextureAssets[] = {
+        {
+            "Grass",
+            "assets\\grass.texture.asset"
+        }
+    };
+
+    Assets->TextureAssetCount = ArrayCount(TextureAssets);
+    Assets->TextureAssets = PushArray(&Assets->Arena, Assets->AudioClipAssetCount, game_asset_texture);
+
+    for (u32 TextureAssetIndex = 0; TextureAssetIndex < ArrayCount(TextureAssets); ++TextureAssetIndex)
+    {
+        game_asset GameAsset = TextureAssets[TextureAssetIndex];
+
+        game_asset_texture *GameAssetTexture = Assets->TextureAssets + TextureAssetIndex;
+
+        texture_asset *LoadedAsset = LoadTextureAsset(Platform, GameAsset.Path, &Assets->Arena);
+
+        GameAssetTexture->GameAsset = GameAsset;
+        GameAssetTexture->TextureAsset = LoadedAsset;
+    }
+}
+
+internal void
 LoadGameAssets(game_assets *Assets, platform_api *Platform)
 {
     // todo:
@@ -494,6 +530,7 @@ LoadGameAssets(game_assets *Assets, platform_api *Platform)
 
     LoadModelAssets(Assets, Platform);
     LoadAudioClipAssets(Assets, Platform);
+    LoadTextureAssets(Assets, Platform);
 
     Assets->State = GameAssetsState_Loaded;
 }
@@ -544,6 +581,24 @@ InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *Rend
 
         font *Font = GetFontAsset(Assets, GameAssetFont->GameAsset.Name);
         InitFont(State, GameAssetFont->FontAsset, Font, GameAssetFont->GameAsset.Name, RenderCommands);
+    }
+}
+
+internal void
+InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
+{
+    // todo:
+    Assets->Textures.Count = 31;
+    Assets->Textures.Values = PushArray(&Assets->Arena, Assets->Textures.Count, texture);
+
+    Assert(Assets->Textures.Count > Assets->TextureAssetCount);
+
+    for (u32 GameAssetTextureIndex = 0; GameAssetTextureIndex < Assets->TextureAssetCount; ++GameAssetTextureIndex)
+    {
+        game_asset_texture *GameAssetTexture = Assets->TextureAssets + GameAssetTextureIndex;
+
+        texture *Texture = GetTextureAsset(Assets, GameAssetTexture->GameAsset.Name);
+        InitTexture(State, GameAssetTexture->TextureAsset, Texture, GameAssetTexture->GameAsset.Name, RenderCommands);
     }
 }
 
@@ -1976,6 +2031,7 @@ DLLExport GAME_RENDER(GameRender)
         // todo: render commands buffer is not multithread-safe!
         InitGameModelAssets(State, &State->Assets, RenderCommands);
         InitGameAudioClipAssets(&State->Assets);
+        InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         //State->Player = State->PlayableEntities[State->PlayableEntityIndex];
         //State->Player = State->Entities + 1;
@@ -1984,6 +2040,20 @@ DLLExport GAME_RENDER(GameRender)
         State->Assets.State = GameAssetsState_Ready;
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
+
+#if 0
+        game_entity *ParentEntity = CreateGameEntity(State);
+        ParentEntity->Transform.Translation = vec3(0.f);
+        ParentEntity->Transform.Scale = vec3(1.f);
+        AddModel(State, ParentEntity, &State->Assets, "cube", RenderCommands, &State->PermanentArena);
+        AddBoxCollider(ParentEntity, vec3(1.f), &State->PermanentArena);
+
+        game_entity *ChildEntity = CreateGameEntity(State);
+        ChildEntity->Transform.Translation = vec3(1.f, 0.f, 1.f);
+        ChildEntity->Transform.Scale = vec3(0.5f);
+        AddModel(State, ChildEntity, &State->Assets, "cube", RenderCommands, &State->PermanentArena);
+        AddBoxCollider(ChildEntity, vec3(0.5f), &State->PermanentArena);
+#endif
     }
 
     // todo:

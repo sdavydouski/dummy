@@ -25,12 +25,12 @@
 
 const char *OpenGLCommonShaders[] = 
 {
-    "..\\src\\renderers\\OpenGL\\shaders\\common\\version.glsl",
-    "..\\src\\renderers\\OpenGL\\shaders\\common\\constants.glsl",
-    "..\\src\\renderers\\OpenGL\\shaders\\common\\math.glsl",
-    "..\\src\\renderers\\OpenGL\\shaders\\common\\uniform.glsl",
-    "..\\src\\renderers\\OpenGL\\shaders\\common\\blinn_phong.glsl",
-    "..\\src\\renderers\\OpenGL\\shaders\\common\\shadows.glsl"
+    "shaders\\glsl\\common\\version.glsl",
+    "shaders\\glsl\\common\\constants.glsl",
+    "shaders\\glsl\\common\\math.glsl",
+    "shaders\\glsl\\common\\uniform.glsl",
+    "shaders\\glsl\\common\\blinn_phong.glsl",
+    "shaders\\glsl\\common\\shadows.glsl"
 };
 
 #define OPENGL_COMMON_SHADER_COUNT ArrayCount(OpenGLCommonShaders)
@@ -92,45 +92,45 @@ opengl_load_shader_params OpenGLShaders[] =
 {
     {
         OPENGL_SIMPLE_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\simple.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\simple.frag"
+        "shaders\\glsl\\simple.vert",
+        "shaders\\glsl\\simple.frag"
     },
     {
         OPENGL_PHONG_SHADING_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+        "shaders\\glsl\\forward_shading.vert",
+        "shaders\\glsl\\forward_shading.frag"
     },
     {
         OPENGL_SKINNED_PHONG_SHADING_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\skinned_mesh.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+        "shaders\\glsl\\skinned_mesh.vert",
+        "shaders\\glsl\\forward_shading.frag"
     },
     {
         OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\instanced_forward_shading.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\forward_shading.frag"
+        "shaders\\glsl\\instanced_forward_shading.vert",
+        "shaders\\glsl\\forward_shading.frag"
     },
     {
         OPENGL_GROUND_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\ground.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\ground.frag"
+        "shaders\\glsl\\ground.vert",
+        "shaders\\glsl\\ground.frag"
     },
     {
         OPENGL_FRAMEBUFFER_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\framebuffer.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\framebuffer.frag"
+        "shaders\\glsl\\framebuffer.vert",
+        "shaders\\glsl\\framebuffer.frag"
     },
     {
         OPENGL_TEXT_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\text.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\text.frag",
-        "..\\src\\renderers\\OpenGL\\shaders\\text.geom"
+        "shaders\\glsl\\text.vert",
+        "shaders\\glsl\\text.frag",
+        "shaders\\glsl\\text.geom"
     },
     {
         OPENGL_PARTICLE_SHADER_ID,
-        "..\\src\\renderers\\OpenGL\\shaders\\particle.vert",
-        "..\\src\\renderers\\OpenGL\\shaders\\particle.frag",
-        "..\\src\\renderers\\OpenGL\\shaders\\particle.geom"
+        "shaders\\glsl\\particle.vert",
+        "shaders\\glsl\\particle.frag",
+        "shaders\\glsl\\particle.geom"
     }
 };
 

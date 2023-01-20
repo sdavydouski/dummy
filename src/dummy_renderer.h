@@ -141,7 +141,9 @@ enum render_command_type
     RenderCommand_DrawMesh,
     RenderCommand_DrawSkinnedMesh,
     RenderCommand_DrawMeshInstanced,
-    RenderCommand_DrawParticles
+    RenderCommand_DrawParticles,
+    RenderCommand_DrawTexturedQuad,
+    RenderCommand_DrawTexturedQuadInstanced,
 };
 
 const char *RenderCommandNames[] =
@@ -383,6 +385,20 @@ struct render_command_draw_particles
 
     u32 ParticleCount;
     particle *Particles;
+};
+
+// todo(continue):
+struct render_command_draw_textured_quad
+{
+    render_command_header Header;
+    transform Transform;
+    u32 TextureId;
+};
+
+// todo(continue):
+struct render_command_draw_textured_quad_instanced
+{
+
 };
 
 struct render_commands_settings

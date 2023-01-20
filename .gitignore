@@ -2,3 +2,5 @@ build/
 .vs/
 *.exe
 *.dll
+*.asset
+game/shaders/**

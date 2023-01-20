@@ -1,5 +1,7 @@
 #pragma once
 
+#define GET_DATA_AT(Buffer, Offset, Type) (Type *) ((Buffer) + (Offset))
+
 enum material_property_type
 {
     MaterialProperty_Float_Shininess,
@@ -262,6 +264,19 @@ struct audio_clip_asset
     u8 *AudioData;
 };
 
+struct texture
+{
+    char Key[64];
+    u32 TextureId;
+
+    bitmap Bitmap;
+};
+
+struct texture_asset
+{
+    bitmap Bitmap;
+};
+
 #pragma pack(push, 1)
 
 enum asset_type
@@ -269,6 +284,7 @@ enum asset_type
     AssetType_Model = 0x1,
     AssetType_Font = 0x2,
     AssetType_AudioClip = 0x3,
+    AssetType_Texture = 0x4,
 };
 
 struct asset_header
@@ -438,6 +454,14 @@ struct audio_clip_asset_header
     u32 BitsPerSample;
     u32 AudioBytes;
     u64 AudioDataOffset;
+};
+
+struct texture_asset_header
+{
+    i32 Width;
+    i32 Height;
+    i32 Channels;
+    u64 PixelsOffset;
 };
 
 #pragma pack(pop)
