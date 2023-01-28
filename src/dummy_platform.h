@@ -324,6 +324,7 @@ struct game_parameters
 {
     u32 WindowWidth;
     u32 WindowHeight;
+    u32 Samples;
 
     f32 Time;
     f32 Delta;

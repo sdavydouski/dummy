@@ -1111,6 +1111,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 #endif
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
+    PlatformState.Samples = 8;
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
     PlatformState.IsFullScreen = false;
     PlatformState.VSync = false;
@@ -1260,6 +1261,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         GameParameters.WindowWidth = PlatformState.WindowWidth;
         GameParameters.WindowHeight = PlatformState.WindowHeight;
+        GameParameters.Samples = PlatformState.Samples;
         GameParameters.UpdateRate = 1.f / 20.f;
         GameParameters.TimeScale = 1.f;
 

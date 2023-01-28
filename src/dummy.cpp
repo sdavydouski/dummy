@@ -2195,6 +2195,7 @@ DLLExport GAME_RENDER(GameRender)
 
     RenderCommands->Settings.WindowWidth = Parameters->WindowWidth;
     RenderCommands->Settings.WindowHeight = Parameters->WindowHeight;
+    RenderCommands->Settings.Samples = Parameters->Samples;
     RenderCommands->Settings.Time = Parameters->Time;
     RenderCommands->Settings.PixelsPerUnit = PixelsPerUnit;
     RenderCommands->Settings.UnitsPerPixel = 1.f / PixelsPerUnit;
@@ -2405,7 +2406,7 @@ DLLExport GAME_RENDER(GameRender)
 
                         JobData->State = State;
                         JobData->Entity = Entity;
-                        JobData->Arena = SubMemoryArena(ScopedMemory.Arena, Megabytes(1), NoClear());
+                        JobData->Arena = SubMemoryArena(ScopedMemory.Arena, Kilobytes(512), NoClear());
                         JobData->Delta = Parameters->Delta;
 
                         Job->EntryPoint = AnimateEntityJob;

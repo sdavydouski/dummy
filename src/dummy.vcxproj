@@ -137,6 +137,9 @@
     <OutDir>$(SolutionDir)\..\build\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\..\build\intermediate\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
+  <PropertyGroup>
+    <DisableFastUpToDateCheck>True</DisableFastUpToDateCheck>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>

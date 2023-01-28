@@ -1,3 +1,5 @@
+// https://github.com/fendevel/Guide-to-Modern-OpenGL-Functions
+
 internal GLuint
 OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, bool32 CrashIfError = true)
 {
@@ -72,6 +74,34 @@ OpenGLCreateProgram(opengl_create_program_params Params, bool32 CrashIfError = t
     return Program;
 }
 
+inline void
+OpenGLVertexAttribute(GLuint VAO, GLuint VBO, u32 AttributeIndex, u32 ElementCount, u32 Offset, u32 RelativeOffset, u32 Stride)
+{
+    glEnableVertexArrayAttrib(VAO, AttributeIndex);
+    glVertexArrayAttribFormat(VAO, AttributeIndex, ElementCount, GL_FLOAT, GL_FALSE, RelativeOffset);
+    glVertexArrayVertexBuffer(VAO, AttributeIndex, VBO, Offset, Stride);
+    glVertexArrayAttribBinding(VAO, AttributeIndex, AttributeIndex);
+}
+
+inline void
+OpenGLVertexAttributeInteger(GLuint VAO, GLuint VBO, u32 AttributeIndex, u32 ElementCount, u32 Offset, u32 RelativeOffset, u32 Stride)
+{
+    glEnableVertexArrayAttrib(VAO, AttributeIndex);
+    glVertexArrayAttribIFormat(VAO, AttributeIndex, ElementCount, GL_UNSIGNED_INT, RelativeOffset);
+    glVertexArrayVertexBuffer(VAO, AttributeIndex, VBO, Offset, Stride);
+    glVertexArrayAttribBinding(VAO, AttributeIndex, AttributeIndex);
+}
+
+inline void
+OpenGLInstanceAttribute(GLuint VAO, GLuint VBO, u32 AttributeIndex, u32 ElementCount, u32 Offset, u32 RelativeOffset, u32 Stride)
+{
+    glEnableVertexArrayAttrib(VAO, AttributeIndex);
+    glVertexArrayAttribFormat(VAO, AttributeIndex, ElementCount, GL_FLOAT, GL_FALSE, RelativeOffset);
+    glVertexArrayVertexBuffer(VAO, AttributeIndex, VBO, Offset, Stride);
+    glVertexArrayAttribBinding(VAO, AttributeIndex, AttributeIndex);
+    glVertexArrayBindingDivisor(VAO, AttributeIndex, 1);
+}
+
 internal void
 OpenGLInitLine(opengl_state *State)
 {
@@ -81,18 +111,13 @@ OpenGLInitLine(opengl_state *State)
         vec3(1.f, 1.f, 1.f),
     };
 
-    glGenVertexArrays(1, &State->LineVAO);
-    glBindVertexArray(State->LineVAO);
+    glCreateVertexArrays(1, &State->LineVAO);
 
     GLuint LineVBO;
-    glGenBuffers(1, &LineVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, LineVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertices), LineVertices, GL_STATIC_DRAW);
+    glCreateBuffers(1, &LineVBO);
+    glNamedBufferStorage(LineVBO, sizeof(LineVertices), LineVertices, 0);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
-
-    glBindVertexArray(0);
+    OpenGLVertexAttribute(State->LineVAO, LineVBO, 0, 3, 0, 0, sizeof(vec3));
 }
 
 internal void
@@ -109,21 +134,14 @@ OpenGLInitRectangle(opengl_state *State)
 
     GLsizei Stride = sizeof(vec3) + sizeof(vec2);
 
-    glGenVertexArrays(1, &State->RectangleVAO);
-    glBindVertexArray(State->RectangleVAO);
+    glCreateVertexArrays(1, &State->RectangleVAO);
 
     GLuint RectangleVBO;
-    glGenBuffers(1, &RectangleVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, RectangleVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(RectangleVertices), RectangleVertices, GL_STATIC_DRAW);
+    glCreateBuffers(1, &RectangleVBO);
+    glNamedBufferStorage(RectangleVBO, sizeof(RectangleVertices), RectangleVertices, 0);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Stride, 0);
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Stride, (GLvoid *) sizeof(vec3));
-
-    glBindVertexArray(0);
+    OpenGLVertexAttribute(State->RectangleVAO, RectangleVBO, 0, 3, 0, 0, Stride);
+    OpenGLVertexAttribute(State->RectangleVAO, RectangleVBO, 1, 2, 0, sizeof(vec3), Stride);
 }
 
 internal void
@@ -164,18 +182,13 @@ OpenGLInitBox(opengl_state *State)
 #endif
     };
 
-    glGenVertexArrays(1, &State->BoxVAO);
-    glBindVertexArray(State->BoxVAO);
+    glCreateVertexArrays(1, &State->BoxVAO);
 
     GLuint BoxVBO;
-    glGenBuffers(1, &BoxVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, BoxVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(BoxVertices), BoxVertices, GL_STATIC_DRAW);
+    glCreateBuffers(1, &BoxVBO);
+    glNamedBufferStorage(BoxVBO, sizeof(BoxVertices), BoxVertices, 0);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
-
-    glBindVertexArray(0);
+    OpenGLVertexAttribute(State->BoxVAO, BoxVBO, 0, 3, 0, 0, sizeof(vec3));
 }
 
 internal void
@@ -183,26 +196,14 @@ OpenGLInitText(opengl_state *State)
 {
     u32 MaxCharacterLength = 1024;
 
-    glGenVertexArrays(1, &State->TextVAO);
-    glBindVertexArray(State->TextVAO);
+    glCreateVertexArrays(1, &State->TextVAO);
+    glCreateBuffers(1, &State->TextVBO);
+    glNamedBufferStorage(State->TextVBO, MaxCharacterLength * sizeof(opengl_character_point), 0, GL_DYNAMIC_STORAGE_BIT);
 
-    glGenBuffers(1, &State->TextVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, State->TextVBO);
-    glBufferData(GL_ARRAY_BUFFER, MaxCharacterLength * sizeof(opengl_character_point), 0, GL_STREAM_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, Position));
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, Size));
-
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, SpriteSize));
-
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_character_point), (GLvoid *) StructOffset(opengl_character_point, SpriteOffset));
-
-    glBindVertexArray(0);
+    OpenGLVertexAttribute(State->TextVAO, State->TextVBO, 0, 3, 0, StructOffset(opengl_character_point, Position), sizeof(opengl_character_point));
+    OpenGLVertexAttribute(State->TextVAO, State->TextVBO, 1, 2, 0, StructOffset(opengl_character_point, Size), sizeof(opengl_character_point));
+    OpenGLVertexAttribute(State->TextVAO, State->TextVBO, 2, 2, 0, StructOffset(opengl_character_point, SpriteSize), sizeof(opengl_character_point));
+    OpenGLVertexAttribute(State->TextVAO, State->TextVBO, 3, 2, 0, StructOffset(opengl_character_point, SpriteOffset), sizeof(opengl_character_point));
 }
 
 internal void
@@ -210,23 +211,13 @@ OpenGLInitParticles(opengl_state *State)
 {
     u32 MaxParticleCount = 4096;
 
-    glGenVertexArrays(1, &State->ParticleVAO);
-    glBindVertexArray(State->ParticleVAO);
+    glCreateVertexArrays(1, &State->ParticleVAO);
+    glCreateBuffers(1, &State->ParticleVBO);
+    glNamedBufferStorage(State->ParticleVBO, MaxParticleCount * sizeof(opengl_particle), 0, GL_DYNAMIC_STORAGE_BIT);
 
-    glGenBuffers(1, &State->ParticleVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, State->ParticleVBO);
-    glBufferData(GL_ARRAY_BUFFER, MaxParticleCount * sizeof(opengl_particle), 0, GL_STREAM_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(opengl_particle), (GLvoid *) StructOffset(opengl_particle, Position));
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(opengl_particle), (GLvoid *) StructOffset(opengl_particle, Size));
-
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(opengl_particle), (GLvoid *) StructOffset(opengl_particle, Color));
-
-    glBindVertexArray(0);
+    OpenGLVertexAttribute(State->ParticleVAO, State->ParticleVBO, 0, 3, 0, StructOffset(opengl_particle, Position), sizeof(opengl_particle));
+    OpenGLVertexAttribute(State->ParticleVAO, State->ParticleVBO, 1, 2, 0, StructOffset(opengl_particle, Size), sizeof(opengl_particle));
+    OpenGLVertexAttribute(State->ParticleVAO, State->ParticleVBO, 2, 4, 0, StructOffset(opengl_particle, Color), sizeof(opengl_particle));
 }
 
 // todo: use hashtable
@@ -375,12 +366,10 @@ OpenGLAddSkinningBuffer(opengl_state *State, u32 BufferId, u32 SkinningMatrixCou
     opengl_skinning_buffer *SkinningBuffer = State->SkinningBuffers + State->CurrentSkinningBufferCount++;
     SkinningBuffer->Id = BufferId;
 
-    glGenBuffers(1, &SkinningBuffer->SkinningTBO);
-    glBindBuffer(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBO);
-    glBufferData(GL_TEXTURE_BUFFER, SkinningMatrixCount * sizeof(mat4), 0, GL_STREAM_DRAW);
-    glBindBuffer(GL_TEXTURE_BUFFER, 0);
+    glCreateBuffers(1, &SkinningBuffer->SkinningTBO);
+    glNamedBufferData(SkinningBuffer->SkinningTBO, SkinningMatrixCount * sizeof(mat4), 0, GL_STREAM_DRAW);
 
-    glGenTextures(1, &SkinningBuffer->SkinningTBOTexture);
+    glCreateTextures(GL_TEXTURE_BUFFER, 1, &SkinningBuffer->SkinningTBOTexture);
 }
 
 internal void
@@ -404,112 +393,90 @@ OpenGLAddMeshBuffer(
     GLuint VAO;
     GLuint VertexBuffer;
     GLuint InstanceBuffer;
-    GLuint EBO;
-
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
+    GLuint IndexBuffer;
 
     u32 BufferSize = GetMeshVerticesSize(VertexCount, Positions, Normals, Tangents, Bitangents, TextureCoords, Weights, JointIndices);
 
-    glGenBuffers(1, &VertexBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, VertexBuffer);
-    glBufferData(GL_ARRAY_BUFFER, BufferSize, 0, GL_STATIC_DRAW);
+    glCreateVertexArrays(1, &VAO);
+
+    glCreateBuffers(1, &VertexBuffer);
+    glNamedBufferData(VertexBuffer, BufferSize, 0, GL_STATIC_DRAW);
 
     // per-vertex attributes
-    u64 Offset = 0;
+    u32 Offset = 0;
     if (Positions)
     {
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
+        OpenGLVertexAttribute(VAO, VertexBuffer, 0, 3, Offset, 0, sizeof(vec3));
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Positions);
+        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Positions);
+
         Offset += VertexCount * sizeof(vec3);
     }
 
     if (Normals)
     {
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
+        OpenGLVertexAttribute(VAO, VertexBuffer, 1, 3, Offset, 0, sizeof(vec3));
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Normals);
+        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Normals);
+
         Offset += VertexCount * sizeof(vec3);
     }
 
     if (Tangents)
     {
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
+        OpenGLVertexAttribute(VAO, VertexBuffer, 2, 3, Offset, 0, sizeof(vec3));
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Tangents);
+        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Tangents);
+
         Offset += VertexCount * sizeof(vec3);
     }
 
     if (Bitangents)
     {
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (GLvoid *)Offset);
+        OpenGLVertexAttribute(VAO, VertexBuffer, 3, 3, Offset, 0, sizeof(vec3));
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec3), Bitangents);
+        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Bitangents);
         Offset += VertexCount * sizeof(vec3);
     }
 
     if (TextureCoords)
     {
-        glEnableVertexAttribArray(4);
-        glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), (GLvoid *)Offset);
+        OpenGLVertexAttribute(VAO, VertexBuffer, 4, 2, Offset, 0, sizeof(vec2));
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec2), TextureCoords);
+        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec2), TextureCoords);
         Offset += VertexCount * sizeof(vec2);
     }
 
     if (Weights)
     {
-        glEnableVertexAttribArray(5);
-        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(vec4), (GLvoid *)Offset);
+        OpenGLVertexAttribute(VAO, VertexBuffer, 5, 4, Offset, 0, sizeof(vec4));
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(vec4), Weights);
+        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec4), Weights);
         Offset += VertexCount * sizeof(vec4);
     }
 
     if (JointIndices)
     {
-        glEnableVertexAttribArray(6);
-        glVertexAttribIPointer(6, 4, GL_UNSIGNED_INT, sizeof(ivec4), (GLvoid *)Offset);
+        OpenGLVertexAttributeInteger(VAO, VertexBuffer, 6, 4, Offset, 0, sizeof(ivec4));
 
-        glBufferSubData(GL_ARRAY_BUFFER, Offset, VertexCount * sizeof(ivec4), JointIndices);
+        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(ivec4), JointIndices);
         Offset += VertexCount * sizeof(ivec4);
     }
 
-    glGenBuffers(1, &InstanceBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, InstanceBuffer);
-    glBufferData(GL_ARRAY_BUFFER, 0, 0, GL_STREAM_DRAW);
+    glCreateBuffers(1, &InstanceBuffer);
+    glNamedBufferData(InstanceBuffer, 0, 0, GL_STREAM_DRAW);
 
     // per-instance attributes
-    glEnableVertexAttribArray(7);
-    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + 0));
-    glVertexAttribDivisor(7, 1);
+    OpenGLInstanceAttribute(VAO, InstanceBuffer, 7, 4, 0, (StructOffset(mesh_instance, Model) + 0 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(VAO, InstanceBuffer, 8, 4, 0, (StructOffset(mesh_instance, Model) + 1 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(VAO, InstanceBuffer, 9, 4, 0, (StructOffset(mesh_instance, Model) + 2 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(VAO, InstanceBuffer, 10, 4, 0, (StructOffset(mesh_instance, Model) + 3 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(VAO, InstanceBuffer, 11, 3, 0, StructOffset(mesh_instance, Color), sizeof(mesh_instance));
 
-    glEnableVertexAttribArray(8);
-    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + sizeof(vec4)));
-    glVertexAttribDivisor(8, 1);
+    glCreateBuffers(1, &IndexBuffer);
+    glNamedBufferStorage(IndexBuffer, IndexCount * sizeof(u32), Indices, 0);
 
-    glEnableVertexAttribArray(9);
-    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + 2 * sizeof(vec4)));
-    glVertexAttribDivisor(9, 1);
-
-    glEnableVertexAttribArray(10);
-    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + 3 * sizeof(vec4)));
-    glVertexAttribDivisor(10, 1);
-
-    glEnableVertexAttribArray(11);
-    glVertexAttribPointer(11, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Color)));
-    glVertexAttribDivisor(11, 1);
-
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexCount * sizeof(u32), Indices, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
+    glVertexArrayElementBuffer(VAO, IndexBuffer);
 
     opengl_mesh_buffer *MeshBuffer = State->MeshBuffers + State->CurrentMeshBufferCount++;
     MeshBuffer->Id = MeshId;
@@ -518,7 +485,7 @@ OpenGLAddMeshBuffer(
     MeshBuffer->VAO = VAO;
     MeshBuffer->VertexBuffer = VertexBuffer;
     MeshBuffer->InstanceBuffer = InstanceBuffer;
-    MeshBuffer->EBO = EBO;
+    MeshBuffer->IndexBuffer = IndexBuffer;
 
     MeshBuffer->BufferSize = BufferSize;
     MeshBuffer->InstanceCount = 0;
@@ -537,6 +504,19 @@ OpenGLGetTextureFormat(bitmap *Bitmap)
     return -1;
 }
 
+inline GLint
+OpenGLGetTextureInternalFormat(bitmap *Bitmap)
+{
+    if (Bitmap->Channels == 1) return GL_R8;
+    if (Bitmap->Channels == 2) return GL_RG8;
+    if (Bitmap->Channels == 3) return GL_RGB8;
+    if (Bitmap->Channels == 4) return GL_RGBA8;
+
+    Assert(!"Invalid number of channels");
+
+    return -1;
+}
+
 internal void
 OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
 {
@@ -544,25 +524,26 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
 
     GLuint TextureHandle;
 
-    glGenTextures(1, &TextureHandle);
-    glBindTexture(GL_TEXTURE_2D, TextureHandle);
+    glCreateTextures(GL_TEXTURE_2D, 1, &TextureHandle);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(TextureHandle, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(TextureHandle, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     GLint Format = OpenGLGetTextureFormat(Bitmap);
+    GLint InternalFormat = OpenGLGetTextureInternalFormat(Bitmap);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, Format, Bitmap->Width, Bitmap->Height, 0, Format, GL_UNSIGNED_BYTE, Bitmap->Pixels);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    glTextureStorage2D(TextureHandle, 1, InternalFormat, Bitmap->Width, Bitmap->Height);
+    glTextureSubImage2D(TextureHandle, 0, 0, 0, Bitmap->Width, Bitmap->Height, Format, GL_UNSIGNED_BYTE, Bitmap->Pixels);
+    glGenerateTextureMipmap(TextureHandle);
 
     opengl_texture *Texture = State->Textures + State->CurrentTextureCount++;
     Texture->Id = Id;
     Texture->Handle = TextureHandle;
 }
 
+// todo: https://github.com/fendevel/Guide-to-Modern-OpenGL-Functions#ideal-way-of-retrieving-all-uniform-names
 internal void
 OpenGLLoadShaderUniforms(opengl_shader *Shader)
 {
@@ -749,8 +730,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
     // todo: magic numbers
     opengl_texture *Texture = OpenGLGetTexture(State, 0);
-    glActiveTexture(GL_TEXTURE0 + 0);
-    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+    glBindTextureUnit(0, Texture->Handle);
 
     if (!Options->RenderShadowMap)
     {
@@ -763,8 +743,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
             FormatString(ShadowMapUniformName, "u_CascadeShadowMaps[%d]", CascadeIndex);
             GLint ShadowMapUniformLocation = glGetUniformLocation(Shader->Program, ShadowMapUniformName);
 
-            glActiveTexture(GL_TEXTURE0 + TextureIndex);
-            glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[CascadeIndex]);
+            glBindTextureUnit(TextureIndex, State->CascadeShadowMaps[CascadeIndex]);
             glUniform1i(ShadowMapUniformLocation, TextureIndex);
 
             // Cascade Bounds
@@ -845,8 +824,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 {
                     opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
-                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
                     glUniform1i(Shader->MaterialHasDiffuseMapUniform, true);
                     glUniform1i(Shader->MaterialDiffuseMapUniform, MaterialPropertyIndex);
@@ -856,8 +834,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 {
                     opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
-                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
                     glUniform1i(Shader->MaterialHasSpecularMapUniform, true);
                     glUniform1i(Shader->MaterialSpecularMapUniform, MaterialPropertyIndex);
@@ -867,8 +844,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 {
                     opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
-                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
                     glUniform1i(Shader->MaterialHasShininessMapUniform, true);
                     glUniform1i(Shader->MaterialShininessMapUniform, MaterialPropertyIndex);
@@ -878,8 +854,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 {
                     opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
-                    //glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                    //glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    //glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
                     //glUniform1i(Shader->MaterialHasShininessMapUniform, true);
                     //glUniform1i(Shader->MaterialShininessMapUniform, MaterialPropertyIndex);
@@ -889,8 +864,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 {
                     opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
 
-                    glActiveTexture(GL_TEXTURE0 + MaterialPropertyIndex);
-                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
                     glUniform1i(Shader->MaterialHasNormalMapUniform, true);
                     glUniform1i(Shader->MaterialNormalMapUniform, MaterialPropertyIndex);
@@ -906,97 +880,65 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 }
 
 internal void
-OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
+OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 Samples)
 {
-    GLint MSAA = 8;
+    State->SourceFramebuffer = {};
+    State->DestFramebuffer = {};
 
-    // Setup multi-sampled FBO (primary render target)
-    glGenFramebuffers(1, &State->MultiSampledFBO);
+    State->SourceFramebuffer.Width = WindowWidth;
+    State->SourceFramebuffer.Height = WindowHeight;
+    State->SourceFramebuffer.Samples = Samples;
 
-    // Build the texture that will serve as the color attachment for the framebuffer.
-    glGenTextures(1, &State->MultiSampledColorTexture);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledColorTexture);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAA, GL_RGBA, WindowWidth, WindowHeight, 0);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
-    //
+    State->DestFramebuffer.Width = WindowWidth;
+    State->DestFramebuffer.Height = WindowHeight;
 
-    // Build the texture that will serve as the depth attachment for the framebuffer.
-    glGenTextures(1, &State->MultiSampledDepthTexture);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledDepthTexture);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAA, GL_DEPTH_COMPONENT32, WindowWidth, WindowHeight, 0);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
-    //
+    glCreateFramebuffers(1, &State->SourceFramebuffer.Handle);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, State->MultiSampledFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledColorTexture, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D_MULTISAMPLE, State->MultiSampledDepthTexture, 0);
+    glCreateRenderbuffers(1, &State->SourceFramebuffer.ColorTarget);
+    glNamedRenderbufferStorageMultisample(State->SourceFramebuffer.ColorTarget, Samples, GL_RGBA16F, WindowWidth, WindowHeight);
+    glNamedFramebufferRenderbuffer(State->SourceFramebuffer.Handle, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, State->SourceFramebuffer.ColorTarget);
 
-    GLenum MultiSampledFramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glCreateRenderbuffers(1, &State->SourceFramebuffer.DepthStencilTarget);
+    glNamedRenderbufferStorageMultisample(State->SourceFramebuffer.DepthStencilTarget, Samples, GL_DEPTH24_STENCIL8, WindowWidth, WindowHeight);
+    glNamedFramebufferRenderbuffer(State->SourceFramebuffer.Handle, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, State->SourceFramebuffer.DepthStencilTarget);
+
+    GLenum MultiSampledFramebufferStatus = glCheckNamedFramebufferStatus(State->SourceFramebuffer.Handle, GL_FRAMEBUFFER);
     Assert(MultiSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    //
+    glCreateFramebuffers(1, &State->DestFramebuffer.Handle);
 
-    // Setup single-sampled FBO
-    glGenFramebuffers(1, &State->SingleSampledFBO);
+    glCreateTextures(GL_TEXTURE_2D, 1, &State->DestFramebuffer.ColorTarget);
+    glTextureStorage2D(State->DestFramebuffer.ColorTarget, 1, GL_RGBA16F, WindowWidth, WindowHeight);
 
-    // Build the texture that will serve as the color attachment for the framebuffer.
-    glGenTextures(1, &State->SingleSampledColorTexture);
-    glBindTexture(GL_TEXTURE_2D, State->SingleSampledColorTexture);
+    glTextureParameteri(State->DestFramebuffer.ColorTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(State->DestFramebuffer.ColorTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(State->DestFramebuffer.ColorTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(State->DestFramebuffer.ColorTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glNamedFramebufferTexture(State->DestFramebuffer.Handle, GL_COLOR_ATTACHMENT0, State->DestFramebuffer.ColorTarget, 0);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WindowWidth, WindowHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    //
-
-    // Build the texture that will serve as the depth attachment for the framebuffer.
-    glGenTextures(1, &State->SingleSampledDepthTexture);
-    glBindTexture(GL_TEXTURE_2D, State->SingleSampledDepthTexture);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, WindowWidth, WindowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    //
-
-    glBindFramebuffer(GL_FRAMEBUFFER, State->SingleSampledFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, State->SingleSampledColorTexture, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->SingleSampledDepthTexture, 0);
-
-    GLenum SingleSampledFramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    GLenum SingleSampledFramebufferStatus = glCheckNamedFramebufferStatus(State->DestFramebuffer.Handle, GL_FRAMEBUFFER);
     Assert(SingleSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    //
 }
 
 internal void
-OpenGLOnWindowResize(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
+OpenGLOnWindowResize(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 Samples)
 {
     State->WindowWidth = WindowWidth;
     State->WindowHeight = WindowHeight;
 
-    glDeleteFramebuffers(1, &State->MultiSampledFBO);
-    glDeleteFramebuffers(1, &State->SingleSampledFBO);
+    glDeleteFramebuffers(1, &State->SourceFramebuffer.Handle);
+    glDeleteRenderbuffers(1, &State->SourceFramebuffer.ColorTarget);
+    glDeleteRenderbuffers(1, &State->SourceFramebuffer.DepthStencilTarget);
 
-    glDeleteTextures(1, &State->MultiSampledColorTexture);
-    glDeleteTextures(1, &State->MultiSampledDepthTexture);
+    glDeleteFramebuffers(1, &State->DestFramebuffer.Handle);
+    glDeleteTextures(1, &State->DestFramebuffer.ColorTarget);
 
-    glDeleteTextures(1, &State->SingleSampledColorTexture);
-    glDeleteTextures(1, &State->SingleSampledDepthTexture);
-
-    OpenGLInitFramebuffers(State, WindowWidth, WindowHeight);
+    OpenGLInitFramebuffers(State, WindowWidth, WindowHeight, Samples);
 }
 
 internal void
-OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
+OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 Samples)
 {
     State->Vendor = (char*)glGetString(GL_VENDOR);
     State->Renderer = (char*)glGetString(GL_RENDERER);
@@ -1019,47 +961,40 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
     OpenGLInitParticles(State);
 
     OpenGLInitShaders(State);
-    OpenGLInitFramebuffers(State, WindowWidth, WindowHeight);
+    OpenGLInitFramebuffers(State, WindowWidth, WindowHeight, Samples);
 
     // Shadow Map Configuration
-    glGenFramebuffers(1, &State->CascadeShadowMapFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, State->CascadeShadowMapFBO);
-
-    glGenTextures(4, State->CascadeShadowMaps);
+    glCreateFramebuffers(1, &State->CascadeShadowMapFBO);
+    glCreateTextures(GL_TEXTURE_2D, 4, State->CascadeShadowMaps);
 
     // todo: use Array Texture
     for (u32 TextureIndex = 0; TextureIndex < ArrayCount(State->CascadeShadowMaps); ++TextureIndex)
     {
-        glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[TextureIndex]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, State->CascadeShadowMapSize, State->CascadeShadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTextureStorage2D(State->CascadeShadowMaps[TextureIndex], 1, GL_DEPTH_COMPONENT32F, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+        glTextureParameteri(State->CascadeShadowMaps[TextureIndex], GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(State->CascadeShadowMaps[TextureIndex], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(State->CascadeShadowMaps[TextureIndex], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTextureParameteri(State->CascadeShadowMaps[TextureIndex], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTextureParameteri(State->CascadeShadowMaps[TextureIndex], GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTextureParameteri(State->CascadeShadowMaps[TextureIndex], GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 
         vec4 BorderColor = vec4(1.f);
-        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, BorderColor.Elements);
+        glTextureParameterfv(State->CascadeShadowMaps[TextureIndex], GL_TEXTURE_BORDER_COLOR, BorderColor.Elements);
     }
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[0], 0);
+    glNamedFramebufferTexture(State->CascadeShadowMapFBO, GL_DEPTH_ATTACHMENT, State->CascadeShadowMaps[0], 0);
 
-    glDrawBuffer(GL_NONE);
-    glReadBuffer(GL_NONE);
+    glNamedFramebufferDrawBuffer(State->CascadeShadowMapFBO, GL_NONE);
+    glNamedFramebufferReadBuffer(State->CascadeShadowMapFBO, GL_NONE);
 
-    GLenum FramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    GLenum FramebufferStatus = glCheckNamedFramebufferStatus(State->CascadeShadowMapFBO, GL_FRAMEBUFFER);
     Assert(FramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     //
 
-    glGenBuffers(1, &State->ShaderStateUBO);
-    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(opengl_shader_state), NULL, GL_STREAM_DRAW);
+    glCreateBuffers(1, &State->ShaderStateUBO);
+    glNamedBufferStorage(State->ShaderStateUBO, sizeof(opengl_shader_state), 0, GL_DYNAMIC_STORAGE_BIT);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, State->ShaderStateUBO);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     // todo: cleanup
     bitmap WhiteTexture = {};
@@ -1138,37 +1073,23 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 internal void
 OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_options *Options)
 {
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, State->SourceFramebuffer.Handle);
     glDisable(GL_DEPTH_CLAMP);
-    //glDisable(GL_POLYGON_OFFSET_POINT);
-    //glDisable(GL_POLYGON_OFFSET_LINE);
-    //glDisable(GL_POLYGON_OFFSET_FILL);
-    //glEnable(GL_CULL_FACE);
-    //glCullFace(GL_BACK);
 
     if (Options->RenderShadowMap)
     {
         glViewport(0, 0, State->CascadeShadowMapSize, State->CascadeShadowMapSize);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, State->CascadeShadowMapFBO);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, State->CascadeShadowMaps[Options->CascadeIndex], 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, State->CascadeShadowMapFBO);
+        glNamedFramebufferTexture(State->CascadeShadowMapFBO, GL_DEPTH_ATTACHMENT, State->CascadeShadowMaps[Options->CascadeIndex], 0);
         glEnable(GL_DEPTH_CLAMP);
-        //glEnable(GL_POLYGON_OFFSET_POINT);
-        //glEnable(GL_POLYGON_OFFSET_LINE);
-        //glEnable(GL_POLYGON_OFFSET_FILL);
-        //glPolygonOffset(1.f, 1.f);
-        //glCullFace(GL_FRONT);
-        //glDisable(GL_CULL_FACE);
 
         mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
         mat4 TransposeLightView = Transpose(Options->CascadeView);
 
-        glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-        glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeLightProjection);
-        glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeLightView);
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeLightProjection);
+        glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeLightView);
     }
 
-    // todo: move commands to buckets (based on shader?)
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
         render_command_header *Entry = (render_command_header*)((u8*)Commands->RenderCommandsBuffer + BaseAddress);
@@ -1200,9 +1121,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 Projection = OrthographicProjection(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
-                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, ScreenProjection), sizeof(mat4), &TransposeProjection);
-                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, ScreenProjection), sizeof(mat4), &TransposeProjection);
                 }
 
                 break;
@@ -1216,9 +1135,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 Projection = FrustrumProjection(Command->FovY, Command->Aspect, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
-                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeProjection);
-                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeProjection);
                 }
 
                 break;
@@ -1235,11 +1152,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 View = LookAt(Command->Position, Target, Command->Up);
                     mat4 TransposeView = Transpose(View);
 
-                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeView);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, CameraPosition), sizeof(vec3), &Command->Position);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, CameraDirection), sizeof(vec3), &Direction);
-                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeView);
+                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, CameraPosition), sizeof(vec3), &Command->Position);
+                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, CameraDirection), sizeof(vec3), &Direction);
                 }
 
                 break;
@@ -1318,9 +1233,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             {
                 render_command_set_time *Command = (render_command_set_time *) Entry;
 
-                glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, Time), sizeof(f32), &Command->Time);
-                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, Time), sizeof(f32), &Command->Time);
 
                 break;
             }
@@ -1358,9 +1271,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     glDrawArrays(GL_POINTS, 0, 1);
 
-                    glUseProgram(0);
-                    glBindVertexArray(0);
-
                     glPointSize(1.f);
                 }
 
@@ -1391,9 +1301,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     glDrawArrays(GL_LINES, 0, 2);
 
-                    glUseProgram(0);
-                    glBindVertexArray(0);
-
                     glLineWidth(1.f);
                 }
 
@@ -1413,18 +1320,14 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 Model = Transform(Command->Transform);
                     mat4 View = mat4(1.f);
 
-                    glBindBuffer(GL_UNIFORM_BUFFER, State->ShaderStateUBO);
-                    glBufferSubData(GL_UNIFORM_BUFFER, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
-                    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                    // todo: do smth better
+                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
 
                     glUniform1i(Shader->ModeUniform, OPENGL_SCREEN_SPACE_MODE);
                     glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
                     glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -1452,9 +1355,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
 
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -1533,12 +1433,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         Position.x += HorizontalAdvance * TextScale * UnitsPerPixel;
                     }
 
-                    glBindBuffer(GL_ARRAY_BUFFER, State->TextVBO);
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, CharacterCount * sizeof(opengl_character_point), Points);
+                    glNamedBufferSubData(State->TextVBO, 0, CharacterCount * sizeof(opengl_character_point), Points);
 
                     opengl_texture *Texture = OpenGLGetTexture(State, Font->TextureId);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    glBindTextureUnit(0, Texture->Handle);
 
                     glUniform1i(Shader->ModeUniform, Mode);
                     glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
@@ -1551,9 +1449,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     {
                         glEnable(GL_DEPTH_TEST);
                     }
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -1585,23 +1480,18 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         DestParticle->Color = SourceParticle->Color;
                     }
 
-                    glBindBuffer(GL_ARRAY_BUFFER, State->ParticleVBO);
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, Command->ParticleCount * sizeof(opengl_particle), Particles);
+                    glNamedBufferSubData(State->ParticleVBO, 0, Command->ParticleCount * sizeof(opengl_particle), Particles);
 
                     if (Command->Texture)
                     {
                         opengl_texture *Texture = OpenGLGetTexture(State, Command->Texture->TextureId);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                        glBindTextureUnit(0, Texture->Handle);
                     }
 
                     glUniform3f(Shader->CameraXAxisUniform, CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
                     glUniform3f(Shader->CameraYAxisUniform, CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
                     glDrawArrays(GL_POINTS, 0, Command->ParticleCount);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -1621,8 +1511,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
 
                 opengl_texture *Texture = OpenGLGetTexture(State, Command->Texture->TextureId);
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                glBindTextureUnit(0, Texture->Handle);
 
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -1711,9 +1600,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
 
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -1739,13 +1625,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             glUseProgram(Shader->Program);
 
-                            glBindBuffer(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBO);
-                            glBufferSubData(GL_TEXTURE_BUFFER, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
-                            glBindBuffer(GL_TEXTURE_BUFFER, 0);
+                            glNamedBufferSubData(SkinningBuffer->SkinningTBO, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
 
-                            glActiveTexture(GL_TEXTURE0);
-                            glBindTexture(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBOTexture);
-                            glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, SkinningBuffer->SkinningTBO);
+                            glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
+                            glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
 
                             glUniform1i(Shader->SkinningMatricesSamplerUniform, 0);
 
@@ -1808,25 +1691,14 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     }
 
                     glBindVertexArray(MeshBuffer->VAO);
-                    glBindBuffer(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBO);
 
                     if (MeshBuffer->InstanceCount < Command->InstanceCount)
                     {
                         MeshBuffer->InstanceCount = (u32)(Command->InstanceCount * 1.5f);
-                        glBufferData(GL_TEXTURE_BUFFER, MeshBuffer->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), 0, GL_STREAM_DRAW);
+                        glNamedBufferData(SkinningBuffer->SkinningTBO, MeshBuffer->InstanceCount *OPENGL_MAX_JOINT_COUNT * sizeof(mat4), 0, GL_STREAM_DRAW);
                     }
 
-#if 0
-                    u32 BufferSize = MeshBuffer->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4);
-
-                    GLint OpenglBufferSize = 0;
-                    glGetBufferParameteriv(GL_TEXTURE_BUFFER, GL_BUFFER_SIZE, &OpenglBufferSize);
-
-                    Assert(OpenglBufferSize == BufferSize);
-#endif
-
-                    glBufferSubData(GL_TEXTURE_BUFFER, 0, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), SkinningMatrices);
-                    glBindBuffer(GL_TEXTURE_BUFFER, 0);
+                    glNamedBufferSubData(SkinningBuffer->SkinningTBO, 0, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), SkinningMatrices);
 
                     switch (Command->Material.Type)
                     {
@@ -1838,9 +1710,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             glUseProgram(Shader->Program);
 
-                            glActiveTexture(GL_TEXTURE0);
-                            glBindTexture(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBOTexture);
-                            glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, SkinningBuffer->SkinningTBO);
+                            glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
+                            glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
 
                             glUniform1i(Shader->SkinningMatricesSamplerUniform, 0);
 
@@ -1877,10 +1748,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     if (MeshBuffer->InstanceCount < Command->InstanceCount)
                     {
                         MeshBuffer->InstanceCount = (u32) (Command->InstanceCount * 1.5f);
-                        glBufferData(GL_ARRAY_BUFFER, MeshBuffer->InstanceCount * sizeof(mesh_instance), 0, GL_STREAM_DRAW);
+                        glNamedBufferData(MeshBuffer->InstanceBuffer, MeshBuffer->InstanceCount * sizeof(mesh_instance), 0, GL_STREAM_DRAW);
                     }
 
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, Command->InstanceCount * sizeof(mesh_instance), Command->Instances);
+                    glNamedBufferSubData(MeshBuffer->InstanceBuffer, 0, Command->InstanceCount * sizeof(mesh_instance), Command->Instances);
 
                     switch (Command->Material.Type)
                     {
@@ -1928,9 +1799,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
 
                     //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -2008,7 +1876,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
     if (State->WindowWidth != RenderSettings->WindowWidth || RenderSettings->WindowHeight != RenderSettings->WindowHeight)
     {
-        OpenGLOnWindowResize(State, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
+        OpenGLOnWindowResize(State, RenderSettings->WindowWidth, RenderSettings->WindowHeight, RenderSettings->Samples);
     }
 
     {
@@ -2114,42 +1982,33 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         OpenGLRenderScene(State, Commands, &RenderOptions);
     }
 
-#if 0
+    // Resolve multisample framebuffer
+    GLenum Attachments[] = { GL_COLOR_ATTACHMENT0, GL_DEPTH_STENCIL_ATTACHMENT };
+
+    glBlitNamedFramebuffer(
+        State->SourceFramebuffer.Handle, 
+        State->DestFramebuffer.Handle, 
+        0, 0, 
+        State->SourceFramebuffer.Width,
+        State->SourceFramebuffer.Height,
+        0, 0, 
+        State->DestFramebuffer.Width,
+        State->DestFramebuffer.Height,
+        GL_COLOR_BUFFER_BIT, 
+        GL_NEAREST
+    );
+    glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
+
+    // Draw a full screen triangle for postprocessing
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
 
-    glBindVertexArray(State->RectangleVAO);
     glUseProgram(Shader->Program);
-
-    {
-        GLint UniformLocation = glGetUniformLocation(Shader->Program, "u_zNear");
-        glUniform1f(UniformLocation, State->CascadeBounds[0].x);
-    }
-
-    {
-        GLint UniformLocation = glGetUniformLocation(Shader->Program, "u_zFar");
-        glUniform1f(UniformLocation, State->CascadeBounds[3].y);
-    }
-
-    glViewport(512 * 0, 0, 512, 512);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[0]);
+    glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);
+    glBindVertexArray(State->RectangleVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    glViewport(512 * 1 + 10, 0, 512, 512);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[1]);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    glViewport(512 * 2 + 20, 0, 512, 512);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[2]);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-    glViewport(512 * 3 + 30, 0, 512, 512);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, State->CascadeShadowMaps[3]);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-#endif
 }

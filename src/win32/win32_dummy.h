@@ -29,6 +29,8 @@ struct win32_platform_state
     i32 ScreenWidth;
     i32 ScreenHeight;
 
+    u32 Samples;
+
     bool32 IsWindowActive;
     bool32 IsFullScreen;
     bool32 VSync;

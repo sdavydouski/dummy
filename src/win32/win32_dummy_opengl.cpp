@@ -4,7 +4,7 @@
 
 #include "dummy_opengl.h"
 
-internal void OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight);
+internal void OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight, u32 Samples);
 
 #define GladLoadGLLoader gladLoadGLLoader
 
@@ -157,7 +157,7 @@ Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, 
                         GladLoadGLLoader((GLADloadproc)Win32GetOpenGLFuncAddress);
                         GladSetPostCallback(Win32GladPostCallback);
 
-                        OpenGLInitRenderer(&State->OpenGL, PlatformState->WindowWidth, PlatformState->WindowHeight);
+                        OpenGLInitRenderer(&State->OpenGL, PlatformState->WindowWidth, PlatformState->WindowHeight, PlatformState->Samples);
                     }
                     else
                     {

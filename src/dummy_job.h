@@ -20,7 +20,7 @@ struct job_queue
     i32 volatile CurrentJobCount;
     i32 volatile CurrentJobIndex;
 
-    job Jobs[256];
+    job Jobs[1024];
 };
 
 inline job *

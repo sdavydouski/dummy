@@ -1,4 +1,5 @@
 //? #include "common/version.glsl"
+//? #include "common/constants.glsl"
 //? #include "common/uniform.glsl"
 
 in VS_OUT
@@ -9,9 +10,10 @@ in VS_OUT
 out vec4 out_Color;
 
 uniform sampler2D u_ScreenTexture;
-uniform float u_zNear;
-uniform float u_zFar;
+//uniform float u_zNear;
+//uniform float u_zFar;
 
+/*
 float LinearizeDepth(float Depth)
 {
     float zNear = u_zNear;
@@ -20,6 +22,7 @@ float LinearizeDepth(float Depth)
     float z = Depth * 2.0 - 1.0; // Back to NDC 
     return (2.0 * zNear) / (zFar + zNear - z * (zFar - zNear));
 }
+*/
 
 void main()
 {  
@@ -31,14 +34,7 @@ void main()
 	TextureCoords.x += sin(TextureCoords.y * 4 * 2 * 3.14159f + Offset) / 100;
 #endif
 
-#if 0
 	vec4 TexelColor = texture(u_ScreenTexture, TextureCoords);
-	out_Color = vec4(TexelColor.rgb, 1.f);
-#else
-    float Depth = texture(u_ScreenTexture, TextureCoords).r;
-    float LinearDepth = LinearizeDepth(Depth);
-    //float LinearDepth = Depth;
-
-	out_Color = vec4(vec3(LinearDepth), 1.0);
-#endif
+	out_Color = TexelColor;
+    //out_Color = vec4(1.f, 0.f, 0.f, 1.f);
 }

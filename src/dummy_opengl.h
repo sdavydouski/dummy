@@ -3,7 +3,7 @@
 #define WIN32_RELOADABLE_SHADERS 0
 
 #define OPENGL_MAX_MESH_BUFFER_COUNT 256
-#define OPENGL_MAX_SKINNING_BUFFER_COUNT 256
+#define OPENGL_MAX_SKINNING_BUFFER_COUNT 1024
 #define OPENGL_MAX_TEXTURE_COUNT 64
 #define OPENGL_MAX_SHADER_COUNT 64
 
@@ -47,7 +47,7 @@ struct opengl_mesh_buffer
     GLuint VAO;
     GLuint VertexBuffer;
     GLuint InstanceBuffer;
-    GLuint EBO;
+    GLuint IndexBuffer;
 
     u32 BufferSize;
     u32 InstanceCount;
@@ -224,6 +224,17 @@ struct opengl_render_options
     u32 CascadeIndex;
 };
 
+struct opengl_framebuffer
+{
+    GLuint Handle;
+    GLuint ColorTarget;
+    GLuint DepthStencilTarget;
+
+    u32 Width;
+    u32 Height;
+    u32 Samples;
+};
+
 struct opengl_state
 {
     char *Vendor;
@@ -239,13 +250,8 @@ struct opengl_state
     platform_api *Platform;
     platform_profiler *Profiler;
 
-    GLuint MultiSampledFBO;
-    GLuint MultiSampledColorTexture;
-    GLuint MultiSampledDepthTexture;
-
-    GLuint SingleSampledFBO;
-    GLuint SingleSampledColorTexture;
-    GLuint SingleSampledDepthTexture;
+    opengl_framebuffer SourceFramebuffer;
+    opengl_framebuffer DestFramebuffer;
 
     // Draw primitives
     GLuint LineVAO;

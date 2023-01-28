@@ -961,7 +961,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     EditorRenderLog(EditorState, &PlatformState->Stream, "Platform Log", false);
     EditorRenderLog(EditorState, &RendererState->Stream, "Renderer Log", true);
 
-#if 1
+#if 0
     // todo: find a better place to put it
     ImGui::Begin("Cascaded Shadow Maps");
     {

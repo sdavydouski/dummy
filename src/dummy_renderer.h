@@ -434,6 +434,8 @@ struct render_commands_settings
     i32 PrevWindowWidth;
     i32 PrevWindowHeight;
 
+    u32 Samples;
+
     f32 Time;
     f32 PixelsPerUnit;
     f32 UnitsPerPixel;
