@@ -185,7 +185,7 @@ struct read_file_result
 
 struct read_file_options
 {
-    b32 ReadAsText;
+    bool32 ReadAsText;
 };
 
 inline read_file_options
@@ -208,7 +208,7 @@ ReadText()
 #define PLATFORM_READ_FILE(name) read_file_result name(char *FileName, memory_arena *Arena, read_file_options Options)
 typedef PLATFORM_READ_FILE(platform_read_file);
 
-#define PLATFORM_WRITE_FILE(name) b32 name(char *FileName, void *Buffer, u32 BufferSize)
+#define PLATFORM_WRITE_FILE(name) bool32 name(char *FileName, void *Buffer, u32 BufferSize)
 typedef PLATFORM_WRITE_FILE(platform_write_file);
 
 #define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformHandle, mouse_mode MouseMode)

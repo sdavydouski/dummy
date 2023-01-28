@@ -1,5 +1,5 @@
 internal GLuint
-OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, b32 CrashIfError = true)
+OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, bool32 CrashIfError = true)
 {
     GLuint Shader = glCreateShader(Type);
     glShaderSource(Shader, Count, Source, NULL);
@@ -28,7 +28,7 @@ OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, b32 CrashIfError =
 }
 
 internal GLuint
-OpenGLCreateProgram(opengl_create_program_params Params, b32 CrashIfError = true)
+OpenGLCreateProgram(opengl_create_program_params Params, bool32 CrashIfError = true)
 {
     GLuint Program = glCreateProgram();
     glAttachShader(Program, Params.VertexShader);
@@ -100,11 +100,11 @@ OpenGLInitRectangle(opengl_state *State)
 {
     f32 RectangleVertices[] = 
     {
-        // potisions      // uvs
-        - 1.f, -1.f, 0.f,  0.f, 0.f,
-        1.f, -1.f, 0.f,   1.f, 0.f,
-        -1.f, 1.f, 0.f,   0.f, 1.f,
-        1.f, 1.f, 0.f,    1.f, 1.f
+        // potisions     // uvs
+        -1.f, -1.f, 0.f, 0.f, 0.f,
+        1.f, -1.f, 0.f,  1.f, 0.f,
+        -1.f, 1.f, 0.f,  0.f, 1.f,
+        1.f, 1.f, 0.f,   1.f, 1.f
     };
 
     GLsizei Stride = sizeof(vec3) + sizeof(vec2);
@@ -131,6 +131,7 @@ OpenGLInitBox(opengl_state *State)
 {
     vec3 BoxVertices[] = 
     {
+#if 1
         vec3(-1.f, 2.f, -1.f),
         vec3(1.f, 2.f, -1.f),
         vec3(-1.f, 0.f, -1.f),
@@ -145,6 +146,22 @@ OpenGLInitBox(opengl_state *State)
         vec3(1.f, 0.f, 1.f),
         vec3(-1.f, 2.f, 1.f),
         vec3(1.f, 2.f, 1.f)
+#else
+        vec3(-1.f, 1.f, -1.f),
+        vec3(1.f, 1.f, -1.f),
+        vec3(-1.f, -1.f, -1.f),
+        vec3(1.f, -1.f, -1.f),
+        vec3(1.f, -1.f, 1.f),
+        vec3(1.f, 1.f, -1.f),
+        vec3(1.f, 1.f, 1.f),
+        vec3(-1.f, 1.f, -1.f),
+        vec3(-1.f, 1.f, 1.f),
+        vec3(-1.f, -1.f, -1.f),
+        vec3(-1.f, -1.f, 1.f),
+        vec3(1.f, -1.f, 1.f),
+        vec3(-1.f, 1.f, 1.f),
+        vec3(1.f, 1.f, 1.f)
+#endif
     };
 
     glGenVertexArrays(1, &State->BoxVAO);
@@ -469,23 +486,23 @@ OpenGLAddMeshBuffer(
 
     // per-instance attributes
     glEnableVertexAttribArray(7);
-    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + 0));
+    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + 0));
     glVertexAttribDivisor(7, 1);
 
     glEnableVertexAttribArray(8);
-    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + sizeof(vec4)));
+    glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + sizeof(vec4)));
     glVertexAttribDivisor(8, 1);
 
     glEnableVertexAttribArray(9);
-    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + 2 * sizeof(vec4)));
+    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + 2 * sizeof(vec4)));
     glVertexAttribDivisor(9, 1);
 
     glEnableVertexAttribArray(10);
-    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Model) + 3 * sizeof(vec4)));
+    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Model) + 3 * sizeof(vec4)));
     glVertexAttribDivisor(10, 1);
 
     glEnableVertexAttribArray(11);
-    glVertexAttribPointer(11, 3, GL_FLOAT, GL_FALSE, sizeof(render_instance), (void *) (StructOffset(render_instance, Color)));
+    glVertexAttribPointer(11, 3, GL_FLOAT, GL_FALSE, sizeof(mesh_instance), (void *) (StructOffset(mesh_instance, Color)));
     glVertexAttribDivisor(11, 1);
 
     glGenBuffers(1, &EBO);
@@ -588,7 +605,12 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 {
     u32 Size = InitialSize + 256;
     char *Result = PushString(Arena, Size);
-    FormatString_(Result, Size, ShaderSource, OPENGL_MAX_POINT_LIGHT_COUNT, OPENGL_WORLD_SPACE_MODE, OPENGL_SCREEN_SPACE_MODE);
+    FormatString_(Result, Size, ShaderSource, 
+        OPENGL_MAX_POINT_LIGHT_COUNT, 
+        OPENGL_WORLD_SPACE_MODE, 
+        OPENGL_SCREEN_SPACE_MODE, 
+        OPENGL_MAX_JOINT_COUNT
+    );
 
     return Result;
 }
@@ -981,14 +1003,14 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight)
     State->Version = (char*)glGetString(GL_VERSION);
     State->ShadingLanguageVersion = (char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Kilobytes(32)));
+    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(4)));
 
     State->CascadeShadowMapSize = 4096;
     // todo: set by the game
-    State->CascadeBounds[0] = vec2(-0.1f, -6.f);
-    State->CascadeBounds[1] = vec2(-5.f, -20.f);
-    State->CascadeBounds[2] = vec2(-18.f, -60.f);
-    State->CascadeBounds[3] = vec2(-50.f, -320.f);
+    State->CascadeBounds[0] = vec2(-0.1f, -5.f);
+    State->CascadeBounds[1] = vec2(-3.f, -15.f);
+    State->CascadeBounds[2] = vec2(-10.f, -40.f);
+    State->CascadeBounds[3] = vec2(-30.f, -120.f);
 
     OpenGLInitLine(State);
     OpenGLInitRectangle(State);
@@ -1318,7 +1340,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_point *Command = (render_command_draw_point *) Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
 
                     glPointSize(Command->Size);
 
@@ -1350,7 +1372,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_line *Command = (render_command_draw_line *) Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
 
                     glLineWidth(Command->Thickness);
 
@@ -1383,7 +1405,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_rectangle *Command = (render_command_draw_rectangle *) Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
 
                     glBindVertexArray(State->RectangleVAO);
                     glUseProgram(Shader->Program);
@@ -1413,7 +1435,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_box *Command = (render_command_draw_box *) Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
 
                     glBindVertexArray(State->BoxVAO);
                     glUseProgram(Shader->Program);
@@ -1566,18 +1588,46 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glBindBuffer(GL_ARRAY_BUFFER, State->ParticleVBO);
                     glBufferSubData(GL_ARRAY_BUFFER, 0, Command->ParticleCount * sizeof(opengl_particle), Particles);
 
+                    if (Command->Texture)
+                    {
+                        opengl_texture *Texture = OpenGLGetTexture(State, Command->Texture->TextureId);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+                    }
+
                     glUniform3f(Shader->CameraXAxisUniform, CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
                     glUniform3f(Shader->CameraYAxisUniform, CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
-                    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-
                     glDrawArrays(GL_POINTS, 0, Command->ParticleCount);
-
-                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
                     glUseProgram(0);
                     glBindVertexArray(0);
                 }
+
+                break;
+            }
+            case RenderCommand_DrawTexturedQuad:
+            {
+                render_command_draw_textured_quad *Command = (render_command_draw_textured_quad *) Entry;
+                opengl_shader *Shader = OpenGLGetShader(State, OPENGL_TEXTURED_QUAD_SHADER_ID);
+
+                glBindVertexArray(State->RectangleVAO);
+                glUseProgram(Shader->Program);
+
+                mat4 Model = Transform(Command->Transform);
+
+                glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                // todo: param
+                glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
+
+                opengl_texture *Texture = OpenGLGetTexture(State, Command->Texture->TextureId);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, Texture->Handle);
+
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+                glUseProgram(0);
+                glBindVertexArray(0);
 
                 break;
             }
@@ -1620,7 +1670,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         {
                             mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SHADING_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SHADER_ID);
 
                             glUseProgram(Shader->Program);
 
@@ -1633,7 +1683,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         }
                         case MaterialType_Basic:
                         {
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SIMPLE_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
 
                             glUseProgram(Shader->Program);
 
@@ -1685,7 +1735,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         {
                             mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKINNED_PHONG_SHADING_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SKINNED_SHADER_ID);
 
                             glUseProgram(Shader->Program);
 
@@ -1724,6 +1774,95 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 break;
             }
+            case RenderCommand_DrawSkinnedMeshInstanced:
+            {
+                render_command_draw_skinned_mesh_instanced *Command = (render_command_draw_skinned_mesh_instanced *) Entry;
+
+                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
+                {
+                    opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
+                    opengl_skinning_buffer *SkinningBuffer = OpenGLGetSkinningBuffer(State, Command->SkinningBufferId);
+                    scoped_memory ScopedMemory(&State->Arena);
+
+                    mat4 *SkinningMatrices = PushArray(ScopedMemory.Arena, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT, mat4);
+
+                    u32 SkinningMatricesIndex = 0;
+                    for (u32 InstanceIndex = 0; InstanceIndex < Command->InstanceCount; ++InstanceIndex)
+                    {
+                        skinned_mesh_instance *Instance = Command->Instances + InstanceIndex;
+
+                        Assert(Instance->SkinningMatrixCount < OPENGL_MAX_JOINT_COUNT);
+
+                        for (u32 JointIndex = 0; JointIndex < OPENGL_MAX_JOINT_COUNT; ++JointIndex)
+                        {
+                            mat4 *Dest = SkinningMatrices + SkinningMatricesIndex++;
+                            mat4 Source = mat4(0.f);
+
+                            if (JointIndex < Instance->SkinningMatrixCount)
+                            {
+                                Source = Instance->SkinningMatrices[JointIndex];
+                            }
+
+                            *Dest = Source;
+                        }
+                    }
+
+                    glBindVertexArray(MeshBuffer->VAO);
+                    glBindBuffer(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBO);
+
+                    if (MeshBuffer->InstanceCount < Command->InstanceCount)
+                    {
+                        MeshBuffer->InstanceCount = (u32)(Command->InstanceCount * 1.5f);
+                        glBufferData(GL_TEXTURE_BUFFER, MeshBuffer->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), 0, GL_STREAM_DRAW);
+                    }
+
+#if 0
+                    u32 BufferSize = MeshBuffer->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4);
+
+                    GLint OpenglBufferSize = 0;
+                    glGetBufferParameteriv(GL_TEXTURE_BUFFER, GL_BUFFER_SIZE, &OpenglBufferSize);
+
+                    Assert(OpenglBufferSize == BufferSize);
+#endif
+
+                    glBufferSubData(GL_TEXTURE_BUFFER, 0, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), SkinningMatrices);
+                    glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+                    switch (Command->Material.Type)
+                    {
+                        case MaterialType_Phong:
+                        {
+                            mesh_material *MeshMaterial = Command->Material.MeshMaterial;
+
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID);
+
+                            glUseProgram(Shader->Program);
+
+                            glActiveTexture(GL_TEXTURE0);
+                            glBindTexture(GL_TEXTURE_BUFFER, SkinningBuffer->SkinningTBOTexture);
+                            glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, SkinningBuffer->SkinningTBO);
+
+                            glUniform1i(Shader->SkinningMatricesSamplerUniform, 0);
+
+                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+
+                            break;
+                        }
+                        default:
+                        {
+                            Assert(!"Not Implemented");
+                            break;
+                        }
+                    }
+
+                    glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
+
+                    glUseProgram(0);
+                    glBindVertexArray(0);
+                }
+
+                break;
+            }
             case RenderCommand_DrawMeshInstanced:
             {
                 render_command_draw_mesh_instanced *Command = (render_command_draw_mesh_instanced *) Entry;
@@ -1738,10 +1877,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     if (MeshBuffer->InstanceCount < Command->InstanceCount)
                     {
                         MeshBuffer->InstanceCount = (u32) (Command->InstanceCount * 1.5f);
-                        glBufferData(GL_ARRAY_BUFFER, MeshBuffer->InstanceCount * sizeof(render_instance), 0, GL_STREAM_DRAW);
+                        glBufferData(GL_ARRAY_BUFFER, MeshBuffer->InstanceCount * sizeof(mesh_instance), 0, GL_STREAM_DRAW);
                     }
 
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, Command->InstanceCount * sizeof(render_instance), Command->Instances);
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, Command->InstanceCount * sizeof(mesh_instance), Command->Instances);
 
                     switch (Command->Material.Type)
                     {
@@ -1749,7 +1888,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         {
                             mesh_material *MeshMaterial = Command->Material.MeshMaterial;
 
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_INSTANCED_SHADER_ID);
 
                             glUseProgram(Shader->Program);
 
@@ -1878,7 +2017,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     }
 
 #if 1
-
     if (RenderSettings->EnableCascadedShadowMaps)
     {
         PROFILE(State->Profiler, "OpenGLCascadedShadowMaps");

@@ -173,7 +173,7 @@ DrawText(
     vec4 Color,
     draw_text_alignment Alignment,
     draw_text_mode Mode,
-    b32 DepthEnabled = false
+    bool32 DepthEnabled = false
 )
 {
     render_command_draw_text *Command = PushRenderCommand(Commands, render_command_draw_text, RenderCommand_DrawText);
@@ -197,7 +197,7 @@ DrawText(
     vec4 Color, 
     draw_text_alignment Alignment, 
     draw_text_mode Mode, 
-    b32 DepthEnabled = false
+    bool32 DepthEnabled = false
 )
 {
     wchar WideText[256];
@@ -227,10 +227,26 @@ DrawMesh(
 }
 
 inline void
+DrawMeshInstanced(
+    render_commands *Commands,
+    u32 MeshId,
+    u32 InstanceCount,
+    mesh_instance *Instances,
+    material Material
+)
+{
+    render_command_draw_mesh_instanced *Command =
+        PushRenderCommand(Commands, render_command_draw_mesh_instanced, RenderCommand_DrawMeshInstanced);
+    Command->MeshId = MeshId;
+    Command->InstanceCount = InstanceCount;
+    Command->Instances = Instances;
+    Command->Material = Material;
+}
+
+inline void
 DrawSkinnedMesh(
     render_commands *Commands,
     u32 MeshId,
-    transform Transform,
     material Material,
     u32 SkinningBufferId,
     u32 SkinningMatrixCount,
@@ -240,7 +256,6 @@ DrawSkinnedMesh(
     render_command_draw_skinned_mesh *Command = 
         PushRenderCommand(Commands, render_command_draw_skinned_mesh, RenderCommand_DrawSkinnedMesh);
     Command->MeshId = MeshId;
-    Command->Transform = Transform;
     Command->Material = Material;
     Command->SkinningBufferId = SkinningBufferId;
     Command->SkinningMatrixCount = SkinningMatrixCount;
@@ -248,29 +263,52 @@ DrawSkinnedMesh(
 }
 
 inline void
-DrawMeshInstanced(
+DrawSkinnedMeshInstanced(
     render_commands *Commands,
     u32 MeshId,
+    material Material,
+    u32 SkinningBufferId,
     u32 InstanceCount,
-    render_instance *Instances,
-    material Material
+    skinned_mesh_instance *Instances
 )
 {
-    render_command_draw_mesh_instanced *Command = 
-        PushRenderCommand(Commands, render_command_draw_mesh_instanced, RenderCommand_DrawMeshInstanced);
+    render_command_draw_skinned_mesh_instanced *Command =
+        PushRenderCommand(Commands, render_command_draw_skinned_mesh_instanced, RenderCommand_DrawSkinnedMeshInstanced);
     Command->MeshId = MeshId;
+    Command->Material = Material;
+    Command->SkinningBufferId = SkinningBufferId;
     Command->InstanceCount = InstanceCount;
     Command->Instances = Instances;
-    Command->Material = Material;
 }
 
 inline void
-DrawParticles(render_commands *Commands, u32 ParticleCount, particle *Particles)
+DrawParticles(render_commands *Commands, u32 ParticleCount, particle *Particles, texture *Texture)
 {
     render_command_draw_particles *Command = PushRenderCommand(Commands, render_command_draw_particles, RenderCommand_DrawParticles);
     Command->ParticleCount = ParticleCount;
     Command->Particles = Particles;
+    Command->Texture = Texture;
 }
+
+inline void
+DrawTexturedQuad(render_commands *Commands, transform Transform, texture *Texture)
+{
+    render_command_draw_textured_quad *Command = PushRenderCommand(Commands, render_command_draw_textured_quad, RenderCommand_DrawTexturedQuad);
+    Command->Transform = Transform;
+    Command->Texture = Texture;
+}
+
+#if 0
+inline void
+DrawTexturedQuadInstanced(render_commands *Commands, u32 InstanceCount, mat4 *Instances, texture *Texture)
+{
+    render_command_draw_textured_quad_instanced *Command = 
+        PushRenderCommand(Commands, render_command_draw_textured_quad_instanced, RenderCommand_DrawTexturedQuadInstanced);
+    Command->InstanceCount = InstanceCount;
+    Command->Instances = Instances;
+    Command->Texture = Texture;
+}
+#endif
 
 inline void
 SetDirectionalLight(render_commands *Commands, directional_light Light)

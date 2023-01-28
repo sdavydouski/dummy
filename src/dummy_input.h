@@ -2,9 +2,9 @@
 
 struct platform_button_state
 {
-    b32 IsPressed;
-    b32 WasPressed;
-    b32 Toggle;
+    bool32 IsPressed;
+    bool32 WasPressed;
+    bool32 Toggle;
 };
 
 struct platform_input_keyboard
@@ -101,12 +101,12 @@ struct platform_input_xbox_controller
 
 struct game_input_action
 {
-    b32 IsActivated;
+    bool32 IsActivated;
 };
 
 struct game_input_state
 {
-    b32 IsActive;
+    bool32 IsActive;
 };
 
 struct game_input_range
@@ -137,10 +137,10 @@ struct game_input
     game_input_state EnableFreeCameraMovement;
 };
 
-inline b32
+inline bool32
 IsButtonActivated(platform_button_state *Button)
 {
-    b32 Result = Button->IsPressed && (Button->IsPressed != Button->WasPressed);
+    bool32 Result = Button->IsPressed && (Button->IsPressed != Button->WasPressed);
     return Result;
 }
 

@@ -13,6 +13,7 @@ in VS_OUT {
 
 out GS_OUT {
     vec4 Color;
+    vec2 TextureCoords;
 } gs_out; 
 
 uniform vec3 u_CameraXAxis;
@@ -34,6 +35,9 @@ void main()
         vec3 VertexPosition = Center - xAxis * HalfSize.x - yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
 
+        vec2 TextureCoords = vec2(0.f, 0.f);
+        gs_out.TextureCoords = TextureCoords;
+
         EmitVertex();
     }
 
@@ -41,6 +45,9 @@ void main()
     {
         vec3 VertexPosition = Center + xAxis * HalfSize.x - yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
+
+        vec2 TextureCoords = vec2(1.f, 0.f);
+        gs_out.TextureCoords = TextureCoords;
 
         EmitVertex();
     }
@@ -50,6 +57,9 @@ void main()
         vec3 VertexPosition = Center - xAxis * HalfSize.x + yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
 
+        vec2 TextureCoords = vec2(0.f, 1.f);
+        gs_out.TextureCoords = TextureCoords;
+
         EmitVertex();
     }
 
@@ -57,6 +67,9 @@ void main()
     {
         vec3 VertexPosition = Center + xAxis * HalfSize.x + yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
+
+        vec2 TextureCoords = vec2(1.f, 1.f);
+        gs_out.TextureCoords = TextureCoords;
 
         EmitVertex();
     }

@@ -84,7 +84,7 @@ EditorRenderModelInfo(model *Model)
             mesh *Mesh = Model->Meshes + MeshIndex;
 
             char CheckboxLabel[32];
-            FormatString(CheckboxLabel, "Visible (Mesh Id: %d)", Mesh->Id);
+            FormatString(CheckboxLabel, "Visible (Mesh Id: %d)", Mesh->MeshId);
             ImGui::Checkbox(CheckboxLabel, (bool *)&Mesh->Visible);
 
             ImGui::Text("Vertices: %d", Mesh->VertexCount);
@@ -309,6 +309,8 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 {
     if (ImGui::CollapsingHeader("ParticleEmitter", ImGuiTreeNodeFlags_DefaultOpen))
     {
+        ImGui::InputInt("Spawn", (i32 *) &ParticleEmitter->ParticlesSpawn);
+        ImGui::InputFloat2("Size", ParticleEmitter->Size.Elements);
         ImGui::ColorEdit4("Color", ParticleEmitter->Color.Elements, ImGuiColorEditFlags_AlphaBar);
 
         ImGui::NewLine();
@@ -316,7 +318,7 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 }
 
 internal void
-EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, opengl_state *RendererState, game_entity *Entity, render_commands *RenderCommands)
+EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platform_api *Platform, opengl_state *RendererState, game_entity *Entity, render_commands *RenderCommands)
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
 
@@ -435,12 +437,14 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, opengl_
     {
         if (ImGui::CollapsingHeader("Add Particle Emitter"))
         {
-            ImGui::InputInt("Particle Count", (i32 *) &EditorState->ParticleCount);
-            ImGui::ColorEdit4("Particle Color", EditorState->ParticleColor.Elements, ImGuiColorEditFlags_AlphaBar);
+            ImGui::InputInt("Count", (i32 *) &EditorState->ParticleCount);
+            ImGui::InputInt("Spawn", (i32 *) &EditorState->ParticlesSpawn);
+            ImGui::InputFloat2("Size", EditorState->ParticleSize.Elements);
+            ImGui::ColorEdit4("Color", EditorState->ParticleColor.Elements, ImGuiColorEditFlags_AlphaBar);
 
             if (ImGui::Button("Add"))
             {
-                AddParticleEmitter(Entity, EditorState->ParticleCount, EditorState->ParticleColor, &GameState->WorldArea.Arena);
+                AddParticleEmitter(Entity, EditorState->ParticleCount, EditorState->ParticlesSpawn, EditorState->ParticleColor, EditorState->ParticleSize, &GameState->WorldArea.Arena);
             }
         }
     }
@@ -458,9 +462,33 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, opengl_
         GameState->SelectedEntity = 0;
     }
 
+    if (ImGui::ButtonEx("Save...", ImVec2(WindowSize.x, 0)))
+    {
+        scoped_memory ScopedMemory(&EditorState->Arena);
+
+        wchar WideFilePath[256] = L"";
+        Platform->SaveFileDialog(WideFilePath, ArrayCount(WideFilePath));
+
+        if (!StringEquals(WideFilePath, L""))
+        {
+            char FilePath[256];
+            ConvertToString(WideFilePath, FilePath);
+
+            SaveWorldArea(GameState, FilePath, Platform, ScopedMemory.Arena);
+        }
+    }
+
+    ImGui::NewLine();
+
     if (ImGui::IsKeyPressed(ImGuiKey_X))
     {
         RemoveGameEntity(Entity);
+
+        if (GameState->SelectedEntity == GameState->Player)
+        {
+            GameState->Player = 0;
+        }
+
         GameState->SelectedEntity = 0;
     }
 }
@@ -516,7 +544,7 @@ EditorRenderLog(editor_state *EditorState, stream *Stream, const char *Id, f32 F
 
         ImGui::PopStyleVar();
 
-        b32 AutoScroll = true;
+        bool32 AutoScroll = true;
 
         if (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
         {
@@ -581,7 +609,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
                 ImGui::Separator();
 
-                if (ImGui::MenuItem("Load Area..."))
+                if (ImGui::MenuItem("Load..."))
                 {
                     scoped_memory ScopedMemory(&EditorState->Arena);
 
@@ -596,11 +624,11 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                         ClearWorldArea(GameState);
                         LoadWorldArea(GameState, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
 
-                        GameState->Options.ShowGrid = false;
+                        //GameState->Options.ShowGrid = false;
                     }
                 }
 
-                if (ImGui::MenuItem("Save Area..."))
+                if (ImGui::MenuItem("Save..."))
                 {
                     scoped_memory ScopedMemory(&EditorState->Arena);
 
@@ -612,12 +640,12 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                         char FilePath[256];
                         ConvertToString(WideFilePath, FilePath);
 
-                        SaveArea(GameState, FilePath, Platform, ScopedMemory.Arena);
+                        SaveWorldArea(GameState, FilePath, Platform, ScopedMemory.Arena);
                     }
 
                 }
 
-                if (ImGui::MenuItem("Clear Area"))
+                if (ImGui::MenuItem("Clear"))
                 {
                     ClearWorldArea(GameState);
 
@@ -933,7 +961,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     EditorRenderLog(EditorState, &PlatformState->Stream, "Platform Log", false);
     EditorRenderLog(EditorState, &RendererState->Stream, "Renderer Log", true);
 
-#if 0
+#if 1
     // todo: find a better place to put it
     ImGui::Begin("Cascaded Shadow Maps");
     {
@@ -993,7 +1021,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::SetNextWindowSize(ImVec2(500, 0));
 
         ImGui::Begin("Entity", &SelectedEntity);
-        EditorRenderEntityInfo(EditorState, GameState, RendererState, Entity, RenderCommands);
+        EditorRenderEntityInfo(EditorState, GameState, Platform, RendererState, Entity, RenderCommands);
         ImGui::End();
 
         // Gizmos
@@ -1004,7 +1032,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         mat4 WorldProjection = Transpose(FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane));
         mat4 EntityTransform = Transpose(Transform(Entity->Transform));
 
-        b32 Snap = io.KeyCtrl;
+        bool32 Snap = io.KeyCtrl;
 
         f32 SnapValue = 0.5f;
         if (EditorState->CurrentGizmoOperation == ImGuizmo::OPERATION::ROTATE)
@@ -1087,7 +1115,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
         if (ImGui::IsKeyPressed(ImGuiKey_C))
         {
-            if (SelectedEntity)
+            if (GameState->SelectedEntity)
             {
                 EditorCopyEntity(EditorState, GameState, RenderCommands, GameState->SelectedEntity);
             }

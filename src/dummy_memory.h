@@ -52,7 +52,7 @@ struct memory_arena
 struct memory_arena_push_options
 {
     umm Alignment;
-    b32 Clear;
+    bool32 Clear;
 };
 
 struct scoped_memory
@@ -138,7 +138,7 @@ inline void *
 PushSize(memory_arena *Arena, umm Size, memory_arena_push_options Options = DefaultArenaPushOptions())
 {
     umm Alignment = Options.Alignment;
-    b32 Clear = Options.Clear;
+    bool32 Clear = Options.Clear;
 
     umm RawAddress = (umm)Arena->Base + Arena->Used;
     umm AlignedAddress = AlignAddress(RawAddress, Alignment);

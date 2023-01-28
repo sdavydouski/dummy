@@ -6,12 +6,15 @@ struct editor_state
 
     memory_arena Arena;
 
+    // todo:
     vec3 Size;
-    b32 RootMotion;
+    bool32 RootMotion;
     vec3 Color;
     light_attenuation Attenuation;
     vec4 ParticleColor;
+    vec2 ParticleSize;
     u32 ParticleCount;
+    u32 ParticlesSpawn;
 
 #if 0
     char Search[256];

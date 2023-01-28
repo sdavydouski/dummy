@@ -11,31 +11,31 @@ struct hash_table
     T *Values;
 };
 
-inline b32
+inline bool32
 IsSlotEmpty(char *Key)
 {
-    b32 Result = StringEquals(Key, EMPTY_SLOT_KEY_STRING);
+    bool32 Result = StringEquals(Key, EMPTY_SLOT_KEY_STRING);
     return Result;
 }
 
-inline b32
+inline bool32
 IsSlotEmpty(u32 Key)
 {
-    b32 Result = (Key == EMPTY_SLOT_KEY_U32);
+    bool32 Result = (Key == EMPTY_SLOT_KEY_U32);
     return Result;
 }
 
-inline b32
+inline bool32
 IsEquals(char *Key1, char *Key2)
 {
-    b32 Result = StringEquals(Key1, Key2);
+    bool32 Result = StringEquals(Key1, Key2);
     return Result;
 }
 
-inline b32
+inline bool32
 IsEquals(u32 Key1, u32 Key2)
 {
-    b32 Result = Key1 == Key2;
+    bool32 Result = Key1 == Key2;
     return Result;
 }
 

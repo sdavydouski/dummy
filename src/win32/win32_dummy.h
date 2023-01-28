@@ -29,16 +29,16 @@ struct win32_platform_state
     i32 ScreenWidth;
     i32 ScreenHeight;
 
-    b32 IsWindowActive;
-    b32 IsFullScreen;
-    b32 VSync;
+    bool32 IsWindowActive;
+    bool32 IsFullScreen;
+    bool32 VSync;
 
     wchar EXEDirectoryFullPath[WIN32_FILE_PATH];
 
     umm GameMemoryBlockSize;
     void *GameMemoryBlock;
 
-    b32 IsGameRunning;
+    bool32 IsGameRunning;
 
     mouse_mode MouseMode;
 
@@ -59,7 +59,7 @@ struct win32_game_code
     game_update *Update;
     game_render *Render;
 
-    b32 IsValid;
+    bool32 IsValid;
 };
 
 struct win32_file_attributes

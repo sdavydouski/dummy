@@ -3,7 +3,7 @@
 struct audio_play_options
 {
     f32 Volume;
-    b32 IsLooping;
+    bool32 IsLooping;
 };
 
 enum audio_command_type

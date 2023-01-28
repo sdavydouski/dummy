@@ -89,7 +89,7 @@ FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime, key_frame **
 {
     if (PoseSample->KeyFrameCount > 1)
     {
-        b32 Found = false;
+        bool32 Found = false;
 
         for (u32 KeyFrameIndex = 0; KeyFrameIndex < PoseSample->KeyFrameCount - 1; ++KeyFrameIndex)
         {
@@ -346,10 +346,10 @@ GetAnimationTransition(animation_node *Node, const char *Name)
     return Result;
 }
 
-inline b32
+inline bool32
 AllowTransition(animation_graph *Graph, const char *NodeName)
 {
-    b32 Result = true;
+    bool32 Result = true;
 
     if (Graph->Mixer.FadeIn && Graph->Mixer.FadeOut)
     {
@@ -568,7 +568,7 @@ GetAnimationClip(model *Model, const char *ClipName)
 }
 
 inline animation_state
-CreateAnimationState(animation_clip *Clip, b32 IsLooping, b32 EnableRootMotion)
+CreateAnimationState(animation_clip *Clip, bool32 IsLooping, bool32 EnableRootMotion)
 {
     animation_state Result = {};
     Result.Clip = Clip;
@@ -579,7 +579,7 @@ CreateAnimationState(animation_clip *Clip, b32 IsLooping, b32 EnableRootMotion)
 }
 
 inline void
-BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip, b32 IsLooping, b32 EnableRootMotion)
+BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip, bool32 IsLooping, bool32 EnableRootMotion)
 {
     Node->Type = AnimationNodeType_Clip;
     CopyString(Name, Node->Name);

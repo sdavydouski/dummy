@@ -22,8 +22,8 @@ struct game_entity
     point_light *PointLight;
     particle_emitter *ParticleEmitter;
 
-    b32 Visible;
-    b32 Destroyed;
+    bool32 Visible;
+    bool32 Destroyed;
     vec3 TestColor;
     vec3 DebugColor;
 };
@@ -40,7 +40,7 @@ struct world_area
 
 struct model_spec
 {
-    b32 Has;
+    bool32 Has;
     char ModelRef[64];
 };
 
@@ -53,7 +53,7 @@ Model2Spec(model *Model, model_spec *Spec)
 
 struct collider_spec
 {
-    b32 Has;
+    bool32 Has;
     collider_type Type;
     union
     {
@@ -91,8 +91,8 @@ Collider2Spec(collider *Collider, collider_spec *Spec)
 
 struct rigid_body_spec
 {
-    b32 Has;
-    b32 RootMotionEnabled;
+    bool32 Has;
+    bool32 RootMotionEnabled;
 };
 
 inline void
@@ -104,7 +104,7 @@ RigidBody2Spec(rigid_body *Body, rigid_body_spec *Spec)
 
 struct point_light_spec
 {
-    b32 Has;
+    bool32 Has;
     vec3 Color;
     light_attenuation Attenuation;
 };
@@ -119,9 +119,11 @@ PointLight2Spec(point_light *PointLight, point_light_spec *Spec)
 
 struct particle_emitter_spec
 {
-    b32 Has;
+    bool32 Has;
     u32 ParticleCount;
+    u32 ParticlesSpawn;
     vec4 Color;
+    vec2 Size;
 };
 
 inline void
@@ -129,12 +131,13 @@ ParticleEmitter2Spec(particle_emitter *ParticleEmitter, particle_emitter_spec *S
 {
     Spec->Has = true;
     Spec->ParticleCount = ParticleEmitter->ParticleCount;
+    Spec->ParticlesSpawn = ParticleEmitter->ParticlesSpawn;
     Spec->Color = ParticleEmitter->Color;
+    Spec->Size = ParticleEmitter->Size;
 }
 
 struct game_entity_spec
 {
-    u32 Id; // <-- todo: remove
     transform Transform;
     model_spec ModelSpec;
     collider_spec ColliderSpec;
@@ -143,14 +146,39 @@ struct game_entity_spec
     particle_emitter_spec ParticleEmitterSpec;
 };
 
+#pragma pack(push, 1)
+
+enum game_file_type
+{
+    GameFile_Area,
+    GameFile_Entity
+};
+
+struct game_file_header
+{
+    u32 MagicValue;
+    u32 Version;
+    u32 EntityCount;
+    game_file_type Type;
+};
+
+#pragma pack(pop)
+
 struct entity_render_batch
 {
     char Key[256];
     u32 EntityCount;
     u32 MaxEntityCount;
     game_entity **Entities;
-    render_instance *Instances;
+
     model *Model;
+    skinning_data *Skinning;
+
+    union
+    {
+        mesh_instance *MeshInstances;
+        skinned_mesh_instance *SkinnedMeshInstances;
+    };
 };
 
 struct game_process
@@ -226,11 +254,11 @@ struct game_assets
 
 struct game_options
 {
-    b32 ShowCascades;
-    b32 ShowBoundingVolumes;
-    b32 ShowSkeletons;
-    b32 ShowCamera;
-    b32 ShowGrid;
+    bool32 ShowCascades;
+    bool32 ShowBoundingVolumes;
+    bool32 ShowSkeletons;
+    bool32 ShowCamera;
+    bool32 ShowGrid;
 };
 
 struct game_menu_quad
@@ -297,7 +325,7 @@ struct game_state
 
     vec3 BackgroundColor;
 
-    b32 IsBackgroundHighlighted;
+    bool32 IsBackgroundHighlighted;
 
     // for testing purpuses
     f32 DelayTime;
@@ -306,6 +334,6 @@ struct game_state
     game_options Options;
     game_menu_quad MenuQuads[4];
 
-    b32 DanceMode;
-    b32 PrevDanceMode;
+    bool32 DanceMode;
+    bool32 PrevDanceMode;
 };

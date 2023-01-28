@@ -36,7 +36,7 @@ SetVolume(f32 Volume)
 }
 
 inline audio_play_options
-SetLooping(b32 IsLooping)
+SetLooping(bool32 IsLooping)
 {
     audio_play_options Result = DefaultAudioPlayOptions();
 
@@ -46,7 +46,7 @@ SetLooping(b32 IsLooping)
 }
 
 inline audio_play_options
-SetAudioPlayOptions(f32 Volume, b32 IsLooping)
+SetAudioPlayOptions(f32 Volume, bool32 IsLooping)
 {
     audio_play_options Result = {};
 

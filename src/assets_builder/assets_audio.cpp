@@ -74,10 +74,10 @@ NextChunk(wave_chunk_iterator *Iterator)
     Iterator->At += sizeof(wave_chunk) + Chunk->ChunkSize;
 }
 
-inline b32
+inline bool32
 HasNextChunk(wave_chunk_iterator *Iterator)
 {
-    b32 Result = Iterator->At < Iterator->End;
+    bool32 Result = Iterator->At < Iterator->End;
     return Result;
 }
 

@@ -4,15 +4,15 @@
 #include <stdarg.h>
 #include <string.h>
 
-inline b32
+inline bool32
 StringEquals(const char *Str1, const char *Str2) {
-    b32 Result = strcmp(Str1, Str2) == 0;
+    bool32 Result = strcmp(Str1, Str2) == 0;
     return Result;
 }
 
-inline b32
+inline bool32
 StringEquals(const wchar *Str1, const wchar *Str2) {
-    b32 Result = wcscmp(Str1, Str2) == 0;
+    bool32 Result = wcscmp(Str1, Str2) == 0;
     return Result;
 }
 
@@ -165,7 +165,7 @@ ConvertToString(const wchar *Source, char *Dest)
     wcstombs_s(0, Dest, SourceLength + 1, Source, SourceLength);
 }
 
-inline b32
+inline bool32
 StringIncludes(char *Str1, char *Str2)
 {
     if (strstr(Str1, Str2))

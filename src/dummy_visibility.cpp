@@ -82,7 +82,7 @@ BuildFrustrumPolyhedron(game_camera *Camera, polyhedron *Polyhedron)
     Face[1].EdgeIndex[3] = 11;
 }
 
-internal b32
+internal bool32
 ClipPolyhedron(polyhedron *Polyhedron, plane Plane, polyhedron *Result)
 {
     f32 VertexLocations[MaxPolyhedronVertexCount] = {};
@@ -240,8 +240,8 @@ ClipPolyhedron(polyhedron *Polyhedron, plane Plane, polyhedron *Result)
                     }
 
                     edge *Edge = Polyhedron->Edges + EdgeIndex;
-                    b32 ccw = Edge->FaceIndex[0] == FaceIndex;
-                    b32 InsertEdge = ccw ^ (VertexCodes[Edge->VertexIndex[0]] == 0);
+                    bool32 ccw = Edge->FaceIndex[0] == FaceIndex;
+                    bool32 InsertEdge = ccw ^ (VertexCodes[Edge->VertexIndex[0]] == 0);
 
                     if (Code == 3)
                     {
@@ -330,7 +330,7 @@ CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowP
     u32 ShadowPlaneCount = 0;
 
     f32 ShadowRegionEpsilon = 0.000001f;
-    b32 FrontArray[MaxPolyhedronFaceCount] = {};
+    bool32 FrontArray[MaxPolyhedronFaceCount] = {};
 
     // Classify faces of polyhedron and record back planes
     for (u32 PlaneIndex = 0; PlaneIndex < Polyhedron->FaceCount; ++PlaneIndex)
@@ -350,7 +350,7 @@ CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowP
     {
         edge *Edge = Polyhedron->Edges + EdgeIndex;
 
-        b32 Front = FrontArray[Edge->FaceIndex[0]];
+        bool32 Front = FrontArray[Edge->FaceIndex[0]];
 
         if (Front ^ FrontArray[Edge->FaceIndex[1]])
         {
@@ -379,7 +379,7 @@ CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowP
     return ShadowPlaneCount;
 }
 
-internal b32
+internal bool32
 AxisAlignedBoxVisible(u32 PlaneCount, plane *Planes, bounds Box)
 {
     vec3 BoxCenter = GetAABBCenter(Box);

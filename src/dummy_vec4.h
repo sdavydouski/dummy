@@ -183,14 +183,14 @@ struct ivec4
     explicit ivec4(i32 x, i32 y, i32 z, i32 w) : x(x), y(y), z(z), w(w) {}
 };
 
-inline b32 operator ==(ivec4 a, ivec4 b)
+inline bool32 operator ==(ivec4 a, ivec4 b)
 {
-    b32 Result = (a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w);
+    bool32 Result = (a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w);
     return Result;
 }
 
-inline b32 operator !=(ivec4 a, ivec4 b)
+inline bool32 operator !=(ivec4 a, ivec4 b)
 {
-    b32 Result = !(a == b);
+    bool32 Result = !(a == b);
     return Result;
 }

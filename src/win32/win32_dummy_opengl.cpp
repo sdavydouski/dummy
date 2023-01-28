@@ -56,7 +56,7 @@ Win32GetOpenGLFuncAddress(char *Name)
 }
 
 inline void
-Win32OpenGLSetVSync(win32_opengl_state *State, b32 VSync)
+Win32OpenGLSetVSync(win32_opengl_state *State, bool32 VSync)
 {
     State->wglSwapIntervalEXT(VSync);
 }

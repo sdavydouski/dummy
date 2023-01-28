@@ -60,7 +60,7 @@ InitCamera(game_camera *Camera, f32 FieldOfView, f32 AspectRatio, f32 NearClipPl
 }
 
 inline material
-CreateBasicMaterial(vec4 Color, b32 Wireframe = false, b32 CastShadow = false)
+CreateBasicMaterial(vec4 Color, bool32 Wireframe = false, bool32 CastShadow = false)
 {
     material Result = {};
 
@@ -73,7 +73,7 @@ CreateBasicMaterial(vec4 Color, b32 Wireframe = false, b32 CastShadow = false)
 }
 
 inline material
-CreatePhongMaterial(mesh_material *MeshMaterial, b32 Wireframe = false, b32 CastShadow = true)
+CreatePhongMaterial(mesh_material *MeshMaterial, bool32 Wireframe = false, bool32 CastShadow = true)
 {
     material Result = {};
 
@@ -83,6 +83,40 @@ CreatePhongMaterial(mesh_material *MeshMaterial, b32 Wireframe = false, b32 Cast
     Result.CastShadow = CastShadow;
 
     return Result;
+}
+
+inline void
+DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
+{
+    for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
+    {
+        mesh *Mesh = Model->Meshes + MeshIndex;
+
+        if (Mesh->Visible)
+        {
+            mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
+            material Material = CreatePhongMaterial(MeshMaterial);
+
+            DrawMesh(RenderCommands, Mesh->MeshId, Transform, Material);
+        }
+    }
+}
+
+inline void
+DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCount, mesh_instance *Instances)
+{
+    for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
+    {
+        mesh *Mesh = Model->Meshes + MeshIndex;
+
+        if (Mesh->Visible)
+        {
+            mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
+            material Material = CreatePhongMaterial(MeshMaterial);
+
+            DrawMeshInstanced(RenderCommands, Mesh->MeshId, InstanceCount, Instances, Material);
+        }
+    }
 }
 
 inline void
@@ -100,16 +134,18 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
             material Material = CreatePhongMaterial(MeshMaterial);
 
             DrawSkinnedMesh(
-                RenderCommands, Mesh->Id, {}, Material,
-                Skinning->SkinningBufferId, Skinning->SkinningMatrixCount, Skinning->SkinningMatrices
+                RenderCommands, Mesh->MeshId, Material,
+                Model->SkinningBufferId, Skinning->SkinningMatrixCount, Skinning->SkinningMatrices
             );
         }
     }
 }
 
 inline void
-DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
+DrawSkinnedModelInstanced(render_commands *RenderCommands, model *Model, skinning_data *Skinning, u32 InstanceCount, skinned_mesh_instance *Instances)
 {
+    Assert(Model->Skeleton);
+
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
@@ -119,24 +155,7 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
             mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
             material Material = CreatePhongMaterial(MeshMaterial);
 
-            DrawMesh(RenderCommands, Mesh->Id, Transform, Material);
-        }
-    }
-}
-
-inline void
-DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCount, render_instance *Instances)
-{
-    for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
-    {
-        mesh *Mesh = Model->Meshes + MeshIndex;
-
-        if (Mesh->Visible)
-        {
-            mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-            material Material = CreatePhongMaterial(MeshMaterial);
-
-            DrawMeshInstanced(RenderCommands, Mesh->Id, InstanceCount, Instances, Material);
+            DrawSkinnedMeshInstanced(RenderCommands, Mesh->MeshId, Material, Model->SkinningBufferId, InstanceCount, Instances);
         }
     }
 }
@@ -169,6 +188,13 @@ GenerateSkinningBufferId(game_state *State)
     return Result;
 }
 
+inline bool32
+HasJoints(skeleton *Skeleton)
+{
+    bool32 Result = Skeleton && Skeleton->JointCount > 1;
+    return Result;
+}
+
 inline void
 InitModel(game_state *State, model_asset *Asset, model *Model, const char *Name, memory_arena *Arena, render_commands *RenderCommands)
 {
@@ -186,15 +212,20 @@ InitModel(game_state *State, model_asset *Asset, model *Model, const char *Name,
     Model->AnimationCount = Asset->AnimationCount;
     Model->Animations = Asset->Animations;
 
+    if (HasJoints(Model->Skeleton))
+    {
+        Model->SkinningBufferId = GenerateSkinningBufferId(State);
+    }
+
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
         mesh *Mesh = Model->Meshes + MeshIndex;
 
-        Mesh->Id = GenerateMeshId(State);
+        Mesh->MeshId = GenerateMeshId(State);
         Mesh->Visible = true;
 
         AddMesh(
-            RenderCommands, Mesh->Id, Mesh->VertexCount,
+            RenderCommands, Mesh->MeshId, Mesh->VertexCount,
             Mesh->Positions, Mesh->Normals, Mesh->Tangents, Mesh->Bitangents, Mesh->TextureCoords, Mesh->Weights, Mesh->JointIndices,
             Mesh->IndexCount, Mesh->Indices
         );
@@ -282,9 +313,8 @@ InitSkinningBuffer(game_state *State, skinning_data *Skinning, model *Model, mem
 
     Skinning->SkinningMatrixCount = Model->Skeleton->JointCount;
     Skinning->SkinningMatrices = PushArray(Arena, SkinningMatrixCount, mat4, Align(16));
-    Skinning->SkinningBufferId = GenerateSkinningBufferId(State);
 
-    AddSkinningBuffer(RenderCommands, Skinning->SkinningBufferId, Skinning->SkinningMatrixCount);
+    AddSkinningBuffer(RenderCommands, Model->SkinningBufferId, Skinning->SkinningMatrixCount);
 }
 
 inline ray
@@ -320,10 +350,10 @@ GetRenderBatch(game_state *State, char *Name)
     return Result;
 }
 
-inline b32
+inline bool32
 IsRenderBatchEmpty(entity_render_batch *Batch)
 {
-    b32 Result = StringEquals(Batch->Key, "");
+    bool32 Result = StringEquals(Batch->Key, "");
     return Result;
 }
 
@@ -374,6 +404,10 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
         {
             "sphere",
             "assets\\sphere.model.asset"
+        },
+        {
+            "quad",
+            "assets\\quad.model.asset",
         },
 
         // Dungeon Assets
@@ -503,6 +537,10 @@ LoadTextureAssets(game_assets *Assets, platform_api *Platform)
         {
             "Grass",
             "assets\\grass.texture.asset"
+        },
+        {
+            "Particle_Star",
+            "assets\\particle_star.texture.asset"
         }
     };
 
@@ -735,10 +773,9 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
 internal void
 RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
-    if (Entity->Model->Skeleton->JointCount > 1)
+    if (HasJoints(Entity->Model->Skeleton))
     {
         if (State->Options.ShowSkeletons)
-        //if (true)
         {
             DrawSkeleton(RenderCommands, State, Entity->Skinning->Pose);
         }
@@ -756,14 +793,32 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
 internal void
 RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_render_batch *Batch)
 {
-    DrawModelInstanced(RenderCommands, Batch->Model, Batch->EntityCount, Batch->Instances);
+    if (Batch->Skinning)
+    {
+        if (State->Options.ShowSkeletons)
+        {
+            for (u32 EntityIndex = 0; EntityIndex < Batch->EntityCount; ++EntityIndex)
+            {
+                game_entity *Entity = Batch->Entities[EntityIndex];
+
+                DrawSkeleton(RenderCommands, State, Entity->Skinning->Pose);
+            }
+        }
+        else
+        {
+            DrawSkinnedModelInstanced(RenderCommands, Batch->Model, Batch->Skinning, Batch->EntityCount, Batch->SkinnedMeshInstances);
+        }
+    }
+    else
+    {
+        DrawModelInstanced(RenderCommands, Batch->Model, Batch->EntityCount, Batch->MeshInstances);
+    }
 
     // debug drawing
     // todo: instancing
     for (u32 EntityIndex = 0; EntityIndex < Batch->EntityCount; ++EntityIndex)
     {
         game_entity *Entity = Batch->Entities[EntityIndex];
-        //render_instance *Instance = Batch->Instances + EntityIndex;
 
         if ((State->SelectedEntity && State->SelectedEntity->Id == Entity->Id) || State->Options.ShowBoundingVolumes)
         {
@@ -773,14 +828,25 @@ RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_ren
 }
 
 inline void
-InitRenderBatch(entity_render_batch *Batch, model *Model, u32 MaxEntityCount, memory_arena *Arena)
+InitRenderBatch(entity_render_batch *Batch, game_entity *Entity, u32 MaxEntityCount, memory_arena *Arena)
 {
-    CopyString(Model->Key, Batch->Key);
-    Batch->Model = Model;
+    Assert(Entity->Model);
+
+    CopyString(Entity->Model->Key, Batch->Key);
     Batch->EntityCount = 0;
     Batch->MaxEntityCount = MaxEntityCount;
+    Batch->Model = Entity->Model;
+    Batch->Skinning = Entity->Skinning;
     Batch->Entities = PushArray(Arena, Batch->MaxEntityCount, game_entity *);
-    Batch->Instances = PushArray(Arena, Batch->MaxEntityCount, render_instance);
+
+    if (Batch->Skinning)
+    {
+        Batch->SkinnedMeshInstances = PushArray(Arena, Batch->MaxEntityCount, skinned_mesh_instance);
+    }
+    else
+    {
+        Batch->MeshInstances = PushArray(Arena, Batch->MaxEntityCount, mesh_instance);
+    }
 }
 
 inline void
@@ -789,11 +855,22 @@ AddEntityToRenderBatch(entity_render_batch *Batch, game_entity *Entity)
     Assert(Batch->EntityCount < Batch->MaxEntityCount);
 
     game_entity **NextFreeEntity = Batch->Entities + Batch->EntityCount;
-    render_instance *NextFreeInstance = Batch->Instances + Batch->EntityCount;
-
     *NextFreeEntity = Entity;
-    NextFreeInstance->Model = Transform(Entity->Transform);
-    NextFreeInstance->Color = Entity->DebugColor;
+
+    if (Entity->Skinning)
+    {
+        skinned_mesh_instance *NextFreeInstance = Batch->SkinnedMeshInstances + Batch->EntityCount;
+
+        NextFreeInstance->SkinningMatrixCount = Entity->Skinning->SkinningMatrixCount;
+        NextFreeInstance->SkinningMatrices = Entity->Skinning->SkinningMatrices;
+    }
+    else
+    {
+        mesh_instance *NextFreeInstance = Batch->MeshInstances + Batch->EntityCount;
+
+        NextFreeInstance->Model = Transform(Entity->Transform);
+        NextFreeInstance->Color = Entity->DebugColor;
+    }
 
     Batch->EntityCount++;
 }
@@ -836,7 +913,7 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
 {
     Entity->Model = GetModelAsset(Assets, ModelName);
 
-    if (Entity->Model->Skeleton->JointCount > 1)
+    if (HasJoints(Entity->Model->Skeleton))
     {
         Entity->Skinning = PushType(Arena, skinning_data);
         InitSkinningBuffer(State, Entity->Skinning, Entity->Model, Arena, RenderCommands);
@@ -859,7 +936,7 @@ AddBoxCollider(game_entity *Entity, vec3 Size, memory_arena *Arena)
 }
 
 inline void
-AddRigidBody(game_entity *Entity, b32 RootMotionEnabled, memory_arena *Arena)
+AddRigidBody(game_entity *Entity, bool32 RootMotionEnabled, memory_arena *Arena)
 {
     Entity->Body = PushType(Arena, rigid_body);
     BuildRigidBody(Entity->Body, Entity->Transform.Translation, Entity->Transform.Rotation, RootMotionEnabled);
@@ -875,12 +952,14 @@ AddPointLight(game_entity *Entity, vec3 Color, light_attenuation Attenuation, me
 }
 
 inline void
-AddParticleEmitter(game_entity *Entity, u32 ParticleCount, vec4 Color, memory_arena *Arena)
+AddParticleEmitter(game_entity *Entity, u32 ParticleCount, u32 ParticlesSpawn, vec4 Color, vec2 Size, memory_arena *Arena)
 {
     Entity->ParticleEmitter = PushType(Arena, particle_emitter);
     Entity->ParticleEmitter->ParticleCount = ParticleCount;
     Entity->ParticleEmitter->Particles = PushArray(Arena, ParticleCount, particle, Align(16));
+    Entity->ParticleEmitter->ParticlesSpawn = ParticlesSpawn;
     Entity->ParticleEmitter->Color = Color;
+    Entity->ParticleEmitter->Size = Size;
     Entity->ParticleEmitter->NextParticleIndex = 0;
 }
 
@@ -915,7 +994,7 @@ CopyGameEntity(game_state *State, render_commands *RenderCommands, game_entity *
 
     if (Source->ParticleEmitter)
     {
-        AddParticleEmitter(Dest, Source->ParticleEmitter->ParticleCount, Source->ParticleEmitter->Color, &Area->Arena);
+        AddParticleEmitter(Dest, Source->ParticleEmitter->ParticleCount, Source->ParticleEmitter->ParticlesSpawn, Source->ParticleEmitter->Color, Source->ParticleEmitter->Size, &Area->Arena);
     }
 }
 
@@ -1121,6 +1200,64 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
     UpdateSkinningMatrices(Entity->Skinning);
 }
 
+internal void
+SwapParticles(particle *A, particle *B)
+{
+    particle Temp = *A;
+    *A = *B;
+    *B = Temp;
+}
+
+internal i32
+PartitionParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
+{
+    i32 MiddleIndex = (HighIndex + LowIndex) / 2;
+    particle Pivot = Particles[MiddleIndex];
+
+    i32 LeftIndex = LowIndex - 1;
+    i32 RightIndex = HighIndex + 1;
+
+    while (true)
+    {
+        do
+        {
+            LeftIndex += 1;
+        } 
+        while (Particles[LeftIndex].CameraDistanceSquared > Pivot.CameraDistanceSquared);
+
+        do
+        {
+            RightIndex -= 1;
+        } 
+        while (Particles[RightIndex].CameraDistanceSquared < Pivot.CameraDistanceSquared);
+
+        if (LeftIndex >= RightIndex)
+        {
+            return RightIndex;
+        }
+
+        SwapParticles(Particles + LeftIndex, Particles + RightIndex);
+    }
+}
+
+internal void
+QuickSortParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
+{
+    if (LowIndex >= 0 && HighIndex >= 0 && LowIndex < HighIndex)
+    {
+        i32 PivotIndex = PartitionParticles(Particles, LowIndex, HighIndex);
+
+        QuickSortParticles(Particles, LowIndex, PivotIndex);
+        QuickSortParticles(Particles, PivotIndex + 1, HighIndex);
+    }
+}
+
+internal void
+SortParticles(u32 ParticleCount, particle *Particles)
+{
+    QuickSortParticles(Particles, 0, ParticleCount - 1);
+}
+
 struct update_entity_batch_job
 {
     u32 StartIndex;
@@ -1183,7 +1320,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                         if (Entity->Id == Data->PlayerId)
                         {
-                            //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                            NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
                         }
 
                         if (NearbyBodyCollider)
@@ -1204,8 +1341,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
             {
                 particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
 
-                u32 ParticlesSpawn = 10;
-                for (u32 ParticleSpawnIndex = 0; ParticleSpawnIndex < ParticlesSpawn; ++ParticleSpawnIndex)
+                for (u32 ParticleSpawnIndex = 0; ParticleSpawnIndex < ParticleEmitter->ParticlesSpawn; ++ParticleSpawnIndex)
                 {
                     particle *Particle = ParticleEmitter->Particles + ParticleEmitter->NextParticleIndex++;
 
@@ -1221,12 +1357,12 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         RandomBetween(Entropy, 0.f, 0.1f),
                         RandomBetween(Entropy, -0.05f, 0.05f)
                     );
-                    Particle->Velocity = Rotate(vec3(RandomBetween(Entropy, -0.5f, 0.5f), RandomBetween(Entropy, 3.f, 4.f), RandomBetween(Entropy, -0.5f, 0.5f)), Entity->Transform.Rotation);
+                    Particle->Velocity = Rotate(vec3(RandomBetween(Entropy, -0.5f, 0.5f), RandomBetween(Entropy, 3.f, 6.f), RandomBetween(Entropy, -0.5f, 0.5f)), Entity->Transform.Rotation);
                     Particle->Acceleration = Rotate(vec3(0.f, -10.f, 0.f), Entity->Transform.Rotation);
                     Particle->Color = ParticleEmitter->Color;
-                    Particle->dColor = vec4(0.f, 0.f, 0.f, -0.01f);
-                    Particle->Size = vec2(0.025f);
-                    Particle->dSize = vec2(-0.05f);
+                    Particle->dColor = vec4(0.f, 0.f, 0.f, -0.5f);
+                    Particle->Size = ParticleEmitter->Size;
+                    Particle->dSize = vec2(-0.1f);
                 }
             }
         }
@@ -1291,6 +1427,40 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
             }
         }
     }
+}
+
+struct process_particles_job
+{
+    particle_emitter *ParticleEmitter;
+    vec3 CameraPosition;
+    f32 Delta;
+};
+
+JOB_ENTRY_POINT(ProcessParticlesJob)
+{
+    process_particles_job *Data = (process_particles_job *) Parameters;
+
+    particle_emitter *ParticleEmitter = Data->ParticleEmitter;
+
+    for (u32 ParticleIndex = 0; ParticleIndex < ParticleEmitter->ParticleCount; ++ParticleIndex)
+    {
+        particle *Particle = ParticleEmitter->Particles + ParticleIndex;
+
+        f32 dt = Data->Delta;
+
+        Particle->Position += 0.5f * Particle->Acceleration * Square(dt) + Particle->Velocity * dt;
+        Particle->Velocity += Particle->Acceleration * dt;
+        Particle->Color += Particle->dColor * dt;
+        Particle->Size += Particle->dSize * dt;
+
+        Particle->Color.a = Max(Particle->Color.a, 0.f);
+        Particle->Size.x = Max(Particle->Size.x, 0.f);
+        Particle->Size.y = Max(Particle->Size.y, 0.f);
+
+        Particle->CameraDistanceSquared = SquaredMagnitude(Particle->Position - Data->CameraPosition);
+    }
+
+    SortParticles(ParticleEmitter->ParticleCount, ParticleEmitter->Particles);
 }
 
 internal void
@@ -1407,21 +1577,25 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
     if (Spec->ParticleEmitterSpec.Has)
     {
         particle_emitter_spec ParticleEmitterSpec = Spec->ParticleEmitterSpec;
-        AddParticleEmitter(Entity, ParticleEmitterSpec.ParticleCount, ParticleEmitterSpec.Color, Arena);
+        AddParticleEmitter(Entity, ParticleEmitterSpec.ParticleCount, ParticleEmitterSpec.ParticlesSpawn, ParticleEmitterSpec.Color, ParticleEmitterSpec.Size, Arena);
     }
 }
 
 internal void
-SaveArea(game_state *State, char *FileName,  platform_api *Platform, memory_arena *Arena)
+SaveWorldArea(game_state *State, char *FileName,  platform_api *Platform, memory_arena *Arena)
 {
-    u32 HeaderSize = sizeof(u32);
+    u32 HeaderSize = sizeof(game_file_header);
     u32 BufferSize = HeaderSize + State->ActiveEntitiesCount * sizeof(game_entity_spec);
     void *Buffer = PushSize(Arena, BufferSize);
 
-    u32 *EntityCount = (u32 *) ((u8 *) Buffer + 0);
-    *EntityCount = State->ActiveEntitiesCount;
+    game_file_header *Header = GET_DATA_AT(Buffer, 0, game_file_header);
 
-    game_entity_spec *Specs = (game_entity_spec *) ((u8 *) Buffer + HeaderSize);
+    Header->MagicValue = 0x44332211;
+    Header->Version = 1;
+    Header->EntityCount = State->ActiveEntitiesCount;
+    Header->Type = GameFile_Area;
+
+    game_entity_spec *Specs = GET_DATA_AT(Buffer, HeaderSize, game_entity_spec);
 
     world_area *Area = &State->WorldArea;
 
@@ -1449,8 +1623,14 @@ LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_
 
     world_area *Area = &State->WorldArea;
 
-    u32 *EntityCount = (u32 *) Result.Contents;
-    game_entity_spec *Specs = (game_entity_spec *) ((u8 *) Result.Contents + sizeof(u32));
+    game_file_header *Header = GET_DATA_AT(Result.Contents, 0, game_file_header);
+    game_entity_spec *Specs = GET_DATA_AT(Result.Contents, sizeof(game_file_header), game_entity_spec);
+
+    Assert(Header->MagicValue == 0x44332211);
+    Assert(Header->Version == 1);
+    Assert(Header->Type == GameFile_Area);
+
+    u32 EntityCount = Header->EntityCount;
 
     bounds WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
     vec3 CellSize = vec3(5.f);
@@ -1460,7 +1640,7 @@ LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_
     Area->EntityCount = 0;
     Area->Entities = PushArray(&Area->Arena, Area->MaxEntityCount, game_entity);
 
-    for (u32 EntityIndex = 0; EntityIndex < *EntityCount; ++EntityIndex)
+    for (u32 EntityIndex = 0; EntityIndex < EntityCount; ++EntityIndex)
     {
         game_entity_spec *Spec = Specs + EntityIndex;
 
@@ -1469,12 +1649,6 @@ LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_
         Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
 
         AddToSpacialGrid(&Area->SpatialGrid, Entity);
-
-        // todo(continue): properly add player
-        if (Entity->Body)
-        {
-            State->Player = Entity;
-        }
     }
 }
 
@@ -1487,6 +1661,7 @@ ClearWorldArea(game_state *State)
     ClearMemoryArena(&State->WorldArea.Arena);
 
     State->SelectedEntity = 0;
+    State->Player = 0;
 }
 
 DLLExport GAME_INIT(GameInit)
@@ -1505,7 +1680,7 @@ DLLExport GAME_INIT(GameInit)
     InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
 
     State->WorldArea = {};
-    State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(32));
+    State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(64));
     State->WorldArea.EntityCount = 0;
     State->WorldArea.MaxEntityCount = 10000;
     State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
@@ -1582,7 +1757,7 @@ DLLExport GAME_INIT(GameInit)
     InitGameMenu(State);
 
     State->Assets = {};
-    State->Assets.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(768));
+    State->Assets.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(512));
 
     LoadFontAssets(&State->Assets, Platform);
     InitGameFontAssets(State, &State->Assets, RenderCommands);
@@ -2033,6 +2208,18 @@ DLLExport GAME_RENDER(GameRender)
         InitGameAudioClipAssets(&State->Assets);
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
+#if 0
+        for (u32 GrassEntityIndex = 0; GrassEntityIndex < 1000; ++GrassEntityIndex)
+        {
+            game_entity *Entity = CreateGameEntity(State);
+            Entity->Transform.Translation = vec3(RandomBetween(&State->GeneralEntropy, -20.f, 20.f), 0.f, RandomBetween(&State->GeneralEntropy, -20.f, 20.f));
+            Entity->Transform.Scale = vec3(1.f);
+            Entity->Transform.Rotation = quat(0.f, 0.f, 0.f, 1.f);
+            Entity->TestColor = vec3(RandomBetween(&State->GeneralEntropy, 0.f, 1.f), RandomBetween(&State->GeneralEntropy, 0.f, 1.f), RandomBetween(&State->GeneralEntropy, 0.f, 1.f));
+            AddModel(State, Entity, &State->Assets, "quad", RenderCommands, &State->PermanentArena);
+        }
+#endif
+
         //State->Player = State->PlayableEntities[State->PlayableEntityIndex];
         //State->Player = State->Entities + 1;
         //State->Player->Controllable = true;
@@ -2080,7 +2267,7 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_Editor:
         {
             game_camera *Camera = State->Mode == GameMode_World ? &State->GameCamera : &State->EditorCamera;
-            b32 EnableFrustrumCulling = State->Mode == GameMode_World;
+            bool32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
             SetListener(AudioCommands, Camera->Transform.Translation, -Camera->Direction);
 
@@ -2114,6 +2301,11 @@ DLLExport GAME_RENDER(GameRender)
             SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
 
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
+
+            if (State->Options.ShowGrid)
+            {
+                DrawGround(RenderCommands);
+            }
 
             u32 ShadowPlaneCount = 0;
             plane *ShadowPlanes = 0;
@@ -2204,7 +2396,7 @@ DLLExport GAME_RENDER(GameRender)
                 {
                     game_entity *Entity = Area->Entities + EntityIndex;
 
-                    if (!Entity->Destroyed && Entity->Model && Entity->Model->Skeleton->JointCount > 1)
+                    if (!Entity->Destroyed && Entity->Model && HasJoints(Entity->Model->Skeleton))
                     {
                         job *Job = AnimationJobs + AnimationJobCount;
                         animate_entity_job *JobData = AnimationJobParams + AnimationJobCount;
@@ -2253,7 +2445,7 @@ DLLExport GAME_RENDER(GameRender)
 
                                 if (IsRenderBatchEmpty(Batch))
                                 {
-                                    InitRenderBatch(Batch, Entity->Model, Area->MaxEntityCount, &State->TransientArena);
+                                    InitRenderBatch(Batch, Entity, Area->MaxEntityCount, &State->TransientArena);
                                 }
 
                                 AddEntityToRenderBatch(Batch, Entity);
@@ -2277,25 +2469,6 @@ DLLExport GAME_RENDER(GameRender)
                             PointLight->Color = Entity->PointLight->Color;
                             PointLight->Attenuation = Entity->PointLight->Attenuation;
                         }
-
-                        if (Entity->ParticleEmitter)
-                        {
-                            particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
-
-                            for (u32 ParticleIndex = 0; ParticleIndex < ParticleEmitter->ParticleCount; ++ParticleIndex)
-                            {
-                                particle *Particle = ParticleEmitter->Particles + ParticleIndex;
-
-                                f32 dt = Parameters->Delta;
-
-                                Particle->Position += 0.5f * Particle->Acceleration * Square(dt) + Particle->Velocity * dt;
-                                Particle->Velocity += Particle->Acceleration * dt;
-                                Particle->Color += Particle->dColor * dt;
-                                Particle->Size += Particle->dSize * dt;
-                            }
-
-                            DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles);
-                        }
                     }
                 }
 
@@ -2313,8 +2486,7 @@ DLLExport GAME_RENDER(GameRender)
 
                     u32 BatchThreshold = 1;
 
-                    // todo: skinning!
-                    if (Batch->EntityCount > BatchThreshold && Batch->Model->Skeleton->JointCount == 1)
+                    if (Batch->EntityCount > BatchThreshold)
                     {
                         RenderEntityBatch(RenderCommands, State, Batch);
                     }
@@ -2330,12 +2502,67 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
+            {
+                PROFILE(Memory->Profiler, "GameRender:ProcessParticles");
+
+                scoped_memory ScopedMemory(&State->TransientArena);
+
+                u32 ParticleJobCount = 0;
+                u32 MaxParticleJobCount = Area->EntityCount;
+                job *ParticleJobs = PushArray(ScopedMemory.Arena, MaxParticleJobCount, job);
+                process_particles_job *ParticleJobParams = PushArray(ScopedMemory.Arena, MaxParticleJobCount, process_particles_job);
+
+                for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
+                {
+                    game_entity *Entity = Area->Entities + EntityIndex;
+
+                    if (!Entity->Destroyed && Entity->ParticleEmitter)
+                    {
+                        job *Job = ParticleJobs + ParticleJobCount;
+                        process_particles_job *JobData = ParticleJobParams + ParticleJobCount;
+
+                        ++ParticleJobCount;
+
+                        JobData->ParticleEmitter = Entity->ParticleEmitter;
+                        JobData->CameraPosition = Camera->Transform.Translation;
+                        JobData->Delta = Parameters->Delta;
+
+                        Job->EntryPoint = ProcessParticlesJob;
+                        Job->Parameters = JobData;
+                    }
+                }
+
+                Platform->KickJobsAndWait(State->JobQueue, ParticleJobCount, ParticleJobs);
+            }
+
+            {
+                PROFILE(Memory->Profiler, "GameRender:PushParticles");
+
+                for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
+                {
+                    game_entity *Entity = Area->Entities + EntityIndex;
+
+                    if (!Entity->Destroyed)
+                    {
+                        if (Entity->ParticleEmitter)
+                        {
+                            particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
+
+                            //DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, 0);
+                            DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, GetTextureAsset(&State->Assets, "Particle_Star"));
+                        }
+                    }
+                }
+            }
+
             // todo:
             State->PrevDanceMode = State->DanceMode;
 
-            if (State->Options.ShowGrid)
+            if (State->Assets.State == GameAssetsState_Ready)
             {
-                DrawGround(RenderCommands);
+                texture *GrassTexture = GetTextureAsset(&State->Assets, "Grass");
+
+                //DrawTexturedQuad(RenderCommands, CreateTransform(vec3(0.f, 0.5f, 0.f), vec3(0.5f), quat(0.f, 0.f, 0.f, 1.f)), GrassTexture);
             }
 
             font *Font = GetFontAsset(&State->Assets, "Consolas");

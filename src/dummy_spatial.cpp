@@ -162,7 +162,7 @@ FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, bounds Bounds, 
 
                         if (CellEntity->Id != Entity->Id && TestAABBAABB(AreaBounds, CellEntityBounds))
                         {
-                            b32 ShouldAdd = true;
+                            bool32 ShouldAdd = true;
 
                             // Filtering duplicates
                             for (u32 EntityIndex = 0; EntityIndex < EntityCount; ++EntityIndex)

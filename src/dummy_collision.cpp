@@ -201,7 +201,7 @@ GetEntityBounds(game_entity *Entity)
     return Result;
 }
 
-internal b32
+internal bool32
 TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *mtvDistance)
 {
     // [Separating Axis Theorem]
@@ -249,7 +249,7 @@ TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *
     return true;
 }
 
-internal b32
+internal bool32
 TestAABBAABB(bounds a, bounds b, vec3 *mtv)
 {
     // [Minimum Translation Vector]
@@ -289,7 +289,7 @@ TestAABBAABB(bounds a, bounds b, vec3 *mtv)
     return true;
 }
 
-inline b32
+inline bool32
 TestAABBAABB(bounds a, bounds b)
 {
     // Exit with no intersection if separated along an axis
@@ -301,7 +301,7 @@ TestAABBAABB(bounds a, bounds b)
     return true;
 }
 
-internal b32
+internal bool32
 TestAABBPlane(bounds Box, plane Plane)
 {
     vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
@@ -313,7 +313,7 @@ TestAABBPlane(bounds Box, plane Plane)
     f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.Distance;
     
     // Intersection occurs when distance falls within [-Radius, +Radius] interval
-    b32 Result = Abs(Distance) <= Radius;
+    bool32 Result = Abs(Distance) <= Radius;
     
     return Result;
 }
@@ -323,7 +323,7 @@ TestAABBPlane(bounds Box, plane Plane)
     by Andrew Woo
     from "Graphics Gems", Academic Press, 1990
 */
-b32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
+bool32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
 {
     vec3 RayOrigin = Ray.Origin;
     vec3 RayDirection = Ray.Direction;
@@ -334,7 +334,7 @@ b32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
     constexpr i32 Left = 1;
     constexpr i32 Middle = 2;
 
-    b32 IsInside = true;
+    bool32 IsInside = true;
     i32 WhichPlane;
     f32 MaxT[3];
     f32 CandidatePlanes[3];
@@ -433,7 +433,7 @@ GetAABBPlaneMinDistance(bounds Box, plane Plane)
     return Result;
 }
 
-internal b32
+internal bool32
 TestColliders(collider *a, collider *b, vec3 *mtv)
 {
     if (a->Type == Collider_Box && b->Type == Collider_Box)

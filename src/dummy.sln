@@ -45,10 +45,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "glsl", "glsl", "{CDE21B5E-2
 		shaders\glsl\particle.vert = shaders\glsl\particle.vert
 		shaders\glsl\simple.frag = shaders\glsl\simple.frag
 		shaders\glsl\simple.vert = shaders\glsl\simple.vert
+		shaders\glsl\skinned_instanced_forward_shading.vert = shaders\glsl\skinned_instanced_forward_shading.vert
 		shaders\glsl\skinned_mesh.vert = shaders\glsl\skinned_mesh.vert
 		shaders\glsl\text.frag = shaders\glsl\text.frag
 		shaders\glsl\text.geom = shaders\glsl\text.geom
 		shaders\glsl\text.vert = shaders\glsl\text.vert
+		shaders\glsl\textured_quad.frag = shaders\glsl\textured_quad.frag
+		shaders\glsl\textured_quad.vert = shaders\glsl\textured_quad.vert
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{C7E19F44-70AB-4088-BCCB-76E7375129B2}"

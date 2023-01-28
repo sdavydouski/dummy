@@ -76,15 +76,15 @@ struct vec2
     }
 };
 
-inline b32 operator ==(vec2 a, vec2 b)
+inline bool32 operator ==(vec2 a, vec2 b)
 {
-    b32 Result = a.x == b.x && a.y == b.y;
+    bool32 Result = a.x == b.x && a.y == b.y;
     return Result;
 }
 
-inline b32 operator !=(vec2 a, vec2 b)
+inline bool32 operator !=(vec2 a, vec2 b)
 {
-    b32 Result = !(a == b);
+    bool32 Result = !(a == b);
     return Result;
 }
 
@@ -168,14 +168,14 @@ struct ivec2
     explicit ivec2(i32 x, i32 y) : x(x), y(y) {}
 };
 
-inline b32 operator ==(ivec2 a, ivec2 b)
+inline bool32 operator ==(ivec2 a, ivec2 b)
 {
-    b32 Result = (a.x == b.x && a.y == b.y);
+    bool32 Result = (a.x == b.x && a.y == b.y);
     return Result;
 }
 
-inline b32 operator !=(ivec2 a, ivec2 b)
+inline bool32 operator !=(ivec2 a, ivec2 b)
 {
-    b32 Result = !(a == b);
+    bool32 Result = !(a == b);
     return Result;
 }

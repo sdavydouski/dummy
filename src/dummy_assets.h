@@ -1,6 +1,6 @@
 #pragma once
 
-#define GET_DATA_AT(Buffer, Offset, Type) (Type *) ((Buffer) + (Offset))
+#define GET_DATA_AT(Buffer, Offset, Type) (Type *) (((u8 *) Buffer) + (Offset))
 
 enum material_property_type
 {
@@ -59,9 +59,9 @@ struct mesh_material
 
 struct mesh
 {
-    u32 Id;
+    u32 MeshId;
     u32 MaterialIndex;
-    b32 Visible;
+    bool32 Visible;
 
     u32 VertexCount;
     vec3 *Positions;
@@ -81,6 +81,7 @@ struct animation_graph_asset;
 struct model
 {
     char Key[64];
+    u32 SkinningBufferId;
 
     bounds Bounds;
 
@@ -101,15 +102,15 @@ struct model
 struct animation_state_asset
 {
     char AnimationClipName[256];
-    b32 IsLooping;
-    b32 EnableRootMotion;
+    bool32 IsLooping;
+    bool32 EnableRootMotion;
 };
 
 struct blend_space_1d_value_asset
 {
     char AnimationClipName[256];
     f32 Value;
-    b32 EnableRootMotion;
+    bool32 EnableRootMotion;
 };
 
 struct blend_space_1d_asset {
@@ -342,8 +343,8 @@ struct model_asset_animation_node_header
 struct model_asset_animation_state_header
 {
     char AnimationClipName[256];
-    b32 IsLooping;
-    b32 EnableRootMotion;
+    bool32 IsLooping;
+    bool32 EnableRootMotion;
 };
 
 struct model_asset_blend_space_1d_header
@@ -364,13 +365,13 @@ struct model_asset_mesh_header
     u32 VertexCount;
     u32 IndexCount;
 
-    b32 HasPositions;
-    b32 HasNormals;
-    b32 HasTangents;
-    b32 HasBitangets;
-    b32 HasTextureCoords;
-    b32 HasWeights;
-    b32 HasJointIndices;
+    bool32 HasPositions;
+    bool32 HasNormals;
+    bool32 HasTangents;
+    bool32 HasBitangets;
+    bool32 HasTextureCoords;
+    bool32 HasWeights;
+    bool32 HasJointIndices;
 
     u64 VerticesOffset;
     u64 IndicesOffset;

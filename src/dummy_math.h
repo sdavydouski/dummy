@@ -248,10 +248,10 @@ Mod(f32 x, f32 y)
     return Result;
 }
 
-inline b32
+inline bool32
 InRange(f32 Value, f32 Min, f32 Max)
 {
-    b32 Result = Value >= Min && Value <= Max;
+    bool32 Result = Value >= Min && Value <= Max;
     return Result;
 }
 

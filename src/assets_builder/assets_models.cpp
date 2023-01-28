@@ -894,8 +894,8 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
             NodeAsset->Animation = AllocateMemory<animation_state_asset>();
 
             const char *Clip = Node["clip"].GetString();
-            b32 IsLooping = Node["looping"].GetBool();
-            b32 EnableRootMotion = Node["root_motion"].GetBool();
+            bool32 IsLooping = Node["looping"].GetBool();
+            bool32 EnableRootMotion = Node["root_motion"].GetBool();
 
             CopyString(Clip, NodeAsset->Animation->AnimationClipName);
             NodeAsset->Animation->IsLooping = IsLooping;

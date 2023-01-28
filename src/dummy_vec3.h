@@ -78,28 +78,28 @@ struct vec3
         return Result;
     }
 
-    inline b32 operator <(vec3 Vector)
+    inline bool32 operator <(vec3 Vector)
     {
-        b32 Result = x < Vector.x && y < Vector.y && z < Vector.z;
+        bool32 Result = x < Vector.x && y < Vector.y && z < Vector.z;
         return Result;
     }
 
-    inline b32 operator >(vec3 Vector)
+    inline bool32 operator >(vec3 Vector)
     {
-        b32 Result = x > Vector.x &&y > Vector.y &&z > Vector.z;
+        bool32 Result = x > Vector.x &&y > Vector.y &&z > Vector.z;
         return Result;
     }
 };
 
-inline b32 operator ==(vec3 a, vec3 b)
+inline bool32 operator ==(vec3 a, vec3 b)
 {
-    b32 Result = a.x == b.x && a.y == b.y && a.z == b.z;
+    bool32 Result = a.x == b.x && a.y == b.y && a.z == b.z;
     return Result;
 }
 
-inline b32 operator !=(vec3 a, vec3 b)
+inline bool32 operator !=(vec3 a, vec3 b)
 {
-    b32 Result = !(a == b);
+    bool32 Result = !(a == b);
     return Result;
 }
 
@@ -133,15 +133,15 @@ inline vec3 &operator *=(vec3 &Dest, vec3 Vector)
     return Dest;
 }
 
-inline b32 operator <=(vec3 a, vec3 b)
+inline bool32 operator <=(vec3 a, vec3 b)
 {
-    b32 Result = a < b || a == b;
+    bool32 Result = a < b || a == b;
     return Result;
 }
 
-inline b32 operator >=(vec3 a, vec3 b)
+inline bool32 operator >=(vec3 a, vec3 b)
 {
-    b32 Result = a > b || a == b;
+    bool32 Result = a > b || a == b;
     return Result;
 }
 
@@ -226,14 +226,14 @@ struct ivec3
     explicit ivec3(i32 x, i32 y, i32 z) : x(x), y(y), z(z) {}
 };
 
-inline b32 operator ==(ivec3 a, ivec3 b)
+inline bool32 operator ==(ivec3 a, ivec3 b)
 {
-    b32 Result = (a.x == b.x && a.y == b.y && a.z == b.z);
+    bool32 Result = (a.x == b.x && a.y == b.y && a.z == b.z);
     return Result;
 }
 
-inline b32 operator !=(ivec3 a, ivec3 b)
+inline bool32 operator !=(ivec3 a, ivec3 b)
 {
-    b32 Result = !(a == b);
+    bool32 Result = !(a == b);
     return Result;
 }

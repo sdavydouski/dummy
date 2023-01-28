@@ -58,7 +58,7 @@ struct animation_event
 {
     char Name[MAX_ANIMATION_EVENT_NAME_LENGTH];
     f32 Time;
-    b32 IsFired;
+    bool32 IsFired;
 };
 
 struct animation_clip
@@ -78,8 +78,8 @@ struct animation_state
     f32 Time;
     f32 Weight;
 
-    b32 IsLooping;
-    b32 EnableRootMotion;
+    bool32 IsLooping;
+    bool32 EnableRootMotion;
 
     // Used for calculating root motion
     f32 PrevTime;

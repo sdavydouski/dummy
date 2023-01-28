@@ -166,11 +166,11 @@ Win32GetFullPathToEXEDirectory(wchar *EXEDirectoryFullPath)
     }
 }
 
-inline b32
+inline bool32
 Win32FileExists(wchar *FileName)
 {
     WIN32_FILE_ATTRIBUTE_DATA Ignored;
-    b32 Exists = GetFileAttributesEx(FileName, GetFileExInfoStandard, &Ignored);
+    bool32 Exists = GetFileAttributesEx(FileName, GetFileExInfoStandard, &Ignored);
 
     return Exists;
 }
@@ -484,8 +484,8 @@ internal void
 Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform_state *PlatformState, MSG *WindowMessage)
 {
     u32 VKeyCode = (u32)WindowMessage->wParam;
-    b32 WasKeyPressed = (WindowMessage->lParam & (1u << 30)) != 0;
-    b32 IsKeyPressed = (WindowMessage->lParam & (1u << 31)) == 0;
+    bool32 WasKeyPressed = (WindowMessage->lParam & (1u << 30)) != 0;
+    bool32 IsKeyPressed = (WindowMessage->lParam & (1u << 31)) == 0;
 
     if (IsKeyPressed != WasKeyPressed)
     {
@@ -688,8 +688,8 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                 if (PlatformState->IsWindowActive)
                 {
                     // todo: mouse input as well
-                    b32 IsLeftMouseDown = WindowMessage.wParam == MK_LBUTTON;
-                    b32 IsRightMouseDown = WindowMessage.wParam == MK_RBUTTON;
+                    bool32 IsLeftMouseDown = WindowMessage.wParam == MK_LBUTTON;
+                    bool32 IsRightMouseDown = WindowMessage.wParam == MK_RBUTTON;
 
                     MouseInput->LeftButton.IsPressed = IsLeftMouseDown;
                     MouseInput->RightButton.IsPressed = IsRightMouseDown;
@@ -834,7 +834,7 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
 
 internal PLATFORM_WRITE_FILE(Win32WriteFile)
 {
-    b32 Result = false;
+    bool32 Result = false;
 
     HANDLE FileHandle = CreateFileA(FileName, GENERIC_WRITE, 0, 0, OPEN_ALWAYS, 0, 0);
     if (FileHandle != INVALID_HANDLE_VALUE)
@@ -1005,7 +1005,7 @@ Win32InitProfiler(platform_profiler *Profiler)
 
 COMDLG_FILTERSPEC DialogFileTypes[] =
 {
-    { L"Dummy area", L"*.area"},
+    { L"Dummy", L"*.dummy"},
     { L"Text", L"*.txt"},
     { L"All", L"*.*"},
 };

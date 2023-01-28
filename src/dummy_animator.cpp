@@ -4,17 +4,17 @@ struct bot_animator_params
     f32 Move;
     f32 MoveMagnitude;
 
-    b32 ToStateIdle1;
-    b32 ToStateIdle2;
+    bool32 ToStateIdle1;
+    bool32 ToStateIdle2;
 
-    b32 ToStateActionIdle1;
-    b32 ToStateActionIdle2;
+    bool32 ToStateActionIdle1;
+    bool32 ToStateActionIdle2;
 
-    b32 ToStateActionIdle;
-    b32 ToStateStandingIdle;
+    bool32 ToStateActionIdle;
+    bool32 ToStateStandingIdle;
 
-    b32 ToStateDancing;
-    b32 ToStateActionIdleFromDancing;
+    bool32 ToStateDancing;
+    bool32 ToStateActionIdleFromDancing;
 };
 
 internal void
@@ -155,15 +155,15 @@ struct paladin_animator_params
     f32 Move;
     f32 MoveMagnitude;
 
-    b32 ToStateActionIdle1;
-    b32 ToStateActionIdle2;
-    b32 ToStateActionIdle3;
+    bool32 ToStateActionIdle1;
+    bool32 ToStateActionIdle2;
+    bool32 ToStateActionIdle3;
 
-    b32 ToStateDancing;
-    b32 ToStateActionIdleFromDancing;
+    bool32 ToStateDancing;
+    bool32 ToStateActionIdleFromDancing;
 
-    b32 LightAttack;
-    b32 StrongAttack;
+    bool32 LightAttack;
+    bool32 StrongAttack;
 };
 
 internal void
@@ -338,10 +338,10 @@ struct monstar_animator_params
 {
     f32 Move;
     f32 MoveMagnitude;
-    b32 Attack;
+    bool32 Attack;
 
-    b32 ToStateDancing;
-    b32 ToStateIdleFromDancing;
+    bool32 ToStateDancing;
+    bool32 ToStateIdleFromDancing;
 };
 
 ANIMATOR_CONTROLLER(MonstarAnimatorController)
@@ -402,8 +402,8 @@ struct cleric_animator_params
     f32 Move;
     f32 MoveMagnitude;
 
-    b32 ToStateDancing;
-    b32 ToStateIdleFromDancing;
+    bool32 ToStateDancing;
+    bool32 ToStateIdleFromDancing;
 };
 
 ANIMATOR_CONTROLLER(ClericAnimatorController)

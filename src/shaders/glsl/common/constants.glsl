@@ -11,3 +11,7 @@
 #define SCREEN_SPACE_MODE %d
 //! #undef SCREEN_SPACE_MODE
 //! #define SCREEN_SPACE_MODE 0x2
+
+#define MAX_JOINT_COUNT %d
+//! #undef MAX_JOINT_COUNT
+//! #define MAX_JOINT_COUNT 256

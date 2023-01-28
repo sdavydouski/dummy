@@ -15,5 +15,5 @@ struct rigid_body
 
     f32 InverseMass;
     f32 Damping;
-    b32 RootMotionEnabled;
+    bool32 RootMotionEnabled;
 };

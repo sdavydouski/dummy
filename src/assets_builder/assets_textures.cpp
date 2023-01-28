@@ -1,6 +1,7 @@
 internal void
 LoadTextureAsset(const char *FilePath, texture_asset *Asset)
 {
+    stbi_set_flip_vertically_on_load(true);
     Asset->Bitmap.Pixels = stbi_load(FilePath, &Asset->Bitmap.Width, &Asset->Bitmap.Height, &Asset->Bitmap.Channels, 0);
 }
 

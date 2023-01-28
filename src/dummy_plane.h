@@ -69,7 +69,7 @@ Orthogonal(vec3 Vector, plane Plane)
     return Result;
 }
 
-inline b32
+inline bool32
 IntersectLinePlane(vec3 LineOrigin, vec3 LineDirection, plane Plane, vec3 *IntersectionPoint)
 {
     f32 fv = DotVector(Plane, LineDirection);

@@ -567,7 +567,7 @@ ProcessAssimpMesh(aiMesh *AssimpMesh, u32 AssimpMeshIndex, aiNode *AssimpRootNod
             std::sort(
                 JointWeights.begin(),
                 JointWeights.end(),
-                [](const joint_weight &A, const joint_weight &B) -> b32
+                [](const joint_weight &A, const joint_weight &B) -> bool32
                 {
                     return A.Weight > B.Weight;
                 }

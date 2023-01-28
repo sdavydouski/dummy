@@ -8,18 +8,21 @@
 #define OPENGL_MAX_SHADER_COUNT 64
 
 // todo: could do better
-#define OPENGL_SIMPLE_SHADER_ID 0x1
-#define OPENGL_PHONG_SHADING_SHADER_ID 0x2
-#define OPENGL_SKINNED_PHONG_SHADING_SHADER_ID 0x3
-#define OPENGL_FRAMEBUFFER_SHADER_ID 0x4
-#define OPENGL_GROUND_SHADER_ID 0x5
-#define OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID 0x6
-#define OPENGL_TEXT_SHADER_ID 0x7
-#define OPENGL_PARTICLE_SHADER_ID 0x8
+#define OPENGL_COLOR_SHADER_ID 0x1
+#define OPENGL_PHONG_SHADER_ID 0x2
+#define OPENGL_PHONG_INSTANCED_SHADER_ID 0x3
+#define OPENGL_PHONG_SKINNED_SHADER_ID 0x4
+#define OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID 0x5
+#define OPENGL_FRAMEBUFFER_SHADER_ID 0x6
+#define OPENGL_GROUND_SHADER_ID 0x7
+#define OPENGL_TEXT_SHADER_ID 0x8
+#define OPENGL_PARTICLE_SHADER_ID 0x9
+#define OPENGL_TEXTURED_QUAD_SHADER_ID 0x10
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 32
 #define OPENGL_WORLD_SPACE_MODE 0x1
 #define OPENGL_SCREEN_SPACE_MODE 0x2
+#define OPENGL_MAX_JOINT_COUNT 256
 
 #define MAX_SHADER_FILE_PATH 256
 
@@ -91,23 +94,28 @@ struct opengl_create_program_params
 opengl_load_shader_params OpenGLShaders[] =
 {
     {
-        OPENGL_SIMPLE_SHADER_ID,
+        OPENGL_COLOR_SHADER_ID,
         "shaders\\glsl\\simple.vert",
         "shaders\\glsl\\simple.frag"
     },
     {
-        OPENGL_PHONG_SHADING_SHADER_ID,
+        OPENGL_PHONG_SHADER_ID,
         "shaders\\glsl\\forward_shading.vert",
         "shaders\\glsl\\forward_shading.frag"
     },
     {
-        OPENGL_SKINNED_PHONG_SHADING_SHADER_ID,
+        OPENGL_PHONG_INSTANCED_SHADER_ID,
+        "shaders\\glsl\\instanced_forward_shading.vert",
+        "shaders\\glsl\\forward_shading.frag"
+    },
+    {
+        OPENGL_PHONG_SKINNED_SHADER_ID,
         "shaders\\glsl\\skinned_mesh.vert",
         "shaders\\glsl\\forward_shading.frag"
     },
     {
-        OPENGL_INSTANCED_PHONG_SHADING_SHADER_ID,
-        "shaders\\glsl\\instanced_forward_shading.vert",
+        OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID,
+        "shaders\\glsl\\skinned_instanced_forward_shading.vert",
         "shaders\\glsl\\forward_shading.frag"
     },
     {
@@ -131,7 +139,12 @@ opengl_load_shader_params OpenGLShaders[] =
         "shaders\\glsl\\particle.vert",
         "shaders\\glsl\\particle.frag",
         "shaders\\glsl\\particle.geom"
-    }
+    },
+    {
+        OPENGL_TEXTURED_QUAD_SHADER_ID,
+        "shaders\\glsl\\textured_quad.vert",
+        "shaders\\glsl\\textured_quad.frag"
+    },
 };
 
 struct opengl_character_point
@@ -204,8 +217,8 @@ struct opengl_shader_state
 
 struct opengl_render_options
 {
-    b32 RenderShadowMap;
-    b32 ShowCascades;
+    bool32 RenderShadowMap;
+    bool32 ShowCascades;
     mat4 CascadeView;
     mat4 CascadeProjection;
     u32 CascadeIndex;

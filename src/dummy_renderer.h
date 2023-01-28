@@ -16,8 +16,8 @@ struct material
         mesh_material *MeshMaterial;
     };
 
-    b32 Wireframe;
-    b32 CastShadow;
+    bool32 Wireframe;
+    bool32 CastShadow;
 };
 
 struct light_attenuation
@@ -61,6 +61,7 @@ struct particle
     vec4 dColor;
     vec2 Size;
     vec2 dSize;
+    f32 CameraDistanceSquared;
 };
 
 struct particle_emitter
@@ -70,7 +71,9 @@ struct particle_emitter
     u32 ParticleCount;
     particle *Particles;
 
+    u32 ParticlesSpawn;
     vec4 Color;
+    vec2 Size;
 };
 
 struct game_camera
@@ -103,16 +106,9 @@ GetCameraTransform(game_camera *Camera)
     return Result;
 }
 
-struct render_instance
-{
-    mat4 Model;
-    vec3 Color;
-};
-
 struct skinning_data
 {
     skeleton_pose *Pose;
-    u32 SkinningBufferId;
     u32 SkinningMatrixCount;
     mat4 *SkinningMatrices;
 };
@@ -139,8 +135,9 @@ enum render_command_type
     RenderCommand_DrawText,
     RenderCommand_DrawGround,
     RenderCommand_DrawMesh,
-    RenderCommand_DrawSkinnedMesh,
     RenderCommand_DrawMeshInstanced,
+    RenderCommand_DrawSkinnedMesh,
+    RenderCommand_DrawSkinnedMeshInstanced,
     RenderCommand_DrawParticles,
     RenderCommand_DrawTexturedQuad,
     RenderCommand_DrawTexturedQuadInstanced,
@@ -168,9 +165,12 @@ const char *RenderCommandNames[] =
     "DrawText",
     "DrawGround",
     "DrawMesh",
-    "DrawSkinnedMesh",
     "DrawMeshInstanced",
-    "DrawParticles"
+    "DrawSkinnedMesh",
+    "DrawSkinnedMeshInstanced",
+    "DrawParticles",
+    "DrawTexturedQuad",
+    "DrawTexturedQuadInstanced"
 };
 
 struct render_command_header
@@ -335,7 +335,7 @@ struct render_command_draw_text
     vec4 Color;
     draw_text_alignment Alignment;
     draw_text_mode Mode;
-    b32 DepthEnabled;
+    bool32 DepthEnabled;
 };
 
 struct render_command_draw_ground
@@ -353,18 +353,10 @@ struct render_command_draw_mesh
     material Material;
 };
 
-struct render_command_draw_skinned_mesh
+struct mesh_instance
 {
-    render_command_header Header;
-
-    u32 MeshId;
-
-    transform Transform;
-    material Material;
-
-    u32 SkinningBufferId;
-    u32 SkinningMatrixCount;
-    mat4 *SkinningMatrices;
+    mat4 Model;
+    vec3 Color;
 };
 
 struct render_command_draw_mesh_instanced
@@ -372,11 +364,39 @@ struct render_command_draw_mesh_instanced
     render_command_header Header;
 
     u32 MeshId;
+    material Material;
 
     u32 InstanceCount;
-    render_instance *Instances;
+    mesh_instance *Instances;
+};
 
+struct render_command_draw_skinned_mesh
+{
+    render_command_header Header;
+
+    u32 MeshId;
     material Material;
+
+    u32 SkinningBufferId;
+    u32 SkinningMatrixCount;
+    mat4 *SkinningMatrices;
+};
+
+struct skinned_mesh_instance
+{
+    u32 SkinningMatrixCount;
+    mat4 *SkinningMatrices;
+};
+
+struct render_command_draw_skinned_mesh_instanced
+{
+    render_command_header Header;
+
+    u32 MeshId;
+    material Material;
+    u32 SkinningBufferId;
+    u32 InstanceCount;
+    skinned_mesh_instance *Instances;
 };
 
 struct render_command_draw_particles
@@ -385,20 +405,25 @@ struct render_command_draw_particles
 
     u32 ParticleCount;
     particle *Particles;
+
+    texture *Texture;
 };
 
-// todo(continue):
 struct render_command_draw_textured_quad
 {
     render_command_header Header;
     transform Transform;
-    u32 TextureId;
+    texture *Texture;
 };
 
-// todo(continue):
 struct render_command_draw_textured_quad_instanced
 {
+    render_command_header Header;
 
+    u32 InstanceCount;
+    mat4 *Instances;
+
+    texture *Texture;
 };
 
 struct render_commands_settings
@@ -412,8 +437,8 @@ struct render_commands_settings
     f32 Time;
     f32 PixelsPerUnit;
     f32 UnitsPerPixel;
-    b32 ShowCascades;
-    b32 EnableCascadedShadowMaps;
+    bool32 ShowCascades;
+    bool32 EnableCascadedShadowMaps;
     game_camera *Camera;
     mat4 WorldToCamera;
     mat4 CameraToWorld;

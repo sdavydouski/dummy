@@ -19,15 +19,15 @@ GetRigidBodyMass(rigid_body *Body)
     return Result;
 }
 
-inline b32
+inline bool32
 HasFiniteMass(rigid_body *Body)
 {
-    b32 Result = Body->InverseMass != 0.f;
+    bool32 Result = Body->InverseMass != 0.f;
     return Result;
 }
 
 inline void
-BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, b32 RootMotionEnabled)
+BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, bool32 RootMotionEnabled)
 {
     Body->PrevPosition = Position;
     Body->Position = Position;

@@ -35,7 +35,9 @@
 #define f32 float
 #define f64 double
 
-#define b32 u32
+#define bool8 u8
+#define bool16 u16
+#define bool32 u32
 
 #define umm uintptr_t
 
