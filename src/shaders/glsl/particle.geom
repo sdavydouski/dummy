@@ -1,5 +1,7 @@
 //! #include "common/version.glsl"
 //! #include "common/constants.glsl"
+//! #include "common/math.glsl"
+//! #include "common/phong.glsl"
 //! #include "common/uniform.glsl"
 
 layout (points) in;

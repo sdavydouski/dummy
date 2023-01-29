@@ -19,10 +19,12 @@
 #define OPENGL_PARTICLE_SHADER_ID 0x9
 #define OPENGL_TEXTURED_QUAD_SHADER_ID 0x10
 
-#define OPENGL_MAX_POINT_LIGHT_COUNT 32
+#define OPENGL_MAX_POINT_LIGHT_COUNT 8
 #define OPENGL_WORLD_SPACE_MODE 0x1
 #define OPENGL_SCREEN_SPACE_MODE 0x2
 #define OPENGL_MAX_JOINT_COUNT 256
+#define OPENGL_UNIFORM_MAX_LENGTH 64
+#define OPENGL_UNIFORM_MAX_COUNT 257
 
 #define MAX_SHADER_FILE_PATH 256
 
@@ -31,8 +33,8 @@ const char *OpenGLCommonShaders[] =
     "shaders\\glsl\\common\\version.glsl",
     "shaders\\glsl\\common\\constants.glsl",
     "shaders\\glsl\\common\\math.glsl",
+    "shaders\\glsl\\common\\phong.glsl",
     "shaders\\glsl\\common\\uniform.glsl",
-    "shaders\\glsl\\common\\blinn_phong.glsl",
     "shaders\\glsl\\common\\shadows.glsl"
 };
 
@@ -66,6 +68,13 @@ struct opengl_texture
     GLuint Handle;
 };
 
+struct opengl_uniform
+{
+    char Key[OPENGL_UNIFORM_MAX_LENGTH];
+    GLint Location;
+    GLint Size;
+};
+
 #if WIN32_RELOADABLE_SHADERS
 struct win32_shader_file
 {
@@ -73,6 +82,33 @@ struct win32_shader_file
     FILETIME LastWriteTime;
 };
 #endif
+
+struct opengl_shader
+{
+    u32 Id;
+    GLuint Program;
+
+#if WIN32_RELOADABLE_SHADERS
+    win32_shader_file CommonShaders[OPENGL_COMMON_SHADER_COUNT];
+    win32_shader_file VertexShader;
+    win32_shader_file GeometryShader;
+    win32_shader_file FragmentShader;
+#endif
+
+    u32 UniformCount;
+    hash_table<opengl_uniform> Uniforms;
+};
+
+struct opengl_framebuffer
+{
+    GLuint Handle;
+    GLuint ColorTarget;
+    GLuint DepthStencilTarget;
+
+    u32 Width;
+    u32 Height;
+    u32 Samples;
+};
 
 struct opengl_load_shader_params
 {
@@ -162,57 +198,37 @@ struct opengl_particle
     vec4 Color;
 };
 
-struct opengl_shader
-{
-    u32 Id;
-    GLuint Program;
-
-#if WIN32_RELOADABLE_SHADERS
-    win32_shader_file CommonShaders[OPENGL_COMMON_SHADER_COUNT];
-    win32_shader_file VertexShader;
-    win32_shader_file GeometryShader;
-    win32_shader_file FragmentShader;
-#endif
-    
-    // Uniform locations
-    GLint ModelUniform;
-    GLint ModeUniform;
-    GLint SkinningMatricesSamplerUniform;
-
-    GLint ColorUniform;
-
-    GLint MaterialSpecularShininessUniform;
-    GLint MaterialAmbientColorUniform;
-    GLint MaterialDiffuseColorUniform;
-    GLint MaterialSpecularColorUniform;
-    GLint MaterialDiffuseMapUniform;
-    GLint MaterialSpecularMapUniform;
-    GLint MaterialShininessMapUniform;
-    GLint MaterialNormalMapUniform;
-
-    GLint MaterialHasDiffuseMapUniform;
-    GLint MaterialHasSpecularMapUniform;
-    GLint MaterialHasShininessMapUniform;
-    GLint MaterialHasNormalMapUniform;
-
-    GLint DirectionalLightDirectionUniform;
-    GLint DirectionalLightColorUniform;
-    GLint PointLightCountUniform;
-
-    GLint CameraXAxisUniform;
-    GLint CameraYAxisUniform;
-
-    GLint ScreenTextureUniform;
-};
-
-struct opengl_shader_state
+struct opengl_uniform_buffer_transform
 {
     mat4 WorldProjection;
     mat4 ScreenProjection;
     mat4 View;
+
     alignas(16) vec3 CameraPosition;
     alignas(16) vec3 CameraDirection;
+    
     f32 Time;
+};
+
+// todo:
+struct opengl_directional_light
+{
+    alignas(16) vec3 LightDirection;
+    alignas(16) vec3 LightColor;
+};
+
+struct opengl_point_light
+{
+    alignas(16) vec3 Position;
+    alignas(16) vec3 Color;
+    alignas(16) vec3 Attenuation;
+};
+
+struct opengl_uniform_buffer_shading
+{
+    opengl_directional_light DirectinalLight;
+    u32 PointLightCount;
+    opengl_point_light PointLights[OPENGL_MAX_POINT_LIGHT_COUNT];
 };
 
 struct opengl_render_options
@@ -222,17 +238,6 @@ struct opengl_render_options
     mat4 CascadeView;
     mat4 CascadeProjection;
     u32 CascadeIndex;
-};
-
-struct opengl_framebuffer
-{
-    GLuint Handle;
-    GLuint ColorTarget;
-    GLuint DepthStencilTarget;
-
-    u32 Width;
-    u32 Height;
-    u32 Samples;
 };
 
 struct opengl_state
@@ -262,7 +267,8 @@ struct opengl_state
     GLuint ParticleVAO;
     GLuint ParticleVBO;
 
-    GLuint ShaderStateUBO;
+    GLuint TransformUBO;
+    GLuint ShadingUBO;
 
     u32 CurrentMeshBufferCount;
     opengl_mesh_buffer MeshBuffers[OPENGL_MAX_MESH_BUFFER_COUNT];

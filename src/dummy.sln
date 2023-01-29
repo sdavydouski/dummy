@@ -56,9 +56,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "glsl", "glsl", "{CDE21B5E-2
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{C7E19F44-70AB-4088-BCCB-76E7375129B2}"
 	ProjectSection(SolutionItems) = preProject
-		shaders\glsl\common\blinn_phong.glsl = shaders\glsl\common\blinn_phong.glsl
 		shaders\glsl\common\constants.glsl = shaders\glsl\common\constants.glsl
 		shaders\glsl\common\math.glsl = shaders\glsl\common\math.glsl
+		shaders\glsl\common\phong.glsl = shaders\glsl\common\phong.glsl
 		shaders\glsl\common\shadows.glsl = shaders\glsl\common\shadows.glsl
 		shaders\glsl\common\uniform.glsl = shaders\glsl\common\uniform.glsl
 		shaders\glsl\common\version.glsl = shaders\glsl\common\version.glsl

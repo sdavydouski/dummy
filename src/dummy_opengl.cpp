@@ -543,42 +543,55 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
     Texture->Handle = TextureHandle;
 }
 
-// todo: https://github.com/fendevel/Guide-to-Modern-OpenGL-Functions#ideal-way-of-retrieving-all-uniform-names
+inline opengl_uniform *
+OpengLGetUniform(opengl_shader *Shader, const char *UniformName)
+{
+    opengl_uniform *Uniform = HashTableLookup(&Shader->Uniforms, (char *) UniformName);
+    return Uniform;
+}
+
+inline GLint
+OpengLGetUniformLocation(opengl_shader *Shader, const char *UniformName)
+{
+    opengl_uniform *Uniform = HashTableLookup(&Shader->Uniforms, (char *) UniformName);
+
+    return Uniform->Location;
+}
+
 internal void
-OpenGLLoadShaderUniforms(opengl_shader *Shader)
+OpenGLLoadShaderUniforms(opengl_shader *Shader, memory_arena *Arena)
 {
     GLuint Program = Shader->Program;
 
-    Shader->ModelUniform = glGetUniformLocation(Program, "u_Model");
-    Shader->ModeUniform = glGetUniformLocation(Program, "u_Mode");
-    Shader->SkinningMatricesSamplerUniform = glGetUniformLocation(Program, "u_SkinningMatricesSampler");
+    GLint UniformCount;
+    glGetProgramiv(Program, GL_ACTIVE_UNIFORMS, &UniformCount);
 
-    Shader->ColorUniform = glGetUniformLocation(Program, "u_Color");
+    Assert(UniformCount <= OPENGL_UNIFORM_MAX_COUNT);
 
-    Shader->MaterialSpecularShininessUniform = glGetUniformLocation(Program, "u_Material.SpecularShininess");
+    GLint UniformMaxLength;
+    glGetProgramiv(Program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &UniformMaxLength);
 
-    Shader->MaterialAmbientColorUniform = glGetUniformLocation(Program, "u_Material.AmbientColor");
-    Shader->MaterialDiffuseColorUniform = glGetUniformLocation(Program, "u_Material.DiffuseColor");
-    Shader->MaterialSpecularColorUniform = glGetUniformLocation(Program, "u_Material.SpecularColor");
+    Assert(UniformMaxLength <= OPENGL_UNIFORM_MAX_LENGTH);
 
-    Shader->MaterialDiffuseMapUniform = glGetUniformLocation(Program, "u_Material.DiffuseMap");
-    Shader->MaterialSpecularMapUniform = glGetUniformLocation(Program, "u_Material.SpecularMap");
-    Shader->MaterialShininessMapUniform = glGetUniformLocation(Program, "u_Material.ShininessMap");
-    Shader->MaterialNormalMapUniform = glGetUniformLocation(Program, "u_Material.NormalMap");
+    Shader->UniformCount = UniformCount;
+    Shader->Uniforms.Count = OPENGL_UNIFORM_MAX_COUNT;
+    Shader->Uniforms.Values = PushArray(Arena, Shader->Uniforms.Count, opengl_uniform);
 
-    Shader->MaterialHasDiffuseMapUniform = glGetUniformLocation(Program, "u_Material.HasDiffuseMap");
-    Shader->MaterialHasSpecularMapUniform = glGetUniformLocation(Program, "u_Material.HasSpecularMap");
-    Shader->MaterialHasShininessMapUniform = glGetUniformLocation(Program, "u_Material.HasShininessMap");
-    Shader->MaterialHasNormalMapUniform = glGetUniformLocation(Program, "u_Material.HasNormalMap");
+    for (i32 UniformIndex = 0; UniformIndex < UniformCount; ++UniformIndex)
+    {
+        GLsizei UniformLength;
+        GLint UniformSize;
+        GLenum 	UniformType;
+        char UniformName[OPENGL_UNIFORM_MAX_LENGTH];
+        glGetActiveUniform(Program, UniformIndex, UniformMaxLength, &UniformLength, &UniformSize, &UniformType, UniformName);
 
-    Shader->DirectionalLightDirectionUniform = glGetUniformLocation(Program, "u_DirectionalLight.Direction");
-    Shader->DirectionalLightColorUniform = glGetUniformLocation(Program, "u_DirectionalLight.Color");
-    Shader->PointLightCountUniform = glGetUniformLocation(Program, "u_PointLightCount");
+        GLint UniformLocation = glGetUniformLocation(Program, UniformName);
 
-    Shader->CameraXAxisUniform = glGetUniformLocation(Program, "u_CameraXAxis");
-    Shader->CameraYAxisUniform = glGetUniformLocation(Program, "u_CameraYAxis");
-
-    Shader->ScreenTextureUniform = glGetUniformLocation(Program, "u_ScreenTexture");
+        opengl_uniform *Uniform = HashTableLookup(&Shader->Uniforms, UniformName);
+        CopyString(UniformName, Uniform->Key);
+        Uniform->Location = UniformLocation;
+        Uniform->Size = UniformSize;
+    }
 }
 
 inline char *
@@ -618,26 +631,28 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 {
     opengl_shader *Shader = State->Shaders + State->CurrentShaderCount++;
 
-    scoped_memory ScopedMemory(&State->Arena);
-
-    u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
-    char **VertexSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
-    char **FragmentSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
-
-    opengl_create_program_params CreateProgramParams = {};
-    CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource);
-    CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource);
-
-    if (Params.GeometryShaderFileName)
     {
-        char **GeometrySource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
-        CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+        scoped_memory ScopedMemory(&State->Arena);
+
+        u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
+        char **VertexSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
+        char **FragmentSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
+
+        opengl_create_program_params CreateProgramParams = {};
+        CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource);
+        CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource);
+
+        if (Params.GeometryShaderFileName)
+        {
+            char **GeometrySource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
+            CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+        }
+
+        GLuint Program = OpenGLCreateProgram(CreateProgramParams);
+
+        Shader->Id = Params.ShaderId;
+        Shader->Program = Program;
     }
-
-    GLuint Program = OpenGLCreateProgram(CreateProgramParams);
-
-    Shader->Id = Params.ShaderId;
-    Shader->Program = Program;
 
 #if WIN32_RELOADABLE_SHADERS
     for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
@@ -661,7 +676,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
     }
 #endif
 
-    OpenGLLoadShaderUniforms(Shader);
+    OpenGLLoadShaderUniforms(Shader, &State->Arena);
 }
 
 #if WIN32_RELOADABLE_SHADERS
@@ -670,20 +685,23 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
 {
     opengl_shader *Shader = OpenGLGetShader(State, Id);
 
-    scoped_memory ScopedMemory(&State->Arena);
-
-    u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
-    char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
-    char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
-
     opengl_create_program_params CreateProgramParams = {};
-    CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource, false);
-    CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource, false);
 
-    if (!StringEquals(Shader->GeometryShader.FileName, ""))
     {
-        char **GeometrySource = OpenGLLoadShaderFile(State, Id, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
-        CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+        scoped_memory ScopedMemory(&State->Arena);
+
+        u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
+        char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
+        char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
+
+        CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource, false);
+        CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource, false);
+
+        if (!StringEquals(Shader->GeometryShader.FileName, ""))
+        {
+            char **GeometrySource = OpenGLLoadShaderFile(State, Id, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
+            CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+        }
     }
 
     GLuint Program = 0;
@@ -698,7 +716,7 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
         glDeleteProgram(Shader->Program);
         Shader->Program = Program;
 
-        OpenGLLoadShaderUniforms(Shader);
+        OpenGLLoadShaderUniforms(Shader, &State->Arena);
     }
 }
 #endif
@@ -715,18 +733,10 @@ OpenGLInitShaders(opengl_state *State)
 internal void
 OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, mesh_material *MeshMaterial)
 {
-    GLint RenderShadowMapUniformLocation = glGetUniformLocation(Shader->Program, "u_RenderShadowMap");
-    glUniform1i(RenderShadowMapUniformLocation, Options->RenderShadowMap);
-
     if (Options->RenderShadowMap)
     {
         return;
     }
-
-    glUniform1i(Shader->MaterialHasDiffuseMapUniform, false);
-    glUniform1i(Shader->MaterialHasSpecularMapUniform, false);
-    glUniform1i(Shader->MaterialHasShininessMapUniform, false);
-    glUniform1i(Shader->MaterialHasNormalMapUniform, false);
 
     // todo: magic numbers
     opengl_texture *Texture = OpenGLGetTexture(State, 0);
@@ -736,43 +746,36 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
     {
         for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
         {
+            // todo: magic 16?
             u32 TextureIndex = CascadeIndex + 16;
 
             // Cascasde Shadow Map
-            char ShadowMapUniformName[64];
-            FormatString(ShadowMapUniformName, "u_CascadeShadowMaps[%d]", CascadeIndex);
-            GLint ShadowMapUniformLocation = glGetUniformLocation(Shader->Program, ShadowMapUniformName);
-
             glBindTextureUnit(TextureIndex, State->CascadeShadowMaps[CascadeIndex]);
-            glUniform1i(ShadowMapUniformLocation, TextureIndex);
+            glUniform1i(OpengLGetUniformLocation(Shader, "u_CascadeShadowMaps[0]") + CascadeIndex, TextureIndex);
 
             // Cascade Bounds
-            char CascadeBoundsUniformName[64];
-            FormatString(CascadeBoundsUniformName, "u_CascadeBounds[%d]", CascadeIndex);
-            GLint CascadeBoundsUniformLocation = glGetUniformLocation(Shader->Program, CascadeBoundsUniformName);
-
             vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
-            glUniform2f(CascadeBoundsUniformLocation, CascadeBounds.x, CascadeBounds.y);
+            glUniform2f(OpengLGetUniformLocation(Shader, "u_CascadeBounds[0]") + CascadeIndex, CascadeBounds.x, CascadeBounds.y);
 
             // Cascade View Projection
-            char CascadeViewProjectionUniformName[64];
-            FormatString(CascadeViewProjectionUniformName, "u_CascadeViewProjection[%d]", CascadeIndex);
-            GLint CascadeViewProjectionUniformLocation = glGetUniformLocation(Shader->Program, CascadeViewProjectionUniformName);
-
             mat4 CascadeViewProjection = State->CascadeViewProjection[CascadeIndex];
-            glUniformMatrix4fv(CascadeViewProjectionUniformLocation, 1, GL_TRUE, (f32 *) CascadeViewProjection.Elements);
+            glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_CascadeViewProjection[0]") + CascadeIndex, 1, GL_TRUE, (f32 *)CascadeViewProjection.Elements);
         }
 
-        GLint ShowCascadesUniformLocation = glGetUniformLocation(Shader->Program, "u_ShowCascades");
-        glUniform1i(ShowCascadesUniformLocation, Options->ShowCascades);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
     }
 
     if (MeshMaterial)
     {
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasDiffuseMap"), false);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasSpecularMap"), false);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasShininessMap"), false);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasNormalMap"), false);
+
         // default values
         vec3 DefaultAmbient = vec3(0.2f);
-        glUniform3f(Shader->MaterialAmbientColorUniform, DefaultAmbient.x, DefaultAmbient.y, DefaultAmbient.z);
-        glUniform1f(Shader->MaterialSpecularShininessUniform, 1.f);
+        glUniform3f(OpengLGetUniformLocation(Shader, "u_Material.AmbientColor"), DefaultAmbient.x, DefaultAmbient.y, DefaultAmbient.z);
+        glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.SpecularShininess"), 1.f);
 
         for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
         {
@@ -782,7 +785,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
             {
                 case MaterialProperty_Float_Shininess:
                 {
-                    glUniform1f(Shader->MaterialSpecularShininessUniform, MaterialProperty->Value);
+                    glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.SpecularShininess"), MaterialProperty->Value);
                     break;
                 }
                 case MaterialProperty_Color_Ambient:
@@ -793,7 +796,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     }
 
                     glUniform3f(
-                        Shader->MaterialAmbientColorUniform,
+                        OpengLGetUniformLocation(Shader, "u_Material.AmbientColor"),
                         MaterialProperty->Color.r,
                         MaterialProperty->Color.g,
                         MaterialProperty->Color.b
@@ -803,7 +806,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 case MaterialProperty_Color_Diffuse:
                 {
                     glUniform3f(
-                        Shader->MaterialDiffuseColorUniform,
+                        OpengLGetUniformLocation(Shader, "u_Material.DiffuseColor"),
                         MaterialProperty->Color.r,
                         MaterialProperty->Color.g,
                         MaterialProperty->Color.b
@@ -813,7 +816,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 case MaterialProperty_Color_Specular:
                 {
                     glUniform3f(
-                        Shader->MaterialSpecularColorUniform,
+                        OpengLGetUniformLocation(Shader, "u_Material.SpecularColor"),
                         MaterialProperty->Color.r,
                         MaterialProperty->Color.g,
                         MaterialProperty->Color.b
@@ -826,8 +829,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
                     glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasDiffuseMapUniform, true);
-                    glUniform1i(Shader->MaterialDiffuseMapUniform, MaterialPropertyIndex);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasDiffuseMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.DiffuseMap"), MaterialPropertyIndex);
                     break;
                 }
                 case MaterialProperty_Texture_Specular:
@@ -836,8 +839,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
                     glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasSpecularMapUniform, true);
-                    glUniform1i(Shader->MaterialSpecularMapUniform, MaterialPropertyIndex);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasSpecularMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.SpecularMap"), MaterialPropertyIndex);
                     break;
                 }
                 case MaterialProperty_Texture_Shininess:
@@ -846,8 +849,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
                     glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasShininessMapUniform, true);
-                    glUniform1i(Shader->MaterialShininessMapUniform, MaterialPropertyIndex);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasShininessMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.ShininessMap"), MaterialPropertyIndex);
                     break;
                 }
                 case MaterialProperty_Texture_Metalness:
@@ -866,8 +869,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
                     glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
 
-                    glUniform1i(Shader->MaterialHasNormalMapUniform, true);
-                    glUniform1i(Shader->MaterialNormalMapUniform, MaterialPropertyIndex);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasNormalMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.NormalMap"), MaterialPropertyIndex);
                     break;
                 }
                 default:
@@ -992,9 +995,13 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     Assert(FramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
     //
 
-    glCreateBuffers(1, &State->ShaderStateUBO);
-    glNamedBufferStorage(State->ShaderStateUBO, sizeof(opengl_shader_state), 0, GL_DYNAMIC_STORAGE_BIT);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, State->ShaderStateUBO);
+    glCreateBuffers(1, &State->TransformUBO);
+    glNamedBufferStorage(State->TransformUBO, sizeof(opengl_uniform_buffer_transform), 0, GL_DYNAMIC_STORAGE_BIT);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, State->TransformUBO);
+
+    glCreateBuffers(1, &State->ShadingUBO);
+    glNamedBufferStorage(State->ShadingUBO, sizeof(opengl_uniform_buffer_shading), 0, GL_DYNAMIC_STORAGE_BIT);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, State->ShadingUBO);
 
     // todo: cleanup
     bitmap WhiteTexture = {};
@@ -1086,8 +1093,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
         mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
         mat4 TransposeLightView = Transpose(Options->CascadeView);
 
-        glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeLightProjection);
-        glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeLightView);
+        glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, WorldProjection), sizeof(mat4), &TransposeLightProjection);
+        glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, View), sizeof(mat4), &TransposeLightView);
     }
 
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
@@ -1121,7 +1128,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 Projection = OrthographicProjection(Command->Left, Command->Right, Command->Bottom, Command->Top, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
-                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, ScreenProjection), sizeof(mat4), &TransposeProjection);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, ScreenProjection), sizeof(mat4), &TransposeProjection);
                 }
 
                 break;
@@ -1135,7 +1142,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 Projection = FrustrumProjection(Command->FovY, Command->Aspect, Command->Near, Command->Far);
                     mat4 TransposeProjection = Transpose(Projection);
 
-                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, WorldProjection), sizeof(mat4), &TransposeProjection);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, WorldProjection), sizeof(mat4), &TransposeProjection);
                 }
 
                 break;
@@ -1152,9 +1159,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 View = LookAt(Command->Position, Target, Command->Up);
                     mat4 TransposeView = Transpose(View);
 
-                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, View), sizeof(mat4), &TransposeView);
-                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, CameraPosition), sizeof(vec3), &Command->Position);
-                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, CameraDirection), sizeof(vec3), &Direction);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, View), sizeof(mat4), &TransposeView);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, CameraPosition), sizeof(vec3), &Command->Position);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, CameraDirection), sizeof(vec3), &Direction);
                 }
 
                 break;
@@ -1165,15 +1172,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_set_directional_light *Command = (render_command_set_directional_light *) Entry;
 
-                    for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
-                    {
-                        opengl_shader *Shader = State->Shaders + ShaderIndex;
+                    opengl_directional_light DirectinalLight = {};
+                    DirectinalLight.LightDirection = Command->Light.Direction;
+                    DirectinalLight.LightColor = Command->Light.Color;
 
-                        glUseProgram(Shader->Program);
-                        glUniform3f(Shader->DirectionalLightDirectionUniform, Command->Light.Direction.x, Command->Light.Direction.y, Command->Light.Direction.z);
-                        glUniform3f(Shader->DirectionalLightColorUniform, Command->Light.Color.r, Command->Light.Color.g, Command->Light.Color.b);
-                        glUseProgram(0);
-                    }
+                    glNamedBufferSubData(State->ShadingUBO, StructOffset(opengl_uniform_buffer_shading, DirectinalLight), sizeof(opengl_directional_light), &DirectinalLight);
                 }
 
                 break;
@@ -1184,47 +1187,22 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_set_point_lights *Command = (render_command_set_point_lights *) Entry;
 
-                    for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+                    scoped_memory ScopedMemory(&State->Arena);
+
+                    opengl_point_light *PointLights = PushArray(ScopedMemory.Arena, Command->PointLightCount, opengl_point_light);
+
+                    for (u32 PointLightIndex = 0; PointLightIndex < Command->PointLightCount; ++PointLightIndex)
                     {
-                        opengl_shader *Shader = State->Shaders + ShaderIndex;
+                        point_light *Source = Command->PointLights + PointLightIndex;
+                        opengl_point_light *Dest = PointLights + PointLightIndex;
 
-                        glUseProgram(Shader->Program);
-
-                        glUniform1i(Shader->PointLightCountUniform, Command->PointLightCount);
-
-                        for (u32 PointLightIndex = 0; PointLightIndex < Command->PointLightCount; ++PointLightIndex)
-                        {
-                            point_light *PointLight = Command->PointLights + PointLightIndex;
-
-                            char PositionUniformName[64];
-                            FormatString(PositionUniformName, "u_PointLights[%d].Position", PointLightIndex);
-                            GLint PositionUniformLocation = glGetUniformLocation(Shader->Program, PositionUniformName);
-
-                            char ColorUniformName[64];
-                            FormatString(ColorUniformName, "u_PointLights[%d].Color", PointLightIndex);
-                            GLint ColorUniformLocation = glGetUniformLocation(Shader->Program, ColorUniformName);
-
-                            char AttenuationConstantUniformName[64];
-                            FormatString(AttenuationConstantUniformName, "u_PointLights[%d].Attenuation.Constant", PointLightIndex);
-                            GLint AttenuationConstantUniformLocation = glGetUniformLocation(Shader->Program, AttenuationConstantUniformName);
-
-                            char AttenuationLinearUniformName[64];
-                            FormatString(AttenuationLinearUniformName, "u_PointLights[%d].Attenuation.Linear", PointLightIndex);
-                            GLint AttenuationLinearUniformLocation = glGetUniformLocation(Shader->Program, AttenuationLinearUniformName);
-
-                            char AttenuationQuadraticUniformName[64];
-                            FormatString(AttenuationQuadraticUniformName, "u_PointLights[%d].Attenuation.Quadratic", PointLightIndex);
-                            GLint AttenuationQuadraticUniformLocation = glGetUniformLocation(Shader->Program, AttenuationQuadraticUniformName);
-
-                            glUniform3f(PositionUniformLocation, PointLight->Position.x, PointLight->Position.y, PointLight->Position.z);
-                            glUniform3f(ColorUniformLocation, PointLight->Color.r, PointLight->Color.g, PointLight->Color.b);
-                            glUniform1f(AttenuationConstantUniformLocation, PointLight->Attenuation.Constant);
-                            glUniform1f(AttenuationLinearUniformLocation, PointLight->Attenuation.Linear);
-                            glUniform1f(AttenuationQuadraticUniformLocation, PointLight->Attenuation.Quadratic);
-                        }
-
-                        glUseProgram(0);
+                        Dest->Position = Source->Position;
+                        Dest->Color = Source->Color;
+                        Dest->Attenuation = vec3(Source->Attenuation.Constant, Source->Attenuation.Linear, Source->Attenuation.Quadratic);
                     }
+
+                    glNamedBufferSubData(State->ShadingUBO, StructOffset(opengl_uniform_buffer_shading, PointLightCount), sizeof(u32), &Command->PointLightCount);
+                    glNamedBufferSubData(State->ShadingUBO, StructOffset(opengl_uniform_buffer_shading, PointLights), Command->PointLightCount * sizeof(opengl_point_light), PointLights);
                 }
                 
                 break;
@@ -1233,7 +1211,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             {
                 render_command_set_time *Command = (render_command_set_time *) Entry;
 
-                glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, Time), sizeof(f32), &Command->Time);
+                glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, Time), sizeof(f32), &Command->Time);
 
                 break;
             }
@@ -1264,9 +1242,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         mat4 Model = Translate(Command->Position);
 
                         // todo: world mode?
-                        glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
-                        glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
-                        glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                        glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), OPENGL_WORLD_SPACE_MODE);
+                        glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);
+                        glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
                     }
 
                     glDrawArrays(GL_POINTS, 0, 1);
@@ -1294,9 +1272,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         mat4 Model = T * S;
 
                         // todo: world mode?
-                        glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
-                        glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
-                        glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                        glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), OPENGL_WORLD_SPACE_MODE);
+                        glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);
+                        glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
                     }
 
                     glDrawArrays(GL_LINES, 0, 2);
@@ -1321,11 +1299,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 View = mat4(1.f);
 
                     // todo: do smth better
-                    glNamedBufferSubData(State->ShaderStateUBO, StructOffset(opengl_shader_state, View), sizeof(mat4), &View);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, View), sizeof(mat4), &View);
 
-                    glUniform1i(Shader->ModeUniform, OPENGL_SCREEN_SPACE_MODE);
-                    glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
-                    glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), OPENGL_SCREEN_SPACE_MODE);
+                    glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);
+                    glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 }
@@ -1345,9 +1323,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     mat4 Model = Transform(Command->Transform);
 
-                    glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
-                    glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
-                    glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), OPENGL_WORLD_SPACE_MODE);
+                    glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);
+                    glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
                     // todo: configurable
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -1438,10 +1416,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     opengl_texture *Texture = OpenGLGetTexture(State, Font->TextureId);
                     glBindTextureUnit(0, Texture->Handle);
 
-                    glUniform1i(Shader->ModeUniform, Mode);
-                    glUniform4f(Shader->ColorUniform, Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
-                    glUniform3f(Shader->CameraXAxisUniform, CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
-                    glUniform3f(Shader->CameraYAxisUniform, CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), Mode);
+                    glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform3f(OpengLGetUniformLocation(Shader, "u_CameraXAxis"), CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
+                    glUniform3f(OpengLGetUniformLocation(Shader, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
                     glDrawArrays(GL_POINTS, 0, CharacterCount);
 
@@ -1488,8 +1466,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         glBindTextureUnit(0, Texture->Handle);
                     }
 
-                    glUniform3f(Shader->CameraXAxisUniform, CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
-                    glUniform3f(Shader->CameraYAxisUniform, CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
+                    glUniform3f(OpengLGetUniformLocation(Shader, "u_CameraXAxis"), CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
+                    glUniform3f(OpengLGetUniformLocation(Shader, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
                     glDrawArrays(GL_POINTS, 0, Command->ParticleCount);
                 }
@@ -1506,17 +1484,14 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 mat4 Model = Transform(Command->Transform);
 
-                glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);
                 // todo: param
-                glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
+                glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), OPENGL_WORLD_SPACE_MODE);
 
                 opengl_texture *Texture = OpenGLGetTexture(State, Command->Texture->TextureId);
                 glBindTextureUnit(0, Texture->Handle);
 
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-                glUseProgram(0);
-                glBindVertexArray(0);
 
                 break;
             }
@@ -1536,9 +1511,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     OpenGLBlinnPhongShading(State, Options, Shader, 0);
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -1564,7 +1536,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             glUseProgram(Shader->Program);
 
                             mat4 Model = Transform(Command->Transform);
-                            glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
+                            glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);
 
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
@@ -1579,9 +1551,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             mat4 Model = Transform(Command->Transform);
                             material Material = Command->Material;
 
-                            glUniform1i(Shader->ModeUniform, OPENGL_WORLD_SPACE_MODE);
-                            glUniformMatrix4fv(Shader->ModelUniform, 1, GL_TRUE, (f32 *) Model.Elements);
-                            glUniform4f(Shader->ColorUniform, Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
+                            glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), OPENGL_WORLD_SPACE_MODE);
+                            glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);
+                            glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
 
                             break;
                         }
@@ -1630,7 +1602,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
                             glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
 
-                            glUniform1i(Shader->SkinningMatricesSamplerUniform, 0);
+                            glUniform1i(OpengLGetUniformLocation(Shader, "u_SkinningMatricesSampler"), 0);
 
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
@@ -1713,7 +1685,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
                             glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
 
-                            glUniform1i(Shader->SkinningMatricesSamplerUniform, 0);
+                            glUniform1i(OpengLGetUniformLocation(Shader, "u_SkinningMatricesSampler"), 0);
 
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
@@ -1826,7 +1798,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         {
             opengl_shader *Shader = State->Shaders + ShaderIndex;
 
-            b32 ShouldReload = false;
+            bool32 ShouldReload = false;
 
             for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
             {
@@ -1997,7 +1969,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         GL_COLOR_BUFFER_BIT, 
         GL_NEAREST
     );
-    glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
+    //glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
 
     // Draw a full screen triangle for postprocessing
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

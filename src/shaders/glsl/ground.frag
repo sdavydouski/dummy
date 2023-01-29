@@ -1,8 +1,8 @@
 //! #include "common/version.glsl"
-//! #include "common/constants.glsl"
 //! #include "common/math.glsl"
+//! #include "common/constants.glsl"
+//! #include "common/phong.glsl"
 //! #include "common/uniform.glsl"
-//! #include "common/blinn_phong.glsl"
 //! #include "common/shadows.glsl"
 
 in VS_OUT
@@ -12,11 +12,6 @@ in VS_OUT
 } fs_in;
 
 out vec4 out_Color;
-
-// todo: duplicate
-uniform directional_light u_DirectionalLight;
-uniform int u_PointLightCount;
-uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
 
 // computes Z-buffer depth value, and converts the range.
 float ComputeDepth(vec3 p, mat4 View, mat4 Projection) {

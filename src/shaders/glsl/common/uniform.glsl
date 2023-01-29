@@ -1,14 +1,25 @@
 //? #include "version.glsl"
 //? #include "constants.glsl"
+//? #include "phong.glsl"
 
-layout(std140, binding = 0) uniform State
+layout(std140, binding = 0) uniform Transform
 {
     mat4 u_WorldProjection;
     mat4 u_ScreenProjection;
     mat4 u_View;
+
     vec3 u_CameraPosition;
     vec3 u_CameraDirection;
+
     float u_Time;
+};
+
+layout(std140, binding = 1) uniform Shading
+{
+    // todo: multile directional lights
+    directional_light u_DirectionalLight;
+    int u_PointLightCount;
+    point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
 };
 
 mat4 GetViewProjection(int Mode)

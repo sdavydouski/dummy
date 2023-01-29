@@ -29,15 +29,15 @@ struct light_attenuation
 
 struct directional_light
 {
-    vec3 Direction;
-    vec3 Color;
+    alignas(16) vec3 Direction;
+    alignas(16) vec3 Color;
 };
 
 struct point_light
 {
-    vec3 Position;
-    vec3 Color;
-    light_attenuation Attenuation;
+    alignas(16) vec3 Position;
+    alignas(16) vec3 Color;
+    alignas(16) light_attenuation Attenuation;
 };
 
 struct spot_light

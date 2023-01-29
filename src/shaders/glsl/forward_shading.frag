@@ -1,8 +1,8 @@
 //! #include "common/version.glsl"
-//! #include "common/constants.glsl"
 //! #include "common/math.glsl"
+//! #include "common/constants.glsl"
+//! #include "common/phong.glsl"
 //! #include "common/uniform.glsl"
-//! #include "common/blinn_phong.glsl"
 //! #include "common/shadows.glsl"
 
 in VS_OUT {
@@ -19,11 +19,6 @@ out vec4 out_Color;
 uniform mat4 u_LightSpaceMatrix;
 
 uniform phong_material u_Material;
-// todo: multile directional lights
-uniform directional_light u_DirectionalLight;
-uniform int u_PointLightCount;
-uniform point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
-uniform bool u_RenderShadowMap;
 
 vec3 GetMaterial(bool HasMap, sampler2D Map, vec3 Fallback)
 {
