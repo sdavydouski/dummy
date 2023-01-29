@@ -22,6 +22,7 @@ struct win32_opengl_state
     PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
 };
 
+// todo: deprecated in favor of OpenGLLogMessage (glDebugMessageCallback)?
 void Win32GladPostCallback(const char *Name, void *FuncPtr, i32 LenArgs, ...) {
 #if 1
     GLenum ErrorCode;

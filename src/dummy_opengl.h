@@ -7,6 +7,15 @@
 #define OPENGL_MAX_TEXTURE_COUNT 64
 #define OPENGL_MAX_SHADER_COUNT 64
 
+#define OPENGL_MAX_POINT_LIGHT_COUNT 8
+#define OPENGL_WORLD_SPACE_MODE 0x1
+#define OPENGL_SCREEN_SPACE_MODE 0x2
+#define OPENGL_MAX_JOINT_COUNT 256
+#define OPENGL_UNIFORM_MAX_LENGTH 64
+#define OPENGL_UNIFORM_MAX_COUNT 257
+
+#define MAX_SHADER_FILE_PATH 256
+
 // todo: could do better
 #define OPENGL_COLOR_SHADER_ID 0x1
 #define OPENGL_PHONG_SHADER_ID 0x2
@@ -18,15 +27,6 @@
 #define OPENGL_TEXT_SHADER_ID 0x8
 #define OPENGL_PARTICLE_SHADER_ID 0x9
 #define OPENGL_TEXTURED_QUAD_SHADER_ID 0x10
-
-#define OPENGL_MAX_POINT_LIGHT_COUNT 8
-#define OPENGL_WORLD_SPACE_MODE 0x1
-#define OPENGL_SCREEN_SPACE_MODE 0x2
-#define OPENGL_MAX_JOINT_COUNT 256
-#define OPENGL_UNIFORM_MAX_LENGTH 64
-#define OPENGL_UNIFORM_MAX_COUNT 257
-
-#define MAX_SHADER_FILE_PATH 256
 
 const char *OpenGLCommonShaders[] = 
 {
@@ -40,32 +40,76 @@ const char *OpenGLCommonShaders[] =
 
 #define OPENGL_COMMON_SHADER_COUNT ArrayCount(OpenGLCommonShaders)
 
-struct opengl_mesh_buffer
+struct opengl_create_program_params
 {
-    u32 Id;
-    u32 VertexCount;
-    u32 IndexCount;
-
-    GLuint VAO;
-    GLuint VertexBuffer;
-    GLuint InstanceBuffer;
-    GLuint IndexBuffer;
-
-    u32 BufferSize;
-    u32 InstanceCount;
+    GLuint VertexShader;
+    GLuint GeometryShader;
+    GLuint FragmentShader;
 };
 
-struct opengl_skinning_buffer
+struct opengl_load_shader_params
 {
-    u32 Id;
-    GLuint SkinningTBO;
-    GLuint SkinningTBOTexture;
+    u32 ShaderId;
+
+    const char *VertexShaderFileName;
+    const char *GeometryShaderFileName;
+    const char *FragmentShaderFileName;
 };
 
-struct opengl_texture
+opengl_load_shader_params OpenGLShaders[] =
 {
-    u32 Id;
-    GLuint Handle;
+    {
+        .ShaderId = OPENGL_COLOR_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\simple.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\simple.frag"
+    },
+    {
+        .ShaderId = OPENGL_PHONG_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\forward_shading.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+    },
+    {
+        .ShaderId = OPENGL_PHONG_INSTANCED_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\instanced_forward_shading.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+    },
+    {
+        .ShaderId = OPENGL_PHONG_SKINNED_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\skinned_mesh.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+    },
+    {
+        .ShaderId = OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\skinned_instanced_forward_shading.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+    },
+    {
+        .ShaderId = OPENGL_GROUND_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\ground.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\ground.frag"
+    },
+    {
+        .ShaderId = OPENGL_FRAMEBUFFER_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\framebuffer.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\framebuffer.frag"
+    },
+    {
+        .ShaderId = OPENGL_TEXT_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\text.vert",
+        .GeometryShaderFileName = "shaders\\glsl\\text.geom",
+        .FragmentShaderFileName = "shaders\\glsl\\text.frag"
+    },
+    {
+        .ShaderId = OPENGL_PARTICLE_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\particle.vert",
+        .GeometryShaderFileName = "shaders\\glsl\\particle.geom",
+        .FragmentShaderFileName = "shaders\\glsl\\particle.frag"
+    },
+    {
+        .ShaderId = OPENGL_TEXTURED_QUAD_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\textured_quad.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\textured_quad.frag"
+    },
 };
 
 struct opengl_uniform
@@ -99,6 +143,34 @@ struct opengl_shader
     hash_table<opengl_uniform> Uniforms;
 };
 
+struct opengl_mesh_buffer
+{
+    u32 Id;
+    u32 VertexCount;
+    u32 IndexCount;
+
+    GLuint VAO;
+    GLuint VertexBuffer;
+    GLuint InstanceBuffer;
+    GLuint IndexBuffer;
+
+    u32 BufferSize;
+    u32 InstanceCount;
+};
+
+struct opengl_skinning_buffer
+{
+    u32 Id;
+    GLuint SkinningTBO;
+    GLuint SkinningTBOTexture;
+};
+
+struct opengl_texture
+{
+    u32 Id;
+    GLuint Handle;
+};
+
 struct opengl_framebuffer
 {
     GLuint Handle;
@@ -108,79 +180,6 @@ struct opengl_framebuffer
     u32 Width;
     u32 Height;
     u32 Samples;
-};
-
-struct opengl_load_shader_params
-{
-    u32 ShaderId;
-
-    const char *VertexShaderFileName;
-    const char *FragmentShaderFileName;
-    const char *GeometryShaderFileName;
-};
-
-struct opengl_create_program_params
-{
-    GLuint VertexShader;
-    GLuint FragmentShader;
-    GLuint GeometryShader;
-};
-
-// todo: designed initializers?
-opengl_load_shader_params OpenGLShaders[] =
-{
-    {
-        OPENGL_COLOR_SHADER_ID,
-        "shaders\\glsl\\simple.vert",
-        "shaders\\glsl\\simple.frag"
-    },
-    {
-        OPENGL_PHONG_SHADER_ID,
-        "shaders\\glsl\\forward_shading.vert",
-        "shaders\\glsl\\forward_shading.frag"
-    },
-    {
-        OPENGL_PHONG_INSTANCED_SHADER_ID,
-        "shaders\\glsl\\instanced_forward_shading.vert",
-        "shaders\\glsl\\forward_shading.frag"
-    },
-    {
-        OPENGL_PHONG_SKINNED_SHADER_ID,
-        "shaders\\glsl\\skinned_mesh.vert",
-        "shaders\\glsl\\forward_shading.frag"
-    },
-    {
-        OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID,
-        "shaders\\glsl\\skinned_instanced_forward_shading.vert",
-        "shaders\\glsl\\forward_shading.frag"
-    },
-    {
-        OPENGL_GROUND_SHADER_ID,
-        "shaders\\glsl\\ground.vert",
-        "shaders\\glsl\\ground.frag"
-    },
-    {
-        OPENGL_FRAMEBUFFER_SHADER_ID,
-        "shaders\\glsl\\framebuffer.vert",
-        "shaders\\glsl\\framebuffer.frag"
-    },
-    {
-        OPENGL_TEXT_SHADER_ID,
-        "shaders\\glsl\\text.vert",
-        "shaders\\glsl\\text.frag",
-        "shaders\\glsl\\text.geom"
-    },
-    {
-        OPENGL_PARTICLE_SHADER_ID,
-        "shaders\\glsl\\particle.vert",
-        "shaders\\glsl\\particle.frag",
-        "shaders\\glsl\\particle.geom"
-    },
-    {
-        OPENGL_TEXTURED_QUAD_SHADER_ID,
-        "shaders\\glsl\\textured_quad.vert",
-        "shaders\\glsl\\textured_quad.frag"
-    },
 };
 
 struct opengl_character_point
@@ -258,7 +257,6 @@ struct opengl_state
     opengl_framebuffer SourceFramebuffer;
     opengl_framebuffer DestFramebuffer;
 
-    // Draw primitives
     GLuint LineVAO;
     GLuint RectangleVAO;
     GLuint BoxVAO;
@@ -281,13 +279,6 @@ struct opengl_state
 
     u32 CurrentShaderCount;
     opengl_shader Shaders[OPENGL_MAX_SHADER_COUNT];
-
-#if 0
-    hash_table<opengl_mesh_buffer> MeshBuffers;
-    hash_table<opengl_skinned_mesh_buffer> SkinnedMeshBuffers;
-    hash_table<opengl_texture> Textures;
-    hash_table<opengl_shader> Shaders;
-#endif
 
     u32 CascadeShadowMapSize;
     GLuint CascadeShadowMapFBO;

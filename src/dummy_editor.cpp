@@ -521,7 +521,7 @@ EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_comman
 
 // https://github.com/ocornut/imgui/blob/master/imgui_demo.cpp#L6925
 internal void 
-EditorRenderLog(editor_state *EditorState, stream *Stream, const char *Id, f32 Flush = false)
+EditorLogWindow(editor_state *EditorState, stream *Stream, const char *Id, f32 Flush = false)
 {
     ImGui::Begin(Id);
 
@@ -958,8 +958,8 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::End();
     }
 
-    EditorRenderLog(EditorState, &PlatformState->Stream, "Platform Log", false);
-    EditorRenderLog(EditorState, &RendererState->Stream, "Renderer Log", true);
+    EditorLogWindow(EditorState, &PlatformState->Stream, "Platform Log", false);
+    EditorLogWindow(EditorState, &RendererState->Stream, "Renderer Log", false);
 
 #if 0
     // todo: find a better place to put it
@@ -981,13 +981,13 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     ImGui::End();
 #endif
 
-    ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetFrameHeight() + 5));
-    ImGui::SetNextWindowSize(ImVec2(200, 0));
+    //ImGui::SetNextWindowPos(ImVec2(Viewport->Size.x - 210, ImGui::GetFrameHeight() + 5));
+    //ImGui::SetNextWindowSize(ImVec2(200, 0));
 
 #if 1
-    ImGui::Begin("Entity List", 0, ImGuiWindowFlags_NoTitleBar);
+    ImGui::Begin("Entity List");
     
-    if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
+    if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, -FLT_MIN)))
     {
         for (u32 EntityIndex = 0; EntityIndex < GameState->WorldArea.EntityCount; ++EntityIndex)
         {

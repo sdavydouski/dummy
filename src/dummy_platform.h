@@ -63,7 +63,7 @@ Out(stream *Dest, const char *Format, ...)
 {
     va_list Args;
 
-    char String[256];
+    char String[512];
 
     va_start(Args, Format);
     u32 Size = FormatStringArgs(String, ArrayCount(String), Format, Args);

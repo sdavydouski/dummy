@@ -733,37 +733,29 @@ OpenGLInitShaders(opengl_state *State)
 internal void
 OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, mesh_material *MeshMaterial)
 {
-    if (Options->RenderShadowMap)
-    {
-        return;
-    }
-
     // todo: magic numbers
     opengl_texture *Texture = OpenGLGetTexture(State, 0);
     glBindTextureUnit(0, Texture->Handle);
 
-    if (!Options->RenderShadowMap)
+    for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
     {
-        for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
-        {
-            // todo: magic 16?
-            u32 TextureIndex = CascadeIndex + 16;
+        // todo: magic 16?
+        u32 TextureIndex = CascadeIndex + 16;
 
-            // Cascasde Shadow Map
-            glBindTextureUnit(TextureIndex, State->CascadeShadowMaps[CascadeIndex]);
-            glUniform1i(OpengLGetUniformLocation(Shader, "u_CascadeShadowMaps[0]") + CascadeIndex, TextureIndex);
+        // Cascasde Shadow Map
+        glBindTextureUnit(TextureIndex, State->CascadeShadowMaps[CascadeIndex]);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_CascadeShadowMaps[0]") + CascadeIndex, TextureIndex);
 
-            // Cascade Bounds
-            vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
-            glUniform2f(OpengLGetUniformLocation(Shader, "u_CascadeBounds[0]") + CascadeIndex, CascadeBounds.x, CascadeBounds.y);
+        // Cascade Bounds
+        vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
+        glUniform2f(OpengLGetUniformLocation(Shader, "u_CascadeBounds[0]") + CascadeIndex, CascadeBounds.x, CascadeBounds.y);
 
-            // Cascade View Projection
-            mat4 CascadeViewProjection = State->CascadeViewProjection[CascadeIndex];
-            glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_CascadeViewProjection[0]") + CascadeIndex, 1, GL_TRUE, (f32 *)CascadeViewProjection.Elements);
-        }
-
-        glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
+        // Cascade View Projection
+        mat4 CascadeViewProjection = State->CascadeViewProjection[CascadeIndex];
+        glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_CascadeViewProjection[0]") + CascadeIndex, 1, GL_TRUE, (f32 *)CascadeViewProjection.Elements);
     }
+
+    glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
 
     if (MeshMaterial)
     {
@@ -941,6 +933,114 @@ OpenGLOnWindowResize(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32
 }
 
 internal void
+OpenGLLogMessage(GLenum Source, GLenum Type, GLuint Id, GLenum Severity, GLsizei Length, const GLchar *Message, const void *UserParam)
+{
+    stream *Stream = (stream *) UserParam;
+
+    char SourceString[32];
+    char TypeString[32];
+    char SeverityString[32];
+
+    switch (Source)
+    {
+        case GL_DEBUG_SOURCE_API:
+        {
+            CopyString("API", SourceString);
+            break;
+        };
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+        {
+            CopyString("WINDOW SYSTEM", SourceString);
+            break;
+        };
+        case GL_DEBUG_SOURCE_SHADER_COMPILER:
+        {
+            CopyString("SHADER COMPILER", SourceString);
+            break;
+        };
+        case GL_DEBUG_SOURCE_THIRD_PARTY:
+        {
+            CopyString("THIRD PARTY", SourceString);
+            break;
+        };
+        case GL_DEBUG_SOURCE_APPLICATION:
+        {
+            CopyString("APPLICATION", SourceString);
+        };
+        case GL_DEBUG_SOURCE_OTHER: 
+        {
+            CopyString("OTHER", SourceString);
+            break;
+        };
+    }
+
+    switch (Type)
+    {
+        case GL_DEBUG_TYPE_ERROR:
+        {
+            CopyString("ERROR", TypeString);
+            break;
+        };
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        {
+            CopyString("DEPRECATED_BEHAVIOR", TypeString);
+            break;
+        };
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        {
+            CopyString("UNDEFINED_BEHAVIOR", TypeString);
+            break;
+        };
+        case GL_DEBUG_TYPE_PORTABILITY:
+        {
+            CopyString("PORTABILITY", TypeString);
+            break;
+        };
+        case GL_DEBUG_TYPE_PERFORMANCE:
+        {
+            CopyString("PERFORMANCE", TypeString);
+            break;
+        };
+        case GL_DEBUG_TYPE_MARKER:
+        {
+            CopyString("MARKER", TypeString);
+            break;
+        };
+        case GL_DEBUG_TYPE_OTHER:
+        {
+            CopyString("OTHER", TypeString);
+            break;
+        };
+    }
+
+    switch (Severity)
+    {
+        case GL_DEBUG_SEVERITY_NOTIFICATION:
+        {
+            CopyString("NOTIFICATION", SeverityString);
+            break;
+        };
+        case GL_DEBUG_SEVERITY_LOW:
+        {
+            CopyString("LOW", SeverityString);
+            break;
+        };
+        case GL_DEBUG_SEVERITY_MEDIUM:
+        {
+            CopyString("MEDIUM", SeverityString);
+            break;
+        };
+        case GL_DEBUG_SEVERITY_HIGH:
+        {
+            CopyString("HIGH", SeverityString);
+            break;
+        };
+    }
+
+    Out(Stream, "%s: %s - %s: %s", SourceString, TypeString, SeverityString, Message);
+}
+
+internal void
 OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 Samples)
 {
     State->Vendor = (char*)glGetString(GL_VENDOR);
@@ -1028,6 +1128,13 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
 
     // todo: use GL_ZERO_TO_ONE?
     glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+
+#ifndef NDEBUG
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
+    glDebugMessageCallback(OpenGLLogMessage, &State->Stream);
+#endif
 }
 
 internal void
@@ -1103,7 +1210,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
         if (!Options->RenderShadowMap)
         {
-            Out(&State->Stream, "Renderer::%s", RenderCommandNames[Entry->Type]);
+            //Out(&State->Stream, "Renderer::%s", RenderCommandNames[Entry->Type]);
         }
 
         switch (Entry->Type)
@@ -1622,9 +1729,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glDrawElements(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0);
 
                     //glPolygonMode(GL_FRONT_AND_BACK, PrevPolygonMode[0]);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
@@ -1699,9 +1803,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     }
 
                     glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
-
-                    glUseProgram(0);
-                    glBindVertexArray(0);
                 }
 
                 break;
