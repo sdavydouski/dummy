@@ -194,8 +194,15 @@ GetEntityBounds(game_entity *Entity)
     }
     else
     {
-        Result.Min = Entity->Transform.Translation;
-        Result.Max = Entity->Transform.Translation;
+        bounds DefaultBounds =
+        {
+            .Min = vec3(-0.1f),
+            .Max = vec3(0.1f)
+        };
+        Result = UpdateBounds(DefaultBounds, Entity->Transform);
+
+        //Result.Min = Entity->Transform.Translation;
+        //Result.Max = Entity->Transform.Translation;
     }
 
     return Result;

@@ -528,8 +528,8 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
 
     glTextureParameteri(TextureHandle, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTextureParameteri(TextureHandle, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     GLint Format = OpenGLGetTextureFormat(Bitmap);
     GLint InternalFormat = OpenGLGetTextureInternalFormat(Bitmap);
@@ -1048,7 +1048,8 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     State->Version = (char*)glGetString(GL_VERSION);
     State->ShadingLanguageVersion = (char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(4)));
+    State->DebugStream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(2)));
+    State->RendererStream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(2)));
 
     State->CascadeShadowMapSize = 4096;
     // todo: set by the game
@@ -1133,7 +1134,7 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
-    glDebugMessageCallback(OpenGLLogMessage, &State->Stream);
+    glDebugMessageCallback(OpenGLLogMessage, &State->DebugStream);
 #endif
 }
 
@@ -1208,9 +1209,9 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
     {
         render_command_header *Entry = (render_command_header*)((u8*)Commands->RenderCommandsBuffer + BaseAddress);
 
-        if (!Options->RenderShadowMap)
+        if (Options->EnableLog)
         {
-            //Out(&State->Stream, "Renderer::%s", RenderCommandNames[Entry->Type]);
+            Out(&State->RendererStream, "Renderer::%s", RenderCommandNames[Entry->Type]);
         }
 
         switch (Entry->Type)
@@ -1577,6 +1578,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glUniform3f(OpengLGetUniformLocation(Shader, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
 
                     glDrawArrays(GL_POINTS, 0, Command->ParticleCount);
+
+                    glBindTextureUnit(0, 0);
                 }
 
                 break;
@@ -1600,15 +1603,52 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+                glBindTextureUnit(0, 0);
+
                 break;
             }
-            case RenderCommand_DrawGround:
+            case RenderCommand_DrawBillboard:
+            {
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_draw_billboard *Command = (render_command_draw_billboard *)Entry;
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_BILLBOARD_SHADER_ID);
+
+                    glBindVertexArray(State->RectangleVAO);
+                    glUseProgram(Shader->Program);
+
+                    mat4 WorldToCamera = Commands->Settings.WorldToCamera;
+                    vec3 CameraXAsis = WorldToCamera[0].xyz;
+                    vec3 CameraYAxis = WorldToCamera[1].xyz;
+
+                    glUniform3f(OpengLGetUniformLocation(Shader, "u_Position"), Command->Position.x, Command->Position.y, Command->Position.z);
+                    glUniform2f(OpengLGetUniformLocation(Shader, "u_Size"), Command->Size.x, Command->Size.y);
+                    glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
+                    glUniform3f(OpengLGetUniformLocation(Shader, "u_CameraXAxis"), CameraXAsis.x, CameraXAsis.y, CameraXAsis.z);
+                    glUniform3f(OpengLGetUniformLocation(Shader, "u_CameraYAxis"), CameraYAxis.x, CameraYAxis.y, CameraYAxis.z);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_HasTexture"), 0);
+
+                    if (Command->Texture)
+                    {
+                        opengl_texture *Texture = OpenGLGetTexture(State, Command->Texture->TextureId);
+                        glBindTextureUnit(0, Texture->Handle);
+                        glUniform1i(OpengLGetUniformLocation(Shader, "u_HasTexture"), 1);
+                    }
+
+                    glDrawArrays(GL_POINTS, 0, 1);
+
+                    glBindTextureUnit(0, 0);
+                }
+
+                break;
+            }
+            case RenderCommand_DrawGrid:
             {
                 if (!Options->RenderShadowMap)
                 {
                     // http://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
                     // https://github.com/martin-pr/possumwood/wiki/Infinite-ground-plane-using-GLSL-shaders
-                    render_command_draw_ground *Command = (render_command_draw_ground *) Entry;
+                    render_command_draw_grid *Command = (render_command_draw_grid *) Entry;
 
                     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_GROUND_SHADER_ID);
 
@@ -2052,6 +2092,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
         opengl_render_options RenderOptions = {};
         RenderOptions.ShowCascades = RenderSettings->ShowCascades;
+        RenderOptions.EnableLog = true;
         OpenGLRenderScene(State, Commands, &RenderOptions);
     }
 

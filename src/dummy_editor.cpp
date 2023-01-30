@@ -322,6 +322,13 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
 
+    if (ImGui::ButtonEx("Playable", ImVec2(WindowSize.x, 0)))
+    {
+        GameState->Player = Entity;
+    }
+
+    ImGui::InputText("Name", Entity->Name, ArrayCount(Entity->Name));
+
     ImGui::Text("Id: %d", Entity->Id);
     ImGui::Text("Min Grid Coords: %d, %d, %d", Entity->GridCellCoords[0].x, Entity->GridCellCoords[0].y, Entity->GridCellCoords[0].z);
     ImGui::Text("Max Grid Coords: %d, %d, %d", Entity->GridCellCoords[1].x, Entity->GridCellCoords[1].y, Entity->GridCellCoords[1].z);
@@ -449,11 +456,6 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
         }
     }
 
-    if (ImGui::Button("Playable"))
-    {
-        GameState->Player = Entity;
-    }
-
     ImGui::NewLine();
 
     if (ImGui::ButtonEx("Remove (X)", ImVec2(WindowSize.x, 0)))
@@ -480,7 +482,8 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
 
     ImGui::NewLine();
 
-    if (ImGui::IsKeyPressed(ImGuiKey_X))
+    // Shortcuts? https://github.com/ocornut/imgui/issues/456
+    if (!ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_X))
     {
         RemoveGameEntity(Entity);
 
@@ -656,14 +659,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
                 if (ImGui::BeginMenu("Misc"))
                 {
-                    /*if (GameState->Player->Body)
-                    {
-                        ImGui::Text("Player Position: x: %.1f, y: %.1f, z: %.1f", GameState->Player->Body->Position.x, GameState->Player->Body->Position.y, GameState->Player->Body->Position.z);
-                    }*/
-
-                    //ImGui::Text("Camera Position: x: %.1f, y: %.1f, z: %.1f", Camera->Transform.Translation.x, Camera->Transform.Translation.y, Camera->Transform.Translation.z);
-
-                    ImGui::Checkbox("(| - _ - |)", (bool *)&GameState->DanceMode);
+                    ImGui::Checkbox("Dance mode", (bool *)&GameState->DanceMode);
 
                     ImGui::EndMenu();
                 }
@@ -959,7 +955,8 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     }
 
     EditorLogWindow(EditorState, &PlatformState->Stream, "Platform Log", false);
-    EditorLogWindow(EditorState, &RendererState->Stream, "Renderer Log", false);
+    EditorLogWindow(EditorState, &RendererState->RendererStream, "Renderer Log", true);
+    EditorLogWindow(EditorState, &RendererState->DebugStream, "OpenGL Debug Log", false);
 
 #if 0
     // todo: find a better place to put it
@@ -985,7 +982,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     //ImGui::SetNextWindowSize(ImVec2(200, 0));
 
 #if 1
-    ImGui::Begin("Entity List");
+    ImGui::Begin("Scene");
     
     if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, -FLT_MIN)))
     {
@@ -996,9 +993,9 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
             if (!Entity->Destroyed)
             {
                 char EntityName[256];
-                FormatString(EntityName, "Id: %d", Entity->Id);
+                FormatString(EntityName, "Id: %d, %s", Entity->Id, Entity->Name);
 
-                if (ImGui::Selectable(EntityName))
+                if (ImGui::Selectable(EntityName, GameState->SelectedEntity == Entity))
                 {
                     GameState->SelectedEntity = Entity;
                 }
@@ -1086,7 +1083,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         GameState->SelectedEntity = 0;
     }
 
-    if (GameState->Mode == GameMode_Editor || io.KeyCtrl)
+    if ((GameState->Mode == GameMode_Editor || io.KeyCtrl) && !ImGui::GetIO().WantCaptureKeyboard)
     {
         if (ImGui::IsKeyPressed(ImGuiKey_T))
         {

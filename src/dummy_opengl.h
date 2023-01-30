@@ -27,6 +27,7 @@
 #define OPENGL_TEXT_SHADER_ID 0x8
 #define OPENGL_PARTICLE_SHADER_ID 0x9
 #define OPENGL_TEXTURED_QUAD_SHADER_ID 0x10
+#define OPENGL_BILLBOARD_SHADER_ID 0x11
 
 const char *OpenGLCommonShaders[] = 
 {
@@ -61,32 +62,32 @@ opengl_load_shader_params OpenGLShaders[] =
     {
         .ShaderId = OPENGL_COLOR_SHADER_ID,
         .VertexShaderFileName = "shaders\\glsl\\simple.vert",
-        .FragmentShaderFileName = "shaders\\glsl\\simple.frag"
+        .FragmentShaderFileName = "shaders\\glsl\\color.frag"
     },
     {
         .ShaderId = OPENGL_PHONG_SHADER_ID,
-        .VertexShaderFileName = "shaders\\glsl\\forward_shading.vert",
-        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+        .VertexShaderFileName = "shaders\\glsl\\mesh.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
         .ShaderId = OPENGL_PHONG_INSTANCED_SHADER_ID,
-        .VertexShaderFileName = "shaders\\glsl\\instanced_forward_shading.vert",
-        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+        .VertexShaderFileName = "shaders\\glsl\\mesh_instanced.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
         .ShaderId = OPENGL_PHONG_SKINNED_SHADER_ID,
         .VertexShaderFileName = "shaders\\glsl\\skinned_mesh.vert",
-        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+        .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
         .ShaderId = OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID,
-        .VertexShaderFileName = "shaders\\glsl\\skinned_instanced_forward_shading.vert",
-        .FragmentShaderFileName = "shaders\\glsl\\forward_shading.frag"
+        .VertexShaderFileName = "shaders\\glsl\\skinned_mesh_instanced.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
         .ShaderId = OPENGL_GROUND_SHADER_ID,
-        .VertexShaderFileName = "shaders\\glsl\\ground.vert",
-        .FragmentShaderFileName = "shaders\\glsl\\ground.frag"
+        .VertexShaderFileName = "shaders\\glsl\\grid.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\grid.frag"
     },
     {
         .ShaderId = OPENGL_FRAMEBUFFER_SHADER_ID,
@@ -110,6 +111,12 @@ opengl_load_shader_params OpenGLShaders[] =
         .VertexShaderFileName = "shaders\\glsl\\textured_quad.vert",
         .FragmentShaderFileName = "shaders\\glsl\\textured_quad.frag"
     },
+    {
+        .ShaderId = OPENGL_BILLBOARD_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\billboard.vert",
+        .GeometryShaderFileName = "shaders\\glsl\\billboard.geom",
+        .FragmentShaderFileName = "shaders\\glsl\\billboard.frag"
+    }
 };
 
 struct opengl_uniform
@@ -237,6 +244,7 @@ struct opengl_render_options
     mat4 CascadeView;
     mat4 CascadeProjection;
     u32 CascadeIndex;
+    bool32 EnableLog;
 };
 
 struct opengl_state
@@ -249,7 +257,8 @@ struct opengl_state
     u32 WindowWidth;
     u32 WindowHeight;
 
-    stream Stream;
+    stream DebugStream;
+    stream RendererStream;
     memory_arena Arena;
     platform_api *Platform;
     platform_profiler *Profiler;

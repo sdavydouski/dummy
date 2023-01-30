@@ -133,14 +133,14 @@ enum render_command_type
     RenderCommand_DrawRectangle,
     RenderCommand_DrawBox,
     RenderCommand_DrawText,
-    RenderCommand_DrawGround,
+    RenderCommand_DrawGrid,
     RenderCommand_DrawMesh,
     RenderCommand_DrawMeshInstanced,
     RenderCommand_DrawSkinnedMesh,
     RenderCommand_DrawSkinnedMeshInstanced,
     RenderCommand_DrawParticles,
     RenderCommand_DrawTexturedQuad,
-    RenderCommand_DrawTexturedQuadInstanced,
+    RenderCommand_DrawBillboard
 };
 
 const char *RenderCommandNames[] =
@@ -163,14 +163,14 @@ const char *RenderCommandNames[] =
     "DrawRectangle",
     "DrawBox",
     "DrawText",
-    "DrawGround",
+    "DrawGrid",
     "DrawMesh",
     "DrawMeshInstanced",
     "DrawSkinnedMesh",
     "DrawSkinnedMeshInstanced",
     "DrawParticles",
     "DrawTexturedQuad",
-    "DrawTexturedQuadInstanced"
+    "DrawBillboard"
 };
 
 struct render_command_header
@@ -338,7 +338,7 @@ struct render_command_draw_text
     bool32 DepthEnabled;
 };
 
-struct render_command_draw_ground
+struct render_command_draw_grid
 {
     render_command_header Header;
 };
@@ -416,13 +416,13 @@ struct render_command_draw_textured_quad
     texture *Texture;
 };
 
-struct render_command_draw_textured_quad_instanced
+struct render_command_draw_billboard
 {
     render_command_header Header;
+    vec3 Position;
+    vec2 Size;
 
-    u32 InstanceCount;
-    mat4 *Instances;
-
+    vec4 Color;
     texture *Texture;
 };
 

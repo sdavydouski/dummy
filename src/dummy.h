@@ -1,5 +1,7 @@
 #pragma once
 
+#define MAX_ENTITY_NAME 256
+
 enum game_mode
 {
     GameMode_World,
@@ -10,6 +12,7 @@ enum game_mode
 struct game_entity
 {
     u32 Id;
+    char Name[MAX_ENTITY_NAME];
     ivec3 GridCellCoords[2];
 
     transform Transform;
@@ -138,6 +141,7 @@ ParticleEmitter2Spec(particle_emitter *ParticleEmitter, particle_emitter_spec *S
 
 struct game_entity_spec
 {
+    char Name[MAX_ENTITY_NAME];
     transform Transform;
     model_spec ModelSpec;
     collider_spec ColliderSpec;

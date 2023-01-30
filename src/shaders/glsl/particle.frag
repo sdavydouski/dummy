@@ -18,6 +18,6 @@ void main()
         discard;
     }
 
-    //out_Color = fs_in.Color;
-    out_Color = Texel * fs_in.Color;
+    out_Color = fs_in.Color;
+    //out_Color = Texel * fs_in.Color;
 }

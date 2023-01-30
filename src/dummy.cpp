@@ -539,8 +539,16 @@ LoadTextureAssets(game_assets *Assets, platform_api *Platform)
             "assets\\grass.texture.asset"
         },
         {
-            "Particle_Star",
+            "ParticleStar",
             "assets\\particle_star.texture.asset"
+        },
+        {
+            "PointLight",
+            "assets\\point_light.texture.asset"
+        },
+        {
+            "ParticleEmitter",
+            "assets\\particle_emitter.texture.asset"
         }
     };
 
@@ -735,19 +743,13 @@ internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
     // Pivot point
-    DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
+    //DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
 
     bounds Bounds = GetEntityBounds(Entity);
-    vec3 HalfSize = vec3(0.5f);
-    vec3 BottomCenterPosition = Entity->Transform.Translation;
-    quat Rotation = Entity->Transform.Rotation;
 
-    if (Bounds.Min != Bounds.Max)
-    {
-        HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
-        BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
-        Rotation = quat(0.f, 0.f, 0.f, 1.f);
-    }
+    vec3 HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
+    vec3 BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
+    quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
 
     transform Transform = CreateTransform(BottomCenterPosition, HalfSize, Rotation);
     vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
@@ -885,6 +887,7 @@ CreateGameEntity(game_state *State)
     Assert(Area->EntityCount <= Area->MaxEntityCount);
 
     Entity->Id = GenerateEntityId(State);
+    CopyString("Unnamed", Entity->Name);
     // todo:
     Entity->TestColor = vec3(1.f);
     Entity->DebugColor = vec3(1.f);
@@ -1505,6 +1508,7 @@ LoadAnimators(animator *Animator)
 inline void
 Entity2Spec(game_entity *Entity, game_entity_spec *Spec)
 {
+    CopyString(Entity->Name, Spec->Name);
     Spec->Transform = Entity->Transform;
 
     if (Entity->Model)
@@ -1536,6 +1540,7 @@ Entity2Spec(game_entity *Entity, game_entity_spec *Spec)
 internal void
 Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, render_commands *RenderCommands, memory_arena *Arena)
 {
+    CopyString(Spec->Name, Entity->Name);
     Entity->Transform = Spec->Transform;
 
     if (Spec->ModelSpec.Has)
@@ -2305,7 +2310,7 @@ DLLExport GAME_RENDER(GameRender)
 
             if (State->Options.ShowGrid)
             {
-                DrawGround(RenderCommands);
+                DrawGrid(RenderCommands);
             }
 
             u32 ShadowPlaneCount = 0;
@@ -2469,6 +2474,11 @@ DLLExport GAME_RENDER(GameRender)
                             PointLight->Position = Entity->Transform.Translation;
                             PointLight->Color = Entity->PointLight->Color;
                             PointLight->Attenuation = Entity->PointLight->Attenuation;
+
+                            if (State->Mode == GameMode_Editor)
+                            {
+                                DrawBillboard(RenderCommands, PointLight->Position, vec2(0.2f), GetTextureAsset(&State->Assets, "PointLight"));
+                            }
                         }
                     }
                 }
@@ -2534,7 +2544,7 @@ DLLExport GAME_RENDER(GameRender)
                 }
 
                 Platform->KickJobsAndWait(State->JobQueue, ParticleJobCount, ParticleJobs);
-            }
+            }   
 
             {
                 PROFILE(Memory->Profiler, "GameRender:PushParticles");
@@ -2549,8 +2559,13 @@ DLLExport GAME_RENDER(GameRender)
                         {
                             particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
 
-                            //DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, 0);
-                            DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, GetTextureAsset(&State->Assets, "Particle_Star"));
+                            DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, 0);
+                            //DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, GetTextureAsset(&State->Assets, "ParticleStar"));
+
+                            if (State->Mode == GameMode_Editor)
+                            {
+                                DrawBillboard(RenderCommands, Entity->Transform.Translation, vec2(0.2f), GetTextureAsset(&State->Assets, "ParticleEmitter"));
+                            }
                         }
                     }
                 }

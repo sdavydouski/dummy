@@ -207,9 +207,9 @@ DrawText(
 }
 
 inline void
-DrawGround(render_commands *Commands)
+DrawGrid(render_commands *Commands)
 {
-    render_command_draw_ground *Command = PushRenderCommand(Commands, render_command_draw_ground, RenderCommand_DrawGround);
+    render_command_draw_grid *Command = PushRenderCommand(Commands, render_command_draw_grid, RenderCommand_DrawGrid);
 }
 
 inline void
@@ -296,6 +296,26 @@ DrawTexturedQuad(render_commands *Commands, transform Transform, texture *Textur
     render_command_draw_textured_quad *Command = PushRenderCommand(Commands, render_command_draw_textured_quad, RenderCommand_DrawTexturedQuad);
     Command->Transform = Transform;
     Command->Texture = Texture;
+}
+
+inline void
+DrawBillboard(render_commands *Commands, vec3 Position, vec2 Size, texture *Texture)
+{
+    render_command_draw_billboard *Command = PushRenderCommand(Commands, render_command_draw_billboard, RenderCommand_DrawBillboard);
+    Command->Position = Position;
+    Command->Size = Size;
+    Command->Texture = Texture;
+    Command->Color = vec4(1.f, 1.f, 0.f, 1.f);
+}
+
+inline void
+DrawBillboard(render_commands *Commands, vec3 Position, vec2 Size, vec4 Color)
+{
+    render_command_draw_billboard *Command = PushRenderCommand(Commands, render_command_draw_billboard, RenderCommand_DrawBillboard);
+    Command->Position = Position;
+    Command->Size = Size;
+    Command->Color = Color;
+    Command->Texture = 0;
 }
 
 #if 0
