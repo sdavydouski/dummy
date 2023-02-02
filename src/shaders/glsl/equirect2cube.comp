@@ -1,0 +1,44 @@
+﻿//! #include "common/version.glsl"
+//! #include "common/math.glsl"
+
+// Converts equirectangular projection texture into a proper cubemap
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+layout(binding = 0) uniform sampler2D u_InputTexture;
+layout(binding = 0, rgba16f) restrict writeonly uniform imageCube u_OutputTexture;
+
+// Calculate normalized sampling direction vector based on current fragment coordinates (gl_GlobalInvocationID.xyz)
+vec3 GetSamplingVector()
+{
+    vec2 st = gl_GlobalInvocationID.xy / vec2(imageSize(u_OutputTexture));
+    vec2 uv = 2.f * vec2(st.x, 1.f - st.y) - vec2(1.f);
+
+    vec3 v;
+
+	// Select vector based on cubemap face index
+    switch (gl_GlobalInvocationID.z)
+    {
+        case 0: return vec3(1.f,  uv.y, -uv.x);
+        case 1: return vec3(-1.f, uv.y, uv.x);
+        case 2: return vec3(uv.x, 1.f, -uv.y);
+        case 3: return vec3(uv.x, -1.f, uv.y);
+        case 4: return vec3(uv.x, uv.y, 1.f);
+        case 5: return vec3(-uv.x, uv.y, -1.f);
+    }
+}
+
+void main(void)
+{
+	vec3 v = normalize(GetSamplingVector());
+
+	// Convert Cartesian direction vector to spherical coordinates
+	float Phi = atan(v.z, v.x);
+	float Theta = acos(v.y);
+
+	// Sample equirectangular texture
+	vec4 Color = texture(u_InputTexture, vec2(Phi / TWO_PI, Theta / PI));
+
+	// Write out color to output cubemap
+	imageStore(u_OutputTexture, ivec3(gl_GlobalInvocationID), Color);
+}

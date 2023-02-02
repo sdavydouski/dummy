@@ -118,6 +118,7 @@ enum render_command_type
     RenderCommand_AddMesh,
     RenderCommand_AddTexture,
     RenderCommand_AddSkinningBuffer,
+    RenderCommand_AddSkybox,
 
     RenderCommand_SetViewport,
     RenderCommand_SetScreenProjection,
@@ -140,7 +141,8 @@ enum render_command_type
     RenderCommand_DrawSkinnedMeshInstanced,
     RenderCommand_DrawParticles,
     RenderCommand_DrawTexturedQuad,
-    RenderCommand_DrawBillboard
+    RenderCommand_DrawBillboard,
+    RenderCommand_DrawSkybox
 };
 
 const char *RenderCommandNames[] =
@@ -148,6 +150,7 @@ const char *RenderCommandNames[] =
     "AddMesh",
     "AddTexture",
     "AddSkinningBuffer",
+    "AddSkybox",
 
     "SetViewport",
     "SetScreenProjection",
@@ -170,7 +173,8 @@ const char *RenderCommandNames[] =
     "DrawSkinnedMeshInstanced",
     "DrawParticles",
     "DrawTexturedQuad",
-    "DrawBillboard"
+    "DrawBillboard",
+    "DrawSkybox"
 };
 
 struct render_command_header
@@ -424,6 +428,20 @@ struct render_command_draw_billboard
 
     vec4 Color;
     texture *Texture;
+};
+
+struct render_command_add_skybox
+{
+    render_command_header Header;
+    u32 SkyboxId;
+    u32 EnvMapSize;
+    texture *EquirectEnvMap;
+};
+
+struct render_command_draw_skybox
+{
+    render_command_header Header;
+    u32 SkyboxId;
 };
 
 struct render_commands_settings

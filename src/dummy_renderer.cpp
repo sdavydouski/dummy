@@ -57,6 +57,8 @@ AddMesh(
 inline void
 AddTexture(render_commands *Commands, u32 Id, bitmap *Bitmap)
 {
+    Assert(Bitmap->Pixels);
+
     render_command_add_texture *Command = PushRenderCommand(Commands, render_command_add_texture, RenderCommand_AddTexture);
     Command->Id = Id;
     Command->Bitmap = Bitmap;
@@ -345,4 +347,23 @@ SetPointLights(render_commands *Commands, u32 PointLightCount, point_light *Poin
         PushRenderCommand(Commands, render_command_set_point_lights, RenderCommand_SetPointLights);
     Command->PointLightCount = PointLightCount;
     Command->PointLights = PointLights;
+}
+
+inline void
+AddSkybox(render_commands *Commands, u32 SkyboxId, u32 EnvMapSize, texture *EquirectEnvMap)
+{
+    Assert(EnvMapSize >= 512);
+    Assert(EquirectEnvMap->Bitmap.Width == 2 * EquirectEnvMap->Bitmap.Height);
+
+    render_command_add_skybox *Command = PushRenderCommand(Commands, render_command_add_skybox, RenderCommand_AddSkybox);
+    Command->SkyboxId = SkyboxId;
+    Command->EnvMapSize = EnvMapSize;
+    Command->EquirectEnvMap = EquirectEnvMap;
+}
+
+inline void
+DrawSkybox(render_commands *Commands, u32 SkyboxId)
+{
+    render_command_draw_skybox *Command = PushRenderCommand(Commands, render_command_draw_skybox, RenderCommand_DrawSkybox);
+    Command->SkyboxId = SkyboxId;
 }

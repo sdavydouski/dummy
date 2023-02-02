@@ -30,7 +30,7 @@ void main()
         vec3 VertexPosition = Center - xAxis * HalfSize.x - yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
 
-        vec2 TextureCoords = vec2(0.f, 0.f);
+        vec2 TextureCoords = vec2(0.f, 1.f);
         gs_out.TextureCoords = TextureCoords;
 
         EmitVertex();
@@ -41,7 +41,7 @@ void main()
         vec3 VertexPosition = Center + xAxis * HalfSize.x - yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
 
-        vec2 TextureCoords = vec2(1.f, 0.f);
+        vec2 TextureCoords = vec2(1.f, 1.f);
         gs_out.TextureCoords = TextureCoords;
 
         EmitVertex();
@@ -52,7 +52,7 @@ void main()
         vec3 VertexPosition = Center - xAxis * HalfSize.x + yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
 
-        vec2 TextureCoords = vec2(0.f, 1.f);
+        vec2 TextureCoords = vec2(0.f, 0.f);
         gs_out.TextureCoords = TextureCoords;
 
         EmitVertex();
@@ -63,7 +63,7 @@ void main()
         vec3 VertexPosition = Center + xAxis * HalfSize.x + yAxis * HalfSize.y;
         gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
 
-        vec2 TextureCoords = vec2(1.f, 1.f);
+        vec2 TextureCoords = vec2(1.f, 0.f);
         gs_out.TextureCoords = TextureCoords;
 
         EmitVertex();

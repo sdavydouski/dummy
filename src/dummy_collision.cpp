@@ -192,14 +192,25 @@ GetEntityBounds(game_entity *Entity)
     {
         Result = UpdateBounds(Entity->Model->Bounds, Entity->Transform);
     }
-    else
+    else if (Entity->PointLight || Entity->ParticleEmitter)
     {
-        bounds DefaultBounds =
+        bounds Bounds =
         {
             .Min = vec3(-0.1f),
             .Max = vec3(0.1f)
         };
-        Result = UpdateBounds(DefaultBounds, Entity->Transform);
+
+        Result = UpdateBounds(Bounds, Entity->Transform);
+    }
+    else
+    {
+        bounds Bounds =
+        {
+            .Min = vec3(-0.5f, 0.f, -0.5f),
+            .Max = vec3(0.5f, 1.f, 0.5f)
+        };
+
+        Result = UpdateBounds(Bounds, Entity->Transform);
 
         //Result.Min = Entity->Transform.Translation;
         //Result.Max = Entity->Transform.Translation;

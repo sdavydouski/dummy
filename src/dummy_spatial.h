@@ -5,7 +5,7 @@ struct game_entity;
 struct spatial_hash_grid_cell
 {
     u32 EntityCount;
-    game_entity *Entities[64];
+    game_entity *Entities[256];
 };
 
 struct spatial_hash_grid

@@ -320,6 +320,30 @@ ClearAudioCommands(game_memory *Memory)
     AudioCommands->AudioCommandsBuffer = (u8 *) Memory->AudioCommandsStorage + sizeof(audio_commands);
 }
 
+//
+template <typename T>
+struct value_state
+{
+    T Value;
+    T PrevValue;
+};
+
+template <typename T>
+inline void
+SavePrevValueState(value_state<T> *State)
+{
+    State->PrevValue = State->Value;
+}
+
+template <typename T>
+inline bool32
+Changed(value_state<T> ValueState)
+{
+    bool32 Result = ValueState.Value != ValueState.PrevValue;
+    return Result;
+}
+//
+
 struct game_parameters
 {
     u32 WindowWidth;

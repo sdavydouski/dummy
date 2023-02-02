@@ -171,6 +171,7 @@ ProcessAssimpTextures(
                 Bitmap->Width = TextureWidth;
                 Bitmap->Height = TextureHeight;
                 Bitmap->Channels = TextureChannels;
+                Bitmap->IsHDR = false;
                 Bitmap->Pixels = Pixels;
             }
             else

@@ -71,6 +71,7 @@ AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildPr
     ParentProcess->Child = ChildProcess;
 }
 
+#if 0
 DLLExport GAME_PROCESS_ON_UPDATE(DelayProcess)
 {
     State->DelayTime += Delta;
@@ -82,6 +83,7 @@ DLLExport GAME_PROCESS_ON_UPDATE(DelayProcess)
         EndGameProcess(State, Process->Key);
     }
 }
+#endif
 
 DLLExport GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
 {

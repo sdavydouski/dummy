@@ -1,8 +1,18 @@
 internal void
 LoadTextureAsset(const char *FilePath, texture_asset *Asset)
 {
-    stbi_set_flip_vertically_on_load(true);
-    Asset->Bitmap.Pixels = stbi_load(FilePath, &Asset->Bitmap.Width, &Asset->Bitmap.Height, &Asset->Bitmap.Channels, 0);
+    //stbi_set_flip_vertically_on_load(true);
+
+    if (stbi_is_hdr(FilePath))
+    {
+        Asset->Bitmap.IsHDR = true;
+        Asset->Bitmap.Pixels = stbi_loadf(FilePath, &Asset->Bitmap.Width, &Asset->Bitmap.Height, &Asset->Bitmap.Channels, 0);
+    }
+    else
+    {
+        Asset->Bitmap.IsHDR = false;
+        Asset->Bitmap.Pixels = stbi_load(FilePath, &Asset->Bitmap.Width, &Asset->Bitmap.Height, &Asset->Bitmap.Channels, 0);
+    }
 }
 
 internal void
@@ -35,6 +45,7 @@ WriteTextureAsset(const char *FilePath, texture_asset *Asset)
     TextureAssetHeader.Width = Asset->Bitmap.Width;
     TextureAssetHeader.Height = Asset->Bitmap.Height;
     TextureAssetHeader.Channels = Asset->Bitmap.Channels;
+    TextureAssetHeader.IsHDR = Asset->Bitmap.IsHDR;
 
     fwrite(&TextureAssetHeader, sizeof(texture_asset_header), 1, AssetFile);
 
@@ -42,7 +53,15 @@ WriteTextureAsset(const char *FilePath, texture_asset *Asset)
     TextureAssetHeader.PixelsOffset = CurrentStreamPosition;
 
     u32 BitmapSize = Asset->Bitmap.Width * Asset->Bitmap.Height * Asset->Bitmap.Channels;
-    fwrite(Asset->Bitmap.Pixels, sizeof(u8), BitmapSize, AssetFile);
+
+    if (Asset->Bitmap.IsHDR)
+    {
+        fwrite(Asset->Bitmap.Pixels, sizeof(f32), BitmapSize, AssetFile);
+    }
+    else
+    {
+        fwrite(Asset->Bitmap.Pixels, sizeof(u8), BitmapSize, AssetFile);
+    }
 
     fseek(AssetFile, (long)Header.DataOffset, SEEK_SET);
     fwrite(&TextureAssetHeader, sizeof(texture_asset_header), 1, AssetFile);

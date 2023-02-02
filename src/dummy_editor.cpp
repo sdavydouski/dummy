@@ -322,12 +322,24 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
 
-    if (ImGui::ButtonEx("Playable", ImVec2(WindowSize.x, 0)))
+    if (Entity != GameState->Player)
     {
-        GameState->Player = Entity;
+        if (ImGui::ButtonEx("Add player", ImVec2(WindowSize.x, 0)))
+        {
+            GameState->Player = Entity;
+        }
+    }
+    else
+    {
+        if (ImGui::ButtonEx("Remove player", ImVec2(WindowSize.x, 0)))
+        {
+            GameState->Player = 0;
+        }
     }
 
-    ImGui::InputText("Name", Entity->Name, ArrayCount(Entity->Name));
+    char NameLabel[32];
+    FormatString(NameLabel, "Name##%d", Entity->Id);
+    ImGui::InputText(NameLabel, Entity->Name, ArrayCount(Entity->Name));
 
     ImGui::Text("Id: %d", Entity->Id);
     ImGui::Text("Min Grid Coords: %d, %d, %d", Entity->GridCellCoords[0].x, Entity->GridCellCoords[0].y, Entity->GridCellCoords[0].z);
@@ -382,11 +394,14 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
     {
         if (ImGui::CollapsingHeader("Add Collider"))
         {
-            ImGui::InputFloat3("Size", EditorState->Size.Elements);
+            collider_spec *Collider = &EditorState->AddEntity.Collider;
 
-            if (ImGui::Button("Add"))
+            ImGui::InputFloat3("Size##Collider", Collider->Size.Elements);
+
+            if (ImGui::Button("Add##Collider"))
             {
-                AddBoxCollider(Entity, EditorState->Size, &GameState->WorldArea.Arena);
+                AddBoxCollider(Entity, Collider->Size, &GameState->WorldArea.Arena);
+                EditorState->AddEntity.Collider = {};
             }
         }
     }
@@ -399,14 +414,17 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
     {
         if (ImGui::CollapsingHeader("Add Rigid Body"))
         {
+            rigid_body_spec *RigidBody = &EditorState->AddEntity.RigidBody;
+
             if (Entity->Animation)
             {
-                ImGui::Checkbox("Root Motion", (bool *) &EditorState->RootMotion);
+                ImGui::Checkbox("Root Motion##RigidBody", (bool *) &RigidBody->RootMotionEnabled);
             }
 
-            if (ImGui::Button("Add"))
+            if (ImGui::Button("Add##RigidBody"))
             {
-                AddRigidBody(Entity, EditorState->RootMotion, &GameState->WorldArea.Arena);
+                AddRigidBody(Entity, RigidBody->RootMotionEnabled, &GameState->WorldArea.Arena);
+                EditorState->AddEntity.RigidBody = {};
             }
         }
     }
@@ -424,14 +442,17 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
     {
         if (ImGui::CollapsingHeader("Add Point Light"))
         {
-            ImGui::ColorEdit3("Color", EditorState->Color.Elements);
-            ImGui::InputFloat("Contant", &EditorState->Attenuation.Constant);
-            ImGui::InputFloat("Linear", &EditorState->Attenuation.Linear);
-            ImGui::InputFloat("Quadratic", &EditorState->Attenuation.Quadratic);
+            point_light_spec *PointLight = &EditorState->AddEntity.PointLight;
 
-            if (ImGui::Button("Add"))
+            ImGui::ColorEdit3("Color##PointLight", PointLight->Color.Elements);
+            ImGui::InputFloat("Contant##PointLight", &PointLight->Attenuation.Constant);
+            ImGui::InputFloat("Linear##PointLight", &PointLight->Attenuation.Linear);
+            ImGui::InputFloat("Quadratic##PointLight", &PointLight->Attenuation.Quadratic);
+
+            if (ImGui::Button("Add##PointLight"))
             {
-                AddPointLight(Entity, EditorState->Color, EditorState->Attenuation, &GameState->WorldArea.Arena);
+                AddPointLight(Entity, PointLight->Color, PointLight->Attenuation, &GameState->WorldArea.Arena);
+                EditorState->AddEntity.PointLight = {};
             }
         }
     }
@@ -444,14 +465,17 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
     {
         if (ImGui::CollapsingHeader("Add Particle Emitter"))
         {
-            ImGui::InputInt("Count", (i32 *) &EditorState->ParticleCount);
-            ImGui::InputInt("Spawn", (i32 *) &EditorState->ParticlesSpawn);
-            ImGui::InputFloat2("Size", EditorState->ParticleSize.Elements);
-            ImGui::ColorEdit4("Color", EditorState->ParticleColor.Elements, ImGuiColorEditFlags_AlphaBar);
+            particle_emitter_spec *ParticleEmitter = &EditorState->AddEntity.ParticleEmitter;
 
-            if (ImGui::Button("Add"))
+            ImGui::InputInt("Count##ParticleEmitter", (i32 *) &ParticleEmitter->ParticleCount);
+            ImGui::InputInt("Spawn##ParticleEmitter", (i32 *) &ParticleEmitter->ParticlesSpawn);
+            ImGui::InputFloat2("Size##ParticleEmitter", ParticleEmitter->Size.Elements);
+            ImGui::ColorEdit4("Color##ParticleEmitter", ParticleEmitter->Color.Elements, ImGuiColorEditFlags_AlphaBar);
+
+            if (ImGui::Button("Add##ParticleEmitter"))
             {
-                AddParticleEmitter(Entity, EditorState->ParticleCount, EditorState->ParticlesSpawn, EditorState->ParticleColor, EditorState->ParticleSize, &GameState->WorldArea.Arena);
+                AddParticleEmitter(Entity, ParticleEmitter->ParticleCount, ParticleEmitter->ParticlesSpawn, ParticleEmitter->Color, ParticleEmitter->Size, &GameState->WorldArea.Arena);
+                EditorState->AddEntity.ParticleEmitter = {};
             }
         }
     }
@@ -482,7 +506,7 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
 
     ImGui::NewLine();
 
-    // Shortcuts? https://github.com/ocornut/imgui/issues/456
+    // todo: shortcuts? https://github.com/ocornut/imgui/issues/456
     if (!ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_X))
     {
         RemoveGameEntity(Entity);
@@ -559,6 +583,7 @@ EditorLogWindow(editor_state *EditorState, stream *Stream, const char *Id, f32 F
 
     if (Flush)
     {
+        // todo: move out from the editor
         ClearStream(Stream);
     }
 
@@ -659,7 +684,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
                 if (ImGui::BeginMenu("Misc"))
                 {
-                    ImGui::Checkbox("Dance mode", (bool *)&GameState->DanceMode);
+                    ImGui::Checkbox("Dance mode", (bool *)&GameState->DanceMode.Value);
 
                     ImGui::EndMenu();
                 }

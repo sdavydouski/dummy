@@ -1,5 +1,3 @@
-// https://github.com/fendevel/Guide-to-Modern-OpenGL-Functions
-
 internal GLuint
 OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, bool32 CrashIfError = true)
 {
@@ -7,9 +5,10 @@ OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, bool32 CrashIfErro
     glShaderSource(Shader, Count, Source, NULL);
     glCompileShader(Shader);
 
-    i32 IsShaderCompiled;
-    glGetShaderiv(Shader, GL_COMPILE_STATUS, &IsShaderCompiled);
-    if (!IsShaderCompiled)
+    GLint Status;
+    glGetShaderiv(Shader, GL_COMPILE_STATUS, &Status);
+
+    if (Status != GL_TRUE)
     {
         i32 LogLength;
         glGetShaderiv(Shader, GL_INFO_LOG_LENGTH, &LogLength);
@@ -30,31 +29,33 @@ OpenGLCreateShader(GLenum Type, GLsizei Count, char **Source, bool32 CrashIfErro
 }
 
 internal GLuint
-OpenGLCreateProgram(opengl_create_program_params Params, bool32 CrashIfError = true)
+OpenGLCreateProgram(u32 ShaderCount, GLuint *Shaders, bool32 CrashIfError = true)
 {
     GLuint Program = glCreateProgram();
-    glAttachShader(Program, Params.VertexShader);
-    glAttachShader(Program, Params.FragmentShader);
 
-    if (Params.GeometryShader)
+    for (u32 ShaderIndex = 0; ShaderIndex < ShaderCount; ++ShaderIndex)
     {
-        glAttachShader(Program, Params.GeometryShader);
+        glAttachShader(Program, Shaders[ShaderIndex]);
     }
 
     glLinkProgram(Program);
 
-    glDeleteShader(Params.VertexShader);
-    glDeleteShader(Params.FragmentShader);
-
-    if (Params.GeometryShader)
+    for (u32 ShaderIndex = 0; ShaderIndex < ShaderCount; ++ShaderIndex)
     {
-        glDeleteShader(Params.GeometryShader);
+        glDetachShader(Program, Shaders[ShaderIndex]);
+        glDeleteShader(Shaders[ShaderIndex]);
     }
 
-    i32 IsProgramLinked;
-    glGetProgramiv(Program, GL_LINK_STATUS, &IsProgramLinked);
+    GLint Status;
+    glGetProgramiv(Program, GL_LINK_STATUS, &Status);
 
-    if (!IsProgramLinked)
+    if (Status == GL_TRUE)
+    {
+        glValidateProgram(Program);
+        glGetProgramiv(Program, GL_VALIDATE_STATUS, &Status);
+    }
+
+    if (Status != GL_TRUE)
     {
         i32 LogLength;
         glGetProgramiv(Program, GL_INFO_LOG_LENGTH, &LogLength);
@@ -149,37 +150,47 @@ OpenGLInitBox(opengl_state *State)
 {
     vec3 BoxVertices[] = 
     {
-#if 1
-        vec3(-1.f, 2.f, -1.f),
-        vec3(1.f, 2.f, -1.f),
-        vec3(-1.f, 0.f, -1.f),
-        vec3(1.f, 0.f, -1.f),
-        vec3(1.f, 0.f, 1.f),
-        vec3(1.f, 2.f, -1.f),
-        vec3(1.f, 2.f, 1.f),
-        vec3(-1.f, 2.f, -1.f),
-        vec3(-1.f, 2.f, 1.f),
-        vec3(-1.f, 0.f, -1.f),
-        vec3(-1.f, 0.f, 1.f),
-        vec3(1.f, 0.f, 1.f),
-        vec3(-1.f, 2.f, 1.f),
-        vec3(1.f, 2.f, 1.f)
-#else
-        vec3(-1.f, 1.f, -1.f),
-        vec3(1.f, 1.f, -1.f),
-        vec3(-1.f, -1.f, -1.f),
-        vec3(1.f, -1.f, -1.f),
-        vec3(1.f, -1.f, 1.f),
-        vec3(1.f, 1.f, -1.f),
-        vec3(1.f, 1.f, 1.f),
-        vec3(-1.f, 1.f, -1.f),
-        vec3(-1.f, 1.f, 1.f),
-        vec3(-1.f, -1.f, -1.f),
-        vec3(-1.f, -1.f, 1.f),
-        vec3(1.f, -1.f, 1.f),
-        vec3(-1.f, 1.f, 1.f),
-        vec3(1.f, 1.f, 1.f)
-#endif
+        vec3(-1.0f, 1.0f, -1.0f),
+        vec3(-1.0f, -1.0f, -1.0f),
+        vec3(1.0f, -1.0f, -1.0f),
+        vec3(1.0f, -1.0f, -1.0f),
+        vec3(1.0f, 1.0f, -1.0f),
+        vec3(-1.0f, 1.0f, -1.0f),
+
+        vec3(-1.0f, -1.0f, 1.0f),
+        vec3(-1.0f, -1.0f, -1.0f),
+        vec3(-1.0f, 1.0f, -1.0f),
+        vec3(-1.0f, 1.0f, -1.0f),
+        vec3(-1.0f, 1.0f, 1.0f),
+        vec3(-1.0f, -1.0f, 1.0f),
+
+        vec3(1.0f, -1.0f, -1.0f),
+        vec3(1.0f, -1.0f, 1.0f),
+        vec3(1.0f, 1.0f, 1.0f),
+        vec3(1.0f, 1.0f, 1.0f),
+        vec3(1.0f, 1.0f, -1.0f),
+        vec3(1.0f, -1.0f, -1.0f),
+
+        vec3(-1.0f, -1.0f, 1.0f),
+        vec3(-1.0f, 1.0f, 1.0f),
+        vec3(1.0f, 1.0f, 1.0f),
+        vec3(1.0f, 1.0f, 1.0f),
+        vec3(1.0f, -1.0f, 1.0f),
+        vec3(-1.0f, -1.0f, 1.0f),
+
+        vec3(-1.0f, 1.0f, -1.0f),
+        vec3(1.0f, 1.0f, -1.0f),
+        vec3(1.0f, 1.0f, 1.0f),
+        vec3(1.0f, 1.0f, 1.0f),
+        vec3(-1.0f, 1.0f, 1.0f),
+        vec3(-1.0f, 1.0f, -1.0f),
+
+        vec3(-1.0f, -1.0f, -1.0f),
+        vec3(-1.0f, -1.0f, 1.0f),
+        vec3(1.0f, -1.0f, -1.0f),
+        vec3(1.0f, -1.0f, -1.0f),
+        vec3(-1.0f, -1.0f, 1.0f),
+        vec3(1.0f, -1.0f, 1.0f)
     };
 
     glCreateVertexArrays(1, &State->BoxVAO);
@@ -507,6 +518,7 @@ OpenGLGetTextureFormat(bitmap *Bitmap)
 inline GLint
 OpenGLGetTextureInternalFormat(bitmap *Bitmap)
 {
+    if (Bitmap->IsHDR) return GL_RGB16F;
     if (Bitmap->Channels == 1) return GL_R8;
     if (Bitmap->Channels == 2) return GL_RG8;
     if (Bitmap->Channels == 3) return GL_RGB8;
@@ -522,6 +534,9 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
 {
     Assert(State->CurrentTextureCount < OPENGL_MAX_TEXTURE_COUNT);
 
+    GLint Format = OpenGLGetTextureFormat(Bitmap);
+    GLint InternalFormat = OpenGLGetTextureInternalFormat(Bitmap);
+
     GLuint TextureHandle;
 
     glCreateTextures(GL_TEXTURE_2D, 1, &TextureHandle);
@@ -531,12 +546,18 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
     glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    GLint Format = OpenGLGetTextureFormat(Bitmap);
-    GLint InternalFormat = OpenGLGetTextureInternalFormat(Bitmap);
-
     glTextureStorage2D(TextureHandle, 1, InternalFormat, Bitmap->Width, Bitmap->Height);
-    glTextureSubImage2D(TextureHandle, 0, 0, 0, Bitmap->Width, Bitmap->Height, Format, GL_UNSIGNED_BYTE, Bitmap->Pixels);
-    glGenerateTextureMipmap(TextureHandle);
+
+    if (Bitmap->IsHDR)
+    {
+        glTextureSubImage2D(TextureHandle, 0, 0, 0, Bitmap->Width, Bitmap->Height, Format, GL_FLOAT, Bitmap->Pixels);
+    }
+    else
+    {
+        glTextureSubImage2D(TextureHandle, 0, 0, 0, Bitmap->Width, Bitmap->Height, Format, GL_UNSIGNED_BYTE, Bitmap->Pixels);
+    }
+
+    //glGenerateTextureMipmap(TextureHandle);
 
     opengl_texture *Texture = State->Textures + State->CurrentTextureCount++;
     Texture->Id = Id;
@@ -635,26 +656,42 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
         scoped_memory ScopedMemory(&State->Arena);
 
         u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
-        char **VertexSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
-        char **FragmentSource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
 
-        opengl_create_program_params CreateProgramParams = {};
-        CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource);
-        CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource);
+        u32 ShaderCount = 0;
+        GLuint Shaders[4] = {};
+
+        if (Params.VertexShaderFileName)
+        {
+            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_VERTEX_SHADER, Count, Source);
+        }
 
         if (Params.GeometryShaderFileName)
         {
-            char **GeometrySource = OpenGLLoadShaderFile(State, Params.ShaderId, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
-            CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, Source);
         }
 
-        GLuint Program = OpenGLCreateProgram(CreateProgramParams);
+        if (Params.FragmentShaderFileName)
+        {
+            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, Source);
+        }
+
+        if (Params.ComputeShaderFileName)
+        {
+            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.ComputeShaderFileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_COMPUTE_SHADER, Count, Source);
+        }
+
+        GLuint Program = OpenGLCreateProgram(ShaderCount, Shaders);
 
         Shader->Id = Params.ShaderId;
         Shader->Program = Program;
     }
 
 #if WIN32_RELOADABLE_SHADERS
+    // todo: update
     for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
     {
         win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
@@ -685,7 +722,7 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
 {
     opengl_shader *Shader = OpenGLGetShader(State, Id);
 
-    opengl_create_program_params CreateProgramParams = {};
+    // todo: update
 
     {
         scoped_memory ScopedMemory(&State->Arena);
@@ -1119,6 +1156,10 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     //glCullFace(GL_BACK);
     //glFrontFace(GL_CCW);
 
+    //glEnable(GL_CULL_FACE);
+    //glFrontFace(GL_CCW);
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
@@ -1172,6 +1213,40 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
                 render_command_add_skinning_buffer *Command = (render_command_add_skinning_buffer *) Entry;
 
                 OpenGLAddSkinningBuffer(State, Command->SkinningBufferId, Command->SkinningMatrixCount);
+
+                break;
+            }
+            case RenderCommand_AddSkybox:
+            {
+                render_command_add_skybox *Command = (render_command_add_skybox *) Entry;
+
+                bitmap EquirectBitmap = Command->EquirectEnvMap->Bitmap;
+
+                GLuint EquirectEnvTexture;
+                glCreateTextures(GL_TEXTURE_2D, 1, &EquirectEnvTexture);
+                glTextureStorage2D(EquirectEnvTexture, 1, GL_RGB16F, EquirectBitmap.Width, EquirectBitmap.Height);
+                glTextureSubImage2D(EquirectEnvTexture, 0, 0, 0, EquirectBitmap.Width, EquirectBitmap.Height, GL_RGB, GL_FLOAT, EquirectBitmap.Pixels);
+                glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+                GLuint EnvTexture;
+                glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &EnvTexture);
+                glTextureStorage2D(EnvTexture, 1, GL_RGBA16F, Command->EnvMapSize, Command->EnvMapSize);
+                glTextureParameteri(EnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTextureParameteri(EnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+                opengl_shader *Equirect2CubemapShader = OpenGLGetShader(State, OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID);
+
+                glUseProgram(Equirect2CubemapShader->Program);
+                glBindTextureUnit(0, EquirectEnvTexture);
+                glBindImageTexture(0, EnvTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+                glDispatchCompute(Command->EnvMapSize / 32, Command->EnvMapSize / 32, 6);
+
+                glDeleteTextures(1, &EquirectEnvTexture);
+
+                opengl_texture *Texture = State->Textures + State->CurrentTextureCount++;
+                Texture->Id = Command->SkyboxId;
+                Texture->Handle = EnvTexture;
 
                 break;
             }
@@ -1438,7 +1513,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     // todo: configurable
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-                    glDrawArrays(GL_TRIANGLE_STRIP, 0, 14);
+                    glDrawArrays(GL_TRIANGLES, 0, 36);
 
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
                 }
@@ -1650,7 +1725,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     // https://github.com/martin-pr/possumwood/wiki/Infinite-ground-plane-using-GLSL-shaders
                     render_command_draw_grid *Command = (render_command_draw_grid *) Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_GROUND_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_GRID_SHADER_ID);
 
                     glBindVertexArray(State->RectangleVAO);
                     glUseProgram(Shader->Program);
@@ -1916,6 +1991,28 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 break;
             }
+            case RenderCommand_DrawSkybox:
+            {
+                if (!Options->RenderShadowMap)
+                {
+                    render_command_draw_skybox *Command = (render_command_draw_skybox *) Entry;
+
+                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKYBOX_SHADER_ID);
+                    opengl_texture *Texture = OpenGLGetTexture(State, Command->SkyboxId);
+
+                    glDisable(GL_DEPTH_TEST);
+
+                    glUseProgram(Shader->Program);
+                    glBindTextureUnit(0, Texture->Handle);
+
+                    glBindVertexArray(State->BoxVAO);
+                    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+                    glEnable(GL_DEPTH_TEST);
+                }
+
+                break;
+            }
            /* default:
             {
                 Assert(!"Render command is not supported");
@@ -2096,6 +2193,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         OpenGLRenderScene(State, Commands, &RenderOptions);
     }
 
+#if 1
     // Resolve multisample framebuffer
     GLenum Attachments[] = { GL_COLOR_ATTACHMENT0, GL_DEPTH_STENCIL_ATTACHMENT };
 
@@ -2111,7 +2209,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         GL_COLOR_BUFFER_BIT, 
         GL_NEAREST
     );
-    //glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
+    glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
 
     // Draw a full screen triangle for postprocessing
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -2125,4 +2223,5 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);
     glBindVertexArray(State->RectangleVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+#endif
 }

@@ -33,6 +33,7 @@ struct bitmap
     i32 Width;
     i32 Height;
     i32 Channels;
+    bool32 IsHDR;
     void *Pixels;
 };
 
@@ -462,6 +463,7 @@ struct texture_asset_header
     i32 Width;
     i32 Height;
     i32 Channels;
+    bool32 IsHDR;
     u64 PixelsOffset;
 };
 

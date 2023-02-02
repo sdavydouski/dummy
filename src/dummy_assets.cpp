@@ -351,12 +351,22 @@ LoadTextureAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 
     Assert(Header->Type == AssetType_Texture);
 
-    texture_asset_header *AudioHeader = GET_DATA_AT(Buffer, Header->DataOffset, texture_asset_header);
+    texture_asset_header *TextureHeader = GET_DATA_AT(Buffer, Header->DataOffset, texture_asset_header);
 
-    Result->Bitmap.Width = AudioHeader->Width;
-    Result->Bitmap.Height = AudioHeader->Height;
-    Result->Bitmap.Channels = AudioHeader->Channels;
-    Result->Bitmap.Pixels = GET_DATA_AT(Buffer, AudioHeader->PixelsOffset, u8);
+    Result->Bitmap.Width = TextureHeader->Width;
+    Result->Bitmap.Height = TextureHeader->Height;
+    Result->Bitmap.Channels = TextureHeader->Channels;
+    Result->Bitmap.IsHDR = TextureHeader->IsHDR;
+
+    if (Result->Bitmap.IsHDR)
+    {
+        Result->Bitmap.Pixels = GET_DATA_AT(Buffer, TextureHeader->PixelsOffset, f32);
+    }
+    else
+    {
+        Result->Bitmap.Pixels = GET_DATA_AT(Buffer, TextureHeader->PixelsOffset, u8);
+    }
+    
 
     return Result;
 }

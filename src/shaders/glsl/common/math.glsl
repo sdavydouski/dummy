@@ -1,3 +1,9 @@
+#define PI 3.14159f
+#define HALF_PI (PI / 2.f)
+#define TWO_PI (PI * 2.f)
+
+#define Lerp mix
+
 float Square(float Value)
 {
     return Value * Value;
@@ -22,5 +28,3 @@ vec3 UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
     
     return Result;
 }
-
-#define Lerp mix

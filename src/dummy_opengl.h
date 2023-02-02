@@ -23,11 +23,13 @@
 #define OPENGL_PHONG_SKINNED_SHADER_ID 0x4
 #define OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID 0x5
 #define OPENGL_FRAMEBUFFER_SHADER_ID 0x6
-#define OPENGL_GROUND_SHADER_ID 0x7
+#define OPENGL_GRID_SHADER_ID 0x7
 #define OPENGL_TEXT_SHADER_ID 0x8
 #define OPENGL_PARTICLE_SHADER_ID 0x9
 #define OPENGL_TEXTURED_QUAD_SHADER_ID 0x10
 #define OPENGL_BILLBOARD_SHADER_ID 0x11
+#define OPENGL_SKYBOX_SHADER_ID 0x12
+#define OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID 0x13
 
 const char *OpenGLCommonShaders[] = 
 {
@@ -41,13 +43,6 @@ const char *OpenGLCommonShaders[] =
 
 #define OPENGL_COMMON_SHADER_COUNT ArrayCount(OpenGLCommonShaders)
 
-struct opengl_create_program_params
-{
-    GLuint VertexShader;
-    GLuint GeometryShader;
-    GLuint FragmentShader;
-};
-
 struct opengl_load_shader_params
 {
     u32 ShaderId;
@@ -55,6 +50,7 @@ struct opengl_load_shader_params
     const char *VertexShaderFileName;
     const char *GeometryShaderFileName;
     const char *FragmentShaderFileName;
+    const char *ComputeShaderFileName;
 };
 
 opengl_load_shader_params OpenGLShaders[] =
@@ -85,7 +81,7 @@ opengl_load_shader_params OpenGLShaders[] =
         .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
-        .ShaderId = OPENGL_GROUND_SHADER_ID,
+        .ShaderId = OPENGL_GRID_SHADER_ID,
         .VertexShaderFileName = "shaders\\glsl\\grid.vert",
         .FragmentShaderFileName = "shaders\\glsl\\grid.frag"
     },
@@ -116,6 +112,15 @@ opengl_load_shader_params OpenGLShaders[] =
         .VertexShaderFileName = "shaders\\glsl\\billboard.vert",
         .GeometryShaderFileName = "shaders\\glsl\\billboard.geom",
         .FragmentShaderFileName = "shaders\\glsl\\billboard.frag"
+    },
+    {
+        .ShaderId = OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID,
+        .ComputeShaderFileName = "shaders\\glsl\\equirect2cube.comp"
+    },
+    {
+        .ShaderId = OPENGL_SKYBOX_SHADER_ID,
+        .VertexShaderFileName = "shaders\\glsl\\skybox.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\skybox.frag"
     }
 };
 

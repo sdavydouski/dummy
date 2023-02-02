@@ -1388,22 +1388,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
             LARGE_INTEGER CurrentPerformanceCounter;
             QueryPerformanceCounter(&CurrentPerformanceCounter);
 
-#if 0
-            //if (!EDITOR_UI_CAPTURE_KEYBOARD)
-            {
-                if (IsButtonActivated(&KeyboardInput.Plus))
-                {
-                    PlatformState.TimeRate *= 2.f;
-                }
-                if (IsButtonActivated(&KeyboardInput.Minus))
-                {
-                    PlatformState.TimeRate *= 0.5f;
-                }
-            }
-
-            Clamp(&PlatformState.TimeRate, 0.125f, 2.f);
-#endif
-
             u64 DeltaPerformanceCounter = CurrentPerformanceCounter.QuadPart - LastPerformanceCounter.QuadPart;
             f32 Delta = (f32) DeltaPerformanceCounter / (f32) PlatformState.PerformanceFrequency;
             // ?

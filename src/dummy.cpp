@@ -436,7 +436,7 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
         {
             "torch",
             "assets\\torch.model.asset"
-        },
+        }
     };
 
     Assets->ModelAssetCount = ArrayCount(ModelAssets);
@@ -535,13 +535,10 @@ LoadTextureAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset TextureAssets[] = {
         {
-            "Grass",
-            "assets\\grass.texture.asset"
+            "Environment",
+            "assets\\environment.texture.asset"
         },
-        {
-            "ParticleStar",
-            "assets\\particle_star.texture.asset"
-        },
+
         {
             "PointLight",
             "assets\\point_light.texture.asset"
@@ -553,7 +550,7 @@ LoadTextureAssets(game_assets *Assets, platform_api *Platform)
     };
 
     Assets->TextureAssetCount = ArrayCount(TextureAssets);
-    Assets->TextureAssets = PushArray(&Assets->Arena, Assets->AudioClipAssetCount, game_asset_texture);
+    Assets->TextureAssets = PushArray(&Assets->Arena, Assets->TextureAssetCount, game_asset_texture);
 
     for (u32 TextureAssetIndex = 0; TextureAssetIndex < ArrayCount(TextureAssets); ++TextureAssetIndex)
     {
@@ -616,7 +613,7 @@ internal void
 InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
     // todo:
-    Assets->Fonts.Count = 11;
+    Assets->Fonts.Count = 251;
     Assets->Fonts.Values = PushArray(&Assets->Arena, Assets->Fonts.Count, font);
 
     Assert(Assets->Fonts.Count > Assets->FontAssetCount);
@@ -634,7 +631,7 @@ internal void
 InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
     // todo:
-    Assets->Textures.Count = 31;
+    Assets->Textures.Count = 251;
     Assets->Textures.Values = PushArray(&Assets->Arena, Assets->Textures.Count, texture);
 
     Assert(Assets->Textures.Count > Assets->TextureAssetCount);
@@ -652,7 +649,7 @@ internal void
 InitGameAudioClipAssets(game_assets *Assets)
 {
     // todo:
-    Assets->AudioClips.Count = 31;
+    Assets->AudioClips.Count = 251;
     Assets->AudioClips.Values = PushArray(&Assets->Arena, Assets->AudioClips.Count, audio_clip);
 
     Assert(Assets->AudioClips.Count > Assets->AudioClipAssetCount);
@@ -748,10 +745,11 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     bounds Bounds = GetEntityBounds(Entity);
 
     vec3 HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
-    vec3 BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
+    //vec3 BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
+    vec3 Position = Bounds.Min + vec3(HalfSize);
     quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
 
-    transform Transform = CreateTransform(BottomCenterPosition, HalfSize, Rotation);
+    transform Transform = CreateTransform(Position, HalfSize, Rotation);
     vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
 
     if (Entity->Model)
@@ -1020,8 +1018,11 @@ GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
     Params->ToStateIdle1 = Random < 0.5f;
     Params->ToStateIdle2 = Random >= 0.5f;
 
-    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
+    if (Input->Dance.IsActivated || Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
+        Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
+    }
 }
 
 inline void
@@ -1036,8 +1037,11 @@ GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
     Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
     Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
 
-    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateActionIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+    if (Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = State->DanceMode.Value;
+        Params->ToStateActionIdleFromDancing = !State->DanceMode.Value;
+    }
 }
 
 inline void
@@ -1055,8 +1059,11 @@ GameInput2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_
     Params->ToStateActionIdle2 = 0.33f <= Random && Random <= 0.66f;
     Params->ToStateActionIdle3 = 0.66f <= Random && Random <= 1.f;
 
-    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
+    if (Input->Dance.IsActivated || Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
+        Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
+    }
 
     Params->LightAttack = State->Mode == GameMode_World && Input->LightAttack.IsActivated;
     Params->StrongAttack = State->Mode == GameMode_World && Input->StrongAttack.IsActivated;
@@ -1072,8 +1079,11 @@ GameLogic2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_
     Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
     Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
 
-    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateActionIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+    if (Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = State->DanceMode.Value;
+        Params->ToStateActionIdleFromDancing = !State->DanceMode.Value;
+    }
 }
 
 inline void
@@ -1084,15 +1094,22 @@ GameInput2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_
     Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
     Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
     Params->Attack = State->Mode == GameMode_World && Input->LightAttack.IsActivated;
-    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
+
+    if (Input->Dance.IsActivated || Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
+        Params->ToStateIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
+    }
 }
 
 inline void
 GameLogic2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_animator_params *Params)
 {
-    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+    if (Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = State->DanceMode.Value;
+        Params->ToStateIdleFromDancing = !State->DanceMode.Value;
+    }
 }
 
 inline void
@@ -1102,15 +1119,22 @@ GameInput2ClericAnimatorParams(game_state *State, game_entity *Entity, cleric_an
 
     Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
     Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
-    Params->ToStateDancing = Input->Dance.IsActivated || (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateIdleFromDancing = Input->Dance.IsActivated || (!State->DanceMode && State->PrevDanceMode);
+
+    if (Input->Dance.IsActivated || Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
+        Params->ToStateIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
+    }
 }
 
 inline void
 GameLogic2ClericAnimatorParams(game_state *State, game_entity *Entity, cleric_animator_params *Params)
 {
-    Params->ToStateDancing = (State->DanceMode && !State->PrevDanceMode);
-    Params->ToStateIdleFromDancing = (!State->DanceMode && State->PrevDanceMode);
+    if (Changed(State->DanceMode))
+    {
+        Params->ToStateDancing = State->DanceMode.Value;
+        Params->ToStateIdleFromDancing = !State->DanceMode.Value;
+    }
 }
 
 internal void *
@@ -1637,7 +1661,7 @@ LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_
 
     u32 EntityCount = Header->EntityCount;
 
-    bounds WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
+    bounds WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
     vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&Area->SpatialGrid, WorldBounds, CellSize, &Area->Arena);
 
@@ -1690,7 +1714,7 @@ DLLExport GAME_INIT(GameInit)
     State->WorldArea.MaxEntityCount = 10000;
     State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
 
-    bounds WorldBounds = { vec3(-300.f, 0.f, -300.f), vec3(300.f, 20.f, 300.f) };
+    bounds WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
     vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&State->WorldArea.SpatialGrid, WorldBounds, CellSize, &State->WorldArea.Arena);
 
@@ -1700,6 +1724,9 @@ DLLExport GAME_INIT(GameInit)
     State->NextFreeMeshId = 1;
     State->NextFreeTextureId = 1;
     State->NextFreeSkinningId = 1;
+
+    // todo: temp
+    State->SkyboxId = 1234;
 
     game_process *Sentinel = &State->ProcessSentinel;
     CopyString("Sentinel", Sentinel->Key);
@@ -1723,9 +1750,6 @@ DLLExport GAME_INIT(GameInit)
 
     LoadAnimators(&State->Animator);
     //
-
-    State->DelayTime = 0.f;
-    State->DelayDuration = 0.5f;
 
     State->Mode = GameMode_Editor;
 
@@ -1852,26 +1876,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             InitGameMenu(State);
         }
     }
-
-    /*if (Input->ChoosePrevHero.IsActivated)
-    {
-        State->Player->Controllable = false;
-        State->Player->Body->Acceleration = vec3(0.f);
-
-        State->Player = GetPrevHero(State);
-
-        State->Player->Controllable = true;
-    }
-
-    if (Input->ChooseNextHero.IsActivated)
-    {
-        State->Player->Controllable = false;
-        State->Player->Body->Acceleration = vec3(0.f);
-
-        State->Player = GetNextHero(State);
-
-        State->Player->Controllable = true;
-    }*/
 
     if (Input->Reset.IsActivated)
     {
@@ -2214,23 +2218,9 @@ DLLExport GAME_RENDER(GameRender)
         InitGameAudioClipAssets(&State->Assets);
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
-#if 0
-        for (u32 GrassEntityIndex = 0; GrassEntityIndex < 1000; ++GrassEntityIndex)
-        {
-            game_entity *Entity = CreateGameEntity(State);
-            Entity->Transform.Translation = vec3(RandomBetween(&State->GeneralEntropy, -20.f, 20.f), 0.f, RandomBetween(&State->GeneralEntropy, -20.f, 20.f));
-            Entity->Transform.Scale = vec3(1.f);
-            Entity->Transform.Rotation = quat(0.f, 0.f, 0.f, 1.f);
-            Entity->TestColor = vec3(RandomBetween(&State->GeneralEntropy, 0.f, 1.f), RandomBetween(&State->GeneralEntropy, 0.f, 1.f), RandomBetween(&State->GeneralEntropy, 0.f, 1.f));
-            AddModel(State, Entity, &State->Assets, "quad", RenderCommands, &State->PermanentArena);
-        }
-#endif
-
-        //State->Player = State->PlayableEntities[State->PlayableEntityIndex];
-        //State->Player = State->Entities + 1;
-        //State->Player->Controllable = true;
-
         State->Assets.State = GameAssetsState_Ready;
+
+        AddSkybox(RenderCommands, State->SkyboxId, 4096, GetTextureAsset(&State->Assets, "Environment"));
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
@@ -2249,19 +2239,19 @@ DLLExport GAME_RENDER(GameRender)
 #endif
     }
 
-    // todo:
-    if (State->DanceMode && !State->PrevDanceMode)
+    if (Changed(State->DanceMode))
     {
-        Pause(AudioCommands, 2);
-        Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "samba"), SetAudioPlayOptions(0.75f, true), 3);
+        if (State->DanceMode.Value)
+        {
+            Pause(AudioCommands, 2);
+            Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "samba"), SetAudioPlayOptions(0.75f, true), 3);
+        }
+        else
+        {
+            Stop(AudioCommands, 3);
+            Resume(AudioCommands, 2);
+        }
     }
-
-    if (!State->DanceMode && State->PrevDanceMode)
-    {
-        Stop(AudioCommands, 3);
-        Resume(AudioCommands, 2);
-    }
-    //
 
     SetTime(RenderCommands, Parameters->Time);
     SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
@@ -2286,14 +2276,7 @@ DLLExport GAME_RENDER(GameRender)
             RenderCommands->Settings.CameraToWorld = Inverse(WorldToCamera);
             RenderCommands->Settings.DirectionalLight = &State->DirectionalLight;
 
-            if (State->IsBackgroundHighlighted)
-            {
-                Clear(RenderCommands, vec4(1.f, 0.f, 1., 1.f));
-            }
-            else
-            {
-                Clear(RenderCommands, vec4(State->BackgroundColor, 1.f));
-            }
+            Clear(RenderCommands, vec4(State->BackgroundColor, 1.f));
 
             game_process *GameProcess = State->ProcessSentinel.Next;
 
@@ -2307,6 +2290,11 @@ DLLExport GAME_RENDER(GameRender)
             SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
 
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
+
+            if (State->Assets.State == GameAssetsState_Ready)
+            {
+                DrawSkybox(RenderCommands, State->SkyboxId);
+            }
 
             if (State->Options.ShowGrid)
             {
@@ -2560,7 +2548,6 @@ DLLExport GAME_RENDER(GameRender)
                             particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
 
                             DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, 0);
-                            //DrawParticles(RenderCommands, ParticleEmitter->ParticleCount, ParticleEmitter->Particles, GetTextureAsset(&State->Assets, "ParticleStar"));
 
                             if (State->Mode == GameMode_Editor)
                             {
@@ -2571,8 +2558,7 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
-            // todo:
-            State->PrevDanceMode = State->DanceMode;
+            SavePrevValueState(&State->DanceMode);
 
             if (State->Assets.State == GameAssetsState_Ready)
             {

@@ -317,8 +317,10 @@ struct game_state
     // linked-list (for efficient adding/removal and traversing)
     game_process ProcessSentinel;
 
+    // todo:
     vec2 CurrentMove;
     vec2 TargetMove;
+    //
 
     random_sequence GeneralEntropy;
     random_sequence ParticleEntropy;
@@ -329,15 +331,11 @@ struct game_state
 
     vec3 BackgroundColor;
 
-    bool32 IsBackgroundHighlighted;
-
-    // for testing purpuses
-    f32 DelayTime;
-    f32 DelayDuration;
-
     game_options Options;
     game_menu_quad MenuQuads[4];
 
-    bool32 DanceMode;
-    bool32 PrevDanceMode;
+    value_state<bool32> DanceMode;
+
+    // todo: temp
+    u32 SkyboxId;
 };
