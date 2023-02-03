@@ -3,6 +3,8 @@
 #define EMPTY_SLOT_KEY_STRING ""
 #define EMPTY_SLOT_KEY_U32 0
 
+struct memory_arena;
+
 // Closed hash table with quadratic probing
 template <typename T>
 struct hash_table
@@ -49,6 +51,16 @@ inline void
 RemoveFromHashTable(u32 *Key)
 {
     *Key = EMPTY_SLOT_KEY_U32;
+}
+
+template <typename T>
+internal void
+InitHashTable(hash_table<T> *HashTable, u32 Count, memory_arena *Arena)
+{
+    Assert(IsPrime(Count));
+
+    HashTable->Count = Count;
+    HashTable->Values = PushArray(Arena, Count, T);
 }
 
 template <typename TValue, typename TKey>

@@ -2,11 +2,6 @@
 
 #define WIN32_RELOADABLE_SHADERS 0
 
-#define OPENGL_MAX_MESH_BUFFER_COUNT 256
-#define OPENGL_MAX_SKINNING_BUFFER_COUNT 1024
-#define OPENGL_MAX_TEXTURE_COUNT 64
-#define OPENGL_MAX_SHADER_COUNT 64
-
 #define OPENGL_MAX_POINT_LIGHT_COUNT 8
 #define OPENGL_WORLD_SPACE_MODE 0x1
 #define OPENGL_SCREEN_SPACE_MODE 0x2
@@ -141,7 +136,7 @@ struct win32_shader_file
 
 struct opengl_shader
 {
-    u32 Id;
+    u32 Key;
     GLuint Program;
 
 #if WIN32_RELOADABLE_SHADERS
@@ -155,9 +150,15 @@ struct opengl_shader
     hash_table<opengl_uniform> Uniforms;
 };
 
+struct opengl_buffer
+{
+    GLuint VAO;
+    GLuint VBO;
+};
+
 struct opengl_mesh_buffer
 {
-    u32 Id;
+    u32 Key;
     u32 VertexCount;
     u32 IndexCount;
 
@@ -172,14 +173,14 @@ struct opengl_mesh_buffer
 
 struct opengl_skinning_buffer
 {
-    u32 Id;
+    u32 Key;
     GLuint SkinningTBO;
     GLuint SkinningTBOTexture;
 };
 
 struct opengl_texture
 {
-    u32 Id;
+    u32 Key;
     GLuint Handle;
 };
 
@@ -249,7 +250,6 @@ struct opengl_render_options
     mat4 CascadeView;
     mat4 CascadeProjection;
     u32 CascadeIndex;
-    bool32 EnableLog;
 };
 
 struct opengl_state
@@ -262,8 +262,7 @@ struct opengl_state
     u32 WindowWidth;
     u32 WindowHeight;
 
-    stream DebugStream;
-    stream RendererStream;
+    stream Stream;
     memory_arena Arena;
     platform_api *Platform;
     platform_profiler *Profiler;
@@ -271,28 +270,19 @@ struct opengl_state
     opengl_framebuffer SourceFramebuffer;
     opengl_framebuffer DestFramebuffer;
 
-    GLuint LineVAO;
-    GLuint RectangleVAO;
-    GLuint BoxVAO;
-    GLuint TextVAO;
-    GLuint TextVBO;
-    GLuint ParticleVAO;
-    GLuint ParticleVBO;
+    opengl_buffer Line;
+    opengl_buffer Rectangle;
+    opengl_buffer Box;
+    opengl_buffer Text;
+    opengl_buffer Particle;
 
     GLuint TransformUBO;
     GLuint ShadingUBO;
 
-    u32 CurrentMeshBufferCount;
-    opengl_mesh_buffer MeshBuffers[OPENGL_MAX_MESH_BUFFER_COUNT];
-
-    u32 CurrentSkinningBufferCount;
-    opengl_skinning_buffer SkinningBuffers[OPENGL_MAX_SKINNING_BUFFER_COUNT];
-
-    u32 CurrentTextureCount;
-    opengl_texture Textures[OPENGL_MAX_TEXTURE_COUNT];
-
-    u32 CurrentShaderCount;
-    opengl_shader Shaders[OPENGL_MAX_SHADER_COUNT];
+    hash_table<opengl_mesh_buffer> MeshBuffers;
+    hash_table<opengl_skinning_buffer> SkinningBuffers;
+    hash_table<opengl_texture> Textures;
+    hash_table<opengl_shader> Shaders;
 
     u32 CascadeShadowMapSize;
     GLuint CascadeShadowMapFBO;

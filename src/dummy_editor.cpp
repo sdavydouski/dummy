@@ -5,6 +5,7 @@
 #include <imgui_draw.cpp>
 #include <imgui_widgets.cpp>
 #include <imgui_tables.cpp>
+#include <imgui_demo.cpp>
 
 #include <ImGuizmo.h>
 #include <ImGuizmo.cpp>
@@ -24,6 +25,86 @@
 #include "dummy.cpp"
 #include "dummy_editor.h"
 
+inline ImVec4
+NormalizeRGB(u8 r, u8 g, u8 b)
+{
+    ImVec4 Result = ImVec4((f32) r / 255.f, (f32) g / 255.f, (f32) b / 255.f, 1.f);
+    return Result;
+}
+
+internal void
+EditorSetupStyle()
+{
+    ImGuiStyle &Style = ImGui::GetStyle();
+    ImVec4 *Colors = Style.Colors;
+
+    const ImVec4 bgColor = NormalizeRGB(37, 37, 38);
+    const ImVec4 lightBgColor = NormalizeRGB(82, 82, 85);
+    const ImVec4 veryLightBgColor = NormalizeRGB(90, 90, 95);
+
+    const ImVec4 panelColor = NormalizeRGB(51, 51, 55);
+    const ImVec4 panelHoverColor = NormalizeRGB(29, 151, 236);
+    const ImVec4 panelActiveColor = NormalizeRGB(0, 119, 200);
+
+    const ImVec4 textColor = NormalizeRGB(255, 255, 255);
+    const ImVec4 textDisabledColor = NormalizeRGB(151, 151, 151);
+    const ImVec4 borderColor = NormalizeRGB(78, 78, 78);
+
+    Colors[ImGuiCol_Text] = textColor;
+    Colors[ImGuiCol_TextDisabled] = textDisabledColor;
+    Colors[ImGuiCol_TextSelectedBg] = panelActiveColor;
+    Colors[ImGuiCol_WindowBg] = bgColor;
+    Colors[ImGuiCol_ChildBg] = bgColor;
+    Colors[ImGuiCol_PopupBg] = bgColor;
+    Colors[ImGuiCol_Border] = borderColor;
+    Colors[ImGuiCol_BorderShadow] = borderColor;
+    Colors[ImGuiCol_FrameBg] = panelColor;
+    Colors[ImGuiCol_FrameBgHovered] = panelHoverColor;
+    Colors[ImGuiCol_FrameBgActive] = panelActiveColor;
+    Colors[ImGuiCol_TitleBg] = bgColor;
+    Colors[ImGuiCol_TitleBgActive] = bgColor;
+    Colors[ImGuiCol_TitleBgCollapsed] = bgColor;
+    Colors[ImGuiCol_MenuBarBg] = panelColor;
+    Colors[ImGuiCol_ScrollbarBg] = panelColor;
+    Colors[ImGuiCol_ScrollbarGrab] = lightBgColor;
+    Colors[ImGuiCol_ScrollbarGrabHovered] = veryLightBgColor;
+    Colors[ImGuiCol_ScrollbarGrabActive] = veryLightBgColor;
+    Colors[ImGuiCol_CheckMark] = panelActiveColor;
+    Colors[ImGuiCol_SliderGrab] = panelHoverColor;
+    Colors[ImGuiCol_SliderGrabActive] = panelActiveColor;
+    Colors[ImGuiCol_Button] = panelColor;
+    Colors[ImGuiCol_ButtonHovered] = panelHoverColor;
+    Colors[ImGuiCol_ButtonActive] = panelHoverColor;
+    Colors[ImGuiCol_Header] = panelActiveColor;
+    Colors[ImGuiCol_HeaderHovered] = panelHoverColor;
+    Colors[ImGuiCol_HeaderActive] = panelActiveColor;
+    Colors[ImGuiCol_Separator] = borderColor;
+    Colors[ImGuiCol_SeparatorHovered] = borderColor;
+    Colors[ImGuiCol_SeparatorActive] = borderColor;
+    Colors[ImGuiCol_ResizeGrip] = bgColor;
+    Colors[ImGuiCol_ResizeGripHovered] = panelColor;
+    Colors[ImGuiCol_ResizeGripActive] = lightBgColor;
+    Colors[ImGuiCol_PlotLines] = panelActiveColor;
+    Colors[ImGuiCol_PlotLinesHovered] = panelHoverColor;
+    Colors[ImGuiCol_PlotHistogram] = panelActiveColor;
+    Colors[ImGuiCol_PlotHistogramHovered] = panelHoverColor;
+    Colors[ImGuiCol_DragDropTarget] = bgColor;
+    Colors[ImGuiCol_NavHighlight] = bgColor;
+    Colors[ImGuiCol_Tab] = bgColor;
+    Colors[ImGuiCol_TabActive] = panelActiveColor;
+    Colors[ImGuiCol_TabUnfocused] = bgColor;
+    Colors[ImGuiCol_TabUnfocusedActive] = panelActiveColor;
+    Colors[ImGuiCol_TabHovered] = panelHoverColor;
+
+    Style.WindowRounding = 0.0f;
+    Style.ChildRounding = 0.0f;
+    Style.FrameRounding = 0.0f;
+    Style.GrabRounding = 0.0f;
+    Style.PopupRounding = 0.0f;
+    Style.ScrollbarRounding = 0.0f;
+    Style.TabRounding = 0.0f;
+}
+
 internal void
 Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
 {
@@ -41,6 +122,8 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
 
     // Load Fonts
     io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+
+    EditorSetupStyle();
 
     // Init State
     //EditorState->AssetType = AssetType_Model;
@@ -548,7 +631,7 @@ EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_comman
 
 // https://github.com/ocornut/imgui/blob/master/imgui_demo.cpp#L6925
 internal void 
-EditorLogWindow(editor_state *EditorState, stream *Stream, const char *Id, f32 Flush = false)
+EditorLogWindow(editor_state *EditorState, stream *Stream, const char *Id)
 {
     ImGui::Begin(Id);
 
@@ -581,12 +664,6 @@ EditorLogWindow(editor_state *EditorState, stream *Stream, const char *Id, f32 F
     }
     ImGui::EndChild();
 
-    if (Flush)
-    {
-        // todo: move out from the editor
-        ClearStream(Stream);
-    }
-
     ImGui::End();
 }
 
@@ -606,6 +683,8 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
+
+    //ImGui::ShowDemoWindow();
 
     const ImGuiViewport *Viewport = ImGui::GetMainViewport();
     ImGuiIO &io = ImGui::GetIO();
@@ -677,7 +756,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                 {
                     ClearWorldArea(GameState);
 
-                    GameState->Options.ShowGrid = true;
+                    //GameState->Options.ShowGrid = true;
                 }
 
                 ImGui::Separator();
@@ -979,9 +1058,8 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::End();
     }
 
-    EditorLogWindow(EditorState, &PlatformState->Stream, "Platform Log", false);
-    EditorLogWindow(EditorState, &RendererState->RendererStream, "Renderer Log", true);
-    EditorLogWindow(EditorState, &RendererState->DebugStream, "OpenGL Debug Log", false);
+    EditorLogWindow(EditorState, &PlatformState->Stream, "Platform Log");
+    EditorLogWindow(EditorState, &RendererState->Stream, "OpenGL Log");
 
 #if 0
     // todo: find a better place to put it

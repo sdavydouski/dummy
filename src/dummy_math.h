@@ -327,6 +327,30 @@ Max(i32 a, i32 b)
     return Result;
 }
 
+inline bool
+IsPrime(u32 n)
+{
+    if (n == 2 || n == 3)
+    {
+        return true;
+    }
+
+    if (n <= 1 || n % 2 == 0 || n % 3 == 0)
+    {
+        return false;
+    }
+
+    for (u32 i = 5; i * i <= n; i += 6)
+    {
+        if (n % i == 0 || n % (i + 2) == 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 inline mat4
 Scale(f32 Value)
 {
@@ -718,7 +742,6 @@ Hash(char *String)
 
     while (char Character = *String++)
     {
-        // Hash * 33 + Character
         Hash = ((Hash << 5) + Hash) + Character;
     }
 

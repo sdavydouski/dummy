@@ -882,6 +882,8 @@ CreateGameEntity(game_state *State)
 
     game_entity *Entity = Area->Entities + Area->EntityCount++;
 
+    *Entity = {};
+
     Assert(Area->EntityCount <= Area->MaxEntityCount);
 
     Entity->Id = GenerateEntityId(State);

@@ -1,8 +1,6 @@
 internal void
 LoadTextureAsset(const char *FilePath, texture_asset *Asset)
 {
-    //stbi_set_flip_vertically_on_load(true);
-
     if (stbi_is_hdr(FilePath))
     {
         Asset->Bitmap.IsHDR = true;

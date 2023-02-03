@@ -1,3 +1,4 @@
+// todo: not used
 inline void
 InitRenderCommandsBuffer(render_commands *Commands, void *Memory, u32 Size)
 {
@@ -18,6 +19,8 @@ PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type
     Result->Size = Size;
 
     Commands->RenderCommandsBufferSize += Size;
+
+    //Out(&Commands->Stream, "Renderer::%s", RenderCommandNames[Type]);
 
     return Result;
 }
