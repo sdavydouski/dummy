@@ -9,9 +9,6 @@ out VS_OUT {
 
 void main()
 { 
-    // todo: move to uniform buffer
-    mat4 SkyProjection = u_WorldProjection * mat4(mat3(u_View));
-
     vs_out.LocalPosition = in_Position;
-    gl_Position = SkyProjection * vec4(in_Position, 1.f);
+    gl_Position = u_SkyProjection * vec4(in_Position, 1.f);
 }

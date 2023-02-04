@@ -1047,7 +1047,7 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     InitHashTable(&State->Textures, 127, &State->Arena);
     InitHashTable(&State->Shaders, 61, &State->Arena);
 
-    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(2)));
+    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(1)));
 
     State->CascadeShadowMapSize = 4096;
     // todo: set by the game
@@ -1234,11 +1234,10 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
         glNamedFramebufferTexture(State->CascadeShadowMapFBO, GL_DEPTH_ATTACHMENT, State->CascadeShadowMaps[Options->CascadeIndex], 0);
         glEnable(GL_DEPTH_CLAMP);
 
-        mat4 TransposeLightProjection = Transpose(Options->CascadeProjection);
-        mat4 TransposeLightView = Transpose(Options->CascadeView);
+        mat4 LightViewProjection = Options->CascadeProjection * Options->CascadeView;
+        mat4 TransposeLightViewProjection = Transpose(LightViewProjection);
 
-        glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, WorldProjection), sizeof(mat4), &TransposeLightProjection);
-        glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, View), sizeof(mat4), &TransposeLightView);
+        glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, ViewProjection), sizeof(mat4), &TransposeLightViewProjection);
     }
 
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
@@ -1272,35 +1271,32 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 break;
             }
-            case RenderCommand_SetWorldProjection:
+            case RenderCommand_SetViewProjection:
             {
                 if (!Options->RenderShadowMap)
                 {
-                    render_command_set_world_projection *Command = (render_command_set_world_projection *) Entry;
+                    render_command_set_view_projection *Command = (render_command_set_view_projection *) Entry;
 
-                    mat4 Projection = FrustrumProjection(Command->FovY, Command->Aspect, Command->Near, Command->Far);
-                    mat4 TransposeProjection = Transpose(Projection);
+                    game_camera *Camera = Command->Camera;
 
-                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, WorldProjection), sizeof(mat4), &TransposeProjection);
-                }
+                    vec3 CameraPosition = Camera->Transform.Translation;
+                    vec3 CameraDirection = -Camera->Direction;
+                    vec3 CameraTarget = CameraPosition + Camera->Direction;
 
-                break;
-            }
-            case RenderCommand_SetCamera:
-            {
-                if (!Options->RenderShadowMap)
-                {
-                    render_command_set_camera *Command = (render_command_set_camera *) Entry;
+                    mat4 Projection = FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
+                    mat4 View = LookAt(CameraPosition, CameraTarget, Camera->Up);
 
-                    vec3 Target = Command->Position + Command->Direction;
-                    vec3 Direction = -Command->Direction;
+                    mat4 ViewProjection = Projection * View;
+                    mat4 TransposeViewProjection = Transpose(ViewProjection);
 
-                    mat4 View = LookAt(Command->Position, Target, Command->Up);
-                    mat4 TransposeView = Transpose(View);
+                    mat4 ViewRotation = RemoveTranslation(View);
+                    mat4 SkyProjection = Projection * ViewRotation;
+                    mat4 TransposeSkyProjection = Transpose(SkyProjection);
 
-                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, View), sizeof(mat4), &TransposeView);
-                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, CameraPosition), sizeof(vec3), &Command->Position);
-                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, CameraDirection), sizeof(vec3), &Direction);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, ViewProjection), sizeof(mat4), &TransposeViewProjection);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, SkyProjection), sizeof(mat4), &TransposeSkyProjection);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, CameraPosition), sizeof(vec3), &CameraPosition);
+                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, CameraDirection), sizeof(vec3), &CameraDirection);
                 }
 
                 break;
@@ -1435,10 +1431,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glUseProgram(Shader->Program);
 
                     mat4 Model = Transform(Command->Transform);
-                    mat4 View = mat4(1.f);
-
-                    // todo: do smth better
-                    glNamedBufferSubData(State->TransformUBO, StructOffset(opengl_uniform_buffer_transform, View), sizeof(mat4), &View);
 
                     glUniform1i(OpengLGetUniformLocation(Shader, "u_Mode"), OPENGL_SCREEN_SPACE_MODE);
                     glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *) Model.Elements);

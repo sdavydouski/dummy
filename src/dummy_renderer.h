@@ -29,15 +29,15 @@ struct light_attenuation
 
 struct directional_light
 {
-    alignas(16) vec3 Direction;
-    alignas(16) vec3 Color;
+    vec3 Direction;
+    vec3 Color;
 };
 
 struct point_light
 {
-    alignas(16) vec3 Position;
-    alignas(16) vec3 Color;
-    alignas(16) light_attenuation Attenuation;
+    vec3 Position;
+    vec3 Color;
+    light_attenuation Attenuation;
 };
 
 struct spot_light
@@ -122,8 +122,7 @@ enum render_command_type
 
     RenderCommand_SetViewport,
     RenderCommand_SetScreenProjection,
-    RenderCommand_SetWorldProjection,
-    RenderCommand_SetCamera,
+    RenderCommand_SetViewProjection,
     RenderCommand_SetTime,
     RenderCommand_SetDirectionalLight,
     RenderCommand_SetPointLights,
@@ -154,8 +153,7 @@ const char *RenderCommandNames[] =
 
     "SetViewport",
     "SetScreenProjection",
-    "SetWorldProjection",
-    "SetCamera",
+    "SetViewProjection",
     "SetTime",
     "SetDirectionalLight",
     "SetPointLights",
@@ -240,21 +238,10 @@ struct render_command_set_screen_projection
     f32 Far;
 };
 
-struct render_command_set_world_projection
+struct render_command_set_view_projection
 {
     render_command_header Header;
-    f32 FovY;
-    f32 Aspect;
-    f32 Near;
-    f32 Far;
-};
-
-struct render_command_set_camera
-{
-    render_command_header Header;
-    vec3 Position;
-    vec3 Direction;
-    vec3 Up;
+    game_camera *Camera;
 };
 
 struct render_command_set_directional_light

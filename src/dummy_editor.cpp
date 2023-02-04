@@ -128,6 +128,9 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     // Init State
     //EditorState->AssetType = AssetType_Model;
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    EditorState->LogAutoScroll = true;
+
+    EditorState->CurrentStreamIndex = 0;
 }
 
 internal void
@@ -378,10 +381,10 @@ EditorRenderPointLightInfo(point_light *PointLight)
 {
     if (ImGui::CollapsingHeader("PointLight", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::ColorEdit3("Color", PointLight->Color.Elements);
-        ImGui::InputFloat("Contant", &PointLight->Attenuation.Constant);
-        ImGui::InputFloat("Linear", &PointLight->Attenuation.Linear);
-        ImGui::InputFloat("Quadratic", &PointLight->Attenuation.Quadratic);
+        ImGui::ColorEdit3("Color##PointLight", PointLight->Color.Elements);
+        ImGui::InputFloat("Contant##PointLight", &PointLight->Attenuation.Constant);
+        ImGui::InputFloat("Linear##PointLight", &PointLight->Attenuation.Linear);
+        ImGui::InputFloat("Quadratic##PointLight", &PointLight->Attenuation.Quadratic);
 
         ImGui::NewLine();
     }
@@ -392,9 +395,9 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 {
     if (ImGui::CollapsingHeader("ParticleEmitter", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::InputInt("Spawn", (i32 *) &ParticleEmitter->ParticlesSpawn);
-        ImGui::InputFloat2("Size", ParticleEmitter->Size.Elements);
-        ImGui::ColorEdit4("Color", ParticleEmitter->Color.Elements, ImGuiColorEditFlags_AlphaBar);
+        ImGui::InputInt("Spawn##ParticleEmitter", (i32 *) &ParticleEmitter->ParticlesSpawn);
+        ImGui::InputFloat2("Size##ParticleEmitter", ParticleEmitter->Size.Elements);
+        ImGui::ColorEdit4("Color##ParticleEmitter", ParticleEmitter->Color.Elements, ImGuiColorEditFlags_AlphaBar);
 
         ImGui::NewLine();
     }
@@ -571,6 +574,22 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
         GameState->SelectedEntity = 0;
     }
 
+    if (ImGui::ButtonEx("Load...", ImVec2(WindowSize.x, 0)))
+    {
+        scoped_memory ScopedMemory(&EditorState->Arena);
+
+        wchar WideFilePath[256] = L"";
+        Platform->OpenFileDialog(WideFilePath, ArrayCount(WideFilePath));
+
+        if (!StringEquals(WideFilePath, L""))
+        {
+            char FilePath[256];
+            ConvertToString(WideFilePath, FilePath);
+
+            LoadEntityFromFile(GameState, Entity, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
+        }
+    }
+
     if (ImGui::ButtonEx("Save...", ImVec2(WindowSize.x, 0)))
     {
         scoped_memory ScopedMemory(&EditorState->Arena);
@@ -583,7 +602,7 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
             char FilePath[256];
             ConvertToString(WideFilePath, FilePath);
 
-            SaveWorldArea(GameState, FilePath, Platform, ScopedMemory.Arena);
+            SaveEntityToFile(Entity, FilePath, Platform, ScopedMemory.Arena);
         }
     }
 
@@ -629,46 +648,93 @@ EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_comman
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
 }
 
-// https://github.com/ocornut/imgui/blob/master/imgui_demo.cpp#L6925
-internal void 
-EditorLogWindow(editor_state *EditorState, stream *Stream, const char *Id)
+internal void
+EditorLogWindow(editor_state *EditorState, u32 StreamCount, stream **Streams, const char **StreamNames)
 {
-    ImGui::Begin(Id);
+    ImGui::Begin("Output");
 
-    char Label[256];
-    FormatString(Label, "%s##%s", "Scrolling", Id);
-
-    ImGui::BeginChild(Label, ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+    if (ImGui::BeginCombo("Streams", StreamNames[EditorState->CurrentStreamIndex]))
     {
+        for (u32 StreamIndex = 0; StreamIndex < StreamCount; ++StreamIndex)
+        {
+            bool32 Selected = (EditorState->CurrentStreamIndex == StreamIndex);
+
+            if (ImGui::Selectable(StreamNames[StreamIndex], Selected))
+            {
+                EditorState->CurrentStreamIndex = StreamIndex;
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    stream *Stream = Streams[EditorState->CurrentStreamIndex];
+
+    bool Clear = ImGui::Button("Clear##Log");
+    ImGui::SameLine();
+
+    bool Copy = ImGui::Button("Copy##Log");
+    ImGui::SameLine();
+
+    ImGui::Checkbox("Auto-scroll##Log", (bool *) &EditorState->LogAutoScroll);
+    ImGui::SameLine();
+
+    EditorState->LogFilter.Draw("Filter##Log", -100.0f);
+
+    ImGui::Separator();
+
+    if (ImGui::BeginChild("Scrolling##Log", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar))
+    {
+        if (Clear)
+        {
+            ClearStream(Stream);
+        }
+
+        if (Copy)
+        {
+            ImGui::LogToClipboard();
+        }
+
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
         stream_chunk *Chunk = Stream->First;
+
         while (Chunk)
         {
-            char *Text = (char *) Chunk->Contents;
-            char *TextEnd = (char *) (Chunk->Contents + Chunk->Size);
-            ImGui::TextUnformatted(Text, TextEnd);
+            char *Text = (char *)Chunk->Contents;
+            char *TextEnd = (char *)(Chunk->Contents + Chunk->Size);
+
+            if ((EditorState->LogFilter.IsActive() && EditorState->LogFilter.PassFilter(Text, TextEnd)) || !EditorState->LogFilter.IsActive())
+            {
+                ImGui::TextUnformatted(Text, TextEnd);
+            }
 
             Chunk = Chunk->Next;
         }
 
         ImGui::PopStyleVar();
 
-        bool32 AutoScroll = true;
-
-        if (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+        if (EditorState->LogAutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
         {
             ImGui::SetScrollHereY(1.f);
         }
 
+        ImGui::EndChild();
     }
-    ImGui::EndChild();
 
     ImGui::End();
 }
 
 internal void
-Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererState, game_memory *GameMemory, game_parameters *GameParameters, game_input *GameInput, editor_state *EditorState)
+Win32RenderEditor(
+    editor_state *EditorState,
+    win32_platform_state *PlatformState, 
+    opengl_state *RendererState, 
+    xaudio2_state *AudioState, 
+    game_memory *GameMemory, 
+    game_parameters *GameParameters, 
+    game_input *GameInput
+)
 {
     memory_arena *Arena = &EditorState->Arena;
 
@@ -716,7 +782,7 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
 
                 ImGui::Separator();
 
-                if (ImGui::MenuItem("Load..."))
+                if (ImGui::MenuItem("Load Area..."))
                 {
                     scoped_memory ScopedMemory(&EditorState->Arena);
 
@@ -729,13 +795,11 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                         ConvertToString(WideFilePath, FilePath);
 
                         ClearWorldArea(GameState);
-                        LoadWorldArea(GameState, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
-
-                        //GameState->Options.ShowGrid = false;
+                        LoadWorldAreaFromFile(GameState, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
                     }
                 }
 
-                if (ImGui::MenuItem("Save..."))
+                if (ImGui::MenuItem("Save Area..."))
                 {
                     scoped_memory ScopedMemory(&EditorState->Arena);
 
@@ -747,16 +811,14 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
                         char FilePath[256];
                         ConvertToString(WideFilePath, FilePath);
 
-                        SaveWorldArea(GameState, FilePath, Platform, ScopedMemory.Arena);
+                        SaveWorldAreaToFile(GameState, FilePath, Platform, ScopedMemory.Arena);
                     }
 
                 }
 
-                if (ImGui::MenuItem("Clear"))
+                if (ImGui::MenuItem("Clear Area"))
                 {
                     ClearWorldArea(GameState);
-
-                    //GameState->Options.ShowGrid = true;
                 }
 
                 ImGui::Separator();
@@ -1058,8 +1120,14 @@ Win32RenderEditor(win32_platform_state *PlatformState, opengl_state *RendererSta
         ImGui::End();
     }
 
-    EditorLogWindow(EditorState, &PlatformState->Stream, "Platform Log");
-    EditorLogWindow(EditorState, &RendererState->Stream, "OpenGL Log");
+    stream *Streams[] = { &GameState->Stream, &PlatformState->Stream, &RendererState->Stream, &AudioState->Stream };
+    const char *StreamNames[] = { "Game", "Platform", "Renderer", "Audio"};
+
+    Assert(ArrayCount(Streams) == ArrayCount(StreamNames));
+
+    EditorLogWindow(EditorState, ArrayCount(Streams), Streams, StreamNames);
+
+    stream *Stream = &PlatformState->Stream;
 
 #if 0
     // todo: find a better place to put it

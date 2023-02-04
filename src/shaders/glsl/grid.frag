@@ -14,9 +14,9 @@ in VS_OUT
 out vec4 out_Color;
 
 // computes Z-buffer depth value, and converts the range.
-float ComputeDepth(vec3 p, mat4 View, mat4 Projection) {
+float ComputeDepth(vec3 p, mat4 ViewProjection) {
 	// get the clip-space coordinates
-	vec4 ClipSpacePosition = Projection * View * vec4(p, 1.f);
+	vec4 ClipSpacePosition = ViewProjection * vec4(p, 1.f);
 
 	// get the depth value in normalized device coordinates
 	float ClipSpaceDepth = ClipSpacePosition.z / ClipSpacePosition.w;
@@ -101,5 +101,5 @@ void main()
     }
 
 	out_Color = vec4(Result, 1.f - Opacity);
-	gl_FragDepth = ComputeDepth(GroundPoint, u_View, u_WorldProjection);
+	gl_FragDepth = ComputeDepth(GroundPoint, u_ViewProjection);
 }

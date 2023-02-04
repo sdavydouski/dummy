@@ -89,8 +89,7 @@ SetViewport(render_commands *Commands, u32 x, u32 y, u32 Width, u32 Height)
 inline void
 SetScreenProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, f32 Top, f32 Near, f32 Far)
 {
-    render_command_set_screen_projection *Command = 
-        PushRenderCommand(Commands, render_command_set_screen_projection, RenderCommand_SetScreenProjection);
+    render_command_set_screen_projection *Command = PushRenderCommand(Commands, render_command_set_screen_projection, RenderCommand_SetScreenProjection);
     Command->Left = Left;
     Command->Right = Right;
     Command->Bottom = Bottom;
@@ -100,23 +99,10 @@ SetScreenProjection(render_commands *Commands, f32 Left, f32 Right, f32 Bottom, 
 }
 
 inline void
-SetWorldProjection(render_commands *Commands, f32 FovY, f32 Aspect, f32 Near, f32 Far)
+SetViewProjection(render_commands *Commands, game_camera *Camera)
 {
-    render_command_set_world_projection *Command =
-        PushRenderCommand(Commands, render_command_set_world_projection, RenderCommand_SetWorldProjection);
-    Command->FovY = FovY;
-    Command->Aspect = Aspect;
-    Command->Near = Near;
-    Command->Far = Far;
-}
-
-inline void
-SetCamera(render_commands *Commands, vec3 Position, vec3 Direction, vec3 Up)
-{
-    render_command_set_camera *Command = PushRenderCommand(Commands, render_command_set_camera, RenderCommand_SetCamera);
-    Command->Position = Position;
-    Command->Direction = Direction;
-    Command->Up = Up;
+    render_command_set_view_projection *Command = PushRenderCommand(Commands, render_command_set_view_projection, RenderCommand_SetViewProjection);
+    Command->Camera = Camera;
 }
 
 inline void

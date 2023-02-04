@@ -327,7 +327,7 @@ Max(i32 a, i32 b)
     return Result;
 }
 
-inline bool
+inline bool32
 IsPrime(u32 n)
 {
     if (n == 2 || n == 3)
@@ -576,6 +576,19 @@ inline vec3
 GetTranslation(mat4 M)
 {
     vec3 Result = M.Column(3).xyz;
+
+    return Result;
+}
+
+inline mat4
+RemoveTranslation(mat4 M)
+{
+    mat4 Result = mat4(M);
+
+    Result[0].w = 0.f;
+    Result[1].w = 0.f;
+    Result[2].w = 0.f;
+    Result[3].w = 1.f;
 
     return Result;
 }

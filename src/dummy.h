@@ -280,6 +280,8 @@ struct game_state
     world_area WorldArea;
 
     job_queue *JobQueue;
+    
+    stream Stream;
 
     game_mode PrevMode;
     game_mode Mode;

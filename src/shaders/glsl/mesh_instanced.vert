@@ -43,5 +43,5 @@ void main()
     vs_out.CascadeBlend = CalculateCascadeBlend(WorldPosition.xyz, u_CameraDirection, u_CameraPosition);
     vs_out.Color = in_InstanceColor;
 
-    gl_Position = u_WorldProjection * u_View * WorldPosition;
+    gl_Position = u_ViewProjection * WorldPosition;
 }

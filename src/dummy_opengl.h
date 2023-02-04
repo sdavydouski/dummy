@@ -212,9 +212,9 @@ struct opengl_particle
 
 struct opengl_uniform_buffer_transform
 {
-    mat4 WorldProjection;
+    mat4 ViewProjection;
     mat4 ScreenProjection;
-    mat4 View;
+    mat4 SkyProjection;
 
     alignas(16) vec3 CameraPosition;
     alignas(16) vec3 CameraDirection;

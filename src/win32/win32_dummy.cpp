@@ -1366,7 +1366,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             {
                 PROFILE(&PlatformProfiler, "EDITOR_UI_RENDER");
-                EDITOR_UI_RENDER(&PlatformState, &Win32OpenGLState.OpenGL, &GameMemory, &GameParameters, &GameInput, &EditorState);
+                EDITOR_UI_RENDER(&EditorState, &PlatformState, &Win32OpenGLState.OpenGL, &XAudio2State, &GameMemory, &GameParameters, &GameInput);
             }
 
             GameInput = {};

@@ -14,6 +14,11 @@ struct editor_state
 {
     u32 CurrentGizmoOperation;
 
+    u32 CurrentStreamIndex;
+
+    bool32 LogAutoScroll;
+    ImGuiTextFilter LogFilter;
+
     memory_arena Arena;
 
     editor_add_entity AddEntity;

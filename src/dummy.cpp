@@ -389,14 +389,10 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "Ganfaul",
             "assets\\Ganfaul.model.asset"
         },
-       /* {
-            "Morak",
-            "assets\\Morak.model.asset"
-        },
         {
             "cerberus",
             "assets\\cerberus.model.asset"
-        },*/
+        },
         {
             "cube",
             "assets\\cube.model.asset"
@@ -1613,7 +1609,7 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
 }
 
 internal void
-SaveWorldArea(game_state *State, char *FileName,  platform_api *Platform, memory_arena *Arena)
+SaveWorldAreaToFile(game_state *State, char *FileName,  platform_api *Platform, memory_arena *Arena)
 {
     u32 HeaderSize = sizeof(game_file_header);
     u32 BufferSize = HeaderSize + State->ActiveEntitiesCount * sizeof(game_entity_spec);
@@ -1648,7 +1644,7 @@ SaveWorldArea(game_state *State, char *FileName,  platform_api *Platform, memory
 }
 
 internal void
-LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
+LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
 {
     read_file_result Result = Platform->ReadFile(FileName, TempArena, ReadBinary());
 
@@ -1667,6 +1663,7 @@ LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_
     vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&Area->SpatialGrid, WorldBounds, CellSize, &Area->Arena);
 
+    // todo:
     Area->MaxEntityCount = 10000;
     Area->EntityCount = 0;
     Area->Entities = PushArray(&Area->Arena, Area->MaxEntityCount, game_entity);
@@ -1678,9 +1675,55 @@ LoadWorldArea(game_state *State, char *FileName, platform_api *Platform, render_
         game_entity *Entity = CreateGameEntity(State);
 
         Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
-
         AddToSpacialGrid(&Area->SpatialGrid, Entity);
     }
+
+    Out(&State->Stream, "Loaded %s (Entity Count: %d)", FileName, EntityCount);
+}
+
+internal void
+LoadEntityFromFile(game_state *State,  game_entity *Entity, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
+{
+    read_file_result Result = Platform->ReadFile(FileName, TempArena, ReadBinary());
+
+    game_file_header *Header = GET_DATA_AT(Result.Contents, 0, game_file_header);
+    game_entity_spec *Spec = GET_DATA_AT(Result.Contents, sizeof(game_file_header), game_entity_spec);
+
+    Assert(Header->MagicValue == 0x44332211);
+    Assert(Header->Version == 1);
+    Assert(Header->Type == GameFile_Area);
+
+    u32 EntityCount = Header->EntityCount;
+
+    Assert(EntityCount == 1);
+
+    world_area *Area = &State->WorldArea;
+
+    Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
+    AddToSpacialGrid(&Area->SpatialGrid, Entity);
+}
+
+internal void
+SaveEntityToFile(game_entity *Entity, char *FileName, platform_api *Platform, memory_arena *Arena)
+{
+    u32 HeaderSize = sizeof(game_file_header);
+    u32 BufferSize = HeaderSize + sizeof(game_entity_spec);
+    void *Buffer = PushSize(Arena, BufferSize);
+
+    game_file_header *Header = GET_DATA_AT(Buffer, 0, game_file_header);
+
+    Header->MagicValue = 0x44332211;
+    Header->Version = 1;
+    Header->EntityCount = 1;
+    // todo: different type?
+    Header->Type = GameFile_Area;
+
+    game_entity_spec *Spec = GET_DATA_AT(Buffer, HeaderSize, game_entity_spec);
+
+    Entity2Spec(Entity, Spec);
+    Spec->Transform.Translation = vec3(0.f);
+
+    Platform->WriteFile(FileName, Buffer, BufferSize);
 }
 
 internal void
@@ -1709,6 +1752,8 @@ DLLExport GAME_INIT(GameInit)
     umm TransientArenaSize = Memory->TransientStorageSize;
     u8 *TransientArenaBase = (u8 *) Memory->TransientStorage;
     InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
+
+    State->Stream = CreateStream(SubMemoryArena(&State->PermanentArena, Megabytes(4)));
 
     State->WorldArea = {};
     State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(64));
@@ -2288,8 +2333,7 @@ DLLExport GAME_RENDER(GameRender)
                 GameProcess = GameProcess->Next;
             }
 
-            SetWorldProjection(RenderCommands, Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane);
-            SetCamera(RenderCommands, Camera->Transform.Translation, Camera->Direction, Camera->Up);
+            SetViewProjection(RenderCommands, Camera);
 
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
 
@@ -2604,8 +2648,8 @@ DLLExport GAME_RENDER(GameRender)
 #if 1
             if (State->Player && State->Player->Model)
             {
-                char Text[64];
-                FormatString(Text, "Active entity: %s", State->Player->Model->Key);
+                char Text[256];
+                FormatString(Text, "Active entity: %s", State->Player->Name);
                 DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
             }
 #endif

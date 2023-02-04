@@ -30,12 +30,10 @@ void main()
 
     gs_out.Color = gs_in[0].Color;
 
-    mat4 ViewProjection = u_WorldProjection * u_View;
-
     // Bottom-left
     {
         vec3 VertexPosition = Center - xAxis * HalfSize.x - yAxis * HalfSize.y;
-        gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
+        gl_Position = u_ViewProjection * vec4(VertexPosition, 1.f);
 
         vec2 TextureCoords = vec2(0.f, 0.f);
         gs_out.TextureCoords = TextureCoords;
@@ -46,7 +44,7 @@ void main()
     // Bottom-right
     {
         vec3 VertexPosition = Center + xAxis * HalfSize.x - yAxis * HalfSize.y;
-        gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
+        gl_Position = u_ViewProjection * vec4(VertexPosition, 1.f);
 
         vec2 TextureCoords = vec2(1.f, 0.f);
         gs_out.TextureCoords = TextureCoords;
@@ -57,7 +55,7 @@ void main()
     // Top-left
     {
         vec3 VertexPosition = Center - xAxis * HalfSize.x + yAxis * HalfSize.y;
-        gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
+        gl_Position = u_ViewProjection * vec4(VertexPosition, 1.f);
 
         vec2 TextureCoords = vec2(0.f, 1.f);
         gs_out.TextureCoords = TextureCoords;
@@ -68,7 +66,7 @@ void main()
     // Top-right
     {
         vec3 VertexPosition = Center + xAxis * HalfSize.x + yAxis * HalfSize.y;
-        gl_Position = ViewProjection * vec4(VertexPosition, 1.f);
+        gl_Position = u_ViewProjection * vec4(VertexPosition, 1.f);
 
         vec2 TextureCoords = vec2(1.f, 1.f);
         gs_out.TextureCoords = TextureCoords;

@@ -82,6 +82,7 @@ struct xaudio2_state
 
     platform_profiler *Profiler;
     memory_arena Arena;
+    stream Stream;
 };
 
 f32 inline
@@ -177,6 +178,8 @@ Win32InitXAudio2(xaudio2_state *State)
     CoInitializeEx(0, COINIT_MULTITHREADED);
 
     XAudio2Create(&State->XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
+
+    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(1)));
 
     State->XAudio2->RegisterForCallbacks(&State->EngineCallback);
     State->XAudio2->CreateMasteringVoice(&State->MasterVoice);
