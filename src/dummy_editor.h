@@ -22,4 +22,6 @@ struct editor_state
     memory_arena Arena;
 
     editor_add_entity AddEntity;
+
+    stack<animation_graph *> AnimationGraphStack;
 };

@@ -30,6 +30,11 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, me
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
                 NodeAsset->Animation->EnableRootMotion = AnimationStateHeader->EnableRootMotion;
 
+                NodeAsset->Animation->IsAdditive = AnimationStateHeader->IsAdditive;
+                NodeAsset->Animation->BaseFrameIndex = AnimationStateHeader->BaseFrameIndex;
+                CopyString(AnimationStateHeader->TargetClipName, NodeAsset->Animation->TargetClipName);
+                CopyString(AnimationStateHeader->BaseClipName, NodeAsset->Animation->BaseClipName);
+
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
                 break;
             }
@@ -42,6 +47,20 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, me
                 NodeAsset->Blendspace->Values = GET_DATA_AT(Buffer, BlendSpaceHeader->ValuesOffset, blend_space_1d_value_asset);
 
                 TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader->ValueCount * sizeof(blend_space_1d_value_asset);
+                break;
+            }
+            case AnimationNodeType_Additive:
+            {
+                model_asset_animation_additive_header *AnimationAdditiveHeader = GET_DATA_AT(Buffer, NodeHeader->Offset, model_asset_animation_additive_header);
+
+                NodeAsset->Additive = PushType(Arena, animation_additive_asset);
+                CopyString(AnimationAdditiveHeader->BaseNodeName, NodeAsset->Additive->BaseNodeName);
+                CopyString(AnimationAdditiveHeader->AdditiveNodeName, NodeAsset->Additive->AdditiveNodeName);
+                NodeAsset->Additive->IsLooping = AnimationAdditiveHeader->IsLooping;
+                NodeAsset->Additive->EnableRootMotion = AnimationAdditiveHeader->EnableRootMotion;
+
+                TotalPrevNodeSize += sizeof(model_asset_animation_additive_header);
+
                 break;
             }
             case AnimationNodeType_Graph:

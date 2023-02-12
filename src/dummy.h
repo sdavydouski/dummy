@@ -29,6 +29,7 @@ struct game_entity
     bool32 Destroyed;
     vec3 TestColor;
     vec3 DebugColor;
+    bool32 IsGrounded;
 };
 
 struct world_area

@@ -1153,7 +1153,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     GameMemory.Profiler = &PlatformProfiler;
     GameMemory.JobQueue = &JobQueue;
 
+#if NDEBUG
     void *BaseAddress = 0;
+#else
+    void *BaseAddress = (void *)Terabytes(2);
+#endif
     PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize + GameMemory.AudioCommandsStorageSize;
     PlatformState.GameMemoryBlock = Win32AllocateMemory(BaseAddress, PlatformState.GameMemoryBlockSize);
 

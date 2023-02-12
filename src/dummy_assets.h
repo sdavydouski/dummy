@@ -105,12 +105,25 @@ struct animation_state_asset
     char AnimationClipName[256];
     bool32 IsLooping;
     bool32 EnableRootMotion;
+
+    bool32 IsAdditive;
+    char TargetClipName[256];
+    char BaseClipName[256];
+    u32 BaseFrameIndex;
 };
 
 struct blend_space_1d_value_asset
 {
     char AnimationClipName[256];
     f32 Value;
+    bool32 EnableRootMotion;
+};
+
+struct animation_additive_asset
+{
+    char BaseNodeName[256];
+    char AdditiveNodeName[256];
+    bool32 IsLooping;
     bool32 EnableRootMotion;
 };
 
@@ -148,6 +161,7 @@ struct animation_node_asset
     {
         animation_state_asset *Animation;
         blend_space_1d_asset *Blendspace;
+        animation_additive_asset *Additive;
         animation_graph_asset *Graph;
     };
 
@@ -346,12 +360,25 @@ struct model_asset_animation_state_header
     char AnimationClipName[256];
     bool32 IsLooping;
     bool32 EnableRootMotion;
+
+    bool32 IsAdditive;
+    char TargetClipName[256];
+    char BaseClipName[256];
+    u32 BaseFrameIndex;
 };
 
 struct model_asset_blend_space_1d_header
 {
     u32 ValueCount;
     u64 ValuesOffset;
+};
+
+struct model_asset_animation_additive_header
+{
+    char BaseNodeName[256];
+    char AdditiveNodeName[256];
+    bool32 IsLooping;
+    bool32 EnableRootMotion;
 };
 
 struct model_asset_meshes_header

@@ -18,7 +18,7 @@ template <typename T>
 inline T *
 AllocateMemory(umm Count = 1)
 {
-    T *Result = (T *) malloc(Count * sizeof(T));
+    T *Result = (T *) calloc(Count, sizeof(T));
 
     Assert(Result);
 

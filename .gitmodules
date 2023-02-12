@@ -16,3 +16,6 @@
 [submodule "src/external/ImGuizmo"]
 	path = src/external/ImGuizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo
+[submodule "src/external/imnodes"]
+	path = src/external/imnodes
+	url = https://github.com/Nelarius/imnodes

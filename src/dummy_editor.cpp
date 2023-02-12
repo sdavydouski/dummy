@@ -10,6 +10,9 @@
 #include <ImGuizmo.h>
 #include <ImGuizmo.cpp>
 
+#include <imnodes.h>
+#include <imnodes.cpp>
+
 #include <imgui_impl_win32.h>
 #include <imgui_impl_win32.cpp>
 
@@ -24,6 +27,21 @@
 
 #include "dummy.cpp"
 #include "dummy_editor.h"
+
+// todo:
+inline i32
+GetTransitionId(animation_node *Node, animation_transition *Transition)
+{
+    animation_node *From = Transition->From;
+    animation_node *To = GetTransitionDestinationNode(Transition);
+
+    char Buffer[256];
+    FormatString(Buffer, "Node: %s; From:%s; To:%s", Node->Name, From->Name, To->Name);
+
+    i32 Result = (i32) Hash(Buffer);
+
+    return Result;
+}
 
 inline ImVec4
 NormalizeRGB(u8 r, u8 g, u8 b)
@@ -96,6 +114,14 @@ EditorSetupStyle()
     Colors[ImGuiCol_TabUnfocusedActive] = panelActiveColor;
     Colors[ImGuiCol_TabHovered] = panelHoverColor;
 
+    // imnodes
+    ImNodesStyle &ImNodesStyle = ImNodes::GetStyle();
+    ImNodesStyle.Colors[ImNodesCol_TitleBar] = IM_COL32(37, 37, 38, 255);
+    ImNodesStyle.Colors[ImNodesCol_TitleBarHovered] = IM_COL32(51, 51, 55, 255);
+    ImNodesStyle.Colors[ImNodesCol_TitleBarSelected] = IM_COL32(51, 51, 55, 255);
+
+    // todo:
+
     Style.WindowRounding = 0.0f;
     Style.ChildRounding = 0.0f;
     Style.FrameRounding = 0.0f;
@@ -111,7 +137,8 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
+    ImNodes::CreateContext();
+    ImNodes::LoadCurrentEditorStateFromIniFile("imnodes.ini");
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -121,7 +148,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     ImGui_ImplOpenGL3_Init();
 
     // Load Fonts
-    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
     EditorSetupStyle();
 
@@ -131,6 +158,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     EditorState->LogAutoScroll = true;
 
     EditorState->CurrentStreamIndex = 0;
+    InitStack(&EditorState->AnimationGraphStack, 10, &EditorState->Arena);
 }
 
 internal void
@@ -138,6 +166,8 @@ Win32ShutdownEditor()
 {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplWin32_Shutdown();
+    ImNodes::SaveCurrentEditorStateToIniFile("imnodes.ini");
+    ImNodes::DestroyContext();
     ImGui::DestroyContext();
 }
 
@@ -306,74 +336,168 @@ EditorRenderRigidBodyInfo(rigid_body *Body)
     if (ImGui::CollapsingHeader("Rigid Body", ImGuiTreeNodeFlags_DefaultOpen))
     {
         ImGui::InputFloat3("Position", Body->Position.Elements);
+        ImGui::InputFloat3("Velocity", Body->Velocity.Elements);
+        ImGui::InputFloat3("Acceleration", Body->Acceleration.Elements);
         ImGui::InputFloat4("Orientation", Body->Orientation.Elements);
         ImGui::NewLine();
     }
 }
 
 internal void
-EditorRenderAnimationGraphInfo(animation_graph *Graph, u32 Depth = 0)
+EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState)
 {
-    if (!Graph) return;
+    ImGui::Begin("Animation Graph");
 
-    if (ImGui::CollapsingHeader("Animation Graph", ImGuiTreeNodeFlags_DefaultOpen))
+    if (Size(&EditorState->AnimationGraphStack) > 1)
     {
-        char Prefix[8];
-
-        for (u32 DepthLevel = 0; DepthLevel < Depth; ++DepthLevel)
+        if (ImGui::Button("Back"))
         {
-            Prefix[DepthLevel] = '\t';
-        }
-
-        Prefix[Depth] = 0;
-
-        ImGui::Text("%sAnimator: %s", Prefix, Graph->Animator);
-        ImGui::Text("%sActive Node: %s", Prefix, Graph->Active->Name);
-
-        ImGui::NewLine();
-
-        for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
-        {
-            animation_node *Node = Graph->Nodes + NodeIndex;
-
-            ImGui::Text("%sNode Type: %s\n", Prefix, GetAnimationNodeTypeName(Node->Type));
-            ImGui::Text("%sNode Weight: %.6f\n", Prefix, Node->Weight);
-
-            switch (Node->Type)
-            {
-                case AnimationNodeType_Clip:
-                {
-                    ImGui::Text("%s\tName: %s", Prefix, Node->Animation.Clip->Name);
-                    ImGui::Text("%s\tTime: %.3f", Prefix, Node->Animation.Time);
-
-                    break;
-                }
-                case AnimationNodeType_BlendSpace:
-                {
-                    for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
-                    {
-                        blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
-
-                        ImGui::Text("%s\tName: %s", Prefix, Value->AnimationState.Clip->Name);
-                        ImGui::Text("%s\tTime: %.3f", Prefix, Value->AnimationState.Time);
-                        ImGui::Text("%s\tWeight: %.6f", Prefix, Value->Weight);
-
-                        ImGui::NewLine();
-                    }
-
-                    break;
-                }
-                case AnimationNodeType_Graph:
-                {
-                    EditorRenderAnimationGraphInfo(Node->Graph, Depth + 1);
-
-                    break;
-                }
-            }
-
-            ImGui::NewLine();
+            Pop(&EditorState->AnimationGraphStack);
         }
     }
+
+    ImNodes::BeginNodeEditor();
+
+    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
+    {
+        animation_node *Node = Graph->Nodes + NodeIndex;
+
+        if (Graph->Active == Node)
+        {
+            ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(0, 119, 200, 255));
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, IM_COL32(0, 119, 200, 255));
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(0, 119, 200, 255));
+        }
+
+        ImNodes::BeginNode(NodeIndex);
+
+        ImNodes::BeginNodeTitleBar();
+        ImGui::Text(Node->Name);
+        ImNodes::EndNodeTitleBar();
+
+        switch (Node->Type)
+        {
+            case AnimationNodeType_Clip:
+            {
+                ImGui::BeginChild("ClipChild", ImVec2(400.f, 60.f));
+
+                ImGui::ProgressBar(Node->Weight);
+
+                animation_state AnimationState = Node->Animation;
+
+                ImGui::Text("%s (%.2f s)", AnimationState.Clip->Name, AnimationState.Time);
+
+                ImGui::EndChild();
+
+                break;
+            }
+            case AnimationNodeType_BlendSpace:
+            {
+                ImGui::BeginChild("BlendSpaceChild", ImVec2(1200.f, 120.f));
+
+                ImGui::ProgressBar(Node->Weight);
+
+                blend_space_1d *BlendSpace = Node->BlendSpace;
+
+                if (ImGui::BeginTable("BlendSpaceTable", BlendSpace->ValueCount))
+                {
+                    for (u32 ValueIndex = 0; ValueIndex < BlendSpace->ValueCount; ++ValueIndex)
+                    {
+                        blend_space_1d_value *Value = BlendSpace->Values + ValueIndex;
+
+                        char TableHeader[256];
+                        FormatString(TableHeader, "%s (%.2f s)", Value->AnimationState.Clip->Name, Value->AnimationState.Time);
+                        ImGui::TableSetupColumn(TableHeader);
+                    }
+                    
+                    ImGui::TableHeadersRow();
+
+                    for (u32 ValueIndex = 0; ValueIndex < BlendSpace->ValueCount; ++ValueIndex)
+                    {
+                        blend_space_1d_value *Value = BlendSpace->Values + ValueIndex;
+
+                        ImGui::TableNextColumn();
+                        ImGui::ProgressBar(Value->Weight);
+                    }
+
+                    ImGui::EndTable();
+                }
+
+                ImGui::EndChild();
+
+                break;
+            }
+            case AnimationNodeType_Graph:
+            {
+                ImGui::BeginChild("BlendSpaceChild", ImVec2(400.f, 60.f));
+
+                ImGui::ProgressBar(Node->Weight);
+
+                if (ImGui::Button("Open Graph", ImVec2(-F32_MIN, 0.f)))
+                {
+                    Push(&EditorState->AnimationGraphStack, Node->Graph);
+                }
+
+                ImGui::EndChild();
+
+                break;
+            }
+        }
+
+        scoped_memory ScopedMemory(&EditorState->Arena);
+
+        u32 MaxIncomingTransitionCount = 50;
+        animation_transition **IncomingTransitions = PushArray(ScopedMemory.Arena, MaxIncomingTransitionCount, animation_transition *);
+        u32 IncomingTransitionCount = GetIncomingTransitions(Node, Graph, IncomingTransitions, MaxIncomingTransitionCount);
+
+        for (u32 TransitionIndex = 0; TransitionIndex < IncomingTransitionCount; ++TransitionIndex)
+        {
+            animation_transition *IncomingTransition = IncomingTransitions[TransitionIndex];
+            animation_node *From = IncomingTransition->From;
+
+            ImNodes::BeginInputAttribute(GetTransitionId(Node, IncomingTransition));
+            //ImGui::Text("From:%s", From->Name);
+            ImNodes::EndInputAttribute();
+        }
+
+        for (u32 TransitionIndex = 0; TransitionIndex < Node->TransitionCount; ++TransitionIndex)
+        {
+            animation_transition *OutgoingTransition = Node->Transitions + TransitionIndex;
+            animation_node *To = GetTransitionDestinationNode(OutgoingTransition);
+
+            ImNodes::BeginOutputAttribute(GetTransitionId(Node, OutgoingTransition));
+            //ImGui::Text("To:%s", To->Name);
+            ImNodes::EndOutputAttribute();
+        }
+
+        ImNodes::EndNode();
+
+        if (Graph->Active == Node)
+        {
+            ImNodes::PopColorStyle();
+            ImNodes::PopColorStyle();
+            ImNodes::PopColorStyle();
+        }
+}
+
+    i32 LinkId = 0;;
+    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
+    {
+        animation_node *Node = Graph->Nodes + NodeIndex;
+
+        for (u32 TransitionIndex = 0; TransitionIndex < Node->TransitionCount; ++TransitionIndex)
+        {
+            animation_transition *Transition = Node->Transitions + TransitionIndex;
+            animation_node *From = Transition->From;
+            animation_node *To = GetTransitionDestinationNode(Transition);
+
+            ImNodes::Link(LinkId++, GetTransitionId(From, Transition), GetTransitionId(To, Transition));
+        }
+    }
+
+    //ImNodes::MiniMap();
+    ImNodes::EndNodeEditor();
+    ImGui::End();
 }
 
 internal void
@@ -422,6 +546,8 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
             GameState->Player = 0;
         }
     }
+
+    ImGui::Text("IsGrounded: %d", Entity->IsGrounded);
 
     char NameLabel[32];
     FormatString(NameLabel, "Name##%d", Entity->Id);
@@ -517,7 +643,31 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
 
     if (Entity->Animation)
     {
-        EditorRenderAnimationGraphInfo(Entity->Animation);
+        scoped_memory ScopedMemory(&EditorState->Arena);
+
+        if (ImGui::CollapsingHeader("Animation Graph", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            if (Size(&EditorState->AnimationGraphStack) == 0)
+            {
+                if (ImGui::Button("Show Animation Graph"))
+                {
+                    Push(&EditorState->AnimationGraphStack, Entity->Animation);
+                }
+            }
+            else
+            {
+                if (ImGui::Button("Hide Animation Graph"))
+                {
+                    Clear(&EditorState->AnimationGraphStack);
+                }
+            }
+
+            if (Size(&EditorState->AnimationGraphStack) > 0)
+            {
+                animation_graph *Graph = Top(&EditorState->AnimationGraphStack);
+                EditorRenderAnimationGraphInfo(Graph, EditorState);
+            }
+        }
     }
 
     if (Entity->PointLight)
@@ -750,7 +900,7 @@ Win32RenderEditor(
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
 
-    //ImGui::ShowDemoWindow();
+    ImGui::ShowDemoWindow();
 
     const ImGuiViewport *Viewport = ImGui::GetMainViewport();
     ImGuiIO &io = ImGui::GetIO();

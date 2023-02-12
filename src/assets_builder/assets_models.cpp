@@ -29,6 +29,12 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
                 NodeAsset->Animation = AllocateMemory<animation_state_asset>();
                 CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
+                NodeAsset->Animation->EnableRootMotion = AnimationStateHeader->EnableRootMotion;
+
+                NodeAsset->Animation->IsAdditive = AnimationStateHeader->IsAdditive;
+                NodeAsset->Animation->BaseFrameIndex = AnimationStateHeader->BaseFrameIndex;
+                CopyString(AnimationStateHeader->TargetClipName, NodeAsset->Animation->TargetClipName);
+                CopyString(AnimationStateHeader->BaseClipName, NodeAsset->Animation->BaseClipName);
 
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
                 break;
@@ -42,6 +48,19 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
                 NodeAsset->Blendspace->Values = (blend_space_1d_value_asset *) (Buffer + BlendSpaceHeader->ValuesOffset);
 
                 TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader->ValueCount * sizeof(blend_space_1d_value_asset);
+                break;
+            }
+            case AnimationNodeType_Additive:
+            {
+                model_asset_animation_additive_header *AnimationAdditiveHeader = (model_asset_animation_additive_header *)(Buffer + NodeHeader->Offset);
+
+                NodeAsset->Additive = AllocateMemory<animation_additive_asset>();
+                CopyString(AnimationAdditiveHeader->BaseNodeName, NodeAsset->Additive->BaseNodeName);
+                CopyString(AnimationAdditiveHeader->AdditiveNodeName, NodeAsset->Additive->AdditiveNodeName);
+                NodeAsset->Additive->IsLooping = AnimationAdditiveHeader->IsLooping;
+                NodeAsset->Additive->EnableRootMotion = AnimationAdditiveHeader->EnableRootMotion;
+
+                TotalPrevNodeSize += sizeof(model_asset_animation_additive_header);
                 break;
             }
             case AnimationNodeType_Graph:
@@ -374,6 +393,11 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
                 AnimationStateHeader.IsLooping = Node->Animation->IsLooping;
                 AnimationStateHeader.EnableRootMotion = Node->Animation->EnableRootMotion;
 
+                AnimationStateHeader.IsAdditive = Node->Animation->IsAdditive;
+                AnimationStateHeader.BaseFrameIndex = Node->Animation->BaseFrameIndex;
+                CopyString(Node->Animation->TargetClipName, AnimationStateHeader.TargetClipName);
+                CopyString(Node->Animation->BaseClipName, AnimationStateHeader.BaseClipName);
+
                 fwrite(&AnimationStateHeader, sizeof(model_asset_animation_state_header), 1, AssetFile);
 
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
@@ -389,6 +413,20 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
                 fwrite(Node->Blendspace->Values, sizeof(blend_space_1d_value_asset), Node->Blendspace->ValueCount, AssetFile);
 
                 TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader.ValueCount * sizeof(blend_space_1d_value_asset);
+                break;
+            }
+            case AnimationNodeType_Additive:
+            {
+                model_asset_animation_additive_header AnimationAdditiveHeader = {};
+
+                CopyString(Node->Additive->BaseNodeName, AnimationAdditiveHeader.BaseNodeName);
+                CopyString(Node->Additive->AdditiveNodeName, AnimationAdditiveHeader.AdditiveNodeName);
+                AnimationAdditiveHeader.IsLooping = Node->Additive->IsLooping;
+                AnimationAdditiveHeader.EnableRootMotion = Node->Additive->EnableRootMotion;
+
+                fwrite(&AnimationAdditiveHeader, sizeof(model_asset_animation_additive_header), 1, AssetFile);
+
+                TotalPrevNodeSize += sizeof(model_asset_animation_additive_header);
                 break;
             }
             case AnimationNodeType_Graph:
@@ -888,18 +926,49 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
                 ValueAsset->EnableRootMotion = BlendspaceValue["root_motion"].GetBool();
             }
         }
+        else if (StringEquals(Type, "Additive"))
+        {
+            NodeAsset->Type = AnimationNodeType_Additive;
+            NodeAsset->Additive = AllocateMemory<animation_additive_asset>();
+
+            const char *BaseNode = Node["base"].GetString();
+            const char *AdditiveNode = Node["additive"].GetString();
+
+            bool32 IsLooping = Node["looping"].GetBool();
+            bool32 EnableRootMotion = Node["root_motion"].GetBool();
+
+            CopyString(BaseNode, NodeAsset->Additive->BaseNodeName);
+            CopyString(AdditiveNode, NodeAsset->Additive->AdditiveNodeName);
+            NodeAsset->Additive->IsLooping = IsLooping;
+            NodeAsset->Additive->EnableRootMotion = EnableRootMotion;
+        }
         else if (StringEquals(Type, "Animation"))
         {
             NodeAsset->Type = AnimationNodeType_Clip;
             NodeAsset->Animation = AllocateMemory<animation_state_asset>();
 
-            const char *Clip = Node["clip"].GetString();
             bool32 IsLooping = Node["looping"].GetBool();
             bool32 EnableRootMotion = Node["root_motion"].GetBool();
-
-            CopyString(Clip, NodeAsset->Animation->AnimationClipName);
+            
             NodeAsset->Animation->IsLooping = IsLooping;
             NodeAsset->Animation->EnableRootMotion = EnableRootMotion;
+            
+            if (Node.HasMember("additive"))
+            {
+                const char *TargetClip = Node["target"].GetString();
+                const char *BaseClip = Node["base"].GetString();
+                u32 BaseFrameIndex = Node["base_frame_index"].GetUint();
+
+                CopyString(TargetClip, NodeAsset->Animation->TargetClipName);
+                CopyString(BaseClip, NodeAsset->Animation->BaseClipName);
+                NodeAsset->Animation->BaseFrameIndex = BaseFrameIndex;
+                NodeAsset->Animation->IsAdditive = true;
+            }
+            else
+            {
+                const char *Clip = Node["clip"].GetString();
+                CopyString(Clip, NodeAsset->Animation->AnimationClipName);
+            }
         }
         else
         {

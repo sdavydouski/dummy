@@ -117,6 +117,7 @@ struct game_input_range
 struct game_input
 {
     game_input_range Move;
+    game_input_action Jump;
     game_input_action Dance;
     game_input_action Activate;
     game_input_action LightAttack;
@@ -206,7 +207,7 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
         GameInput->Move.Range = XboxControllerInput->LeftStick;
     }
 
-    if (XboxControllerInput->RightThumb.IsPressed)
+    if (XboxControllerInput->LeftThumb.IsPressed)
     {
         GameInput->Move.Range *= 2.f;
     }
@@ -223,6 +224,7 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
     ProcessInputAction(&GameInput->LightAttack, &XboxControllerInput->X);
     ProcessInputAction(&GameInput->StrongAttack, &XboxControllerInput->Y);
     ProcessInputAction(&GameInput->Dance, &XboxControllerInput->B);
+    ProcessInputAction(&GameInput->Jump, &XboxControllerInput->A);
 
     ProcessInputState(&GameInput->HighlightBackground, &XboxControllerInput->Back);
 
@@ -329,6 +331,7 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
         }
     }
 
+    ProcessInputAction(&GameInput->Jump, &KeyboardInput->Space);
     ProcessInputAction(&GameInput->Dance, &KeyboardInput->C);
     ProcessInputAction(&GameInput->Activate, &KeyboardInput->E);
     ProcessInputAction(&GameInput->Reset, &KeyboardInput->Backspace);

@@ -116,3 +116,70 @@ RemoveFromLinkedList(T *Item)
     Item->Next->Prev = Item->Prev;
 }
 //
+
+// Stack
+template <typename T>
+struct stack
+{
+    u32 MaxCount;
+    u32 Head;
+    T *Values;
+};
+
+template <typename T>
+inline void
+InitStack(stack<T> *Stack, u32 MaxCount, memory_arena *Arena)
+{
+    Stack->MaxCount = MaxCount;
+    Stack->Head = 0;
+    Stack->Values = PushArray(Arena, MaxCount, T);
+}
+
+template <typename T>
+inline void
+Push(stack<T> *Stack, T NewValue)
+{
+    T *Value = Stack->Values + Stack->Head++;
+
+    Assert(Stack->Head < Stack->MaxCount);
+
+    *Value = NewValue;
+}
+
+template <typename T>
+inline T
+Top(stack<T> *Stack)
+{
+    Assert(Stack->Head > 0);
+
+    T Value = Stack->Values[Stack->Head - 1];
+    return Value;
+}
+
+template <typename T>
+inline T
+Pop(stack<T> *Stack)
+{
+    T Value = Top(Stack);
+    --Stack->Head;
+
+    Assert(Stack->Head >= 0);
+
+    return Value;
+}
+
+template <typename T>
+inline u32
+Size(stack<T> *Stack)
+{
+    u32 Result = Stack->Head;
+    return Result;
+}
+
+template <typename T>
+inline void
+Clear(stack<T> *Stack)
+{
+    Stack->Head = 0;
+}
+//

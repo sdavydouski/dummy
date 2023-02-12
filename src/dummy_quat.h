@@ -109,6 +109,13 @@ Normalize(quat q)
     return Result;
 }
 
+inline quat
+Inverse(quat q)
+{
+    quat Result = quat(-q.x, -q.y, -q.z, q.w);
+    return Result;
+}
+
 inline mat4
 GetRotationMatrix(quat q)
 {

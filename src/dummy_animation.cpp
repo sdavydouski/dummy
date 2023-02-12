@@ -1,21 +1,21 @@
-inline joint_pose *
+inline transform *
 GetRootLocalJointPose(skeleton_pose *Pose)
 {
-    joint_pose *Result = Pose->LocalJointPoses + ROOT_POSE_INDEX;
+    transform *Result = Pose->LocalJointPoses + ROOT_POSE_INDEX;
     return Result;
 }
 
-inline joint_pose *
+inline transform *
 GetRootTranslationLocalJointPose(skeleton_pose *Pose)
 {
-    joint_pose *Result = Pose->LocalJointPoses + ROOT_TRANSLATION_POSE_INDEX;
+    transform *Result = Pose->LocalJointPoses + ROOT_TRANSLATION_POSE_INDEX;
     return Result;
 }
 
-inline joint_pose
-Lerp(joint_pose *From, f32 t, joint_pose *To)
+inline transform
+Lerp(transform *From, f32 t, transform *To)
 {
-    joint_pose Result;
+    transform Result = {};
 
     Result.Translation = Lerp(From->Translation, t, To->Translation);
     Result.Rotation = Slerp(From->Rotation, t, To->Rotation);
@@ -23,6 +23,34 @@ Lerp(joint_pose *From, f32 t, joint_pose *To)
 
     return Result;
 }
+
+// https://github.com/EpicGames/UnrealEngine/blob/cdaec5b33ea5d332e51eee4e4866495c90442122/Engine/Source/Runtime/Core/Public/Math/TransformNonVectorized.h#L898
+inline transform
+Accumulate(transform *TransformA, transform *TransformB)
+{
+    transform Result = {};
+
+    Result.Rotation = TransformA->Rotation * TransformB->Rotation;
+    Result.Translation = TransformA->Translation + TransformB->Translation;
+    Result.Scale = TransformA->Scale * TransformB->Scale;
+
+    return Result;
+}
+
+// todo(continue): https://github.com/EpicGames/UnrealEngine/blob/cdaec5b33ea5d332e51eee4e4866495c90442122/Engine/Source/Runtime/Core/Public/Math/TransformNonVectorized.h#L922
+#if 0
+inline transform
+Accumulate(transform *TransformA, f32 BlendWeight, transform *TransformB)
+{
+    transform Result = {};
+
+    Result.Rotation = TransformA->Rotation * TransformB->Rotation;
+    Result.Translation = TransformA->Translation + TransformB->Translation;
+    Result.Scale = TransformA->Scale * TransformB->Scale;
+
+    return Result;
+}
+#endif
 
 internal void
 Lerp(skeleton_pose *From, f32 t, skeleton_pose *To, skeleton_pose *Dest)
@@ -39,6 +67,47 @@ Lerp(skeleton_pose *From, f32 t, skeleton_pose *To, skeleton_pose *Dest)
         joint_pose *DestPose = Dest->LocalJointPoses + JointIndex;
 
         *DestPose = Lerp(FromPose, t, ToPose);
+    }
+}
+
+internal void
+Accumulate(skeleton_pose *PoseA, f32 BlendWeight, skeleton_pose *PoseB, skeleton_pose *Dest)
+{
+    u32 JointCount = Dest->Skeleton->JointCount;
+
+    Assert(PoseA->Skeleton->JointCount == JointCount);
+    Assert(PoseB->Skeleton->JointCount == JointCount);
+
+    for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
+    {
+        transform *TransformA = PoseA->LocalJointPoses + JointIndex;
+        transform *TransformB = PoseB->LocalJointPoses + JointIndex;
+        transform *TransformDest = Dest->LocalJointPoses + JointIndex;
+
+        *TransformDest = Accumulate(TransformA, TransformB);
+    }
+}
+
+internal void
+Blend(animation_blend_mode BlendMode, f32 BlendWeight, skeleton_pose *PoseA, skeleton_pose *PoseB, skeleton_pose *Dest)
+{
+    switch (BlendMode)
+    {
+        case BlendMode_Normal:
+        {
+            Lerp(PoseA, BlendWeight, PoseB, Dest);
+            break;
+        }
+        case BlendMode_Additive:
+        {
+            Accumulate(PoseA, BlendWeight, PoseB, Dest);
+            break;
+        }
+        default:
+        {
+            Assert(!"Invalid blend mode");
+            break;
+        }
     }
 }
 
@@ -62,6 +131,40 @@ CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skel
     }
 
     return Result;
+}
+
+/*
+    Land state is a additive blend between land animation and Moving state 
+*/
+
+// Base == Reference?
+// Target == Source?
+// D = Target - Base
+// https://github.com/EpicGames/UnrealEngine/blob/cdaec5b33ea5d332e51eee4e4866495c90442122/Engine/Source/Runtime/Engine/Private/Animation/AnimationRuntime.cpp#L989
+internal transform
+CalculateAdditiveTransform(transform TargetTransform, transform BaseTransform)
+{
+    transform Result = {};
+
+    Result.Rotation = Normalize(TargetTransform.Rotation * Inverse(BaseTransform.Rotation));
+    Result.Translation = TargetTransform.Translation - BaseTransform.Translation;
+    Result.Scale = TargetTransform.Scale / BaseTransform.Scale;
+
+    return Result;
+}
+
+internal void
+CalculateAdditivePose(skeleton_pose *TargetPose, skeleton_pose *BasePose, skeleton_pose *Additive)
+{
+    Assert(TargetPose->Skeleton == BasePose->Skeleton);
+
+    for (u32 JointIndex = 0; JointIndex < BasePose->Skeleton->JointCount; ++JointIndex)
+    {
+        transform TargetTransform = TargetPose->LocalJointPoses[JointIndex];
+        transform BaseTransform = BasePose->LocalJointPoses[JointIndex];
+
+        Additive->LocalJointPoses[JointIndex] = CalculateAdditiveTransform(TargetTransform, BaseTransform);
+    }
 }
 
 // todo: optimize (caching?)
@@ -346,6 +449,46 @@ GetAnimationTransition(animation_node *Node, const char *Name)
     return Result;
 }
 
+inline animation_node *
+GetTransitionDestinationNode(animation_transition *Transition)
+{
+    if (Transition->Type == AnimationTransitionType_Transitional)
+    {
+        return Transition->TransitionNode;
+    }
+    else
+    {
+        return Transition->To;
+    }
+}
+
+inline u32
+GetIncomingTransitions(animation_node *Node, animation_graph *Graph, animation_transition **Transitions, u32 MaxTransitionCount)
+{
+    u32 TransitionCount = 0;
+
+    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
+    {
+        animation_node *CurrentNode = Graph->Nodes + NodeIndex;
+
+        if (CurrentNode != Node)
+        {
+            for (u32 TransitionIndex = 0; TransitionIndex < CurrentNode->TransitionCount; ++TransitionIndex)
+            {
+                animation_transition *CurrentTransition = CurrentNode->Transitions + TransitionIndex;
+
+                if (GetTransitionDestinationNode(CurrentTransition) == Node)
+                {
+                    Transitions[TransitionCount++] = CurrentTransition;
+                    Assert(TransitionCount <= MaxTransitionCount);
+                }
+            }
+        }
+    }
+
+    return TransitionCount;
+}
+
 inline bool32
 AllowTransition(animation_graph *Graph, const char *NodeName)
 {
@@ -503,12 +646,21 @@ AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 Delta)
     }
 }
 
+internal void AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta);
 internal void AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta);
+
+internal void
+AnimationAdditivePerFrameUpdate(animation_additive *Additive, f32 Delta)
+{
+    AnimationNodePerFrameUpdate(Additive->Base, Delta);
+    // todo:
+    //AnimationNodePerFrameUpdate(Additive->Additive, Delta);
+}
 
 internal void
 AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
 {
-    Assert(Node->Weight > 0.f);
+    //Assert(Node->Weight > 0.f);
 
     switch (Node->Type)
     {
@@ -520,6 +672,11 @@ AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
         case AnimationNodeType_BlendSpace:
         {
             AnimationBlendSpacePerFrameUpdate(Node->BlendSpace, Delta);
+            break;
+        }
+        case AnimationNodeType_Additive:
+        {
+            AnimationAdditivePerFrameUpdate(&Node->Additive, Delta);
             break;
         }
         case AnimationNodeType_Graph:
@@ -587,11 +744,29 @@ BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip,
 }
 
 inline void
+BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Target, animation_clip *Base, u32 BaseFrameIndex, bool32 IsLooping, bool32 EnableRootMotion)
+{
+    Node->Type = AnimationNodeType_Clip;
+    CopyString(Name, Node->Name);
+
+    // todo(continue): create additive clip?
+    Node->Animation = CreateAnimationState(Target, IsLooping, EnableRootMotion);
+}
+
+inline void
 BuildAnimationNode(animation_node *Node, const char *Name, blend_space_1d *BlendSpace)
 {
     Node->Type = AnimationNodeType_BlendSpace;
     CopyString(Name, Node->Name);
     Node->BlendSpace = BlendSpace;
+}
+
+inline void
+BuildAnimationNode(animation_node *Node, const char *Name, animation_additive Additive)
+{
+    Node->Type = AnimationNodeType_Additive;
+    CopyString(Name, Node->Name);
+    Node->Additive = Additive;
 }
 
 inline void
@@ -681,13 +856,29 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
         {
             case AnimationNodeType_Clip:
             {
-                BuildAnimationNode(
-                    Node, 
-                    NodeAsset->Name, 
-                    GetAnimationClip(Model, NodeAsset->Animation->AnimationClipName), 
-                    NodeAsset->Animation->IsLooping,
-                    NodeAsset->Animation->EnableRootMotion
-                );
+                if (NodeAsset->Animation->IsAdditive)
+                {
+                    // todo: better naming?
+                    BuildAnimationNode(
+                        Node,
+                        NodeAsset->Name,
+                        GetAnimationClip(Model, NodeAsset->Animation->TargetClipName),
+                        GetAnimationClip(Model, NodeAsset->Animation->BaseClipName),
+                        NodeAsset->Animation->BaseFrameIndex,
+                        NodeAsset->Animation->IsLooping,
+                        NodeAsset->Animation->EnableRootMotion
+                    );
+                }
+                else
+                {
+                    BuildAnimationNode(
+                        Node,
+                        NodeAsset->Name,
+                        GetAnimationClip(Model, NodeAsset->Animation->AnimationClipName),
+                        NodeAsset->Animation->IsLooping,
+                        NodeAsset->Animation->EnableRootMotion
+                    );
+                }
 
                 break;
             }
@@ -707,6 +898,15 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
                 }
 
                 BuildAnimationNode(Node, NodeAsset->Name, BlendSpace);
+
+                break;
+            }
+            case AnimationNodeType_Additive:
+            {
+                Node->Type = AnimationNodeType_Additive;
+                CopyString(NodeAsset->Name, Node->Name);
+                Node->Additive.Base = GetAnimationNode(Graph, NodeAsset->Additive->BaseNodeName);
+                Node->Additive.Additive = GetAnimationNode(Graph, NodeAsset->Additive->AdditiveNodeName);
 
                 break;
             }
@@ -772,6 +972,57 @@ BuildAnimationGraph(animation_graph *Graph, animation_graph_asset *Asset, model 
     Graph->EventList = EventList;
 }
 
+internal u32 GetActiveAnimationCount(animation_graph *Graph);
+internal void GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight);
+
+internal u32
+GetActiveAnimationCount(animation_node *Node, f32 Weight = 0.f)
+{
+    f32 NodeWeight = Max(Node->Weight, Weight);
+
+    Assert(NodeWeight > 0);
+
+    u32 Result = 0;
+
+    switch (Node->Type)
+    {
+        case AnimationNodeType_Clip:
+        {
+            ++Result;
+            break;
+        }
+        case AnimationNodeType_BlendSpace:
+        {
+            for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
+            {
+                blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
+
+                if (Value->Weight > 0.f)
+                {
+                    ++Result;
+                }
+            }
+
+            break;
+        }
+        case AnimationNodeType_Additive:
+        {
+            // todo:
+            Result += GetActiveAnimationCount(Node->Additive.Base, 1.f);
+            //Result += GetActiveAnimationCount(Node->Additive.Additive, 1.f);
+
+            break;
+        }
+        case AnimationNodeType_Graph:
+        {
+            Result += GetActiveAnimationCount(Node->Graph);
+            break;
+        }
+    }
+
+    return Result;
+}
+
 internal u32
 GetActiveAnimationCount(animation_graph *Graph)
 {
@@ -783,33 +1034,7 @@ GetActiveAnimationCount(animation_graph *Graph)
 
         if (Node->Weight > 0.f)
         {
-            switch (Node->Type)
-            {
-                case AnimationNodeType_Clip:
-                {
-                    ++Result;
-                    break;
-                }
-                case AnimationNodeType_BlendSpace:
-                {
-                    for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
-                    {
-                        blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
-
-                        if (Value->Weight > 0.f)
-                        {
-                            ++Result;
-                        }
-                    }
-
-                    break;
-                }
-                case AnimationNodeType_Graph:
-                {
-                    Result += GetActiveAnimationCount(Node->Graph);
-                    break;
-                }
-            }
+            Result += GetActiveAnimationCount(Node);
         }
     }
 
@@ -817,7 +1042,58 @@ GetActiveAnimationCount(animation_graph *Graph)
 }
 
 internal void
-GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight)
+GetActiveAnimations(animation_node *Node, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight, f32 NodeWeight = 0.f)
+{
+    f32 NodeWeightToUse = Max(Node->Weight, NodeWeight);
+
+    Assert(NodeWeightToUse > 0.f)
+
+    switch (Node->Type)
+    {
+        case AnimationNodeType_Clip:
+        {
+            animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
+
+            *ActiveAnimationState = &Node->Animation;
+            (*ActiveAnimationState)->Weight = GraphWeight * NodeWeightToUse;
+
+            break;
+        }
+        case AnimationNodeType_BlendSpace:
+        {
+            for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
+            {
+                blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
+
+                if (Value->Weight > 0.f)
+                {
+                    animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
+                    *ActiveAnimationState = &Value->AnimationState;
+                    (*ActiveAnimationState)->Weight = GraphWeight * Value->Weight * NodeWeightToUse;
+                }
+            }
+
+            break;
+        }
+        case AnimationNodeType_Additive:
+        {
+            // todo:
+            GetActiveAnimations(Node->Additive.Base, ActiveAnimations, ActiveAnimationIndex, GraphWeight * NodeWeightToUse, 1.f);
+            //GetActiveAnimations(Node->Additive.Additive, ActiveAnimations, ActiveAnimationIndex, GraphWeight * NodeWeightToUse, 1.f);
+
+            break;
+        }
+        case AnimationNodeType_Graph:
+        {
+            GetActiveAnimations(Node->Graph, ActiveAnimations, ActiveAnimationIndex, GraphWeight * NodeWeightToUse);
+
+            break;
+        }
+    }
+}
+
+internal void
+GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight = 1.f)
 {
     for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
     {
@@ -825,40 +1101,7 @@ GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, 
 
         if (Node->Weight > 0.f)
         {
-            switch (Node->Type)
-            {
-                case AnimationNodeType_Clip:
-                {
-                    animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
-                    
-                    *ActiveAnimationState = &Node->Animation;
-                    (*ActiveAnimationState)->Weight = GraphWeight * Node->Weight;
-
-                    break;
-                }
-                case AnimationNodeType_BlendSpace:
-                {
-                    for (u32 Index = 0; Index < Node->BlendSpace->ValueCount; ++Index)
-                    {
-                        blend_space_1d_value *Value = Node->BlendSpace->Values + Index;
-
-                        if (Value->Weight > 0.f)
-                        {
-                            animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
-                            *ActiveAnimationState = &Value->AnimationState;
-                            (*ActiveAnimationState)->Weight = GraphWeight * Value->Weight * Node->Weight;
-                        }
-                    }
-
-                    break;
-                }
-                case AnimationNodeType_Graph:
-                {
-                    GetActiveAnimations(Node->Graph, ActiveAnimations, ActiveAnimationIndex, Node->Weight);
-
-                    break;
-                }
-            }
+            GetActiveAnimations(Node, ActiveAnimations, ActiveAnimationIndex, GraphWeight);
         }
     }
 }
@@ -876,16 +1119,25 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
         animation_state **ActiveAnimations = PushArray(ScopedMemory.Arena, ActiveAnimationCount, animation_state *);
         
         u32 ActiveAnimationIndex = 0;
-        GetActiveAnimations(Graph, ActiveAnimations, ActiveAnimationIndex, 1.f);
+        GetActiveAnimations(Graph, ActiveAnimations, ActiveAnimationIndex);
         
         // Checking weights (not necessary)
         f32 TotalWeight = 0.f;
         for (u32 ActiveAnimationIndex = 0; ActiveAnimationIndex < ActiveAnimationCount; ++ActiveAnimationIndex)
         {
             animation_state *Animation = ActiveAnimations[ActiveAnimationIndex];
-            TotalWeight += Animation->Weight;
+
+            // todo: ?
+            if (Animation->BlendMode == BlendMode_Normal)
+            {
+                TotalWeight += Animation->Weight;
+            }
         }
         Assert(Abs(1.f - TotalWeight) < EPSILON);
+        {
+            u32 ActiveAnimationIndex = 0;
+            GetActiveAnimations(Graph, ActiveAnimations, ActiveAnimationIndex);
+        }
         //
         
         // Creating skeleton pose for each input clip
@@ -918,19 +1170,20 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
 
         for (u32 AnimationIndex = 0; AnimationIndex < ActiveAnimationCount; ++AnimationIndex)
         {
-            animation_state* AnimationState = ActiveAnimations[AnimationIndex];
-            skeleton_pose* SkeletonPose = SkeletonPoses + AnimationIndex;
+            animation_state *AnimationState = ActiveAnimations[AnimationIndex];
+            skeleton_pose *SkeletonPose = SkeletonPoses + AnimationIndex;
 
             RootMotion = RootMotion + SkeletonPose->RootMotion * AnimationState->Weight;
         }
 
         DestPose->RootMotion = RootMotion;
 
-        // Lerping between all skeleton poses
+        // Blending between all skeleton poses
         skeleton_pose *Pose = First(SkeletonPoses);
         animation_state *Animation = *First(ActiveAnimations);
 
-        Lerp(Pose, 0.f, Pose, DestPose);
+        // todo: apply additive animations *after normal blend?
+        Blend(Animation->BlendMode, 0.f, Pose, Pose, DestPose);
 
         f32 AccumulatedWeight = Animation->Weight;
         u32 CurrentPoseIndex = 1;
@@ -947,7 +1200,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
 
             Assert(t >= 0.f && t <= 1.f);
 
-            Lerp(Pose, t, NextPose, DestPose);
+            Blend(Animation->BlendMode, t, Pose, NextPose, DestPose);
 
             Pose = DestPose;
             Animation = NextAnimation;

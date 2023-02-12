@@ -42,6 +42,16 @@
                   "blend":0.2
                },
                {
+                  "to":"Jump_Start",
+                  "type":"crossfade",
+                  "blend":0.1
+               },
+               {
+                  "to":"Jump_Idle",
+                  "type":"crossfade",
+                  "blend":0.1
+               },
+               {
                   "to":"Dancing",
                   "type":"crossfade",
                   "blend":0.2
@@ -98,6 +108,68 @@
             ]
          },
          {
+            "name":"Jump_Start",
+            "type":"Animation",
+            "clip":"jumping_up",
+            "looping":false,
+            "root_motion":false,
+            "transitions":[
+               {
+                  "to":"Jump_Idle",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
+         },
+         {
+            "name":"Jump_Idle",
+            "type":"Animation",
+            "clip":"falling_idle",
+            "looping":true,
+            "root_motion":false,
+            "transitions":[
+               {
+                  "to":"Jump_Land",
+                  "type":"crossfade",
+                  "blend":0.1
+               },
+               {
+                  "to":"ActionIdle",
+                  "type":"crossfade",
+                  "blend":0.2
+               },
+               {
+                  "to":"Moving",
+                  "type":"crossfade",
+                  "blend":0.2
+               }
+            ]
+         },
+         {
+            "name":"Jump_Land",
+            "type":"Animation",
+            "clip":"falling_to_landing",
+            "looping":false,
+            "root_motion":false,
+            "transitions":[
+               {
+                  "to":"ActionIdle",
+                  "type":"crossfade",
+                  "blend":0.1
+               },
+               {
+                  "to":"Moving",
+                  "type":"crossfade",
+                  "blend":0.1
+               },
+               {
+                  "to":"Jump_Start",
+                  "type":"crossfade",
+                  "blend":0.1
+               }
+            ]
+         },
+         {
             "name":"Moving",
             "type":"Blendspace",
             "values":[
@@ -127,6 +199,16 @@
                   "to":"ActionIdle",
                   "type":"crossfade",
                   "blend":0.2
+               },
+               {
+                  "to":"Jump_Start",
+                  "type":"crossfade",
+                  "blend":0.1
+               },
+               {
+                  "to":"Jump_Idle",
+                  "type":"crossfade",
+                  "blend":0.1
                }
             ]
          },

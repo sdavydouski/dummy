@@ -13,6 +13,12 @@ struct random_sequence;
 struct animation_node;
 struct animation_graph;
 
+enum animation_blend_mode
+{
+    BlendMode_Normal,
+    BlendMode_Additive
+};
+
 struct joint
 {
     char Name[MAX_JOINT_NAME_LENGTH];
@@ -86,6 +92,7 @@ struct animation_state
     vec3 PrevTranslation;
 
     animation_clip *Clip;
+    animation_blend_mode BlendMode;
 };
 
 struct blend_space_1d_value
@@ -102,6 +109,13 @@ struct blend_space_1d
 
     u32 ValueCount;
     blend_space_1d_value *Values;
+};
+
+// todo: rename
+struct animation_additive
+{
+    animation_node *Base;
+    animation_node *Additive;
 };
 
 enum animation_transition_type
@@ -133,7 +147,8 @@ enum animation_node_type
 {
     AnimationNodeType_Clip,
     AnimationNodeType_BlendSpace,
-    AnimationNodeType_Graph
+    AnimationNodeType_Graph,
+    AnimationNodeType_Additive,
 };
 
 struct animation_node
@@ -146,6 +161,7 @@ struct animation_node
     {
         animation_state Animation;
         blend_space_1d *BlendSpace;
+        animation_additive Additive;
         animation_graph *Graph;
     };
 

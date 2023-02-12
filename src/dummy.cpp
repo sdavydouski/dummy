@@ -362,16 +362,17 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset ModelAssets[] = {
         {
+            "ybot",
+            "assets\\ybot.model.asset"
+        },
+#if 0
+        {
             "pelegrini",
             "assets\\pelegrini.model.asset"
         },
         {
             "xbot",
             "assets\\xbot.model.asset"
-        },
-        {
-            "ybot",
-            "assets\\ybot.model.asset"
         },
         {
             "paladin",
@@ -393,6 +394,7 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "cerberus",
             "assets\\cerberus.model.asset"
         },
+#endif
         {
             "cube",
             "assets\\cube.model.asset"
@@ -403,15 +405,14 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
         },
         {
             "quad",
-            "assets\\quad.model.asset",
+            "assets\\quad.model.asset"
+        },
+        {
+            "ramp",
+            "assets\\ramp.model.asset"
         },
 
         // Dungeon Assets
-        {
-            "cleric",
-            "assets\\cleric.model.asset"
-        },
-
         {
             "floor_standard",
             "assets\\Floor_Standard.model.asset"
@@ -1007,6 +1008,8 @@ GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
     Params->MaxTime = 5.f;
     Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
     Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
+    Params->IsGrounded = Entity->IsGrounded;
+    Params->Velocity = Entity->Body->Velocity;
 
     Params->ToStateActionIdle = State->Player == Entity;
     Params->ToStateStandingIdle = !(State->Player == Entity);
@@ -1310,8 +1313,61 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
             if (Body)
             {
-                if (Body->RootMotionEnabled)
+                u32 MaxNearbyEntityCount = 10;
+                game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
+                bounds Bounds = { vec3(-0.01f), vec3(0.f) };
+
+                u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
+
+                bool32 OnTheGround = Abs(Body->Position.y - 0.f) < 0.01f;
+                bool32 OnTheSurface = false;
+
+                for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
                 {
+                    game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
+                    collider *NearbyBodyCollider = NearbyEntity->Collider;
+
+                    if (NearbyBodyCollider)
+                    {
+                        ray Ray = {};
+                        Ray.Origin = Body->Position;
+                        Ray.Direction = vec3(0.f, -1.f, 0.f);
+
+                        vec3 IntersectionPoint;
+                        OnTheSurface |= IntersectRayAABB(Ray, GetColliderBounds(NearbyBodyCollider), IntersectionPoint);
+                    }
+                }
+
+                Entity->IsGrounded = (OnTheGround || OnTheSurface);
+
+                if (Entity->IsGrounded)
+                {
+                    if (Body->Velocity.y < 0.f)
+                    {
+                        Body->Velocity.y = 0.f;
+                    }
+
+                    if (Body->Acceleration.y < 0.f)
+                    {
+                        Body->Acceleration.y = 0.f;
+                    }
+                }
+
+                // todo(continue): apply animations (https://answers.unity.com/questions/1488445/root-motion-and-jump.html)
+                // todo: I need three: jump, jump_idle, land
+                // todo: additive blend with locomotion when landing?
+                // todo: https://github.com/mrdoob/three.js/blob/master/src/animation/AnimationUtils.js#L229
+                // todo: https://github.com/mrdoob/three.js/blob/dev/examples/webgl_animation_skinning_additive_blending.html
+
+                //if (Body->RootMotionEnabled && Entity->IsGrounded)
+                if (false)
+                {
+                    // Partial integration
+                    f32 dt = Data->UpdateRate;
+                    Body->Acceleration += Body->ForceAccumulator * Body->InverseMass;
+                    Body->Velocity += Body->Acceleration * dt;
+                    Body->Velocity *= Power(Body->Damping, dt);
+
                     Assert(Entity->Animation);
 
                     vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
@@ -1319,12 +1375,23 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                     Entity->Body->PrevPosition = Entity->Body->Position;
                     Entity->Body->Position += RotatedScaledRootMotion;
-
-                    Entity->Animation->AccRootMotion = vec3(0.f);
                 }
                 else
                 {
+                    AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
                     Integrate(Body, Data->UpdateRate);
+
+                    Clamp(&Body->Acceleration.y, -100.f, 100.f);
+
+                    if (Body->Position.y < 0.f)
+                    {
+                        Body->Position.y = 0.f;
+                    }
+                }
+
+                if (Body->RootMotionEnabled)
+                {
+                    Entity->Animation->AccRootMotion = vec3(0.f);
                 }
 
                 if (Collider)
@@ -1333,7 +1400,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                     u32 MaxNearbyEntityCount = 100;
                     game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                    bounds Bounds = { vec3(-1.f), vec3(1.f) };
+                    bounds Bounds = { vec3(-1.0f), vec3(1.0f) };
 
                     u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
@@ -1345,9 +1412,10 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                         if (Entity->Id == Data->PlayerId)
                         {
-                            NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                            //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
                         }
 
+                        // todo: https://catlikecoding.com/unity/tutorials/movement/ ?
                         if (NearbyBodyCollider)
                         {
                             // Collision detection and resolution
@@ -1827,7 +1895,7 @@ DLLExport GAME_INIT(GameInit)
     State->TargetMove = vec2(0.f);
 
     State->Options = {};
-    State->Options.ShowBoundingVolumes = false;
+    State->Options.ShowBoundingVolumes = true;
     State->Options.ShowGrid = true;
 
     InitGameMenu(State);
@@ -2033,6 +2101,18 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             // todo:
             if (Player && Player->Body)
             {
+                //
+                if (Input->Jump.IsActivated)
+                {
+                    if (Player->IsGrounded)
+                    {
+                        Player->Body->Acceleration.y = 80.f;
+                        // todo:
+                        Player->Body->Position.y += 0.01f;
+                    }
+                }
+                //
+
                 vec3 yMoveAxis = Normalize(Projection(State->GameCamera.Direction, State->Ground));
                 vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
 
@@ -2051,8 +2131,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     StartGameProcess(State, PlayerMoveLerpProcess);
                 }
 
-                Player->Body->Acceleration.x = (xMoveX + xMoveY) * 20.f;
-                Player->Body->Acceleration.z = (zMoveX + zMoveY) * 20.f;
+                if (Player->IsGrounded)
+                {
+                    Player->Body->Acceleration.x = (xMoveX + xMoveY) * 40.f;
+                    Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
+                }
 
                 quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
 
@@ -2270,6 +2353,14 @@ DLLExport GAME_RENDER(GameRender)
         AddSkybox(RenderCommands, State->SkyboxId, 4096, GetTextureAsset(&State->Assets, "Environment"));
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
+
+        //
+        {
+            scoped_memory ScopedMemory(&State->PermanentArena);
+            LoadWorldAreaFromFile(State, (char *)"scene_4.dummy", Platform, RenderCommands, ScopedMemory.Arena);
+            State->Player = (State->WorldArea.Entities + 0);
+        }
+        //
 
 #if 0
         game_entity *ParentEntity = CreateGameEntity(State);

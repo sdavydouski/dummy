@@ -34,9 +34,9 @@ BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation, bool32 RootMot
     Body->Orientation = Orientation;
     Body->RootMotionEnabled = RootMotionEnabled;
 
-    // todo: don't use at the moment? (except in Integrate)
+    // todo:
     Body->Damping = 0.0001f;
-    Body->InverseMass = 1.f / 100.f;
+    Body->InverseMass = 1.f / 50.f;
 }
 
 inline void

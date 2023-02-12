@@ -66,6 +66,12 @@ struct vec3
         return Result;
     }
 
+    inline vec3 operator /(vec3 Vector)
+    {
+        vec3 Result = vec3(x / Vector.x, y / Vector.y, z / Vector.z);
+        return Result;
+    }
+
     inline vec3 operator +(vec3 Vector)
     {
         vec3 Result = vec3(x + Vector.x, y + Vector.y, z + Vector.z);
