@@ -16,8 +16,12 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, me
 
         NodeAsset->Type = NodeHeader->Type;
         CopyString(NodeHeader->Name, NodeAsset->Name);
+
         NodeAsset->TransitionCount = NodeHeader->TransitionCount;
         NodeAsset->Transitions = GET_DATA_AT(Buffer, NodeHeader->TransitionsOffset, animation_transition_asset);
+
+        NodeAsset->AdditiveAnimationCount = NodeHeader->AdditiveAnimationCount;
+        NodeAsset->AdditiveAnimations = GET_DATA_AT(Buffer, NodeHeader->AdditiveAnimationsOffset, additive_animation_asset);
 
         switch (NodeAsset->Type)
         {
@@ -29,11 +33,6 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, me
                 CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
                 NodeAsset->Animation->EnableRootMotion = AnimationStateHeader->EnableRootMotion;
-
-                NodeAsset->Animation->IsAdditive = AnimationStateHeader->IsAdditive;
-                NodeAsset->Animation->BaseFrameIndex = AnimationStateHeader->BaseFrameIndex;
-                CopyString(AnimationStateHeader->TargetClipName, NodeAsset->Animation->TargetClipName);
-                CopyString(AnimationStateHeader->BaseClipName, NodeAsset->Animation->BaseClipName);
 
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
                 break;
@@ -49,17 +48,14 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, me
                 TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader->ValueCount * sizeof(blend_space_1d_value_asset);
                 break;
             }
-            case AnimationNodeType_Additive:
+            case AnimationNodeType_Reference:
             {
-                model_asset_animation_additive_header *AnimationAdditiveHeader = GET_DATA_AT(Buffer, NodeHeader->Offset, model_asset_animation_additive_header);
+                model_asset_animation_reference_header *AnimationAdditiveHeader = GET_DATA_AT(Buffer, NodeHeader->Offset, model_asset_animation_reference_header);
 
-                NodeAsset->Additive = PushType(Arena, animation_additive_asset);
-                CopyString(AnimationAdditiveHeader->BaseNodeName, NodeAsset->Additive->BaseNodeName);
-                CopyString(AnimationAdditiveHeader->AdditiveNodeName, NodeAsset->Additive->AdditiveNodeName);
-                NodeAsset->Additive->IsLooping = AnimationAdditiveHeader->IsLooping;
-                NodeAsset->Additive->EnableRootMotion = AnimationAdditiveHeader->EnableRootMotion;
+                NodeAsset->Reference = PushType(Arena, animation_reference_asset);
+                CopyString(AnimationAdditiveHeader->NodeName, NodeAsset->Reference->NodeName);
 
-                TotalPrevNodeSize += sizeof(model_asset_animation_additive_header);
+                TotalPrevNodeSize += sizeof(model_asset_animation_reference_header);
 
                 break;
             }
@@ -74,7 +70,7 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, me
             }
         }
 
-        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader->TransitionCount * sizeof(animation_transition_asset);
+        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader->TransitionCount * sizeof(animation_transition_asset) + NodeHeader->AdditiveAnimationCount * sizeof(additive_animation_asset);
     }
 
     return TotalPrevNodeSize;
@@ -118,7 +114,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     // Skeleton Bind Pose
     model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *)(Buffer + ModelHeader->SkeletonPoseHeaderOffset);
     Result->BindPose.Skeleton = &Result->Skeleton;
-    Result->BindPose.LocalJointPoses = GET_DATA_AT(Buffer, SkeletonPoseHeader->LocalJointPosesOffset, joint_pose);
+    Result->BindPose.LocalJointPoses = GET_DATA_AT(Buffer, SkeletonPoseHeader->LocalJointPosesOffset, transform);
 #if 0
     Result->BindPose.GlobalJointPoses = (mat4 *)(Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
 #else

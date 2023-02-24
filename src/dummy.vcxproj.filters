@@ -43,8 +43,8 @@
     <None Include="dummy_spatial.cpp" />
     <None Include="dummy_audio.cpp" />
     <None Include="dummy_events.cpp" />
-    <None Include="dummy_editor.cpp" />
     <None Include="dummy_assets.cpp" />
+    <None Include="dummy_editor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

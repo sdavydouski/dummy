@@ -706,7 +706,7 @@ ProcessAssimpBoneHierarchy(
     aiQuaternion Rotation;
     SceneNode->Node->mTransformation.Decompose(Scale, Rotation, Translation);
 
-    joint_pose *LocalJointPose = Pose->LocalJointPoses + CurrentIndexForward;
+    transform *LocalJointPose = Pose->LocalJointPoses + CurrentIndexForward;
     LocalJointPose->Scale = AssimpVector2Vector(Scale);
     LocalJointPose->Translation = AssimpVector2Vector(Translation);
     LocalJointPose->Rotation = AssimpQuaternion2Quaternion(Rotation);
@@ -726,7 +726,7 @@ ProcessAssimpBoneHierarchy(
 
 // todo: duplicate
 internal mat4
-CalculateGlobalJointPose(joint *CurrentJoint, joint_pose *CurrentJointPose, skeleton_pose *Pose)
+CalculateGlobalJointPose(joint *CurrentJoint, transform *CurrentJointPose, skeleton_pose *Pose)
 {
     mat4 Result = mat4(1.f);
 
@@ -873,7 +873,7 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton, skeleton_p
         Skeleton->Joints = AllocateMemory<joint>(JointCount);
 
         Pose->Skeleton = Skeleton;
-        Pose->LocalJointPoses = AllocateMemory<joint_pose>(JointCount);
+        Pose->LocalJointPoses = AllocateMemory<transform>(JointCount);
         Pose->GlobalJointPoses = AllocateMemory<mat4>(JointCount);
 
         i32 CurrentIndexForward = 0;
@@ -883,7 +883,7 @@ ProcessAssimpSkeleton(const aiScene *AssimpScene, skeleton *Skeleton, skeleton_p
         for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
         {
             joint *Joint = Skeleton->Joints + JointIndex;
-            joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
+            transform *LocalJointPose = Pose->LocalJointPoses + JointIndex;
             mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
             *GlobalJointPose = CalculateGlobalJointPose(Joint, LocalJointPose, Pose);

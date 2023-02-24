@@ -7,8 +7,6 @@
 #define ROOT_POSE_INDEX 0
 #define ROOT_TRANSLATION_POSE_INDEX 1
 
-#define joint_pose transform
-
 struct random_sequence;
 struct animation_node;
 struct animation_graph;
@@ -35,7 +33,7 @@ struct skeleton
 struct skeleton_pose
 {
     skeleton *Skeleton;
-    joint_pose *LocalJointPoses;
+    transform *LocalJointPoses;
     mat4 *GlobalJointPoses;
 
     vec3 RootMotion;
@@ -49,7 +47,7 @@ struct joint_weight
 
 struct key_frame
 {
-    joint_pose Pose;
+    transform Pose;
     f32 Time;
 };
 
@@ -111,13 +109,6 @@ struct blend_space_1d
     blend_space_1d_value *Values;
 };
 
-// todo: rename
-struct animation_additive
-{
-    animation_node *Base;
-    animation_node *Additive;
-};
-
 enum animation_transition_type
 {
     AnimationTransitionType_Immediate,
@@ -143,12 +134,22 @@ struct animation_transition
     };
 };
 
+struct additive_animation
+{
+    animation_clip *Target;
+
+    animation_clip *Base;
+    u32 BaseKeyFrameIndex;
+
+    animation_state Animation;
+};
+
 enum animation_node_type
 {
     AnimationNodeType_Clip,
     AnimationNodeType_BlendSpace,
-    AnimationNodeType_Graph,
-    AnimationNodeType_Additive,
+    AnimationNodeType_Reference,
+    AnimationNodeType_Graph
 };
 
 struct animation_node
@@ -161,12 +162,15 @@ struct animation_node
     {
         animation_state Animation;
         blend_space_1d *BlendSpace;
-        animation_additive Additive;
+        animation_node *Reference;
         animation_graph *Graph;
     };
 
     u32 TransitionCount;
     animation_transition *Transitions;
+
+    u32 AdditiveAnimationCount;
+    additive_animation *AdditiveAnimations;
 };
 
 struct animation_mixer

@@ -298,13 +298,13 @@ InitSkinningBuffer(game_state *State, skinning_data *Skinning, model *Model, mem
 
     Skinning->Pose = PushType(Arena, skeleton_pose);
     Skinning->Pose->Skeleton = Model->Skeleton;
-    Skinning->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, joint_pose);
+    Skinning->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, transform);
     Skinning->Pose->GlobalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, mat4, Align(16));
 
     for (u32 JointIndex = 0; JointIndex < Model->BindPose->Skeleton->JointCount; ++JointIndex)
     {
-        joint_pose *SourceLocalJointPose = Model->BindPose->LocalJointPoses + JointIndex;
-        joint_pose *DestLocalJointPose = Skinning->Pose->LocalJointPoses + JointIndex;
+        transform *SourceLocalJointPose = Model->BindPose->LocalJointPoses + JointIndex;
+        transform *DestLocalJointPose = Skinning->Pose->LocalJointPoses + JointIndex;
 
         *DestLocalJointPose = *SourceLocalJointPose;
     }
@@ -668,14 +668,14 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
     for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
     {
         joint *Joint = Pose->Skeleton->Joints + JointIndex;
-        joint_pose *LocalJointPose = Pose->LocalJointPoses + JointIndex;
+        transform *LocalJointPose = Pose->LocalJointPoses + JointIndex;
         mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
 
         transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.01f), LocalJointPose->Rotation);
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
-        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.1f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+        //DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.1f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -921,7 +921,7 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
         if (Entity->Model->AnimationCount > 0)
         {
             Entity->Animation = PushType(Arena, animation_graph);
-            BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Entity->Id, &State->EventList, Arena);
+            BuildAnimationGraph(Entity->Animation, Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Entity->Id, &State->EventList, Arena);
         }
     }
 }
@@ -1205,7 +1205,7 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
     Assert(Entity->Skinning);
 
     skeleton_pose *Pose = Entity->Skinning->Pose;
-    joint_pose *Root = GetRootLocalJointPose(Pose);
+    transform *Root = GetRootLocalJointPose(Pose);
 
     if (Entity->Animation)
     {
@@ -1359,8 +1359,8 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 // todo: https://github.com/mrdoob/three.js/blob/master/src/animation/AnimationUtils.js#L229
                 // todo: https://github.com/mrdoob/three.js/blob/dev/examples/webgl_animation_skinning_additive_blending.html
 
-                //if (Body->RootMotionEnabled && Entity->IsGrounded)
-                if (false)
+                if (Body->RootMotionEnabled && Entity->IsGrounded)
+                //if (false)
                 {
                     // Partial integration
                     f32 dt = Data->UpdateRate;

@@ -90,14 +90,14 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
             }
             else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_1"))
             {
-                if (ActionIdleGraphActive->Animation.Time >= ActionIdleGraphActive->Animation.Clip->Duration)
+                if (AnimationClipFinished(ActionIdleGraphActive->Animation))
                 {
                     TransitionToNode(ActionIdleGraph, "ActionIdle_0");
                 }
             }
             else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_2"))
             {
-                if (ActionIdleGraphActive->Animation.Time >= ActionIdleGraphActive->Animation.Clip->Duration)
+                if (AnimationClipFinished(ActionIdleGraphActive->Animation))
                 {
                     TransitionToNode(ActionIdleGraph, "ActionIdle_0");
                 }
@@ -119,7 +119,7 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
     }
     else if (StringEquals(Active->Name, "Jump_Start"))
     {
-        if (Active->Animation.Time >= (Active->Animation.Clip->Duration - 0.f))
+        if (AnimationClipFinished(Active->Animation))
         {
             TransitionToNode(Graph, "Jump_Idle");
         }
@@ -128,20 +128,53 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
     {
         if (BotParams->IsGrounded)
         {
-            // todo:
-            //TransitionToNode(Graph, "Jump_Land");
-            TransitionToNode(Graph, "Locomotion");
+            TransitionToNode(Graph, "Jump_Land");
         }
     }
     else if (StringEquals(Active->Name, "Jump_Land"))
     {
+#if 1
+        // todo: simulating Lomocotion node as well
+        animation_node *Locomotion = GetAnimationNode(Graph, "Locomotion");
+        animation_node *ActiveLocomotionNode = Locomotion->Graph->Active;
+        animation_node *Moving = GetAnimationNode(Locomotion->Graph, "Moving");
+        Moving->BlendSpace->Parameter = BotParams->Move;
+
+        if (StringEquals(ActiveLocomotionNode->Name, "ActionIdle"))
+        {
+            if (BotParams->MoveMagnitude > EPSILON)
+            {
+                TransitionToNode(Locomotion->Graph, "Moving");
+            }
+        }
+        else if (StringEquals(ActiveLocomotionNode->Name, "Moving"))
+        {
+            if (BotParams->MoveMagnitude < EPSILON)
+            {
+                TransitionToNode(Locomotion->Graph, "ActionIdle");
+            }
+        }
+        //
+#endif
+
         if (!BotParams->IsGrounded)
         {
             TransitionToNode(Graph, "Jump_Start");
         }
 
-        // todo:
-        if (Active->Additive.Base->Animation.Time >= (Active->Additive.Base->Animation.Clip->Duration - 0.f))
+        bool32 AdditiveFinished = true;
+        for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Active->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+        {
+            additive_animation *Additive = Active->AdditiveAnimations + AdditiveAnimationIndex;
+
+            if (!AnimationClipFinished(Additive->Animation))
+            {
+                AdditiveFinished = false;
+                break;
+            }
+        }
+
+        if (AdditiveFinished)
         {
             TransitionToNode(Graph, "Locomotion");
         }
@@ -153,7 +186,7 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
             TransitionToNode(Graph, "StandingIdle");
         }
 
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        if (AnimationClipFinished(Active->Animation))
         {
             TransitionToNode(Graph, "Locomotion");
         }
@@ -165,7 +198,7 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
             TransitionToNode(Graph, "Locomotion");
         }
 
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        if (AnimationClipFinished(Active->Animation))
         {
             TransitionToNode(Graph, "StandingIdle");
         }

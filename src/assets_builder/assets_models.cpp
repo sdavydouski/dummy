@@ -17,8 +17,12 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
 
         NodeAsset->Type = NodeHeader->Type;
         CopyString(NodeHeader->Name, NodeAsset->Name);
+        
         NodeAsset->TransitionCount = NodeHeader->TransitionCount;
         NodeAsset->Transitions = (animation_transition_asset *) (Buffer + NodeHeader->TransitionsOffset);
+
+        NodeAsset->AdditiveAnimationCount = NodeHeader->AdditiveAnimationCount;
+        NodeAsset->AdditiveAnimations = (additive_animation_asset *)(Buffer + NodeHeader->AdditiveAnimationsOffset);
 
         switch (NodeAsset->Type)
         {
@@ -30,11 +34,6 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
                 CopyString(AnimationStateHeader->AnimationClipName, NodeAsset->Animation->AnimationClipName);
                 NodeAsset->Animation->IsLooping = AnimationStateHeader->IsLooping;
                 NodeAsset->Animation->EnableRootMotion = AnimationStateHeader->EnableRootMotion;
-
-                NodeAsset->Animation->IsAdditive = AnimationStateHeader->IsAdditive;
-                NodeAsset->Animation->BaseFrameIndex = AnimationStateHeader->BaseFrameIndex;
-                CopyString(AnimationStateHeader->TargetClipName, NodeAsset->Animation->TargetClipName);
-                CopyString(AnimationStateHeader->BaseClipName, NodeAsset->Animation->BaseClipName);
 
                 TotalPrevNodeSize += sizeof(model_asset_animation_state_header);
                 break;
@@ -50,17 +49,14 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
                 TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader->ValueCount * sizeof(blend_space_1d_value_asset);
                 break;
             }
-            case AnimationNodeType_Additive:
+            case AnimationNodeType_Reference:
             {
-                model_asset_animation_additive_header *AnimationAdditiveHeader = (model_asset_animation_additive_header *)(Buffer + NodeHeader->Offset);
+                model_asset_animation_reference_header *AnimationReferenceHeader = (model_asset_animation_reference_header *)(Buffer + NodeHeader->Offset);
 
-                NodeAsset->Additive = AllocateMemory<animation_additive_asset>();
-                CopyString(AnimationAdditiveHeader->BaseNodeName, NodeAsset->Additive->BaseNodeName);
-                CopyString(AnimationAdditiveHeader->AdditiveNodeName, NodeAsset->Additive->AdditiveNodeName);
-                NodeAsset->Additive->IsLooping = AnimationAdditiveHeader->IsLooping;
-                NodeAsset->Additive->EnableRootMotion = AnimationAdditiveHeader->EnableRootMotion;
+                NodeAsset->Reference = AllocateMemory<animation_reference_asset>();
+                CopyString(AnimationReferenceHeader->NodeName, NodeAsset->Reference->NodeName);
 
-                TotalPrevNodeSize += sizeof(model_asset_animation_additive_header);
+                TotalPrevNodeSize += sizeof(model_asset_animation_reference_header);
                 break;
             }
             case AnimationNodeType_Graph:
@@ -74,7 +70,7 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer)
             }
         }
 
-        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader->TransitionCount * sizeof(animation_transition_asset);
+        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader->TransitionCount * sizeof(animation_transition_asset) + NodeHeader->AdditiveAnimationCount * sizeof(additive_animation_asset);
     }
 
     return TotalPrevNodeSize;
@@ -105,7 +101,7 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
     // Read skeleton bind pose
     model_asset_skeleton_pose_header *SkeletonPoseHeader = (model_asset_skeleton_pose_header *) (Buffer + ModelHeader->SkeletonPoseHeaderOffset);
     skeleton_pose BindPose = {};
-    BindPose.LocalJointPoses = (joint_pose *) ((u8 *) Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
+    BindPose.LocalJointPoses = (transform *) ((u8 *) Buffer + SkeletonPoseHeader->LocalJointPosesOffset);
     BindPose.GlobalJointPoses = (mat4 *) ((u8 *) Buffer + SkeletonPoseHeader->GlobalJointPosesOffset);
 
     // Read animation graph
@@ -377,12 +373,18 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
         model_asset_animation_node_header NodeHeader = {};
         NodeHeader.Type = Node->Type;
         CopyString(Node->Name, NodeHeader.Name);
+
         NodeHeader.TransitionCount = Node->TransitionCount;
         NodeHeader.TransitionsOffset = AnimationGraphHeader.NodesOffset + sizeof(model_asset_animation_node_header) + TotalPrevNodeSize;
-        NodeHeader.Offset = NodeHeader.TransitionsOffset + NodeHeader.TransitionCount * sizeof(animation_transition_asset);
+
+        NodeHeader.AdditiveAnimationCount = Node->AdditiveAnimationCount;
+        NodeHeader.AdditiveAnimationsOffset = NodeHeader.TransitionsOffset + NodeHeader.TransitionCount * sizeof(animation_transition_asset);
+
+        NodeHeader.Offset = NodeHeader.AdditiveAnimationsOffset + NodeHeader.AdditiveAnimationCount * sizeof(additive_animation_asset);
 
         fwrite(&NodeHeader, sizeof(model_asset_animation_node_header), 1, AssetFile);
         fwrite(Node->Transitions, sizeof(animation_transition_asset), Node->TransitionCount, AssetFile);
+        fwrite(Node->AdditiveAnimations, sizeof(additive_animation_asset), Node->AdditiveAnimationCount, AssetFile);
 
         switch (NodeHeader.Type)
         {
@@ -392,11 +394,6 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
                 CopyString(Node->Animation->AnimationClipName, AnimationStateHeader.AnimationClipName);
                 AnimationStateHeader.IsLooping = Node->Animation->IsLooping;
                 AnimationStateHeader.EnableRootMotion = Node->Animation->EnableRootMotion;
-
-                AnimationStateHeader.IsAdditive = Node->Animation->IsAdditive;
-                AnimationStateHeader.BaseFrameIndex = Node->Animation->BaseFrameIndex;
-                CopyString(Node->Animation->TargetClipName, AnimationStateHeader.TargetClipName);
-                CopyString(Node->Animation->BaseClipName, AnimationStateHeader.BaseClipName);
 
                 fwrite(&AnimationStateHeader, sizeof(model_asset_animation_state_header), 1, AssetFile);
 
@@ -415,18 +412,15 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
                 TotalPrevNodeSize += sizeof(model_asset_blend_space_1d_header) + BlendSpaceHeader.ValueCount * sizeof(blend_space_1d_value_asset);
                 break;
             }
-            case AnimationNodeType_Additive:
+            case AnimationNodeType_Reference:
             {
-                model_asset_animation_additive_header AnimationAdditiveHeader = {};
+                model_asset_animation_reference_header AnimationReferenceHeader = {};
 
-                CopyString(Node->Additive->BaseNodeName, AnimationAdditiveHeader.BaseNodeName);
-                CopyString(Node->Additive->AdditiveNodeName, AnimationAdditiveHeader.AdditiveNodeName);
-                AnimationAdditiveHeader.IsLooping = Node->Additive->IsLooping;
-                AnimationAdditiveHeader.EnableRootMotion = Node->Additive->EnableRootMotion;
+                CopyString(Node->Reference->NodeName, AnimationReferenceHeader.NodeName);
 
-                fwrite(&AnimationAdditiveHeader, sizeof(model_asset_animation_additive_header), 1, AssetFile);
+                fwrite(&AnimationReferenceHeader, sizeof(model_asset_animation_reference_header), 1, AssetFile);
 
-                TotalPrevNodeSize += sizeof(model_asset_animation_additive_header);
+                TotalPrevNodeSize += sizeof(model_asset_animation_reference_header);
                 break;
             }
             case AnimationNodeType_Graph:
@@ -438,7 +432,7 @@ WriteAnimationGraph(animation_graph_asset *AnimationGraph, u64 Offset, FILE *Ass
             }
         }
 
-        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader.TransitionCount * sizeof(animation_transition_asset);
+        TotalPrevNodeSize += sizeof(model_asset_animation_node_header) + NodeHeader.TransitionCount * sizeof(animation_transition_asset) + NodeHeader.AdditiveAnimationCount * sizeof(additive_animation_asset);
     }
 
     return TotalPrevNodeSize;
@@ -711,10 +705,10 @@ WriteModelAsset(const char *FilePath, model_asset *Asset)
     // Writing skeleton bind pose
     model_asset_skeleton_pose_header SkeletonPoseHeader = {};
     SkeletonPoseHeader.LocalJointPosesOffset = ModelAssetHeader.SkeletonPoseHeaderOffset + sizeof(model_asset_skeleton_pose_header);
-    SkeletonPoseHeader.GlobalJointPosesOffset = SkeletonPoseHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(joint_pose);
+    SkeletonPoseHeader.GlobalJointPosesOffset = SkeletonPoseHeader.LocalJointPosesOffset + SkeletonHeader.JointCount * sizeof(transform);
 
     fwrite(&SkeletonPoseHeader, sizeof(model_asset_skeleton_pose_header), 1, AssetFile);
-    fwrite(Asset->BindPose.LocalJointPoses, sizeof(joint_pose), Asset->Skeleton.JointCount, AssetFile);
+    fwrite(Asset->BindPose.LocalJointPoses, sizeof(transform), Asset->Skeleton.JointCount, AssetFile);
     fwrite(Asset->BindPose.GlobalJointPoses, sizeof(mat4), Asset->Skeleton.JointCount, AssetFile);
 
     CurrentStreamPosition = ftell(AssetFile);
@@ -843,48 +837,86 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
 
         CopyString(Name, NodeAsset->Name);
 
-        Value &Transitions = Node["transitions"].GetArray();
-
-        NodeAsset->TransitionCount = Transitions.Size();
-        NodeAsset->Transitions = AllocateMemory<animation_transition_asset>(NodeAsset->TransitionCount);
-
         // Transitions
-        for (u32 TransitionIndex = 0; TransitionIndex < NodeAsset->TransitionCount; ++TransitionIndex)
+        if (Node.HasMember("transitions"))
         {
-            animation_transition_asset *TransitionAsset = NodeAsset->Transitions + TransitionIndex;
+            Value &Transitions = Node["transitions"].GetArray();
 
-            Value &Message = Transitions[TransitionIndex];
+            NodeAsset->TransitionCount = Transitions.Size();
+            NodeAsset->Transitions = AllocateMemory<animation_transition_asset>(NodeAsset->TransitionCount);
 
-            const char *From = Name;
-            const char *To = Message["to"].GetString();
-
-            CopyString(From, TransitionAsset->From);
-            CopyString(To, TransitionAsset->To);
-
-            const char *TransitionType = Message["type"].GetString();
-
-            if (StringEquals(TransitionType, "transitional"))
+            for (u32 TransitionIndex = 0; TransitionIndex < NodeAsset->TransitionCount; ++TransitionIndex)
             {
-                TransitionAsset->Type = AnimationTransitionType_Transitional;
+                animation_transition_asset *TransitionAsset = NodeAsset->Transitions + TransitionIndex;
 
-                const char *TransitionNode = Message["through"].GetString();
-                CopyString(TransitionNode, TransitionAsset->TransitionNode);
+                Value &TransitionValue = Transitions[TransitionIndex];
 
-                TransitionAsset->Duration = Message["blend"].GetFloat();
+                const char *From = Name;
+                const char *To = TransitionValue["to"].GetString();
+
+                CopyString(From, TransitionAsset->From);
+                CopyString(To, TransitionAsset->To);
+
+                const char *TransitionType = TransitionValue["type"].GetString();
+
+                if (StringEquals(TransitionType, "transitional"))
+                {
+                    TransitionAsset->Type = AnimationTransitionType_Transitional;
+
+                    const char *TransitionNode = TransitionValue["through"].GetString();
+                    CopyString(TransitionNode, TransitionAsset->TransitionNode);
+
+                    TransitionAsset->Duration = TransitionValue["blend"].GetFloat();
+                }
+                else if (StringEquals(TransitionType, "crossfade"))
+                {
+                    TransitionAsset->Type = AnimationTransitionType_Crossfade;
+                    TransitionAsset->Duration = TransitionValue["blend"].GetFloat();
+                }
+                else if (StringEquals(TransitionType, "immediate"))
+                {
+                    TransitionAsset->Type = AnimationTransitionType_Immediate;
+                }
+                else
+                {
+                    Assert(!"Unknown transition type");
+                }
             }
-            else if (StringEquals(TransitionType, "crossfade"))
+        }
+        else
+        {
+            NodeAsset->TransitionCount = 0;
+            NodeAsset->Transitions = 0;
+        }
+
+        // Additive animations
+        if (Node.HasMember("additive"))
+        {
+            Value &AdditiveAnimations = Node["additive"].GetArray();
+
+            NodeAsset->AdditiveAnimationCount = AdditiveAnimations.Size();
+            NodeAsset->AdditiveAnimations = AllocateMemory<additive_animation_asset>(NodeAsset->AdditiveAnimationCount);
+
+            for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < NodeAsset->AdditiveAnimationCount; ++AdditiveAnimationIndex)
             {
-                TransitionAsset->Type = AnimationTransitionType_Crossfade;
-                TransitionAsset->Duration = Message["blend"].GetFloat();
+                additive_animation_asset *AdditiveAsset = NodeAsset->AdditiveAnimations + AdditiveAnimationIndex;
+
+                Value &AdditiveValue = AdditiveAnimations[AdditiveAnimationIndex];
+
+                const char *Target = AdditiveValue["target"].GetString();
+                const char *Base = AdditiveValue["base"].GetString();
+
+                CopyString(Target, AdditiveAsset->TargetClipName);
+                CopyString(Base, AdditiveAsset->BaseClipName);
+
+                AdditiveAsset->BaseKeyFrameIndex = AdditiveValue["base_keyframe_index"].GetUint();
+                AdditiveAsset->IsLooping = AdditiveValue["looping"].GetBool();
             }
-            else if (StringEquals(TransitionType, "immediate"))
-            {
-                TransitionAsset->Type = AnimationTransitionType_Immediate;
-            }
-            else
-            {
-                Assert(!"Unknown transition type");
-            }
+        }
+        else
+        {
+            NodeAsset->AdditiveAnimationCount = 0;
+            NodeAsset->AdditiveAnimations = 0;
         }
 
         // Nodes
@@ -926,21 +958,13 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
                 ValueAsset->EnableRootMotion = BlendspaceValue["root_motion"].GetBool();
             }
         }
-        else if (StringEquals(Type, "Additive"))
+        else if (StringEquals(Type, "Reference"))
         {
-            NodeAsset->Type = AnimationNodeType_Additive;
-            NodeAsset->Additive = AllocateMemory<animation_additive_asset>();
+            NodeAsset->Type = AnimationNodeType_Reference;
+            NodeAsset->Reference = AllocateMemory<animation_reference_asset>();
 
-            const char *BaseNode = Node["base"].GetString();
-            const char *AdditiveNode = Node["additive"].GetString();
-
-            bool32 IsLooping = Node["looping"].GetBool();
-            bool32 EnableRootMotion = Node["root_motion"].GetBool();
-
-            CopyString(BaseNode, NodeAsset->Additive->BaseNodeName);
-            CopyString(AdditiveNode, NodeAsset->Additive->AdditiveNodeName);
-            NodeAsset->Additive->IsLooping = IsLooping;
-            NodeAsset->Additive->EnableRootMotion = EnableRootMotion;
+            const char *NodeName = Node["node"].GetString();
+            CopyString(NodeName, NodeAsset->Reference->NodeName);
         }
         else if (StringEquals(Type, "Animation"))
         {
@@ -953,22 +977,8 @@ ProcessGraphNodes(animation_graph_asset *GraphAsset, Value &Nodes)
             NodeAsset->Animation->IsLooping = IsLooping;
             NodeAsset->Animation->EnableRootMotion = EnableRootMotion;
             
-            if (Node.HasMember("additive"))
-            {
-                const char *TargetClip = Node["target"].GetString();
-                const char *BaseClip = Node["base"].GetString();
-                u32 BaseFrameIndex = Node["base_frame_index"].GetUint();
-
-                CopyString(TargetClip, NodeAsset->Animation->TargetClipName);
-                CopyString(BaseClip, NodeAsset->Animation->BaseClipName);
-                NodeAsset->Animation->BaseFrameIndex = BaseFrameIndex;
-                NodeAsset->Animation->IsAdditive = true;
-            }
-            else
-            {
-                const char *Clip = Node["clip"].GetString();
-                CopyString(Clip, NodeAsset->Animation->AnimationClipName);
-            }
+            const char *Clip = Node["clip"].GetString();
+            CopyString(Clip, NodeAsset->Animation->AnimationClipName);
         }
         else
         {

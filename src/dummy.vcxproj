@@ -52,7 +52,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
-    <None Include="dummy_editor.cpp" />
+    <None Include="dummy_editor.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </ExcludedFromBuild>
+    </None>
     <None Include="dummy_events.cpp" />
     <None Include="dummy_audio.cpp" />
     <None Include="dummy_spatial.cpp" />

@@ -3,17 +3,18 @@
 #include <cmath>
 #include <cstdarg>
 
-struct quat;
+#define EPSILON 0.00001f
+#define PI 3.14159f
+#define HALF_PI (PI / 2.f)
+#define EULER 2.71828f
+
 inline f32 Square(f32 Value);
 inline f32 Sqrt(f32 Value);
 inline f32 Abs(f32 Value);
 inline f32 Min(f32 a, f32 b);
 inline f32 Max(f32 a, f32 b);
-
-#define EPSILON 0.0001f
-#define PI 3.14159f
-#define HALF_PI (PI / 2.f)
-#define EULER 2.71828f
+inline bool32 NearlyEqual(f32 a, f32 b, f32 Epsilon = EPSILON);
+inline bool32 IsFinite(f32 n);
 
 #define RADIANS(Angle) ((Angle) * PI) / 180.f
 #define DEGREES(Angle) ((Angle) * 180.f) / PI
@@ -218,6 +219,27 @@ Clamp(f32 *Value, f32 Min, f32 Max)
 {
     if (*Value < Min) *Value = Min;
     if (*Value > Max) *Value = Max;
+}
+
+inline bool32
+NearlyEqual(f32 a, f32 b, f32 Epsilon)
+{
+    bool32 Result = Abs(a - b) < Epsilon;
+    return Result;
+}
+
+inline bool32
+IsFinite(f32 n)
+{
+    bool32 Result = isfinite(n);
+    return Result;
+}
+
+inline bool32
+IsFinite(transform Transform)
+{
+    bool32 Result = IsFinite(Transform.Rotation) && IsFinite(Transform.Translation) && IsFinite(Transform.Scale);
+    return Result;
 }
 
 inline f32
@@ -697,7 +719,7 @@ Slerp(quat A, f32 t, quat B)
         Result = Lerp(NormalizedA, t, NormalizedB);
     }
 
-    Assert(Abs(Magnitude(Result) - 1.f) < EPSILON);
+    Assert(IsNormalized(Result));
 
     return Result;
 }

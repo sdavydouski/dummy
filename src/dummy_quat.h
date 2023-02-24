@@ -23,17 +23,6 @@ struct quat
     explicit quat(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
     explicit quat(vec3 v, f32 s) : x(v.x), y(v.y), z(v.z), w(s) {}
 
-    inline quat operator *(quat q)
-    {
-        quat Result = quat(
-            w * q.x + x * q.w + y * q.z - z * q.y,
-            w * q.y - x * q.z + y * q.w + z * q.x,
-            w * q.z + x * q.y - y * q.x + z * q.w,
-            w * q.w - x * q.x - y * q.y - z * q.z
-        );
-        return Result;
-    }
-
     inline quat operator *(f32 Scalar)
     {
         quat Result = quat(Scalar * x, Scalar * y, Scalar * z, Scalar * w);
@@ -65,6 +54,17 @@ struct quat
     }
 };
 
+inline quat operator *(quat q1, quat q2)
+{
+    quat Result = quat(
+        q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y,
+        q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x,
+        q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w,
+        q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z
+    );
+    return Result;
+}
+
 inline quat &operator +=(quat &Dest, quat q)
 {
     Dest = Dest + q;
@@ -91,9 +91,16 @@ Dot(quat a, quat b)
 }
 
 inline f32
+MagnitudeSquared(quat q)
+{
+    f32 Result = Square(q.x) + Square(q.y) + Square(q.z) + Square(q.w);
+    return Result;
+}
+
+inline f32
 Magnitude(quat q)
 {
-    f32 Result = Sqrt(Square(q.x) + Square(q.y) + Square(q.z) + Square(q.w));
+    f32 Result = Sqrt(MagnitudeSquared(q));
     return Result;
 }
 
@@ -109,10 +116,31 @@ Normalize(quat q)
     return Result;
 }
 
+inline bool32
+IsNormalized(quat q)
+{
+    f32 Length = Magnitude(q);
+    bool32 Result = NearlyEqual(Length, 1.f);
+
+    return Result;
+}
+
+inline bool32
+IsFinite(quat q)
+{
+    bool32 Result = IsFinite(q.x) && IsFinite(q.y) && IsFinite(q.z) && IsFinite(q.w);
+    return Result;
+}
+
 inline quat
 Inverse(quat q)
 {
+    // todo:
+#if 0
     quat Result = quat(-q.x, -q.y, -q.z, q.w);
+#else
+    quat Result = quat(-q.x, -q.y, -q.z, q.w) / MagnitudeSquared(q);
+#endif
     return Result;
 }
 

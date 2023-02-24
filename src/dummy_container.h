@@ -54,7 +54,7 @@ RemoveFromHashTable(u32 *Key)
 }
 
 template <typename T>
-internal void
+inline void
 InitHashTable(hash_table<T> *HashTable, u32 Count, memory_arena *Arena)
 {
     Assert(IsPrime(Count));

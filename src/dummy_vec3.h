@@ -209,6 +209,36 @@ Max(vec3 a, vec3 b)
     return Result;
 }
 
+inline bool32
+IsFinite(vec3 v)
+{
+    bool32 Result = IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z);
+    return Result;
+}
+
+inline vec3
+SafeReciprocal(vec3 v)
+{
+    vec3 Result = vec3(0.f);
+
+    if (!NearlyEqual(v.x, 0.f))
+    {
+        Result.x = 1.f / v.x;
+    }
+
+    if (!NearlyEqual(v.y, 0.f))
+    {
+        Result.y = 1.f / v.y;
+    }
+
+    if (!NearlyEqual(v.z, 0.f))
+    {
+        Result.z = 1.f / v.z;
+    }
+
+    return Result;
+}
+
 // ivec3
 struct ivec3
 {

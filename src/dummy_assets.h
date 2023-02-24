@@ -105,11 +105,14 @@ struct animation_state_asset
     char AnimationClipName[256];
     bool32 IsLooping;
     bool32 EnableRootMotion;
+};
 
-    bool32 IsAdditive;
+struct additive_animation_asset
+{
     char TargetClipName[256];
     char BaseClipName[256];
-    u32 BaseFrameIndex;
+    u32 BaseKeyFrameIndex;
+    bool32 IsLooping;
 };
 
 struct blend_space_1d_value_asset
@@ -119,12 +122,9 @@ struct blend_space_1d_value_asset
     bool32 EnableRootMotion;
 };
 
-struct animation_additive_asset
+struct animation_reference_asset
 {
-    char BaseNodeName[256];
-    char AdditiveNodeName[256];
-    bool32 IsLooping;
-    bool32 EnableRootMotion;
+    char NodeName[256];
 };
 
 struct blend_space_1d_asset {
@@ -161,12 +161,15 @@ struct animation_node_asset
     {
         animation_state_asset *Animation;
         blend_space_1d_asset *Blendspace;
-        animation_additive_asset *Additive;
+        animation_reference_asset *Reference;
         animation_graph_asset *Graph;
     };
 
     u32 TransitionCount;
     animation_transition_asset *Transitions;
+
+    u32 AdditiveAnimationCount;
+    additive_animation_asset *AdditiveAnimations;
 };
 
 struct animation_graph_asset
@@ -349,8 +352,12 @@ struct model_asset_animation_node_header
 {
     animation_node_type Type;
     char Name[256];
+
     u32 TransitionCount;
     u64 TransitionsOffset;
+
+    u32 AdditiveAnimationCount;
+    u64 AdditiveAnimationsOffset;
 
     u64 Offset;
 };
@@ -360,11 +367,14 @@ struct model_asset_animation_state_header
     char AnimationClipName[256];
     bool32 IsLooping;
     bool32 EnableRootMotion;
+};
 
-    bool32 IsAdditive;
+struct model_asset_additive_animation_header
+{
     char TargetClipName[256];
     char BaseClipName[256];
     u32 BaseFrameIndex;
+    bool32 IsLooping;
 };
 
 struct model_asset_blend_space_1d_header
@@ -373,12 +383,9 @@ struct model_asset_blend_space_1d_header
     u64 ValuesOffset;
 };
 
-struct model_asset_animation_additive_header
+struct model_asset_animation_reference_header
 {
-    char BaseNodeName[256];
-    char AdditiveNodeName[256];
-    bool32 IsLooping;
-    bool32 EnableRootMotion;
+    char NodeName[256];
 };
 
 struct model_asset_meshes_header

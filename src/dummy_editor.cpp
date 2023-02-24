@@ -28,6 +28,46 @@
 #include "dummy.cpp"
 #include "dummy_editor.h"
 
+inline animation_node *
+GetTransitionDestinationNode(animation_transition *Transition)
+{
+    if (Transition->Type == AnimationTransitionType_Transitional)
+    {
+        return Transition->TransitionNode;
+    }
+    else
+    {
+        return Transition->To;
+    }
+}
+
+inline u32
+GetIncomingTransitions(animation_node *Node, animation_graph *Graph, animation_transition **Transitions, u32 MaxTransitionCount)
+{
+    u32 TransitionCount = 0;
+
+    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
+    {
+        animation_node *CurrentNode = Graph->Nodes + NodeIndex;
+
+        if (CurrentNode != Node)
+        {
+            for (u32 TransitionIndex = 0; TransitionIndex < CurrentNode->TransitionCount; ++TransitionIndex)
+            {
+                animation_transition *CurrentTransition = CurrentNode->Transitions + TransitionIndex;
+
+                if (GetTransitionDestinationNode(CurrentTransition) == Node)
+                {
+                    Transitions[TransitionCount++] = CurrentTransition;
+                    Assert(TransitionCount <= MaxTransitionCount);
+                }
+            }
+        }
+    }
+
+    return TransitionCount;
+}
+
 // todo:
 inline i32
 GetTransitionId(animation_node *Node, animation_transition *Transition)
@@ -153,7 +193,6 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     EditorSetupStyle();
 
     // Init State
-    //EditorState->AssetType = AssetType_Model;
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
     EditorState->LogAutoScroll = true;
 
@@ -178,6 +217,7 @@ GetAnimationNodeTypeName(animation_node_type NodeType)
     {
         case AnimationNodeType_Clip: return "Clip";
         case AnimationNodeType_BlendSpace: return "BlendSpace";
+        case AnimationNodeType_Reference: return "Reference";
         case AnimationNodeType_Graph: return "Graph";
         default: return "";
     }
@@ -379,13 +419,20 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
         {
             case AnimationNodeType_Clip:
             {
-                ImGui::BeginChild("ClipChild", ImVec2(400.f, 60.f));
+                ImGui::BeginChild("ClipChild", ImVec2(400.f, 120.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
                 animation_state AnimationState = Node->Animation;
 
                 ImGui::Text("%s (%.2f s)", AnimationState.Clip->Name, AnimationState.Time);
+
+                for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+                {
+                    additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
+
+                    ImGui::Text("%s (%.2f s)", Additive->Animation.Clip->Name, Additive->Animation.Time);
+                }
 
                 ImGui::EndChild();
 
@@ -422,6 +469,20 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
 
                     ImGui::EndTable();
                 }
+
+                ImGui::EndChild();
+
+                break;
+            }
+            case AnimationNodeType_Reference:
+            {
+                ImGui::BeginChild("ReferenceChild", ImVec2(400.f, 60.f));
+
+                ImGui::ProgressBar(Node->Weight);
+
+                animation_node *Reference = Node->Reference;
+
+                ImGui::Text("Reference->%s", Reference->Name);
 
                 ImGui::EndChild();
 
@@ -900,7 +961,7 @@ Win32RenderEditor(
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
 
-    ImGui::ShowDemoWindow();
+    //ImGui::ShowDemoWindow();
 
     const ImGuiViewport *Viewport = ImGui::GetMainViewport();
     ImGuiIO &io = ImGui::GetIO();
