@@ -4,10 +4,12 @@
     <ClCompile Include="assets_builder.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets_utils.cpp" />
     <None Include="assets_fonts.cpp" />
     <None Include="assets_models.cpp" />
     <None Include="assets_audio.cpp" />
     <None Include="assets_textures.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="assets.h" />
   </ItemGroup>
 </Project>

@@ -5,9 +5,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="win32_dummy.h" />
+    <ClInclude Include="win32_resource.h" />
+    <ClInclude Include="win32_dummy_opengl.h" />
+    <ClInclude Include="win32_dummy_editor.h" />
+    <ClInclude Include="win32_dummy_xaudio2.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="win32_dummy_opengl.cpp" />
     <None Include="win32_dummy_xaudio2.cpp" />
+    <None Include="win32_dummy_editor.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="win32_dummy.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\game\dummy.ico" />
   </ItemGroup>
 </Project>

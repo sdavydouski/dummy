@@ -1,6 +1,6 @@
 #pragma once
 
-internal u32
+dummy_internal u32
 GetCharacterGlyphIndex(font *Font, wchar Character)
 {
     u32 GlyphIndex = 0;

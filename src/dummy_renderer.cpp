@@ -1,4 +1,7 @@
+#include "dummy.h"
+
 // todo: not used
+#if 0
 inline void
 InitRenderCommandsBuffer(render_commands *Commands, void *Memory, u32 Size)
 {
@@ -8,6 +11,7 @@ InitRenderCommandsBuffer(render_commands *Commands, void *Memory, u32 Size)
     Commands->MaxRenderCommandsBufferSize = Size;
     Commands->RenderCommandsBufferSize = 0;
 }
+#endif
 
 inline render_command_header *
 PushRenderCommand_(render_commands *Commands, u32 Size, render_command_type Type)

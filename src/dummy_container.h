@@ -64,7 +64,7 @@ InitHashTable(hash_table<T> *HashTable, u32 Count, memory_arena *Arena)
 }
 
 template <typename TValue, typename TKey>
-internal TValue *
+dummy_internal TValue *
 HashTableLookup(hash_table<TValue> *HashTable, TKey Key)
 {
     u64 HashValue = Hash(Key);

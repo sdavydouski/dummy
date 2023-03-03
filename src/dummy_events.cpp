@@ -1,3 +1,5 @@
+#include "dummy.h"
+
 inline game_entity * GetGameEntity(game_state *State, u32 EntityId);
 
 inline void
@@ -17,7 +19,7 @@ PublishEvent(game_event_list *EventList, const char *EventName, void *Params)
     Event->Params = Params;
 }
 
-internal void
+dummy_internal void
 ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands *RenderCommands)
 {
     game_event_list *EventList = &State->EventList;

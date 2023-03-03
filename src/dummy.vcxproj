@@ -23,7 +23,6 @@
     <ClInclude Include="dummy_animation.h" />
     <ClInclude Include="dummy_assets.h" />
     <ClInclude Include="dummy_audio.h" />
-    <ClInclude Include="dummy_editor.h" />
     <ClInclude Include="dummy_events.h" />
     <ClInclude Include="dummy_job.h" />
     <ClInclude Include="dummy_plane.h" />
@@ -39,7 +38,6 @@
     <ClInclude Include="dummy_mat4.h" />
     <ClInclude Include="dummy_math.h" />
     <ClInclude Include="dummy_memory.h" />
-    <ClInclude Include="dummy_opengl.h" />
     <ClInclude Include="dummy_physics.h" />
     <ClInclude Include="dummy_platform.h" />
     <ClInclude Include="dummy_quat.h" />
@@ -52,12 +50,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
-    <None Include="dummy_editor.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-      </ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-      </ExcludedFromBuild>
-    </None>
     <None Include="dummy_events.cpp" />
     <None Include="dummy_audio.cpp" />
     <None Include="dummy_spatial.cpp" />
@@ -66,7 +58,6 @@
     <None Include="dummy_process.cpp" />
     <None Include="dummy_physics.cpp" />
     <None Include="dummy_animation.cpp" />
-    <None Include="dummy_opengl.cpp" />
     <None Include="dummy_assets.cpp" />
     <None Include="dummy_renderer.cpp" />
   </ItemGroup>

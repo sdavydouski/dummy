@@ -1,3 +1,5 @@
+#include "dummy.h"
+
 inline transform *
 GetRootLocalJointPose(skeleton_pose *Pose)
 {
@@ -71,7 +73,7 @@ Accumulate(transform Transform, transform AdditiveTransform, f32 BlendWeight)
     return Result;
 }
 
-internal void
+dummy_internal void
 Lerp(skeleton_pose *From, f32 t, skeleton_pose *To, skeleton_pose *Dest)
 {
     u32 JointCount = Dest->Skeleton->JointCount;
@@ -89,7 +91,7 @@ Lerp(skeleton_pose *From, f32 t, skeleton_pose *To, skeleton_pose *Dest)
     }
 }
 
-internal void
+dummy_internal void
 Accumulate(skeleton_pose *PoseA, skeleton_pose *PoseB, f32 BlendWeight, skeleton_pose *Dest)
 {
     u32 JointCount = Dest->Skeleton->JointCount;
@@ -107,7 +109,7 @@ Accumulate(skeleton_pose *PoseA, skeleton_pose *PoseB, f32 BlendWeight, skeleton
     }
 }
 
-internal void
+dummy_internal void
 Blend(animation_blend_mode BlendMode, f32 BlendWeight, skeleton_pose *PoseA, skeleton_pose *PoseB, skeleton_pose *Dest)
 {
     switch (BlendMode)
@@ -130,7 +132,7 @@ Blend(animation_blend_mode BlendMode, f32 BlendWeight, skeleton_pose *PoseA, ske
     }
 }
 
-internal mat4
+dummy_internal mat4
 CalculateGlobalJointPose(joint *CurrentJoint, transform *CurrentJointPose, skeleton_pose *Pose)
 {
     mat4 Result = mat4(1.f);
@@ -153,7 +155,7 @@ CalculateGlobalJointPose(joint *CurrentJoint, transform *CurrentJointPose, skele
 }
 
 // https://github.com/EpicGames/UnrealEngine/blob/cdaec5b33ea5d332e51eee4e4866495c90442122/Engine/Source/Runtime/Engine/Private/Animation/AnimationRuntime.cpp#L989
-internal transform
+dummy_internal transform
 CalculateAdditiveTransform(transform TargetTransform, transform BaseTransform)
 {
     transform Result = {};
@@ -161,7 +163,7 @@ CalculateAdditiveTransform(transform TargetTransform, transform BaseTransform)
     Result.Rotation = Normalize(TargetTransform.Rotation * Inverse(BaseTransform.Rotation));
     Result.Translation = TargetTransform.Translation - BaseTransform.Translation;
     // In order to support blending between different additive scales, we save [(target scale)/(source scale) - 1.f], and this can blend with 
-	// other delta scale value. When we apply to another scale, we apply scale * (1 + [additive scale])
+    // other delta scale value. When we apply to another scale, we apply scale * (1 + [additive scale])
     Result.Scale = TargetTransform.Scale * SafeReciprocal(BaseTransform.Scale) - vec3(1.f);
 
     Assert(IsFinite(Result));
@@ -196,7 +198,7 @@ GetAnimationSampleByJointIndex(animation_clip *Animation, u32 JointIndex)
     return Result;
 }
 
-internal void
+dummy_internal void
 FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime, key_frame **Prev, key_frame **Next)
 {
     if (PoseSample->KeyFrameCount > 1)
@@ -230,7 +232,7 @@ FindClosestKeyFrames(animation_sample *PoseSample, f32 CurrentTime, key_frame **
     }
 }
 
-internal void
+dummy_internal void
 AnimateSkeletonPose(animation_graph *Graph, skeleton_pose *SkeletonPose, animation_state *Animation)
 {
     transform *RootTranslationPose = GetRootTranslationLocalJointPose(SkeletonPose);
@@ -262,7 +264,6 @@ AnimateSkeletonPose(animation_graph *Graph, skeleton_pose *SkeletonPose, animati
             
             *LocalJointPose = Lerp(&PrevKeyFrame->Pose, t, &NextKeyFrame->Pose);
 
-            Assert(!NearlyEqual(LocalJointPose->Scale.x, 0.01f));
             Assert(IsFinite(*LocalJointPose));
         }
     }
@@ -325,8 +326,8 @@ EnableAnimationNode(animation_node *Node)
     Node->Weight = 1.f;
 }
 
-internal void
-DisableAnimationNode(animation_node *Node)
+dummy_internal void
+DisableAnimationNode(animation_node *Node, animation_node *ToNode = 0)
 {
     Node->Weight = 0.f;
 
@@ -352,7 +353,10 @@ DisableAnimationNode(animation_node *Node)
         }
         case AnimationNodeType_Reference:
         {
-            DisableAnimationNode(Node->Reference);
+            if (Node->Reference != ToNode)
+            {
+                DisableAnimationNode(Node->Reference);
+            }
 
             break;
         }
@@ -489,8 +493,7 @@ AllowTransition(animation_graph *Graph, const char *NodeName)
     return Result;
 }
 
-// todo(continue): how to transition from reference node?
-internal void
+dummy_internal void
 TransitionToNode(animation_graph *Graph, const char *NodeName)
 {
     if (AllowTransition(Graph, NodeName))
@@ -505,24 +508,8 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
                 animation_node *ToNode = Transition->To;
                 Graph->Active = ToNode;
 
-                // todo:
-                if (FromNode->Type == AnimationNodeType_Reference && FromNode->Reference == ToNode)
-                {
-                    FromNode->Weight = 0.f;
-                    ToNode->Weight = 1.f;
-
-                    for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < FromNode->AdditiveAnimationCount; ++AdditiveAnimationIndex)
-                    {
-                        additive_animation *Additive = FromNode->AdditiveAnimations + AdditiveAnimationIndex;
-                        Additive->Animation.Time = 0.f;
-                    }
-                }
-                else
-                {
-                    DisableAnimationNode(FromNode);
-                    EnableAnimationNode(ToNode);
-                }
-                //
+                DisableAnimationNode(FromNode, ToNode);
+                EnableAnimationNode(ToNode);
 
                 break;
             }
@@ -548,7 +535,7 @@ TransitionToNode(animation_graph *Graph, const char *NodeName)
     }
 }
 
-internal void
+dummy_internal void
 AnimationStatePerFrameUpdate(animation_state *AnimationState, f32 Delta)
 {
     AnimationState->PrevTime = AnimationState->Time;
@@ -567,7 +554,7 @@ AnimationStatePerFrameUpdate(animation_state *AnimationState, f32 Delta)
     }
 }
 
-internal void
+dummy_internal void
 LinearLerpBlend(blend_space_1d *BlendSpace)
 {
     Assert(BlendSpace->ValueCount > 1);
@@ -607,7 +594,7 @@ LinearLerpBlend(blend_space_1d *BlendSpace)
     BlendValueTo->Weight = t;
 }
 
-internal void
+dummy_internal void
 AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 Delta)
 {
     // Clearing weights first
@@ -647,10 +634,10 @@ AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 Delta)
     }
 }
 
-internal void AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta);
-internal void AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta);
+dummy_internal void AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta);
+dummy_internal void AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta);
 
-internal void
+dummy_internal void
 AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
 {
     //Assert(Node->Weight > 0.f);
@@ -686,7 +673,7 @@ AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
     }
 }
 
-internal void
+dummy_internal void
 AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta)
 {
     AnimationMixerPerFrameUpdate(&Graph->Mixer, Delta);
@@ -702,7 +689,7 @@ AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta)
     }
 }
 
-internal animation_clip *
+dummy_internal animation_clip *
 GetAnimationClip(model *Model, const char *ClipName)
 {
     animation_clip *Result = 0;
@@ -881,39 +868,7 @@ GetAnimationNode(animation_graph *Graph, const char *NodeName)
     return Result;
 }
 
-#if 0
-// todo:
-inline animation_node *
-GetAnimationNodeDeep(animation_graph *Graph, const char *NodeName)
-{
-    animation_node *Result = 0;
-
-    for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
-    {
-        animation_node *Node = Graph->Nodes + NodeIndex;
-
-        if (StringEquals(Node->Name, NodeName))
-        {
-            Result = Node;
-            break;
-        }
-
-        if (Node->Type == AnimationNodeType_Graph)
-        {
-            Result = GetAnimationNodeDeep(Node->Graph, NodeName);
-
-            if (Result)
-            {
-                break;
-            }
-        }
-    }
-
-    return Result;
-}
-#endif
-
-internal void
+dummy_internal void
 BuildAnimationGraph(animation_graph *Root, animation_graph *Graph, animation_graph_asset *Asset, model *Model, u32 EntityId, game_event_list *EventList, memory_arena *Arena)
 {
     Graph->NodeCount = Asset->NodeCount;
@@ -1048,10 +1003,10 @@ BuildAnimationGraph(animation_graph *Root, animation_graph *Graph, animation_gra
     Graph->EventList = EventList;
 }
 
-internal u32 GetActiveAnimationCount(animation_graph *Graph);
-internal void GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight);
+dummy_internal u32 GetActiveAnimationCount(animation_graph *Graph);
+dummy_internal void GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight);
 
-internal u32
+dummy_internal u32
 GetActiveAnimationCount(animation_node *Node, f32 Weight = 0.f)
 {
     f32 NodeWeight = Max(Node->Weight, Weight);
@@ -1083,7 +1038,6 @@ GetActiveAnimationCount(animation_node *Node, f32 Weight = 0.f)
         }
         case AnimationNodeType_Reference:
         {
-            // todo (continue): problems during crossfade (should mark nodes that are already taken?)
             Result += GetActiveAnimationCount(Node->Reference, 1.f);
 
             break;
@@ -1100,7 +1054,7 @@ GetActiveAnimationCount(animation_node *Node, f32 Weight = 0.f)
     return Result;
 }
 
-internal u32
+dummy_internal u32
 GetActiveAnimationCount(animation_graph *Graph)
 {
     u32 Result = 0;
@@ -1118,7 +1072,7 @@ GetActiveAnimationCount(animation_graph *Graph)
     return Result;
 }
 
-internal void
+dummy_internal void
 GetActiveAnimations(animation_node *Node, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight, f32 NodeWeight = 0.f)
 {
     f32 NodeWeightToUse = Max(Node->Weight, NodeWeight);
@@ -1176,7 +1130,7 @@ GetActiveAnimations(animation_node *Node, animation_state **ActiveAnimations, u3
     }
 }
 
-internal void
+dummy_internal void
 GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight = 1.f)
 {
     for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
@@ -1190,7 +1144,7 @@ GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, 
     }
 }
 
-internal void
+dummy_internal void
 CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_arena *Arena)
 {
     u32 ActiveAnimationCount = GetActiveAnimationCount(Graph);
@@ -1205,6 +1159,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
         u32 ActiveAnimationIndex = 0;
         GetActiveAnimations(Graph, ActiveAnimations, ActiveAnimationIndex);
         
+#if 1
         // Checking weights (not necessary)
         f32 TotalWeight = 0.f;
         for (u32 ActiveAnimationIndex = 0; ActiveAnimationIndex < ActiveAnimationCount; ++ActiveAnimationIndex)
@@ -1217,17 +1172,14 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
             }
         }
         Assert(NearlyEqual(TotalWeight, 1.f));
-        {
-            u32 ActiveAnimationIndex = 0;
-            u32 ActiveAnimationCount = GetActiveAnimationCount(Graph);
-            GetActiveAnimations(Graph, ActiveAnimations, ActiveAnimationIndex);
-        }
-        //
+#endif
         
         // Creating skeleton pose for each input clip
         for (u32 SkeletonPoseIndex = 0; SkeletonPoseIndex < ActiveAnimationCount; ++SkeletonPoseIndex)
         {
             skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex;
+            animation_state *Animation = ActiveAnimations[SkeletonPoseIndex];
+
             SkeletonPose->Skeleton = DestPose->Skeleton;
             SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, DestPose->Skeleton->JointCount, transform);
 
@@ -1236,10 +1188,47 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
                 transform *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
                 transform *SkeletonLocalJointPose = DestPose->LocalJointPoses + JointIndex;
 
-                // todo(continue): why is this matters? why it's not changed in AnimateSkeletonPose?
+                // todo(continue):
+#if 1
                 LocalJointPose->Rotation = quat(0.f, 0.f, 0.f, 1.f);
                 LocalJointPose->Translation = vec3(0.f);
                 LocalJointPose->Scale = vec3(1.f);
+#else
+                *LocalJointPose = *SkeletonLocalJointPose;
+#endif
+
+#if 0
+                switch (Animation->BlendMode)
+                {
+                    case BlendMode_Normal:
+                    {
+                        if (JointIndex == 0)
+                        {
+                            LocalJointPose->Rotation = quat(0.f, 0.f, 0.f, 1.f);
+                            LocalJointPose->Translation = vec3(0.f);
+                            LocalJointPose->Scale = vec3(1.f);
+                        }
+                        else
+                        {
+                            *LocalJointPose = *SkeletonLocalJointPose;
+                        }
+                        
+                        break;
+                    }
+                    case BlendMode_Additive:
+                    {
+                        LocalJointPose->Rotation = quat(0.f, 0.f, 0.f, 1.f);
+                        LocalJointPose->Translation = vec3(0.f);
+                        LocalJointPose->Scale = vec3(1.f);
+                        break;
+                    }
+                    default:
+                    {
+                        Assert(!"Invalid blend mode");
+                        break;
+                    }
+                }
+#endif
             }
         }
 
@@ -1295,7 +1284,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
     }
 }
 
-internal void
+dummy_internal void
 UpdateGlobalJointPoses(skeleton_pose *Pose)
 {
     for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
@@ -1308,7 +1297,7 @@ UpdateGlobalJointPoses(skeleton_pose *Pose)
     }
 }
 
-internal void
+dummy_internal void
 UpdateSkinningMatrices(skinning_data *Skinning)
 {
     skeleton *Skeleton = Skinning->Pose->Skeleton;
@@ -1323,7 +1312,7 @@ UpdateSkinningMatrices(skinning_data *Skinning)
     }
 }
 
-internal void
+dummy_internal void
 AnimatorPerFrameUpdate(animator *Animator, animation_graph *Animation, void *Params, f32 Delta)
 {
     animator_controller *Controller = HashTableLookup(&Animator->Controllers, Animation->Animator);

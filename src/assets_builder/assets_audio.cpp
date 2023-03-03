@@ -1,3 +1,6 @@
+#include "dummy.h"
+#include "assets.h"
+
 // Little-Endian
 #define RIFF 'FFIR'
 #define WAVE 'EVAW'
@@ -81,7 +84,7 @@ HasNextChunk(wave_chunk_iterator *Iterator)
     return Result;
 }
 
-internal void
+dummy_internal void
 LoadAudioAsset(const char *FilePath, audio_clip_asset *Asset)
 {
     FILE *File = fopen(FilePath, "rb");
@@ -125,7 +128,7 @@ LoadAudioAsset(const char *FilePath, audio_clip_asset *Asset)
     }
 }
 
-internal void
+dummy_internal void
 WriteAudioAsset(const char *FilePath, audio_clip_asset *Asset)
 {
     FILE *AssetFile = fopen(FilePath, "wb");
@@ -171,7 +174,7 @@ WriteAudioAsset(const char *FilePath, audio_clip_asset *Asset)
 }
 
 // For testing
-internal void
+dummy_internal void
 ReadAudioAsset(const char *FilePath, audio_clip_asset *Asset, audio_clip_asset *OriginalAsset)
 {
     FILE *AssetFile = fopen(FilePath, "rb");
@@ -191,7 +194,7 @@ ReadAudioAsset(const char *FilePath, audio_clip_asset *Asset, audio_clip_asset *
     fclose(AssetFile);
 }
 
-internal void
+dummy_internal void
 ProcessAudioAsset(const char *FilePath, const char *OutputPath)
 {
     audio_clip_asset Asset;

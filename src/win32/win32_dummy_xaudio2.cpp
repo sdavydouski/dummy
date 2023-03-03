@@ -1,89 +1,6 @@
 #include <xaudio2.h>
-
-#define SPEAKER_MONO             (SPEAKER_FRONT_CENTER)
-#define SPEAKER_STEREO           (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT)
-#define SPEAKER_2POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY)
-#define SPEAKER_SURROUND         (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_BACK_CENTER)
-#define SPEAKER_QUAD             (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT)
-#define SPEAKER_4POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT)
-#define SPEAKER_5POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT)
-#define SPEAKER_7POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | SPEAKER_FRONT_LEFT_OF_CENTER | SPEAKER_FRONT_RIGHT_OF_CENTER)
-#define SPEAKER_5POINT1_SURROUND (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_SIDE_LEFT | SPEAKER_SIDE_RIGHT)
-#define SPEAKER_7POINT1_SURROUND (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | SPEAKER_SIDE_LEFT  | SPEAKER_SIDE_RIGHT)
-
-class XAudio2EngineCallback : public IXAudio2EngineCallback
-{
-public:
-    HANDLE CriticalError;
-
-    XAudio2EngineCallback() : CriticalError(CreateEvent(NULL, FALSE, FALSE, NULL)) {}
-    ~XAudio2EngineCallback()
-    {
-        CloseHandle(CriticalError);
-    }
-
-    void OnProcessingPassEnd() {}
-    void OnProcessingPassStart() {}
-    void OnCriticalError(HRESULT Error)
-    {
-        SetEvent(CriticalError);
-    }
-};
-
-class XAudio2VoiceCallback : public IXAudio2VoiceCallback
-{
-public:
-    HANDLE BufferEnd;
-
-    XAudio2VoiceCallback() : BufferEnd(CreateEvent(NULL, FALSE, FALSE, NULL)) {}
-    ~XAudio2VoiceCallback()
-    {
-        CloseHandle(BufferEnd);
-    }
-
-    void OnBufferEnd(void *pBufferContext)
-    {
-        SetEvent(BufferEnd);
-    }
-
-    void OnStreamEnd() { }
-    void OnVoiceProcessingPassEnd() {}
-    void OnVoiceProcessingPassStart(UINT32 SamplesRequired) {}
-    void OnBufferStart(void *pBufferContext) {}
-    void OnLoopEnd(void *pBufferContext) {}
-    void OnVoiceError(void *pBufferContext, HRESULT Error) {}
-};
-
-struct xaudio2_source_voice
-{
-    IXAudio2SourceVoice *SourceVoice;
-    XAUDIO2_VOICE_DETAILS VoiceDetails;
-
-    u32 Key;
-    xaudio2_source_voice *Prev;
-    xaudio2_source_voice *Next;
-};
-
-struct xaudio2_state
-{
-    IXAudio2 *XAudio2;
-    IXAudio2MasteringVoice *MasterVoice;
-    XAUDIO2_VOICE_DETAILS MasterVoiceDetails;
-    DWORD MasterVoiceChannelMask;
-
-    XAudio2EngineCallback EngineCallback;
-    XAudio2VoiceCallback VoiceCallback;
-
-    hash_table<xaudio2_source_voice> Voices;
-    xaudio2_source_voice VoiceSentinel;
-
-    vec3 ListenerPosition;
-    vec3 ListenerDirection;
-
-    platform_profiler *Profiler;
-    memory_arena Arena;
-    stream Stream;
-};
+#include "dummy.h"
+#include "win32_dummy_xaudio2.h"
 
 f32 inline
 XAudio2CalculateVoiceVolume(vec3 EmitterPosition, vec3 ListenerPosition)
@@ -115,7 +32,7 @@ XAudio2CalculateVoiceVolume(vec3 EmitterPosition, vec3 ListenerPosition)
     return Volume;
 }
 
-void inline
+inline void
 XAudio2CalculateOutputMatrix(xaudio2_state *State, vec3 EmitterPosition, vec3 ListenerPosition, vec3 ListenerDirection, f32 *OutputMatrix)
 {
     vec2 n = Normalize(PerpendicularCW(vec2(ListenerDirection.x, ListenerDirection.z)));
@@ -172,7 +89,7 @@ XAudio2CalculateOutputMatrix(xaudio2_state *State, vec3 EmitterPosition, vec3 Li
     }
 }
 
-void internal
+dummy_internal void
 Win32InitXAudio2(xaudio2_state *State)
 {
     CoInitializeEx(0, COINIT_MULTITHREADED);
@@ -203,7 +120,7 @@ Win32InitXAudio2(xaudio2_state *State)
     State->Voices.Values = PushArray(&State->Arena, State->Voices.Count, xaudio2_source_voice);
 }
 
-void internal
+dummy_internal void
 XAudio2DestroySourceVoice(xaudio2_source_voice *Voice)
 {
     // todo: could block! - https://learn.microsoft.com/en-us/windows/win32/api/xaudio2/nf-xaudio2-ixaudio2voice-destroyvoice
@@ -211,7 +128,7 @@ XAudio2DestroySourceVoice(xaudio2_source_voice *Voice)
     Voice->SourceVoice = 0;
 }
 
-internal void
+dummy_internal void
 XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 {
     PROFILE(State->Profiler, "XAudio2ProcessAudioCommands");

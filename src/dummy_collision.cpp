@@ -1,3 +1,5 @@
+#include "dummy.h"
+
 inline bounds
 CreateAABBMinMax(vec3 Min, vec3 Max)
 {
@@ -45,7 +47,7 @@ Union(bounds a, bounds b)
     return Result;
 }
 
-internal bounds
+dummy_internal bounds
 CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
 {
     vec3 vMin = Vertices[0];
@@ -179,7 +181,7 @@ UpdateColliderPosition(collider *Collider, vec3 BasePosition)
     }
 }
 
-internal bounds
+dummy_internal bounds
 GetEntityBounds(game_entity *Entity)
 {
     bounds Result = {};
@@ -219,7 +221,7 @@ GetEntityBounds(game_entity *Entity)
     return Result;
 }
 
-internal bool32
+dummy_internal bool32
 TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *mtvDistance)
 {
     // [Separating Axis Theorem]
@@ -267,7 +269,7 @@ TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *
     return true;
 }
 
-internal bool32
+dummy_internal bool32
 TestAABBAABB(bounds a, bounds b, vec3 *mtv)
 {
     // [Minimum Translation Vector]
@@ -319,7 +321,7 @@ TestAABBAABB(bounds a, bounds b)
     return true;
 }
 
-internal bool32
+dummy_internal bool32
 TestAABBPlane(bounds Box, plane Plane)
 {
     vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
@@ -437,7 +439,7 @@ bool32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
     return true;     
 }
 
-internal f32
+dummy_internal f32
 GetAABBPlaneMinDistance(bounds Box, plane Plane)
 {
     vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
@@ -451,7 +453,7 @@ GetAABBPlaneMinDistance(bounds Box, plane Plane)
     return Result;
 }
 
-internal bool32
+dummy_internal bool32
 TestColliders(collider *a, collider *b, vec3 *mtv)
 {
     if (a->Type == Collider_Box && b->Type == Collider_Box)

@@ -1,62 +1,12 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <filesystem>
-#include <stdlib.h>
-
-#define STB_RECT_PACK_IMPLEMENTATION
-#include "stb_rect_pack.h"
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
-#include <assimp/cimport.h>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
-#include "rapidjson/document.h"
-
-#include "meshoptimizer.h"
-#include "indexgenerator.cpp"
-#include "vcacheoptimizer.cpp"
-#include "overdrawoptimizer.cpp"
-#include "vfetchoptimizer.cpp"
-#include "simplifier.cpp"
-
-#include "dummy_defs.h"
-#include "dummy_math.h"
-#include "dummy_string.h"
-#include "dummy_container.h"
-#include "dummy_memory.h"
-#include "dummy_events.h"
-#include "dummy_collision.h"
-#include "dummy_animation.h"
-#include "dummy_assets.h"
-
-using std::string;
-
-template <typename TValue>
-using dynamic_array = std::vector<TValue>;
-
-template <typename TKey, typename TValue>
-using hashtable = std::unordered_map<TKey, TValue>;
-
-using namespace rapidjson;
-namespace fs = std::filesystem;
-
-#include "assets_utils.cpp"
 #include "assets_models.cpp"
 #include "assets_fonts.cpp"
 #include "assets_audio.cpp"
 #include "assets_textures.cpp"
 
 // https://nilooy.github.io/character-animation-combiner/
-internal void
+dummy_internal void
 BuildModelAssets(const char *InputPath, const char *OutputPath)
 {
     for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
@@ -84,7 +34,7 @@ BuildModelAssets(const char *InputPath, const char *OutputPath)
     }
 }
 
-internal void
+dummy_internal void
 BuildFontAssets(const char *InputPath, const char *OutputPath)
 {
     for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
@@ -100,7 +50,7 @@ BuildFontAssets(const char *InputPath, const char *OutputPath)
     }
 }
 
-internal void
+dummy_internal void
 BuildAudioAssets(const char *InputPath, const char *OutputPath)
 {
     for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
@@ -116,7 +66,7 @@ BuildAudioAssets(const char *InputPath, const char *OutputPath)
     }
 }
 
-internal void
+dummy_internal void
 BuildTextureAssets(const char *InputPath, const char *OutputPath)
 {
     for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
@@ -134,12 +84,12 @@ BuildTextureAssets(const char *InputPath, const char *OutputPath)
 
 i32 main(i32 ArgCount, char **Args)
 {
-#if 0
+#if 1
     BuildModelAssets("assets/models", "game/assets");
     BuildFontAssets("assets/fonts", "game/assets");
     BuildAudioAssets("assets/audio", "game/assets");
     BuildTextureAssets("assets/textures", "game/assets");
 #else
-    ProcessModelAsset("assets\\models\\ybot\\yBot.fbx", "assets\\models\\ybot\\animation_graph_new.json", "assets\\models\\ybot\\clips", "game\\assets\\ybot.model.asset");
+    ProcessModelAsset("assets\\models\\ybot\\yBot.fbx", "assets\\models\\ybot\\animation_graph.json", "assets\\models\\ybot\\clips", "game\\assets\\ybot.model.asset");
 #endif
 }

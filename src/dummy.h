@@ -1,5 +1,26 @@
 #pragma once
 
+#include "dummy_defs.h"
+#include "dummy_math.h"
+#include "dummy_random.h"
+#include "dummy_memory.h"
+#include "dummy_string.h"
+#include "dummy_container.h"
+#include "dummy_input.h"
+#include "dummy_events.h"
+#include "dummy_collision.h"
+#include "dummy_physics.h"
+#include "dummy_visibility.h"
+#include "dummy_spatial.h"
+#include "dummy_process.h"
+#include "dummy_animation.h"
+#include "dummy_assets.h"
+#include "dummy_audio.h"
+#include "dummy_renderer.h"
+#include "dummy_text.h"
+#include "dummy_job.h"
+#include "dummy_platform.h"
+
 #define MAX_ENTITY_NAME 256
 
 enum game_mode

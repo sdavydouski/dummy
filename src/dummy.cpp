@@ -1,26 +1,4 @@
-﻿#include "dummy_defs.h"
-#include "dummy_math.h"
-#include "dummy_random.h"
-#include "dummy_memory.h"
-#include "dummy_string.h"
-#include "dummy_container.h"
-#include "dummy_input.h"
-#include "dummy_events.h"
-#include "dummy_collision.h"
-#include "dummy_physics.h"
-#include "dummy_visibility.h"
-#include "dummy_spatial.h"
-#include "dummy_process.h"
-#include "dummy_animation.h"
-#include "dummy_assets.h"
-#include "dummy_audio.h"
-#include "dummy_renderer.h"
-#include "dummy_text.h"
-#include "dummy_job.h"
-#include "dummy_platform.h"
-#include "dummy.h"
-
-//#define sid u32
+﻿//#define sid u32
 //#define SID(String) Hash(String)
 
 #include "dummy_assets.cpp"
@@ -250,7 +228,7 @@ InitModel(game_state *State, model_asset *Asset, model *Model, const char *Name,
     }
 }
 
-internal void
+dummy_internal void
 InitFont(game_state *State, font_asset *Asset, font *Font, const char *Name, render_commands *RenderCommands)
 {
     CopyString(Name, Font->Key);
@@ -269,7 +247,7 @@ InitFont(game_state *State, font_asset *Asset, font *Font, const char *Name, ren
     AddTexture(RenderCommands, Font->TextureId, &Font->TextureAtlas);
 }
 
-internal void
+dummy_internal void
 InitTexture(game_state *State, texture_asset *Asset, texture *Texture, const char *Name, render_commands *RenderCommands)
 {
     CopyString(Name, Texture->Key);
@@ -279,7 +257,7 @@ InitTexture(game_state *State, texture_asset *Asset, texture *Texture, const cha
     AddTexture(RenderCommands, Texture->TextureId, &Texture->Bitmap);
 }
 
-internal void
+dummy_internal void
 InitAudioClip(audio_clip_asset *Asset, audio_clip *AudioClip, const char *Name)
 {
     CopyString(Name, AudioClip->Key);
@@ -343,21 +321,14 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
     return Result;
 }
 
-internal entity_render_batch *
+dummy_internal entity_render_batch *
 GetRenderBatch(game_state *State, char *Name)
 {
     entity_render_batch *Result = HashTableLookup(&State->EntityBatches, Name);
     return Result;
 }
 
-inline bool32
-IsRenderBatchEmpty(entity_render_batch *Batch)
-{
-    bool32 Result = StringEquals(Batch->Key, "");
-    return Result;
-}
-
-internal void
+dummy_internal void
 LoadModelAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset ModelAssets[] = {
@@ -365,7 +336,7 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "ybot",
             "assets\\ybot.model.asset"
         },
-#if 0
+#if 1
         {
             "pelegrini",
             "assets\\pelegrini.model.asset"
@@ -451,7 +422,7 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
     }
 }
 
-internal void
+dummy_internal void
 LoadFontAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset FontAssets[] = {
@@ -481,7 +452,7 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform)
     }
 }
 
-internal void
+dummy_internal void
 LoadAudioClipAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset AudioClipAssets[] = {
@@ -527,7 +498,7 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform)
     }
 }
 
-internal void
+dummy_internal void
 LoadTextureAssets(game_assets *Assets, platform_api *Platform)
 {
     game_asset TextureAssets[] = {
@@ -562,7 +533,7 @@ LoadTextureAssets(game_assets *Assets, platform_api *Platform)
     }
 }
 
-internal void
+dummy_internal void
 LoadGameAssets(game_assets *Assets, platform_api *Platform)
 {
     // todo:
@@ -587,7 +558,7 @@ JOB_ENTRY_POINT(LoadGameAssetsJob)
     LoadGameAssets(Data->Assets, Data->Platform);
 }
 
-internal void
+dummy_internal void
 InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
     // Using a prime table size in conjunction with quadratic probing tends to yield 
@@ -606,7 +577,7 @@ InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *Ren
     }
 }
 
-internal void
+dummy_internal void
 InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
     // todo:
@@ -624,7 +595,7 @@ InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *Rend
     }
 }
 
-internal void
+dummy_internal void
 InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
     // todo:
@@ -642,7 +613,7 @@ InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *R
     }
 }
 
-internal void
+dummy_internal void
 InitGameAudioClipAssets(game_assets *Assets)
 {
     // todo:
@@ -660,7 +631,7 @@ InitGameAudioClipAssets(game_assets *Assets)
     }
 }
 
-internal void
+dummy_internal void
 DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *Pose)
 {
     font *Font = GetFontAsset(&State->Assets, "Consolas");
@@ -689,7 +660,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
     }
 }
 
-internal void
+dummy_internal void
 RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
 {
     // Draw edges
@@ -733,7 +704,7 @@ RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
 #endif
 }
 
-internal void
+dummy_internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
     // Pivot point
@@ -767,7 +738,7 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     DrawBox(RenderCommands, Transform, Color);
 }
 
-internal void
+dummy_internal void
 RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
     if (HasJoints(Entity->Model->Skeleton))
@@ -787,7 +758,7 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
     }
 }
 
-internal void
+dummy_internal void
 RenderEntityBatch(render_commands *RenderCommands, game_state *State, entity_render_batch *Batch)
 {
     if (Batch->Skinning)
@@ -1138,7 +1109,7 @@ GameLogic2ClericAnimatorParams(game_state *State, game_entity *Entity, cleric_an
     }
 }
 
-internal void *
+dummy_internal void *
 GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
 {
     void *Params = 0;
@@ -1199,7 +1170,7 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
     return Params;
 }
 
-internal void
+dummy_internal void
 AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 Delta)
 {
     Assert(Entity->Skinning);
@@ -1228,7 +1199,7 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
     UpdateSkinningMatrices(Entity->Skinning);
 }
 
-internal void
+dummy_internal void
 SwapParticles(particle *A, particle *B)
 {
     particle Temp = *A;
@@ -1236,7 +1207,7 @@ SwapParticles(particle *A, particle *B)
     *B = Temp;
 }
 
-internal i32
+dummy_internal i32
 PartitionParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
 {
     i32 MiddleIndex = (HighIndex + LowIndex) / 2;
@@ -1268,7 +1239,7 @@ PartitionParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
     }
 }
 
-internal void
+dummy_internal void
 QuickSortParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
 {
     if (LowIndex >= 0 && HighIndex >= 0 && LowIndex < HighIndex)
@@ -1280,7 +1251,7 @@ QuickSortParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
     }
 }
 
-internal void
+dummy_internal void
 SortParticles(u32 ParticleCount, particle *Particles)
 {
     QuickSortParticles(Particles, 0, ParticleCount - 1);
@@ -1556,7 +1527,7 @@ JOB_ENTRY_POINT(ProcessParticlesJob)
     SortParticles(ParticleEmitter->ParticleCount, ParticleEmitter->Particles);
 }
 
-internal void
+dummy_internal void
 InitGameMenu(game_state *State)
 {
     State->MenuQuads[0].Corner = 0;
@@ -1627,7 +1598,7 @@ Entity2Spec(game_entity *Entity, game_entity_spec *Spec)
     }
 }
 
-internal void
+dummy_internal void
 Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, render_commands *RenderCommands, memory_arena *Arena)
 {
     CopyString(Spec->Name, Entity->Name);
@@ -1676,7 +1647,7 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
     }
 }
 
-internal void
+dummy_internal void
 SaveWorldAreaToFile(game_state *State, char *FileName,  platform_api *Platform, memory_arena *Arena)
 {
     u32 HeaderSize = sizeof(game_file_header);
@@ -1711,7 +1682,7 @@ SaveWorldAreaToFile(game_state *State, char *FileName,  platform_api *Platform, 
     Platform->WriteFile(FileName, Buffer, BufferSize);
 }
 
-internal void
+dummy_internal void
 LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
 {
     read_file_result Result = Platform->ReadFile(FileName, TempArena, ReadBinary());
@@ -1749,7 +1720,7 @@ LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform,
     Out(&State->Stream, "Loaded %s (Entity Count: %d)", FileName, EntityCount);
 }
 
-internal void
+dummy_internal void
 LoadEntityFromFile(game_state *State,  game_entity *Entity, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
 {
     read_file_result Result = Platform->ReadFile(FileName, TempArena, ReadBinary());
@@ -1771,7 +1742,7 @@ LoadEntityFromFile(game_state *State,  game_entity *Entity, char *FileName, plat
     AddToSpacialGrid(&Area->SpatialGrid, Entity);
 }
 
-internal void
+dummy_internal void
 SaveEntityToFile(game_entity *Entity, char *FileName, platform_api *Platform, memory_arena *Arena)
 {
     u32 HeaderSize = sizeof(game_file_header);
@@ -1794,7 +1765,7 @@ SaveEntityToFile(game_entity *Entity, char *FileName, platform_api *Platform, me
     Platform->WriteFile(FileName, Buffer, BufferSize);
 }
 
-internal void
+dummy_internal void
 ClearWorldArea(game_state *State)
 {
     State->NextFreeEntityId = 0;
@@ -1895,7 +1866,7 @@ DLLExport GAME_INIT(GameInit)
     State->TargetMove = vec2(0.f);
 
     State->Options = {};
-    State->Options.ShowBoundingVolumes = true;
+    State->Options.ShowBoundingVolumes = false;
     State->Options.ShowGrid = true;
 
     InitGameMenu(State);
@@ -2354,6 +2325,7 @@ DLLExport GAME_RENDER(GameRender)
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
+#if 1
         //
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
@@ -2361,6 +2333,7 @@ DLLExport GAME_RENDER(GameRender)
             State->Player = (State->WorldArea.Entities + 0);
         }
         //
+#endif
 
 #if 0
         game_entity *ParentEntity = CreateGameEntity(State);
@@ -2574,7 +2547,7 @@ DLLExport GAME_RENDER(GameRender)
                                 // Grouping entities into render batches
                                 entity_render_batch *Batch = GetRenderBatch(State, Entity->Model->Key);
 
-                                if (IsRenderBatchEmpty(Batch))
+                                if (IsSlotEmpty(Batch->Key))
                                 {
                                     InitRenderBatch(Batch, Entity, Area->MaxEntityCount, &State->TransientArena);
                                 }

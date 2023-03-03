@@ -1,11 +1,11 @@
-﻿#define IMGUI_DEFINE_MATH_OPERATORS
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui.cpp>
 #include <imgui_draw.cpp>
 #include <imgui_widgets.cpp>
 #include <imgui_tables.cpp>
-#include <imgui_demo.cpp>
+//#include <imgui_demo.cpp>
 
 #include <ImGuizmo.h>
 #include <ImGuizmo.cpp>
@@ -25,8 +25,13 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_opengl3.cpp>
 
+#include "dummy.h"
+#include "win32_dummy.h"
+#include "win32_dummy_opengl.h"
+#include "win32_dummy_xaudio2.h"
+#include "win32_dummy_editor.h"
+
 #include "dummy.cpp"
-#include "dummy_editor.h"
 
 inline animation_node *
 GetTransitionDestinationNode(animation_transition *Transition)
@@ -78,7 +83,7 @@ GetTransitionId(animation_node *Node, animation_transition *Transition)
     char Buffer[256];
     FormatString(Buffer, "Node: %s; From:%s; To:%s", Node->Name, From->Name, To->Name);
 
-    i32 Result = (i32) Hash(Buffer);
+    i32 Result = (i32)Hash(Buffer);
 
     return Result;
 }
@@ -86,11 +91,11 @@ GetTransitionId(animation_node *Node, animation_transition *Transition)
 inline ImVec4
 NormalizeRGB(u8 r, u8 g, u8 b)
 {
-    ImVec4 Result = ImVec4((f32) r / 255.f, (f32) g / 255.f, (f32) b / 255.f, 1.f);
+    ImVec4 Result = ImVec4((f32)r / 255.f, (f32)g / 255.f, (f32)b / 255.f, 1.f);
     return Result;
 }
 
-internal void
+dummy_internal void
 EditorSetupStyle()
 {
     ImGuiStyle &Style = ImGui::GetStyle();
@@ -171,7 +176,7 @@ EditorSetupStyle()
     Style.TabRounding = 0.0f;
 }
 
-internal void
+dummy_internal void
 Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
 {
     // Setup Dear ImGui context
@@ -200,7 +205,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     InitStack(&EditorState->AnimationGraphStack, 10, &EditorState->Arena);
 }
 
-internal void
+dummy_internal void
 Win32ShutdownEditor()
 {
     ImGui_ImplOpenGL3_Shutdown();
@@ -223,7 +228,7 @@ GetAnimationNodeTypeName(animation_node_type NodeType)
     }
 }
 
-internal void
+dummy_internal void
 EditorRenderModelInfo(model *Model)
 {
     if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen))
@@ -259,7 +264,7 @@ EditorRenderModelInfo(model *Model)
     }
 }
 
-internal void
+dummy_internal void
 EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
 {
     if (ImGui::CollapsingHeader("Materials", ImGuiTreeNodeFlags_DefaultOpen))
@@ -315,7 +320,7 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
                         ImGui::Text("Diffuse Texture");
 
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
-                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
                     }
@@ -324,7 +329,7 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
                         ImGui::Text("Specular Texture");
 
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
-                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
                     }
@@ -333,7 +338,7 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
                         ImGui::Text("Shininess Texture");
 
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
-                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
                     }
@@ -342,7 +347,7 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
                         ImGui::Text("Normal Texture");
 
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
-                        ImGui::Image((ImTextureID)(umm) Texture->Handle, ImVec2(256, 256));
+                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
                     }
@@ -356,7 +361,7 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
     }
 }
 
-internal void
+dummy_internal void
 EditorRenderColliderInfo(collider *Collider)
 {
     if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen))
@@ -370,7 +375,7 @@ EditorRenderColliderInfo(collider *Collider)
     }
 }
 
-internal void
+dummy_internal void
 EditorRenderRigidBodyInfo(rigid_body *Body)
 {
     if (ImGui::CollapsingHeader("Rigid Body", ImGuiTreeNodeFlags_DefaultOpen))
@@ -383,7 +388,7 @@ EditorRenderRigidBodyInfo(rigid_body *Body)
     }
 }
 
-internal void
+dummy_internal void
 EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState)
 {
     ImGui::Begin("Animation Graph");
@@ -456,7 +461,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
                         FormatString(TableHeader, "%s (%.2f s)", Value->AnimationState.Clip->Name, Value->AnimationState.Time);
                         ImGui::TableSetupColumn(TableHeader);
                     }
-                    
+
                     ImGui::TableHeadersRow();
 
                     for (u32 ValueIndex = 0; ValueIndex < BlendSpace->ValueCount; ++ValueIndex)
@@ -470,19 +475,33 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
                     ImGui::EndTable();
                 }
 
+                for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+                {
+                    additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
+
+                    ImGui::Text("%s (%.2f s)", Additive->Animation.Clip->Name, Additive->Animation.Time);
+                }
+
                 ImGui::EndChild();
 
                 break;
             }
             case AnimationNodeType_Reference:
             {
-                ImGui::BeginChild("ReferenceChild", ImVec2(400.f, 60.f));
+                ImGui::BeginChild("ReferenceChild", ImVec2(500.f, 120.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
                 animation_node *Reference = Node->Reference;
 
                 ImGui::Text("Reference->%s", Reference->Name);
+
+                for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+                {
+                    additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
+
+                    ImGui::Text("%s (%.2f s)", Additive->Animation.Clip->Name, Additive->Animation.Time);
+                }
 
                 ImGui::EndChild();
 
@@ -497,6 +516,13 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
                 if (ImGui::Button("Open Graph", ImVec2(-F32_MIN, 0.f)))
                 {
                     Push(&EditorState->AnimationGraphStack, Node->Graph);
+                }
+
+                for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+                {
+                    additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
+
+                    ImGui::Text("%s (%.2f s)", Additive->Animation.Clip->Name, Additive->Animation.Time);
                 }
 
                 ImGui::EndChild();
@@ -539,7 +565,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
             ImNodes::PopColorStyle();
             ImNodes::PopColorStyle();
         }
-}
+    }
 
     i32 LinkId = 0;;
     for (u32 NodeIndex = 0; NodeIndex < Graph->NodeCount; ++NodeIndex)
@@ -561,7 +587,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
     ImGui::End();
 }
 
-internal void
+dummy_internal void
 EditorRenderPointLightInfo(point_light *PointLight)
 {
     if (ImGui::CollapsingHeader("PointLight", ImGuiTreeNodeFlags_DefaultOpen))
@@ -575,12 +601,12 @@ EditorRenderPointLightInfo(point_light *PointLight)
     }
 }
 
-internal void
+dummy_internal void
 EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 {
     if (ImGui::CollapsingHeader("ParticleEmitter", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::InputInt("Spawn##ParticleEmitter", (i32 *) &ParticleEmitter->ParticlesSpawn);
+        ImGui::InputInt("Spawn##ParticleEmitter", (i32 *)&ParticleEmitter->ParticlesSpawn);
         ImGui::InputFloat2("Size##ParticleEmitter", ParticleEmitter->Size.Elements);
         ImGui::ColorEdit4("Color##ParticleEmitter", ParticleEmitter->Color.Elements, ImGuiColorEditFlags_AlphaBar);
 
@@ -588,7 +614,7 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
     }
 }
 
-internal void
+dummy_internal void
 EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platform_api *Platform, opengl_state *RendererState, game_entity *Entity, render_commands *RenderCommands)
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
@@ -691,7 +717,7 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
 
             if (Entity->Animation)
             {
-                ImGui::Checkbox("Root Motion##RigidBody", (bool *) &RigidBody->RootMotionEnabled);
+                ImGui::Checkbox("Root Motion##RigidBody", (bool *)&RigidBody->RootMotionEnabled);
             }
 
             if (ImGui::Button("Add##RigidBody"))
@@ -764,8 +790,8 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
         {
             particle_emitter_spec *ParticleEmitter = &EditorState->AddEntity.ParticleEmitter;
 
-            ImGui::InputInt("Count##ParticleEmitter", (i32 *) &ParticleEmitter->ParticleCount);
-            ImGui::InputInt("Spawn##ParticleEmitter", (i32 *) &ParticleEmitter->ParticlesSpawn);
+            ImGui::InputInt("Count##ParticleEmitter", (i32 *)&ParticleEmitter->ParticleCount);
+            ImGui::InputInt("Spawn##ParticleEmitter", (i32 *)&ParticleEmitter->ParticlesSpawn);
             ImGui::InputFloat2("Size##ParticleEmitter", ParticleEmitter->Size.Elements);
             ImGui::ColorEdit4("Color##ParticleEmitter", ParticleEmitter->Color.Elements, ImGuiColorEditFlags_AlphaBar);
 
@@ -833,7 +859,7 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
     }
 }
 
-internal void
+dummy_internal void
 EditorAddEntity(editor_state *EditorState, game_state *GameState)
 {
     game_entity *Entity = CreateGameEntity(GameState);
@@ -847,7 +873,7 @@ EditorAddEntity(editor_state *EditorState, game_state *GameState)
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
 }
 
-internal void
+dummy_internal void
 EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_commands *RenderCommands, game_entity *SourceEntity)
 {
     game_entity *DestEntity = CreateGameEntity(GameState);
@@ -859,7 +885,7 @@ EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_comman
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
 }
 
-internal void
+dummy_internal void
 EditorLogWindow(editor_state *EditorState, u32 StreamCount, stream **Streams, const char **StreamNames)
 {
     ImGui::Begin("Output");
@@ -887,7 +913,7 @@ EditorLogWindow(editor_state *EditorState, u32 StreamCount, stream **Streams, co
     bool Copy = ImGui::Button("Copy##Log");
     ImGui::SameLine();
 
-    ImGui::Checkbox("Auto-scroll##Log", (bool *) &EditorState->LogAutoScroll);
+    ImGui::Checkbox("Auto-scroll##Log", (bool *)&EditorState->LogAutoScroll);
     ImGui::SameLine();
 
     EditorState->LogFilter.Draw("Filter##Log", -100.0f);
@@ -936,14 +962,14 @@ EditorLogWindow(editor_state *EditorState, u32 StreamCount, stream **Streams, co
     ImGui::End();
 }
 
-internal void
+dummy_internal void
 Win32RenderEditor(
     editor_state *EditorState,
-    win32_platform_state *PlatformState, 
-    opengl_state *RendererState, 
-    xaudio2_state *AudioState, 
-    game_memory *GameMemory, 
-    game_parameters *GameParameters, 
+    win32_platform_state *PlatformState,
+    opengl_state *RendererState,
+    xaudio2_state *AudioState,
+    game_memory *GameMemory,
+    game_parameters *GameParameters,
     game_input *GameInput
 )
 {
@@ -1055,32 +1081,32 @@ Win32RenderEditor(
             {
                 if (ImGui::BeginMenu("Graphics"))
                 {
-                    ImGui::ColorEdit3("Dir Color", (f32 *) &GameState->DirectionalLight.Color);
-                    ImGui::SliderFloat3("Dir Direction", (f32 *) &GameState->DirectionalLight.Direction, -1.f, 1.f);
+                    ImGui::ColorEdit3("Dir Color", (f32 *)&GameState->DirectionalLight.Color);
+                    ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
                     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
                     if (ImGui::BeginTable("Graphics toggles", 2))
                     {
                         ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Camera", (bool *) &GameState->Options.ShowCamera);
+                        ImGui::Checkbox("Show Camera", (bool *)&GameState->Options.ShowCamera);
                         ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Cascades", (bool *) &GameState->Options.ShowCascades);
+                        ImGui::Checkbox("Show Cascades", (bool *)&GameState->Options.ShowCascades);
 
                         ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Bounding Volumes", (bool *) &GameState->Options.ShowBoundingVolumes);
+                        ImGui::Checkbox("Show Bounding Volumes", (bool *)&GameState->Options.ShowBoundingVolumes);
                         ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Skeletons", (bool *) &GameState->Options.ShowSkeletons);
+                        ImGui::Checkbox("Show Skeletons", (bool *)&GameState->Options.ShowSkeletons);
 
                         ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Grid", (bool *) &GameState->Options.ShowGrid);
-
-                        ImGui::TableNextRow();
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("FullScreen", (bool *) &PlatformState->IsFullScreen);
+                        ImGui::Checkbox("Show Grid", (bool *)&GameState->Options.ShowGrid);
 
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
-                        ImGui::Checkbox("VSync", (bool *) &PlatformState->VSync);
+                        ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
+
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
 
                         ImGui::EndTable();
                     }
@@ -1314,9 +1340,9 @@ Win32RenderEditor(
 
             char Text[256];
             FormatString(
-                Text, 
+                Text,
                 "%.3f ms/frame (%.1f FPS) | Time scale: %.2f",
-                GameParameters->UnscaledDelta * 1000.f, 
+                GameParameters->UnscaledDelta * 1000.f,
                 1.f / GameParameters->UnscaledDelta,
                 GameParameters->TimeScale
             );
@@ -1332,7 +1358,7 @@ Win32RenderEditor(
     }
 
     stream *Streams[] = { &GameState->Stream, &PlatformState->Stream, &RendererState->Stream, &AudioState->Stream };
-    const char *StreamNames[] = { "Game", "Platform", "Renderer", "Audio"};
+    const char *StreamNames[] = { "Game", "Platform", "Renderer", "Audio" };
 
     Assert(ArrayCount(Streams) == ArrayCount(StreamNames));
 
@@ -1365,7 +1391,7 @@ Win32RenderEditor(
 
 #if 1
     ImGui::Begin("Scene");
-    
+
     if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, -FLT_MIN)))
     {
         for (u32 EntityIndex = 0; EntityIndex < GameState->WorldArea.EntityCount; ++EntityIndex)

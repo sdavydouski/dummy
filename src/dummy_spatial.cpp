@@ -1,3 +1,5 @@
+#include "dummy.h"
+
 inline void
 InitSpatialHashGrid(spatial_hash_grid *Grid, bounds Bounds, vec3 CellSize, memory_arena *Arena)
 {
@@ -52,7 +54,7 @@ GetGridCell(spatial_hash_grid *Grid, i32 CellX, i32 CellY, i32 CellZ)
     return Cell;
 }
 
-internal void
+dummy_internal void
 AddToSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
     bounds EntityBounds = GetEntityBounds(Entity);
@@ -80,7 +82,7 @@ AddToSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
     }
 }
 
-internal void
+dummy_internal void
 RemoveFromSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
     ivec3 MinCellCoords = Entity->GridCellCoords[0];
@@ -115,7 +117,7 @@ RemoveFromSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
     }
 }
 
-internal void
+dummy_internal void
 UpdateInSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
     bounds EntityBounds = GetEntityBounds(Entity);
@@ -130,7 +132,7 @@ UpdateInSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
     }
 }
 
-internal u32
+dummy_internal u32
 FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, bounds Bounds, game_entity **Entities, u32 MaxEntityCount)
 {
     bounds EntityBounds = GetEntityBounds(Entity);

@@ -1,4 +1,6 @@
-internal u32
+#include "dummy.h"
+
+dummy_internal u32
 ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, memory_arena *Arena)
 {
     model_asset_animation_graph_header *AnimationGraphHeader = GET_DATA_AT(Buffer, Offset, model_asset_animation_graph_header);
@@ -76,7 +78,7 @@ ReadAnimationGraph(animation_graph_asset *GraphAsset, u64 Offset, u8 *Buffer, me
     return TotalPrevNodeSize;
 }
 
-internal model_asset *
+dummy_internal model_asset *
 LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     model_asset *Result = PushType(Arena, model_asset);
@@ -295,7 +297,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     return Result;
 }
 
-internal font_asset *
+dummy_internal font_asset *
 LoadFontAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     font_asset *Result = PushType(Arena, font_asset);
@@ -330,7 +332,7 @@ LoadFontAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     return Result;
 }
 
-internal audio_clip_asset *
+dummy_internal audio_clip_asset *
 LoadAudioClipAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     audio_clip_asset *Result = PushType(Arena, audio_clip_asset);
@@ -354,7 +356,7 @@ LoadAudioClipAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     return Result;
 }
 
-internal texture_asset *
+dummy_internal texture_asset *
 LoadTextureAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
 {
     texture_asset *Result = PushType(Arena, texture_asset);
@@ -386,7 +388,7 @@ LoadTextureAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     return Result;
 }
 
-internal model *
+dummy_internal model *
 GetModelAsset(game_assets *Assets, const char *Name)
 {
     Assert(Assets->State != GameAssetsState_Unloaded)
@@ -395,21 +397,21 @@ GetModelAsset(game_assets *Assets, const char *Name)
     return Result;
 }
 
-internal font *
+dummy_internal font *
 GetFontAsset(game_assets *Assets, const char *Name)
 {
     font *Result = HashTableLookup(&Assets->Fonts, (char *) Name);
     return Result;
 }
 
-internal audio_clip *
+dummy_internal audio_clip *
 GetAudioClipAsset(game_assets *Assets, const char *Name)
 {
     audio_clip *Result = HashTableLookup(&Assets->AudioClips, (char *) Name);
     return Result;
 }
 
-internal texture *
+dummy_internal texture *
 GetTextureAsset(game_assets *Assets, const char *Name)
 {
     texture *Result = HashTableLookup(&Assets->Textures, (char *) Name);

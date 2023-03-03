@@ -1,3 +1,5 @@
+#include "dummy.h"
+
 // todo:
 struct bot_animator_params
 {
@@ -226,7 +228,7 @@ struct paladin_animator_params
     bool32 StrongAttack;
 };
 
-internal void
+dummy_internal void
 PaladinActionIdlePerFrameUpdate(animation_graph *Graph, paladin_animator_params *Params, f32 Delta)
 {
     animation_node *Active = Graph->Active;

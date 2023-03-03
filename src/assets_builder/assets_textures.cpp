@@ -1,4 +1,7 @@
-internal void
+#include "dummy.h"
+#include "assets.h"
+
+dummy_internal void
 LoadTextureAsset(const char *FilePath, texture_asset *Asset)
 {
     if (stbi_is_hdr(FilePath))
@@ -13,7 +16,7 @@ LoadTextureAsset(const char *FilePath, texture_asset *Asset)
     }
 }
 
-internal void
+dummy_internal void
 WriteTextureAsset(const char *FilePath, texture_asset *Asset)
 {
     FILE *AssetFile = fopen(FilePath, "wb");
@@ -67,7 +70,7 @@ WriteTextureAsset(const char *FilePath, texture_asset *Asset)
     fclose(AssetFile);
 }
 
-internal void
+dummy_internal void
 ReadTextureAsset(const char *FilePath, texture_asset *Asset, texture_asset *OriginalAsset)
 {
     FILE *AssetFile = fopen(FilePath, "rb");
@@ -87,7 +90,7 @@ ReadTextureAsset(const char *FilePath, texture_asset *Asset, texture_asset *Orig
     fclose(AssetFile);
 }
 
-internal void
+dummy_internal void
 ProcessTextureAsset(const char *FilePath, const char *OutputPath)
 {
     texture_asset Asset;

@@ -3,27 +3,9 @@
 #include <xinput.h>
 #include <shobjidl.h>
 
-#include "dummy_defs.h"
-#include "dummy_math.h"
-#include "dummy_random.h"
-#include "dummy_memory.h"
-#include "dummy_string.h"
-#include "dummy_container.h"
-#include "dummy_events.h"
-#include "dummy_input.h"
-#include "dummy_collision.h"
-#include "dummy_physics.h"
-#include "dummy_visibility.h"
-#include "dummy_spatial.h"
-#include "dummy_process.h"
-#include "dummy_animation.h"
-#include "dummy_assets.h"
-#include "dummy_audio.h"
-#include "dummy_renderer.h"
-#include "dummy_text.h"
-#include "dummy_job.h"
-#include "dummy_platform.h"
+#include "dummy.h"
 #include "win32_dummy.h"
+#include "win32_resource.h"
 
 inline FILETIME
 Win32GetLastWriteTime(char *FileName)
@@ -41,12 +23,11 @@ Win32GetLastWriteTime(char *FileName)
 
 #include "win32_dummy_xaudio2.cpp"
 #include "win32_dummy_opengl.cpp"
-#include "dummy_opengl.cpp"
 
 #define EDITOR_UI 1
 
 #if EDITOR_UI
-#include "dummy_editor.cpp"
+#include "win32_dummy_editor.cpp"
 
 #define EDITOR_UI_INIT(...) Win32InitEditor(__VA_ARGS__)
 #define EDITOR_UI_RENDER(...) Win32RenderEditor(__VA_ARGS__)
@@ -152,7 +133,7 @@ GetWin32PlatformState(HWND WindowHandle) {
     return Result;
 }
 
-internal void
+dummy_internal void
 Win32GetFullPathToEXEDirectory(wchar *EXEDirectoryFullPath)
 {
     wchar EXEFullPath[WIN32_FILE_PATH];
@@ -199,7 +180,7 @@ Win32HideMouseCursor()
     }
 }
 
-internal PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
+dummy_internal PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
@@ -214,7 +195,7 @@ internal PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
     return Result;
 }
 
-internal win32_game_code
+dummy_internal win32_game_code
 Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
 {
     win32_game_code Result = {};
@@ -275,7 +256,7 @@ GetCursorClipRect(win32_platform_state *PlatformState)
     return Rect;
 }
 
-internal void
+dummy_internal void
 Win32ToggleFullScreen(win32_platform_state *PlatformState)
 {
     // https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
@@ -431,7 +412,7 @@ Win32ProcessXboxControllerTrigger(BYTE Trigger)
     return Result;
 }
 
-internal void
+dummy_internal void
 Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_input_xbox_controller *XboxControllerInput)
 {
     BeginProcessXboxControllerInput(XboxControllerInput);
@@ -480,7 +461,7 @@ Win32ProcessXboxControllerInput(win32_platform_state *PlatformState, platform_in
     EndProcessXboxControllerInput(XboxControllerInput);
 }
 
-internal void
+dummy_internal void
 Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform_state *PlatformState, MSG *WindowMessage)
 {
     u32 VKeyCode = (u32)WindowMessage->wParam;
@@ -643,7 +624,7 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
     }
 }
 
-internal void
+dummy_internal void
 Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_keyboard *KeyboardInput, platform_input_mouse *MouseInput)
 {
     BeginProcessKeyboardInput(KeyboardInput);
@@ -746,7 +727,7 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
     EndProcessKeyboardInput(KeyboardInput);
 }
 
-internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
+dummy_internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
@@ -782,7 +763,7 @@ internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
     }
 }
 
-internal PLATFORM_READ_FILE(Win32ReadFile)
+dummy_internal PLATFORM_READ_FILE(Win32ReadFile)
 {
     read_file_result Result = {};
 
@@ -832,7 +813,7 @@ internal PLATFORM_READ_FILE(Win32ReadFile)
     return Result;
 }
 
-internal PLATFORM_WRITE_FILE(Win32WriteFile)
+dummy_internal PLATFORM_WRITE_FILE(Win32WriteFile)
 {
     bool32 Result = false;
 
@@ -862,19 +843,19 @@ internal PLATFORM_WRITE_FILE(Win32WriteFile)
     return Result;
 }
 
-internal PLATFORM_ENTER_CRITICAL_SECTION(Win32EnterCriticalSection)
+dummy_internal PLATFORM_ENTER_CRITICAL_SECTION(Win32EnterCriticalSection)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
     EnterCriticalSection(&PlatformState->CriticalSection);
 }
 
-internal PLATFORM_LEAVE_CRITICAL_SECTION(Win32LeaveCriticalSection)
+dummy_internal PLATFORM_LEAVE_CRITICAL_SECTION(Win32LeaveCriticalSection)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
     LeaveCriticalSection(&PlatformState->CriticalSection);
 }
 
-internal PLATFORM_KICK_JOB(Win32KickJob)
+dummy_internal PLATFORM_KICK_JOB(Win32KickJob)
 {
     CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
 
@@ -891,7 +872,7 @@ internal PLATFORM_KICK_JOB(Win32KickJob)
     LeaveCriticalSection(CriticalSection);
 }
 
-internal PLATFORM_KICK_JOBS(Win32KickJobs)
+dummy_internal PLATFORM_KICK_JOBS(Win32KickJobs)
 {
     CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
 
@@ -908,14 +889,14 @@ internal PLATFORM_KICK_JOBS(Win32KickJobs)
     LeaveCriticalSection(CriticalSection);
 }
 
-internal PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
+dummy_internal PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
 {
     Win32KickJob(JobQueue, Job);
 
     while (JobQueue->CurrentJobCount > 0) {}
 }
 
-internal PLATFORM_KICK_JOBS_AND_WAIT(Win32KickJobsAndWait)
+dummy_internal PLATFORM_KICK_JOBS_AND_WAIT(Win32KickJobsAndWait)
 {
     Win32KickJobs(JobQueue, JobCount, Jobs);
 
@@ -956,7 +937,7 @@ DWORD WINAPI WorkerThreadProc(LPVOID lpParam)
     return 0;
 }
 
-internal void
+dummy_internal void
 Win32MakeJobQueue(job_queue *JobQueue, u32 WorkerThreadCount, win32_job_queue_sync *JobQueueSync)
 {
     win32_worker_thread *WorkerThreads = Win32AllocateMemory<win32_worker_thread>(WorkerThreadCount);
@@ -1010,7 +991,7 @@ COMDLG_FILTERSPEC DialogFileTypes[] =
     { L"All", L"*.*"},
 };
 
-internal PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
+dummy_internal PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
 {
     IFileOpenDialog *pFileOpen;
 
@@ -1042,7 +1023,7 @@ internal PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
     }
 }
 
-internal PLATFORM_SAVE_FILE_DIALOG(Win32SaveFileDialog)
+dummy_internal PLATFORM_SAVE_FILE_DIALOG(Win32SaveFileDialog)
 {
     IFileSaveDialog *pFileSave;
 
@@ -1187,6 +1168,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     WindowClass.hInstance = hInstance;
     WindowClass.lpszClassName = L"Dummy Window Class";
     WindowClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
+    WindowClass.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON1));
     WindowClass.hbrBackground = CreateSolidBrush(RGB(0, 0, 0));
 
     RegisterClass(&WindowClass);

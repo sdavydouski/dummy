@@ -1,4 +1,6 @@
-internal game_process *
+#include "dummy.h"
+
+inline game_process *
 GetGameProcess(game_state *State, char *Name)
 {
     game_process *Result = HashTableLookup(&State->Processes, Name);
@@ -24,7 +26,7 @@ InitGameProcess(game_process *Process, char *ProcessName, game_process_on_update
     Process->OnUpdatePerFrame = OnUpdatePerFrame;
 }
 
-internal void
+dummy_internal void
 StartGameProcess_(game_state *State, const char *ProcessName, game_process_on_update *OnUpdatePerFrame)
 {
     game_process *Process = GetGameProcess(State, (char *)ProcessName);
@@ -36,7 +38,7 @@ StartGameProcess_(game_state *State, const char *ProcessName, game_process_on_up
     }
 }
 
-internal void
+dummy_internal void
 EndGameProcess(game_state *State, const char *ProcessName)
 {
     game_process *Process = GetGameProcess(State, (char *)ProcessName);

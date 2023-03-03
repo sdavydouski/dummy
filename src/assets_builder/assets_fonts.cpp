@@ -1,3 +1,11 @@
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "stb_rect_pack.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+
+#include "dummy.h"
+#include "assets.h"
+
 struct char_info
 {
     u32 CharacterIndex;
@@ -57,7 +65,7 @@ GetCharInfo(
     return Result;
 }
 
-internal void
+dummy_internal void
 LoadFontAsset(const char *FilePath, font_asset *FontAsset)
 {
     f32 FontHeight = 72.f;
@@ -220,7 +228,7 @@ LoadFontAsset(const char *FilePath, font_asset *FontAsset)
 #endif
 }
 
-internal void
+dummy_internal void
 WriteFontAsset(const char *FilePath, font_asset *Asset)
 {
     FILE *AssetFile = fopen(FilePath, "wb");
@@ -284,7 +292,7 @@ WriteFontAsset(const char *FilePath, font_asset *Asset)
 }
 
 // For testing
-internal void
+dummy_internal void
 ReadFontAsset(const char *FilePath, font_asset *Asset, font_asset *OriginalAsset)
 {
     FILE *AssetFile = fopen(FilePath, "rb");
@@ -310,7 +318,7 @@ ReadFontAsset(const char *FilePath, font_asset *Asset, font_asset *OriginalAsset
     fclose(AssetFile);
 }
 
-internal void
+dummy_internal void
 ProcessFontAsset(const char *FilePath, const char *OutputPath)
 {
     font_asset Asset;

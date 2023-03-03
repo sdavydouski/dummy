@@ -191,11 +191,22 @@ xcopy "$(SolutionDir)shaders" "$(SolutionDir)..\game\shaders" /s /e /y /i</Comma
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="win32_dummy.cpp" />
+    <None Include="win32_dummy_editor.cpp" />
     <None Include="win32_dummy_xaudio2.cpp" />
     <None Include="win32_dummy_opengl.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="win32_dummy_editor.h" />
+    <ClInclude Include="win32_dummy_opengl.h" />
+    <ClInclude Include="win32_dummy_xaudio2.h" />
+    <ClInclude Include="win32_resource.h" />
     <ClInclude Include="win32_dummy.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="win32_dummy.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\game\dummy.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

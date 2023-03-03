@@ -26,7 +26,7 @@
 #define OPENGL_SKYBOX_SHADER_ID 0x12
 #define OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID 0x13
 
-const char *OpenGLCommonShaders[] = 
+const char *OpenGLCommonShaders[] =
 {
     "shaders\\glsl\\common\\version.glsl",
     "shaders\\glsl\\common\\constants.glsl",
@@ -218,7 +218,7 @@ struct opengl_uniform_buffer_transform
 
     alignas(16) vec3 CameraPosition;
     alignas(16) vec3 CameraDirection;
-    
+
     f32 Time;
 };
 

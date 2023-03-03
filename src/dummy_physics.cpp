@@ -1,3 +1,5 @@
+#include "dummy.h"
+
 inline void
 SetRigidBodyMass(rigid_body *Body, f32 Mass)
 {
@@ -61,7 +63,7 @@ AddGravityForce(rigid_body *Body, vec3 Gravity)
     }
 }
 
-internal void
+dummy_internal void
 ResolveVelocity(rigid_body *Body, plane *Plane, f32 Duration, f32 Restitution)
 {
     vec3 ContactNormal = Plane->Normal;
@@ -96,7 +98,7 @@ ResolveVelocity(rigid_body *Body, plane *Plane, f32 Duration, f32 Restitution)
     }
 }
 
-internal void
+dummy_internal void
 ResolveVelocity(rigid_body *Body, rigid_body *OtherBody, f32 Duration, f32 Restitution)
 {
     vec3 ContactNormal = Normalize(Body->Position - OtherBody->Position);

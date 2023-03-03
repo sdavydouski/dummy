@@ -7,7 +7,6 @@
     <ClInclude Include="dummy_mat4.h" />
     <ClInclude Include="dummy_math.h" />
     <ClInclude Include="dummy_memory.h" />
-    <ClInclude Include="dummy_opengl.h" />
     <ClInclude Include="dummy_physics.h" />
     <ClInclude Include="dummy_platform.h" />
     <ClInclude Include="dummy_quat.h" />
@@ -27,12 +26,10 @@
     <ClInclude Include="dummy_spatial.h" />
     <ClInclude Include="dummy_audio.h" />
     <ClInclude Include="dummy_events.h" />
-    <ClInclude Include="dummy_editor.h" />
     <ClInclude Include="dummy_text.h" />
     <ClInclude Include="dummy_process.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="dummy_opengl.cpp" />
     <None Include="dummy_renderer.cpp" />
     <None Include="dummy_animation.cpp" />
     <None Include="dummy_collision.cpp" />
@@ -44,7 +41,6 @@
     <None Include="dummy_audio.cpp" />
     <None Include="dummy_events.cpp" />
     <None Include="dummy_assets.cpp" />
-    <None Include="dummy_editor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

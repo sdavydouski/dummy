@@ -1,269 +1,242 @@
 {
-   "version":"0.0.1",
-   "animator":"Bot",
-   "graph":{
-      "name":"Bot animation graph",
-      "entry":"StandingIdle",
-      "nodes":[
-         {
-            "name":"StandingIdle",
-            "type":"Animation",
-            "clip":"standing_idle",
-            "looping":true,
-            "root_motion":true,
-            "transitions":[
-               {
-                  "to":"ActionIdle",
-                  "type":"transitional",
-                  "through":"StandingIdleToActionIdle",
-                  "blend":0.2
-               },
-               {
-                  "to":"Dancing",
-                  "type":"crossfade",
-                  "blend":0.2
-               }
-            ]
-         },
-         {
-            "name":"ActionIdle",
-            "type":"Graph",
-            "entry":"ActionIdle_0",
-            "transitions":[
-               {
-                  "to":"StandingIdle",
-                  "type":"transitional",
-                  "through":"ActionIdleToStandingIdle",
-                  "blend":0.2
-               },
-               {
-                  "to":"Moving",
-                  "type":"crossfade",
-                  "blend":0.2
-               },
-               {
-                  "to":"Jump_Start",
-                  "type":"crossfade",
-                  "blend":0.1
-               },
-               {
-                  "to":"Jump_Idle",
-                  "type":"crossfade",
-                  "blend":0.1
-               },
-               {
-                  "to":"Dancing",
-                  "type":"crossfade",
-                  "blend":0.2
-               }
-            ],
-            "nodes":[
-               {
-                  "name":"ActionIdle_0",
-                  "type":"Animation",
-                  "clip":"action_idle_0",
-                  "looping":true,
-                  "root_motion":true,
-                  "transitions":[
+    "version": "0.0.1",
+    "animator": "Bot",
+    "graph":
+    {
+        "name": "Bot animation graph",
+        "entry": "StandingIdle",
+        "nodes": [
+            {
+                "name": "StandingIdle",
+                "type": "Animation",
+                "clip": "standing_idle",
+                "looping": true,
+                "root_motion": true,
+                "transitions": [
+                    {
+                        "to": "Locomotion",
+                        "type": "transitional",
+                        "through": "StandingIdleToLocomotion",
+                        "blend": 0.2
+                    }
+                ],
+                "additive": [
+                    {
+                        "target": "agree",
+                        "base": "agree",
+                        "base_keyframe_index": 0,
+                        "looping": true
+                    },
                      {
-                        "to":"ActionIdle_1",
-                        "type":"crossfade",
-                        "blend":0.2
-                     },
-                     {
-                        "to":"ActionIdle_2",
-                        "type":"crossfade",
-                        "blend":0.2
-                     }
-                  ]
-               },
-               {
-                  "name":"ActionIdle_1",
-                  "type":"Animation",
-                  "clip":"action_idle_1",
-                  "looping":false,
-                  "root_motion":true,
-                  "transitions":[
-                     {
-                        "to":"ActionIdle_0",
-                        "type":"crossfade",
-                        "blend":0.2
-                     }
-                  ]
-               },
-               {
-                  "name":"ActionIdle_2",
-                  "type":"Animation",
-                  "clip":"action_idle_2",
-                  "looping":false,
-                  "root_motion":true,
-                  "transitions":[
-                     {
-                        "to":"ActionIdle_0",
-                        "type":"crossfade",
-                        "blend":0.2
-                     }
-                  ]
-               }
-            ]
-         },
-         {
-            "name":"Jump_Start",
-            "type":"Animation",
-            "clip":"jumping_up",
-            "looping":false,
-            "root_motion":false,
-            "transitions":[
-               {
-                  "to":"Jump_Idle",
-                  "type":"crossfade",
-                  "blend":0.2
-               }
-            ]
-         },
-         {
-            "name":"Jump_Idle",
-            "type":"Animation",
-            "clip":"falling_idle",
-            "looping":true,
-            "root_motion":false,
-            "transitions":[
-               {
-                  "to":"Jump_Land",
-                  "type":"crossfade",
-                  "blend":0.1
-               },
-               {
-                  "to":"ActionIdle",
-                  "type":"crossfade",
-                  "blend":0.2
-               },
-               {
-                  "to":"Moving",
-                  "type":"crossfade",
-                  "blend":0.2
-               }
-            ]
-         },
-         {
-            "name":"Jump_Land",
-            "type":"Animation",
-            "clip":"falling_to_landing",
-            "looping":false,
-            "root_motion":false,
-            "transitions":[
-               {
-                  "to":"ActionIdle",
-                  "type":"crossfade",
-                  "blend":0.1
-               },
-               {
-                  "to":"Moving",
-                  "type":"crossfade",
-                  "blend":0.1
-               },
-               {
-                  "to":"Jump_Start",
-                  "type":"crossfade",
-                  "blend":0.1
-               }
-            ]
-         },
-         {
-            "name":"Moving",
-            "type":"Blendspace",
-            "values":[
-               {
-                  "value":0,
-                  "clip":"idle_blend",
-                  "root_motion":true
-               },
-               {
-                  "value":0.5,
-                  "clip":"walking_blend_root_motion",
-                  "root_motion":true
-               },
-               {
-                  "value":1,
-                  "clip":"running_blend_root_motion",
-                  "root_motion":true
-               },
-               {
-                  "value":2,
-                  "clip":"sprinting_blend_root_motion",
-                  "root_motion":true
-               }
-            ],
-            "transitions":[
-               {
-                  "to":"ActionIdle",
-                  "type":"crossfade",
-                  "blend":0.2
-               },
-               {
-                  "to":"Jump_Start",
-                  "type":"crossfade",
-                  "blend":0.1
-               },
-               {
-                  "to":"Jump_Idle",
-                  "type":"crossfade",
-                  "blend":0.1
-               }
-            ]
-         },
-         {
-            "name":"Dancing",
-            "type":"Animation",
-            "clip":"samba_dance",
-            "looping":true,
-            "root_motion":true,
-            "transitions":[
-               {
-                  "to":"ActionIdle",
-                  "type":"crossfade",
-                  "blend":0.2
-               }
-            ]
-         },
-         {
-            "name":"StandingIdleToActionIdle",
-            "type":"Animation",
-            "clip":"standing_idle_to_action_idle",
-            "looping":false,
-            "root_motion":true,
-            "transitions":[
-               {
-                 "to": "ActionIdle",
-                 "type": "crossfade",
-                 "blend": 0.1
-               },
-              {
-                 "to": "StandingIdle",
-                 "type": "crossfade",
-                 "blend": 0.4
-              }
-            ]
-         },
-         {
-            "name":"ActionIdleToStandingIdle",
-            "type":"Animation",
-            "clip":"action_idle_to_standing_idle",
-            "looping":false,
-            "root_motion":true,
-            "transitions": [
-              {
-                 "to": "StandingIdle",
-                 "type": "crossfade",
-                 "blend": 0.1
-              },
-              {
-                 "to": "ActionIdle",
-                 "type": "crossfade",
-                 "blend": 0.4
-              }
-          ]
-         }
-      ]
-   }
+                        "target": "shake_fist",
+                        "base": "shake_fist",
+                        "base_keyframe_index": 0,
+                        "looping": true
+                    }
+                ]
+            },
+
+            {
+                "name": "Locomotion",
+                "type": "Graph",
+                "entry": "ActionIdle",
+                "transitions": [
+                    {
+                        "to": "StandingIdle",
+                        "type": "transitional",
+                        "through": "LocomotionToStandingIdle",
+                        "blend": 0.2
+                    },
+                    {
+                        "to": "Jump_Start",
+                        "type": "crossfade",
+                        "blend": 0.1
+                    },
+                    {
+                        "to": "Jump_Idle",
+                        "type": "crossfade",
+                        "blend": 0.1
+                    }
+                ],
+                "nodes": [
+                    {
+                        "name": "ActionIdle",
+                        "type": "Graph",
+                        "entry": "ActionIdle_0",
+                        "transitions": [
+                            {
+                                "to": "Moving",
+                                "type": "crossfade",
+                                "blend": 0.2
+                            }
+                        ],
+                        "nodes": [
+                            {
+                                "name": "ActionIdle_0",
+                                "type": "Animation",
+                                "clip": "action_idle_0",
+                                "looping": true,
+                                "root_motion": true,
+                                "transitions": [
+                                    {
+                                        "to": "ActionIdle_1",
+                                        "type": "crossfade",
+                                        "blend": 0.2
+                                    },
+                                    {
+                                        "to": "ActionIdle_2",
+                                        "type": "crossfade",
+                                        "blend": 0.2
+                                    }
+                                ]
+                            },
+                            {
+                                "name": "ActionIdle_1",
+                                "type": "Animation",
+                                "clip": "action_idle_1",
+                                "looping": false,
+                                "root_motion": true,
+                                "transitions": [
+                                    {
+                                        "to": "ActionIdle_0",
+                                        "type": "crossfade",
+                                        "blend": 0.2
+                                    }
+                                ]
+                            },
+                            {
+                                "name": "ActionIdle_2",
+                                "type": "Animation",
+                                "clip": "action_idle_2",
+                                "looping": false,
+                                "root_motion": true,
+                                "transitions": [
+                                    {
+                                        "to": "ActionIdle_0",
+                                        "type": "crossfade",
+                                        "blend": 0.2
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Moving",
+                        "type": "Blendspace",
+                        "values": [
+                            {
+                                "value": 0,
+                                "clip": "idle_blend",
+                                "root_motion": true
+                            },
+                            {
+                                "value": 0.5,
+                                "clip": "walking_blend_root_motion",
+                                "root_motion": true
+                            },
+                            {
+                                "value": 1,
+                                "clip": "running_blend_root_motion",
+                                "root_motion": true
+                            },
+                            {
+                                "value": 2,
+                                "clip": "sprinting_blend_root_motion",
+                                "root_motion": true
+                            }
+                        ],
+                        "transitions": [
+                            {
+                                "to": "ActionIdle",
+                                "type": "crossfade",
+                                "blend": 0.2
+                            }
+                        ]
+                    }
+                ]
+            },
+
+            {
+                "name": "StandingIdleToLocomotion",
+                "type": "Animation",
+                "clip": "standing_idle_to_action_idle",
+                "looping": false,
+                "root_motion": true,
+                "transitions": [
+                    {
+                        "to": "Locomotion",
+                        "type": "crossfade",
+                        "blend": 0.1
+                    }
+                ]
+            },
+            {
+                "name": "LocomotionToStandingIdle",
+                "type": "Animation",
+                "clip": "action_idle_to_standing_idle",
+                "looping": false,
+                "root_motion": true,
+                "transitions": [
+                    {
+                        "to": "StandingIdle",
+                        "type": "crossfade",
+                        "blend": 0.1
+                    }
+                ]
+            },
+
+            {
+                "name": "Jump_Start",
+                "type": "Animation",
+                "clip": "jumping_up",
+                "looping": false,
+                "root_motion": false,
+                "transitions": [
+                    {
+                        "to": "Jump_Idle",
+                        "type": "crossfade",
+                        "blend": 0.2
+                    }
+                ]
+            },
+            {
+                "name": "Jump_Idle",
+                "type": "Animation",
+                "clip": "falling_idle",
+                "looping": true,
+                "root_motion": false,
+                "transitions": [
+                    {
+                        "to": "Jump_Land",
+                        "type": "crossfade",
+                        "blend": 0.1
+                    }
+                ]
+            },
+            {
+                "name": "Jump_Land",
+                "type": "Reference",
+                "node": "Locomotion",
+                "transitions": [
+                    {
+                        "to": "Locomotion",
+                        "type": "immediate"
+                    },
+                    {
+                        "to": "Jump_Start",
+                        "type": "crossfade",
+                        "blend": 0.1
+                    }
+                ],
+                "additive": [
+                    {
+                        "target": "falling_to_landing",
+                        "base": "falling_to_landing",
+                        "base_keyframe_index": 22,
+                        "looping": false
+                    }
+                ]
+            }
+        ]
+    }
 }

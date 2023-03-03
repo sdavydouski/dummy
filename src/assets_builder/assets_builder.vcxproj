@@ -181,7 +181,9 @@
     <ClCompile Include="assets_builder.cpp" />
     <None Include="assets_fonts.cpp" />
     <None Include="assets_models.cpp" />
-    <None Include="assets_utils.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="assets.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

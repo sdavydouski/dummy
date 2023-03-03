@@ -58,7 +58,7 @@ CreateStream(memory_arena Arena)
 
 //#define Out(...) Out_((__FILE__, __LINE__, __VA_ARGS__)
 
-internal void
+dummy_internal void
 Out(stream *Dest, const char *Format, ...)
 {
     va_list Args;

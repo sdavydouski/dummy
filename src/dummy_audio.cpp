@@ -1,3 +1,5 @@
+#include "dummy.h"
+
 inline audio_command_header *
 PushAudioCommand_(audio_commands *Commands, u32 Size, audio_command_type Type)
 {

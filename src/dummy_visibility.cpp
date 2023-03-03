@@ -1,4 +1,6 @@
-internal void
+#include "dummy.h"
+
+dummy_internal void
 BuildFrustrumPolyhedron(game_camera *Camera, polyhedron *Polyhedron)
 {
     Polyhedron->VertexCount = 8;
@@ -82,7 +84,7 @@ BuildFrustrumPolyhedron(game_camera *Camera, polyhedron *Polyhedron)
     Face[1].EdgeIndex[3] = 11;
 }
 
-internal bool32
+dummy_internal bool32
 ClipPolyhedron(polyhedron *Polyhedron, plane Plane, polyhedron *Result)
 {
     f32 VertexLocations[MaxPolyhedronVertexCount] = {};
@@ -324,7 +326,7 @@ ClipPolyhedron(polyhedron *Polyhedron, plane Plane, polyhedron *Result)
     return true;
 }
 
-internal u32
+dummy_internal u32
 CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowPlanes)
 {
     u32 ShadowPlaneCount = 0;
@@ -379,7 +381,7 @@ CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowP
     return ShadowPlaneCount;
 }
 
-internal bool32
+dummy_internal bool32
 AxisAlignedBoxVisible(u32 PlaneCount, plane *Planes, bounds Box)
 {
     vec3 BoxCenter = GetAABBCenter(Box);

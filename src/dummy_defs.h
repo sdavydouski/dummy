@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include <float.h>
 
-#define internal static
-#define global static
-#define persist static
+#define dummy_internal static
+#define dummy_global static
+#define dummy_persist static
 
 #define DLLExport extern "C" __declspec(dllexport)
 

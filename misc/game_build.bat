@@ -1,6 +1,6 @@
 @echo off
 
-set compiler_flags=-MDd -nologo -Od -W3 -Zi -EHsc
+set compiler_flags=-MDd -nologo -Od -W3 -Zi -EHsc -std:c++20
 set linker_flags= -incremental:no -pdb:%random%_dummy.pdb
 set build_dir=".\build\x64\Debug\"
 set lock_file_name="dummy_lock.tmp"

@@ -277,7 +277,7 @@ EndProcessMouseInput(platform_input_mouse *MouseInput)
 
 }
 
-internal void
+dummy_internal void
 KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *GameInput)
 {
     f32 Move = 0.5f;
