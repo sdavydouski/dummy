@@ -424,7 +424,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
         {
             case AnimationNodeType_Clip:
             {
-                ImGui::BeginChild("ClipChild", ImVec2(400.f, 120.f));
+                ImGui::BeginChild("ClipChild", ImVec2(400.f, 200.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
@@ -437,6 +437,10 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
                     additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
 
                     ImGui::Text("%s (%.2f s)", Additive->Animation.Clip->Name, Additive->Animation.Time);
+
+                    char SliderFloatLabel[256];
+                    FormatString(SliderFloatLabel, "Weight##%s-%s", Node->Name, Additive->Animation.Clip->Name);
+                    ImGui::SliderFloat(SliderFloatLabel, &Additive->Weight, 0.f, 1.f);
                 }
 
                 ImGui::EndChild();
@@ -445,7 +449,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
             }
             case AnimationNodeType_BlendSpace:
             {
-                ImGui::BeginChild("BlendSpaceChild", ImVec2(1200.f, 120.f));
+                ImGui::BeginChild("BlendSpaceChild", ImVec2(1200.f, 180.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
@@ -488,7 +492,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
             }
             case AnimationNodeType_Reference:
             {
-                ImGui::BeginChild("ReferenceChild", ImVec2(500.f, 120.f));
+                ImGui::BeginChild("ReferenceChild", ImVec2(500.f, 200.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
@@ -501,6 +505,10 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
                     additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
 
                     ImGui::Text("%s (%.2f s)", Additive->Animation.Clip->Name, Additive->Animation.Time);
+
+                    char SliderFloatLabel[256];
+                    FormatString(SliderFloatLabel, "Weight##%s-%s", Node->Name, Additive->Animation.Clip->Name);
+                    ImGui::SliderFloat(SliderFloatLabel, &Additive->Weight, 0.f, 1.f);
                 }
 
                 ImGui::EndChild();

@@ -274,6 +274,8 @@ InitSkinningBuffer(game_state *State, skinning_data *Skinning, model *Model, mem
 {
     *Skinning = {};
 
+    Skinning->BindPose = Model->BindPose;
+
     Skinning->Pose = PushType(Arena, skeleton_pose);
     Skinning->Pose->Skeleton = Model->Skeleton;
     Skinning->Pose->LocalJointPoses = PushArray(Arena, Model->Skeleton->JointCount, transform);
@@ -646,7 +648,18 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
+
+        quat Rotation = LocalJointPose->Rotation;
+        vec3 Scale = LocalJointPose->Scale;
+
+        char RotationLabel[256];
+        FormatString(RotationLabel, "index: %d; rot: %.2f, %.2f, %.2f, %.2f", JointIndex, Rotation.x, Rotation.y, Rotation.z, Rotation.w);
+
+        char ScaleLabel[256];
+        FormatString(ScaleLabel, "index: %d; scale: %.2f, %.2f, %.2f", JointIndex, Scale.x, Scale.y, Scale.z);
+
         //DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.1f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+        DrawText(RenderCommands, RotationLabel, Font, Transform.Translation, 0.02f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -981,6 +994,7 @@ GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator
     Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
     Params->IsGrounded = Entity->IsGrounded;
     Params->Velocity = Entity->Body->Velocity;
+    Params->Acceleration = Entity->Body->Acceleration;
 
     Params->ToStateActionIdle = State->Player == Entity;
     Params->ToStateStandingIdle = !(State->Player == Entity);
@@ -1176,6 +1190,7 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
     Assert(Entity->Skinning);
 
     skeleton_pose *Pose = Entity->Skinning->Pose;
+    skeleton_pose *BindPose = Entity->Skinning->BindPose;
     transform *Root = GetRootLocalJointPose(Pose);
 
     if (Entity->Animation)
@@ -1184,7 +1199,7 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
 
         AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
         AnimationGraphPerFrameUpdate(Entity->Animation, Delta);
-        CalculateSkeletonPose(Entity->Animation, Pose, Arena);
+        CalculateSkeletonPose(Entity->Animation, BindPose, Pose, Arena);
 
         // Root Motion
         Entity->Animation->AccRootMotion.x += Pose->RootMotion.x;
@@ -1868,6 +1883,7 @@ DLLExport GAME_INIT(GameInit)
     State->Options = {};
     State->Options.ShowBoundingVolumes = false;
     State->Options.ShowGrid = true;
+    State->Options.ShowSkeletons = false;
 
     InitGameMenu(State);
 

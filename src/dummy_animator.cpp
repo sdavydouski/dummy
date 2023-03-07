@@ -1,5 +1,6 @@
 #include "dummy.h"
 
+// Bot Animator
 // todo:
 struct bot_animator_params
 {
@@ -8,6 +9,7 @@ struct bot_animator_params
     f32 MoveMagnitude;
     bool32 IsGrounded;
     vec3 Velocity;
+    vec3 Acceleration;
 
     bool32 ToStateIdle1;
     bool32 ToStateIdle2;
@@ -22,13 +24,94 @@ struct bot_animator_params
     bool32 ToStateActionIdleFromDancing;
 };
 
-// todo(continue): update this
+dummy_internal void
+BotLocomotionNode(animation_graph *Root, animation_graph *Locomotion, bot_animator_params *Params, f32 Delta)
+{
+    animation_node *LocomotionActive = Locomotion->Active;
+
+    if (Params->ToStateStandingIdle)
+    {
+        TransitionToNode(Root, "StandingIdle");
+    }
+
+    if (!Params->IsGrounded)
+    {
+        if (Params->Velocity.y > 0.f)
+        {
+            TransitionToNode(Root, "Jump_Start");
+        }
+        else
+        {
+            TransitionToNode(Root, "Jump_Idle");
+        }
+    }
+
+    if (StringEquals((LocomotionActive->Name), "ActionIdle"))
+    {
+        animation_graph *ActionIdleGraph = LocomotionActive->Graph;
+        animation_node *ActionIdleGraphActive = ActionIdleGraph->Active;
+
+        if (Params->MoveMagnitude > EPSILON)
+        {
+            TransitionToNode(Locomotion, "Moving");
+        }
+
+        if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_0"))
+        {
+            ActionIdleGraph->State.Time += Delta;
+
+            if (ActionIdleGraph->State.Time > Params->MaxTime)
+            {
+                ActionIdleGraph->State.Time = 0.f;
+
+                if (Params->ToStateActionIdle1)
+                {
+                    TransitionToNode(ActionIdleGraph, "ActionIdle_1");
+                }
+
+                if (Params->ToStateActionIdle2)
+                {
+                    TransitionToNode(ActionIdleGraph, "ActionIdle_2");
+                }
+            }
+        }
+        else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_1"))
+        {
+            if (AnimationClipFinished(ActionIdleGraphActive->Animation))
+            {
+                TransitionToNode(ActionIdleGraph, "ActionIdle_0");
+            }
+        }
+        else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_2"))
+        {
+            if (AnimationClipFinished(ActionIdleGraphActive->Animation))
+            {
+                TransitionToNode(ActionIdleGraph, "ActionIdle_0");
+            }
+        }
+        else
+        {
+            Assert(!"Invalid state");
+        }
+    }
+    else if (StringEquals(LocomotionActive->Name, "Moving"))
+    {
+        LocomotionActive->BlendSpace->Parameter = Params->Move;
+
+        if (Params->MoveMagnitude < EPSILON)
+        {
+            TransitionToNode(Locomotion, "ActionIdle");
+        }
+    }
+    else
+    {
+        Assert(!"Invalid state");
+    }
+}
+
 ANIMATOR_CONTROLLER(BotAnimatorController)
 {
     bot_animator_params *BotParams = (bot_animator_params *) Params;
-
-    //animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
-    //WalkingNode->BlendSpace->Parameter = BotParams->Move;
 
     animation_node *Active = Graph->Active;
 
@@ -41,83 +124,7 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
     }
     else if (StringEquals(Active->Name, "Locomotion"))
     {
-        animation_graph *LocomotionGraph = Active->Graph;
-        animation_node *LocomotionActive = LocomotionGraph->Active;
-
-        if (BotParams->ToStateStandingIdle)
-        {
-            TransitionToNode(Graph, "StandingIdle");
-        }
-
-        if (!BotParams->IsGrounded)
-        {
-            if (BotParams->Velocity.y > 0.f)
-            {
-                TransitionToNode(Graph, "Jump_Start");
-            }
-            else
-            {
-                TransitionToNode(Graph, "Jump_Idle");
-            }
-        }
-
-        if (StringEquals((LocomotionActive->Name), "ActionIdle"))
-        {
-            animation_graph *ActionIdleGraph = LocomotionActive->Graph;
-            animation_node *ActionIdleGraphActive = ActionIdleGraph->Active;
-
-            if (BotParams->MoveMagnitude > EPSILON)
-            {
-                TransitionToNode(LocomotionGraph, "Moving");
-            }
-
-            if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_0"))
-            {
-                ActionIdleGraph->State.Time += Delta;
-
-                if (ActionIdleGraph->State.Time > BotParams->MaxTime)
-                {
-                    ActionIdleGraph->State.Time = 0.f;
-
-                    if (BotParams->ToStateActionIdle1)
-                    {
-                        TransitionToNode(ActionIdleGraph, "ActionIdle_1");
-                    }
-
-                    if (BotParams->ToStateActionIdle2)
-                    {
-                        TransitionToNode(ActionIdleGraph, "ActionIdle_2");
-                    }
-                }
-            }
-            else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_1"))
-            {
-                if (AnimationClipFinished(ActionIdleGraphActive->Animation))
-                {
-                    TransitionToNode(ActionIdleGraph, "ActionIdle_0");
-                }
-            }
-            else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_2"))
-            {
-                if (AnimationClipFinished(ActionIdleGraphActive->Animation))
-                {
-                    TransitionToNode(ActionIdleGraph, "ActionIdle_0");
-                }
-            }
-            else
-            {
-                Assert(!"Invalid state");
-            }
-        }
-        else if (StringEquals(LocomotionActive->Name, "Moving"))
-        {
-            LocomotionActive->BlendSpace->Parameter = BotParams->Move;
-
-            if (BotParams->MoveMagnitude < EPSILON)
-            {
-                TransitionToNode(LocomotionGraph, "ActionIdle");
-            }
-        }
+        BotLocomotionNode(Graph, Active->Graph, BotParams, Delta);
     }
     else if (StringEquals(Active->Name, "Jump_Start"))
     {
@@ -135,48 +142,9 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
     }
     else if (StringEquals(Active->Name, "Jump_Land"))
     {
-#if 1
-        // todo: simulating Lomocotion node as well
-        animation_node *Locomotion = GetAnimationNode(Graph, "Locomotion");
-        animation_node *ActiveLocomotionNode = Locomotion->Graph->Active;
-        animation_node *Moving = GetAnimationNode(Locomotion->Graph, "Moving");
-        Moving->BlendSpace->Parameter = BotParams->Move;
+        BotLocomotionNode(Graph, Active->Reference->Graph, BotParams, Delta);
 
-        if (StringEquals(ActiveLocomotionNode->Name, "ActionIdle"))
-        {
-            if (BotParams->MoveMagnitude > EPSILON)
-            {
-                TransitionToNode(Locomotion->Graph, "Moving");
-            }
-        }
-        else if (StringEquals(ActiveLocomotionNode->Name, "Moving"))
-        {
-            if (BotParams->MoveMagnitude < EPSILON)
-            {
-                TransitionToNode(Locomotion->Graph, "ActionIdle");
-            }
-        }
-        //
-#endif
-
-        if (!BotParams->IsGrounded)
-        {
-            TransitionToNode(Graph, "Jump_Start");
-        }
-
-        bool32 AdditiveFinished = true;
-        for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Active->AdditiveAnimationCount; ++AdditiveAnimationIndex)
-        {
-            additive_animation *Additive = Active->AdditiveAnimations + AdditiveAnimationIndex;
-
-            if (!AnimationClipFinished(Additive->Animation))
-            {
-                AdditiveFinished = false;
-                break;
-            }
-        }
-
-        if (AdditiveFinished)
+        if (AdditiveAnimationsFinished(Active))
         {
             TransitionToNode(Graph, "Locomotion");
         }
@@ -284,6 +252,7 @@ PaladinActionIdlePerFrameUpdate(animation_graph *Graph, paladin_animator_params 
         Assert(!"Invalid state");
     }
 }
+//
 
 ANIMATOR_CONTROLLER(PaladinAnimatorController)
 {

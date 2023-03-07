@@ -141,6 +141,7 @@ struct additive_animation
     animation_clip *Base;
     u32 BaseKeyFrameIndex;
 
+    f32 Weight;
     animation_state Animation;
 };
 
@@ -184,6 +185,7 @@ struct animation_mixer
     animation_node *FadeOut;
 };
 
+// todo: remove?
 struct animation_graph_state
 {
     f32 Time;

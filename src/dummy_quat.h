@@ -135,12 +135,7 @@ IsFinite(quat q)
 inline quat
 Inverse(quat q)
 {
-    // todo:
-#if 0
-    quat Result = quat(-q.x, -q.y, -q.z, q.w);
-#else
     quat Result = quat(-q.x, -q.y, -q.z, q.w) / MagnitudeSquared(q);
-#endif
     return Result;
 }
 

@@ -84,7 +84,7 @@ BuildTextureAssets(const char *InputPath, const char *OutputPath)
 
 i32 main(i32 ArgCount, char **Args)
 {
-#if 1
+#if 0
     BuildModelAssets("assets/models", "game/assets");
     BuildFontAssets("assets/fonts", "game/assets");
     BuildAudioAssets("assets/audio", "game/assets");

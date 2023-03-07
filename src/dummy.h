@@ -21,6 +21,12 @@
 #include "dummy_job.h"
 #include "dummy_platform.h"
 
+void PublishEvent(game_event_list *EventList, const char *EventName, void *Params);
+void TransitionToNode(animation_graph *Graph, const char *NodeName);
+animation_node *GetAnimationNode(animation_graph *Graph, const char *NodeName);
+bool32 AnimationClipFinished(animation_state Animation);
+bool32 AdditiveAnimationsFinished(animation_node *Node);
+
 #define MAX_ENTITY_NAME 256
 
 enum game_mode

@@ -15,60 +15,40 @@ GetRootTranslationLocalJointPose(skeleton_pose *Pose)
 }
 
 inline transform
-Lerp(transform *From, f32 t, transform *To)
+Lerp(transform From, f32 t, transform To)
 {
     transform Result = {};
 
-    Result.Translation = Lerp(From->Translation, t, To->Translation);
-    Result.Rotation = Slerp(From->Rotation, t, To->Rotation);
-    Result.Scale = Lerp(From->Scale, t, To->Scale);
+    Result.Translation = Lerp(From.Translation, t, To.Translation);
+    Result.Rotation = Slerp(From.Rotation, t, To.Rotation);
+    Result.Scale = Lerp(From.Scale, t, To.Scale);
 
     Assert(IsFinite(Result));
 
     return Result;
 }
 
-// https://github.com/EpicGames/UnrealEngine/blob/cdaec5b33ea5d332e51eee4e4866495c90442122/Engine/Source/Runtime/Core/Public/Math/TransformNonVectorized.h#L898
 inline transform
 Accumulate(transform Transform, transform AdditiveTransform)
 {
     transform Result = {};
 
-#if 1
-    // Add ref pose relative animation to base animation, only if rotation is significant.
-    if (Square(AdditiveTransform.Rotation.w) < 1.f - Square(EPSILON))
-    {
-        Result.Rotation = Normalize(AdditiveTransform.Rotation * Transform.Rotation);
-    }
-    else
-    {
-        Result.Rotation = Transform.Rotation;
-    }
-#else
-    Result.Rotation = Normalize(AdditiveTransform.Rotation * Transform.Rotation);
-#endif
-    
-    Result.Translation = Transform.Translation + AdditiveTransform.Translation;
-    Result.Scale = Transform.Scale * (AdditiveTransform.Scale + vec3(1.f));
+    Result.Rotation = AdditiveTransform.Rotation * Transform.Rotation;
+    Result.Translation = AdditiveTransform.Translation + Transform.Translation;
+    Result.Scale = (AdditiveTransform.Scale + vec3(1.f)) * Transform.Scale;
 
     Assert(IsFinite(Result));
 
     return Result;
 }
 
-// https://github.com/EpicGames/UnrealEngine/blob/cdaec5b33ea5d332e51eee4e4866495c90442122/Engine/Source/Runtime/Core/Public/Math/TransformNonVectorized.h#L922
 inline transform
 Accumulate(transform Transform, transform AdditiveTransform, f32 BlendWeight)
 {
     Assert(BlendWeight >= 0.f && BlendWeight <= 1.f);
 
-    transform WeightedAdditiveTransform = {};
-
-    WeightedAdditiveTransform.Rotation = AdditiveTransform.Rotation * BlendWeight;
-    WeightedAdditiveTransform.Translation = AdditiveTransform.Translation * BlendWeight;
-    WeightedAdditiveTransform.Scale = AdditiveTransform.Scale * BlendWeight;
-
-    transform Result = Accumulate(Transform, WeightedAdditiveTransform);
+    transform AccumulatedTransform = Accumulate(Transform, AdditiveTransform);
+    transform Result = Lerp(Transform, BlendWeight, AccumulatedTransform);
 
     return Result;
 }
@@ -83,8 +63,8 @@ Lerp(skeleton_pose *From, f32 t, skeleton_pose *To, skeleton_pose *Dest)
 
     for (u32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
     {
-        transform *FromPose = From->LocalJointPoses + JointIndex;
-        transform *ToPose = To->LocalJointPoses + JointIndex;
+        transform FromPose = From->LocalJointPoses[JointIndex];
+        transform ToPose = To->LocalJointPoses[JointIndex];
         transform *DestPose = Dest->LocalJointPoses + JointIndex;
 
         *DestPose = Lerp(FromPose, t, ToPose);
@@ -110,7 +90,7 @@ Accumulate(skeleton_pose *PoseA, skeleton_pose *PoseB, f32 BlendWeight, skeleton
 }
 
 dummy_internal void
-Blend(animation_blend_mode BlendMode, f32 BlendWeight, skeleton_pose *PoseA, skeleton_pose *PoseB, skeleton_pose *Dest)
+Blend(animation_blend_mode BlendMode, f32 BlendWeight, f32 AnimationWeight, skeleton_pose *PoseA, skeleton_pose *PoseB, skeleton_pose *Dest)
 {
     switch (BlendMode)
     {
@@ -121,7 +101,7 @@ Blend(animation_blend_mode BlendMode, f32 BlendWeight, skeleton_pose *PoseA, ske
         }
         case BlendMode_Additive:
         {
-            Accumulate(PoseA, PoseB, BlendWeight, Dest);
+            Accumulate(PoseA, PoseB, AnimationWeight, Dest);
             break;
         }
         default:
@@ -154,7 +134,6 @@ CalculateGlobalJointPose(joint *CurrentJoint, transform *CurrentJointPose, skele
     return Result;
 }
 
-// https://github.com/EpicGames/UnrealEngine/blob/cdaec5b33ea5d332e51eee4e4866495c90442122/Engine/Source/Runtime/Engine/Private/Animation/AnimationRuntime.cpp#L989
 dummy_internal transform
 CalculateAdditiveTransform(transform TargetTransform, transform BaseTransform)
 {
@@ -162,8 +141,8 @@ CalculateAdditiveTransform(transform TargetTransform, transform BaseTransform)
 
     Result.Rotation = Normalize(TargetTransform.Rotation * Inverse(BaseTransform.Rotation));
     Result.Translation = TargetTransform.Translation - BaseTransform.Translation;
-    // In order to support blending between different additive scales, we save [(target scale)/(source scale) - 1.f], and this can blend with 
-    // other delta scale value. When we apply to another scale, we apply scale * (1 + [additive scale])
+    // In order to support blending between different additive scales, we save [(target scale)/(source scale) - 1.f], 
+    // and this can blend with other delta scale valu
     Result.Scale = TargetTransform.Scale * SafeReciprocal(BaseTransform.Scale) - vec3(1.f);
 
     Assert(IsFinite(Result));
@@ -175,6 +154,25 @@ inline bool32
 AnimationClipFinished(animation_state Animation)
 {
     bool32 Result = (Animation.Time >= Animation.Clip->Duration);
+    return Result;
+}
+
+inline bool32
+AdditiveAnimationsFinished(animation_node *Node)
+{
+    bool32 Result = true;
+
+    for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+    {
+        additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
+
+        if (!AnimationClipFinished(Additive->Animation))
+        {
+            Result = false;
+            break;
+        }
+    }
+
     return Result;
 }
 
@@ -262,7 +260,7 @@ AnimateSkeletonPose(animation_graph *Graph, skeleton_pose *SkeletonPose, animati
 
             Assert(t >= 0.f && t <= 1.f);
             
-            *LocalJointPose = Lerp(&PrevKeyFrame->Pose, t, &NextKeyFrame->Pose);
+            *LocalJointPose = Lerp(PrevKeyFrame->Pose, t, NextKeyFrame->Pose);
 
             Assert(IsFinite(*LocalJointPose));
         }
@@ -634,14 +632,12 @@ AnimationBlendSpacePerFrameUpdate(blend_space_1d *BlendSpace, f32 Delta)
     }
 }
 
-dummy_internal void AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta);
-dummy_internal void AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta);
+void AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta);
+void AnimationGraphPerFrameUpdate(animation_graph *Graph, f32 Delta);
 
 dummy_internal void
 AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
 {
-    //Assert(Node->Weight > 0.f);
-
     switch (Node->Type)
     {
         case AnimationNodeType_Clip:
@@ -669,7 +665,11 @@ AnimationNodePerFrameUpdate(animation_node *Node, f32 Delta)
     for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
     {
         additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
-        AnimationStatePerFrameUpdate(&Additive->Animation, Delta);
+
+        if (Additive->Weight > 0.f)
+        {
+            AnimationStatePerFrameUpdate(&Additive->Animation, Delta);
+        }
     }
 }
 
@@ -749,6 +749,7 @@ BuildAdditiveAnimation(additive_animation *Additive, animation_clip *Target, ani
     AdditiveClip->PoseSampleCount = Target->PoseSampleCount;
     AdditiveClip->PoseSamples = PushArray(Arena, AdditiveClip->PoseSampleCount, animation_sample);
 
+    Additive->Weight = 1.f;
     Additive->Animation = CreateAnimationState(AdditiveClip, IsLooping, false, BlendMode_Additive);
 
     for (u32 PoseSampleIndex = 0; PoseSampleIndex < AdditiveClip->PoseSampleCount; ++PoseSampleIndex)
@@ -766,14 +767,6 @@ BuildAdditiveAnimation(additive_animation *Additive, animation_clip *Target, ani
             key_frame *AdditiveKeyFrame = AdditiveSample->KeyFrames + KeyFrameIndex;
             key_frame *TargetKeyFrame = TargetSample->KeyFrames + KeyFrameIndex;
             key_frame *BaseKeyFrame = BaseSample->KeyFrames + BaseKeyFrameIndex;
-
-            // todo: ?
-#if 0
-            if (BaseSample->KeyFrameCount < BaseKeyFrameIndex)
-            {
-                BaseKeyFrame = BaseSample->KeyFrames + KeyFrameIndex;
-            }
-#endif
 
             AdditiveKeyFrame->Time = TargetKeyFrame->Time;
             AdditiveKeyFrame->Pose = CalculateAdditiveTransform(TargetKeyFrame->Pose, BaseKeyFrame->Pose);
@@ -1049,7 +1042,15 @@ GetActiveAnimationCount(animation_node *Node, f32 Weight = 0.f)
         }
     }
 
-    Result += Node->AdditiveAnimationCount;
+    for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+    {
+        additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
+
+        if (Additive->Weight > 0.f)
+        {
+            Result += 1;
+        }
+    }
 
     return Result;
 }
@@ -1123,10 +1124,13 @@ GetActiveAnimations(animation_node *Node, animation_state **ActiveAnimations, u3
     for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
     {
         additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
-        animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
 
-        *ActiveAnimationState = &Additive->Animation;
-        (*ActiveAnimationState)->Weight = GraphWeight * NodeWeightToUse;
+        if (Additive->Weight > 0.f)
+        {
+            animation_state **ActiveAnimationState = ActiveAnimations + ActiveAnimationIndex++;
+            *ActiveAnimationState = &Additive->Animation;
+            (*ActiveAnimationState)->Weight = GraphWeight * NodeWeightToUse * Additive->Weight;
+        }
     }
 }
 
@@ -1145,7 +1149,7 @@ GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, 
 }
 
 dummy_internal void
-CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_arena *Arena)
+CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *BindPose, skeleton_pose *DestPose, memory_arena *Arena)
 {
     u32 ActiveAnimationCount = GetActiveAnimationCount(Graph);
 
@@ -1180,38 +1184,19 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
             skeleton_pose *SkeletonPose = SkeletonPoses + SkeletonPoseIndex;
             animation_state *Animation = ActiveAnimations[SkeletonPoseIndex];
 
-            SkeletonPose->Skeleton = DestPose->Skeleton;
-            SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, DestPose->Skeleton->JointCount, transform);
+            SkeletonPose->Skeleton = BindPose->Skeleton;
+            SkeletonPose->LocalJointPoses = PushArray(ScopedMemory.Arena, BindPose->Skeleton->JointCount, transform);
 
-            for (u32 JointIndex = 0; JointIndex < DestPose->Skeleton->JointCount; ++JointIndex)
+            for (u32 JointIndex = 0; JointIndex < BindPose->Skeleton->JointCount; ++JointIndex)
             {
                 transform *LocalJointPose = SkeletonPose->LocalJointPoses + JointIndex;
-                transform *SkeletonLocalJointPose = DestPose->LocalJointPoses + JointIndex;
+                transform *SkeletonLocalJointPose = BindPose->LocalJointPoses + JointIndex;
 
-                // todo(continue):
-#if 1
-                LocalJointPose->Rotation = quat(0.f, 0.f, 0.f, 1.f);
-                LocalJointPose->Translation = vec3(0.f);
-                LocalJointPose->Scale = vec3(1.f);
-#else
-                *LocalJointPose = *SkeletonLocalJointPose;
-#endif
-
-#if 0
                 switch (Animation->BlendMode)
                 {
                     case BlendMode_Normal:
                     {
-                        if (JointIndex == 0)
-                        {
-                            LocalJointPose->Rotation = quat(0.f, 0.f, 0.f, 1.f);
-                            LocalJointPose->Translation = vec3(0.f);
-                            LocalJointPose->Scale = vec3(1.f);
-                        }
-                        else
-                        {
-                            *LocalJointPose = *SkeletonLocalJointPose;
-                        }
+                        *LocalJointPose = *SkeletonLocalJointPose;
                         
                         break;
                     }
@@ -1219,16 +1204,11 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
                     {
                         LocalJointPose->Rotation = quat(0.f, 0.f, 0.f, 1.f);
                         LocalJointPose->Translation = vec3(0.f);
-                        LocalJointPose->Scale = vec3(1.f);
-                        break;
-                    }
-                    default:
-                    {
-                        Assert(!"Invalid blend mode");
+                        LocalJointPose->Scale = vec3(0.f);
+
                         break;
                     }
                 }
-#endif
             }
         }
 
@@ -1258,7 +1238,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
         skeleton_pose *Pose = First(SkeletonPoses);
         animation_state *Animation = *First(ActiveAnimations);
 
-        Blend(Animation->BlendMode, 0.f, Pose, Pose, DestPose);
+        Blend(Animation->BlendMode, 0.f, Animation->Weight, Pose, Pose, DestPose);
 
         f32 AccumulatedWeight = Animation->Weight;
         u32 CurrentPoseIndex = 1;
@@ -1267,19 +1247,20 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *DestPose, memory_ar
         {
             skeleton_pose *NextPose = SkeletonPoses + CurrentPoseIndex;
             animation_state *NextAnimation = ActiveAnimations[CurrentPoseIndex];
-            ++CurrentPoseIndex;
 
             f32 NextWeight = NextAnimation->Weight;
 
-            f32 t = NextWeight / (AccumulatedWeight + NextWeight);
+            CurrentPoseIndex += 1;
+            AccumulatedWeight += NextWeight;
+
+            f32 t = NextWeight / AccumulatedWeight;
 
             Assert(t >= 0.f && t <= 1.f);
 
-            Blend(NextAnimation->BlendMode, t, Pose, NextPose, DestPose);
+            Blend(NextAnimation->BlendMode, t, NextAnimation->Weight, Pose, NextPose, DestPose);
 
             Pose = DestPose;
             Animation = NextAnimation;
-            AccumulatedWeight += NextWeight;
         }
     }
 }

@@ -226,13 +226,18 @@
                         "to": "Jump_Start",
                         "type": "crossfade",
                         "blend": 0.1
+                    },
+                    {
+                        "to": "Jump_Idle",
+                        "type": "crossfade",
+                        "blend": 0.1
                     }
                 ],
                 "additive": [
                     {
                         "target": "falling_to_landing",
-                        "base": "falling_to_landing",
-                        "base_keyframe_index": 22,
+                        "base": "action_idle_0",
+                        "base_keyframe_index": 0,
                         "looping": false
                     }
                 ]

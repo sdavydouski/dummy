@@ -108,6 +108,7 @@ GetCameraTransform(game_camera *Camera)
 
 struct skinning_data
 {
+    skeleton_pose *BindPose;
     skeleton_pose *Pose;
     u32 SkinningMatrixCount;
     mat4 *SkinningMatrices;
