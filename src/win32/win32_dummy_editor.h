@@ -12,6 +12,8 @@ struct editor_add_entity
 
 struct editor_state
 {
+    bool32 ToggleUI;
+
     u32 CurrentGizmoOperation;
 
     u32 CurrentStreamIndex;

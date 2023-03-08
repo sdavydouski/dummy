@@ -7,7 +7,6 @@
 #define ROOT_POSE_INDEX 0
 #define ROOT_TRANSLATION_POSE_INDEX 1
 
-struct random_sequence;
 struct animation_node;
 struct animation_graph;
 

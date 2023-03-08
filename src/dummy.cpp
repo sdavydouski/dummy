@@ -1883,6 +1883,7 @@ DLLExport GAME_INIT(GameInit)
     State->Options = {};
     State->Options.ShowBoundingVolumes = false;
     State->Options.ShowGrid = true;
+    State->Options.ShowSkybox = true;
     State->Options.ShowSkeletons = false;
 
     InitGameMenu(State);
@@ -1984,9 +1985,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         // ...
     }
 
+    vec2 MouseCoords = Input->MouseCoords;
+
     if (State->Mode == GameMode_Editor && Input->LeftClick.IsActivated)
     {
-        ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->EditorCamera);
+        ray Ray = ScreenPointToWorldRay(MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->EditorCamera);
 
         f32 MinDistance = F32_MAX;
 
@@ -2417,7 +2420,7 @@ DLLExport GAME_RENDER(GameRender)
 
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
 
-            if (State->Assets.State == GameAssetsState_Ready)
+            if (State->Assets.State == GameAssetsState_Ready && State->Options.ShowSkybox)
             {
                 DrawSkybox(RenderCommands, State->SkyboxId);
             }

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <glad.h>
+#include <wglext.h>
+
 #define WIN32_RELOADABLE_SHADERS 0
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 8
@@ -269,6 +272,7 @@ struct opengl_state
 
     opengl_framebuffer SourceFramebuffer;
     opengl_framebuffer DestFramebuffer;
+    opengl_framebuffer FinalFramebuffer;
 
     opengl_buffer Line;
     opengl_buffer Rectangle;

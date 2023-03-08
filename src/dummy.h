@@ -291,6 +291,7 @@ struct game_options
     bool32 ShowSkeletons;
     bool32 ShowCamera;
     bool32 ShowGrid;
+    bool32 ShowSkybox;
 };
 
 struct game_menu_quad

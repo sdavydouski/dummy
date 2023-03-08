@@ -5,7 +5,7 @@
 #include <imgui_draw.cpp>
 #include <imgui_widgets.cpp>
 #include <imgui_tables.cpp>
-//#include <imgui_demo.cpp>
+#include <imgui_demo.cpp>
 
 #include <ImGuizmo.h>
 #include <ImGuizmo.cpp>
@@ -32,6 +32,8 @@
 #include "win32_dummy_editor.h"
 
 #include "dummy.cpp"
+
+opengl_texture *OpenGLGetTexture(opengl_state *State, u32 Id);
 
 inline animation_node *
 GetTransitionDestinationNode(animation_transition *Transition)
@@ -195,10 +197,14 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     // Load Fonts
     ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
+    // Setup Config
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
     EditorSetupStyle();
 
     // Init State
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    EditorState->ToggleUI = true;
     EditorState->LogAutoScroll = true;
 
     EditorState->CurrentStreamIndex = 0;
@@ -928,7 +934,7 @@ EditorLogWindow(editor_state *EditorState, u32 StreamCount, stream **Streams, co
 
     ImGui::Separator();
 
-    if (ImGui::BeginChild("Scrolling##Log", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar))
+    ImGui::BeginChild("Scrolling##Log", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
     {
         if (Clear)
         {
@@ -963,9 +969,8 @@ EditorLogWindow(editor_state *EditorState, u32 StreamCount, stream **Streams, co
         {
             ImGui::SetScrollHereY(1.f);
         }
-
-        ImGui::EndChild();
     }
+    ImGui::EndChild();
 
     ImGui::End();
 }
@@ -1000,6 +1005,8 @@ Win32RenderEditor(
     const ImGuiViewport *Viewport = ImGui::GetMainViewport();
     ImGuiIO &io = ImGui::GetIO();
 
+    ImGui::DockSpaceOverViewport(Viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImVec2(Viewport->Size.x, ImGui::GetFrameHeight()));
 
@@ -1014,202 +1021,215 @@ Win32RenderEditor(
         ? &GameState->GameCamera
         : &GameState->EditorCamera;
 
-    if (ImGui::Begin("MenuBar", 0, Flags))
+    if (EditorState->ToggleUI)
     {
-        if (ImGui::BeginMenuBar())
+        if (ImGui::Begin("MenuBar", 0, Flags))
         {
-            if (ImGui::BeginMenu("Game"))
+            if (ImGui::BeginMainMenuBar())
             {
-                if (ImGui::MenuItem("Add Entity (E)"))
+                if (ImGui::BeginMenu("Game"))
                 {
-                    EditorAddEntity(EditorState, GameState);
-                }
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Load Area..."))
-                {
-                    scoped_memory ScopedMemory(&EditorState->Arena);
-
-                    wchar WideFilePath[256] = L"";
-                    Platform->OpenFileDialog(WideFilePath, ArrayCount(WideFilePath));
-
-                    if (!StringEquals(WideFilePath, L""))
+                    if (ImGui::MenuItem("Add Entity (E)"))
                     {
-                        char FilePath[256];
-                        ConvertToString(WideFilePath, FilePath);
-
-                        ClearWorldArea(GameState);
-                        LoadWorldAreaFromFile(GameState, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
-                    }
-                }
-
-                if (ImGui::MenuItem("Save Area..."))
-                {
-                    scoped_memory ScopedMemory(&EditorState->Arena);
-
-                    wchar WideFilePath[256] = L"";
-                    Platform->SaveFileDialog(WideFilePath, ArrayCount(WideFilePath));
-
-                    if (!StringEquals(WideFilePath, L""))
-                    {
-                        char FilePath[256];
-                        ConvertToString(WideFilePath, FilePath);
-
-                        SaveWorldAreaToFile(GameState, FilePath, Platform, ScopedMemory.Arena);
+                        EditorAddEntity(EditorState, GameState);
                     }
 
-                }
+                    ImGui::Separator();
 
-                if (ImGui::MenuItem("Clear Area"))
-                {
-                    ClearWorldArea(GameState);
-                }
-
-                ImGui::Separator();
-
-                if (ImGui::BeginMenu("Misc"))
-                {
-                    ImGui::Checkbox("Dance mode", (bool *)&GameState->DanceMode.Value);
-
-                    ImGui::EndMenu();
-                }
-
-                ImGui::Separator();
-
-                if (ImGui::MenuItem("Exit (Esc)"))
-                {
-                    PlatformState->IsGameRunning = false;
-                }
-
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("Settings"))
-            {
-                if (ImGui::BeginMenu("Graphics"))
-                {
-                    ImGui::ColorEdit3("Dir Color", (f32 *)&GameState->DirectionalLight.Color);
-                    ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
-                    GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
-
-                    if (ImGui::BeginTable("Graphics toggles", 2))
+                    if (ImGui::MenuItem("Load Area..."))
                     {
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Camera", (bool *)&GameState->Options.ShowCamera);
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Cascades", (bool *)&GameState->Options.ShowCascades);
+                        scoped_memory ScopedMemory(&EditorState->Arena);
 
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Bounding Volumes", (bool *)&GameState->Options.ShowBoundingVolumes);
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Skeletons", (bool *)&GameState->Options.ShowSkeletons);
+                        wchar WideFilePath[256] = L"";
+                        Platform->OpenFileDialog(WideFilePath, ArrayCount(WideFilePath));
 
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("Show Grid", (bool *)&GameState->Options.ShowGrid);
-
-                        ImGui::TableNextRow();
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
-
-                        ImGui::TableNextRow();
-                        ImGui::TableNextColumn();
-                        ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
-
-                        ImGui::EndTable();
-                    }
-
-                    ImGui::EndMenu();
-                }
-
-                if (ImGui::BeginMenu("Audio"))
-                {
-                    ImGui::SliderFloat("Master Volume", &GameState->MasterVolume, 0.f, 1.f);
-
-                    ImGui::EndMenu();
-                }
-
-                ImGui::EndMenu();
-            }
-
-#if 0
-            if (ImGui::BeginMenu("Assets"))
-            {
-                game_assets *Assets = &GameState->Assets;
-                char *Search = EditorState->Search;
-                u32 SearchSize = ArrayCount(EditorState->Search);
-
-                ImGui::RadioButton("Models", &EditorState->AssetType, AssetType_Model);
-                ImGui::SameLine();
-                ImGui::RadioButton("Fonts", &EditorState->AssetType, AssetType_Font);
-                ImGui::SameLine();
-                ImGui::RadioButton("Audio", &EditorState->AssetType, AssetType_AudioClip);
-
-                ImGui::InputText("Search", Search, SearchSize);
-
-                if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
-                {
-                    switch (EditorState->AssetType)
-                    {
-                        case AssetType_Model:
+                        if (!StringEquals(WideFilePath, L""))
                         {
-                            for (u32 ModelIndex = 0; ModelIndex < Assets->Models.Count; ++ModelIndex)
-                            {
-                                model *Model = Assets->Models.Values + ModelIndex;
-                                char *Key = Model->Key;
-                                b32 Selected = EditorState->SelectedAssetIndex == ModelIndex;
+                            char FilePath[256];
+                            ConvertToString(WideFilePath, FilePath);
 
-                                if (StringLength(Search) > 0)
+                            ClearWorldArea(GameState);
+                            LoadWorldAreaFromFile(GameState, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
+                        }
+                    }
+
+                    if (ImGui::MenuItem("Save Area..."))
+                    {
+                        scoped_memory ScopedMemory(&EditorState->Arena);
+
+                        wchar WideFilePath[256] = L"";
+                        Platform->SaveFileDialog(WideFilePath, ArrayCount(WideFilePath));
+
+                        if (!StringEquals(WideFilePath, L""))
+                        {
+                            char FilePath[256];
+                            ConvertToString(WideFilePath, FilePath);
+
+                            SaveWorldAreaToFile(GameState, FilePath, Platform, ScopedMemory.Arena);
+                        }
+
+                    }
+
+                    if (ImGui::MenuItem("Clear Area"))
+                    {
+                        ClearWorldArea(GameState);
+                    }
+
+                    ImGui::Separator();
+
+                    if (ImGui::BeginMenu("Misc"))
+                    {
+                        ImGui::Checkbox("Dance mode", (bool *)&GameState->DanceMode.Value);
+
+                        ImGui::EndMenu();
+                    }
+
+                    ImGui::Separator();
+
+                    if (ImGui::MenuItem("Exit (Esc)"))
+                    {
+                        PlatformState->IsGameRunning = false;
+                    }
+
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Settings"))
+                {
+                    if (ImGui::BeginMenu("Graphics"))
+                    {
+                        ImGui::ColorEdit3("Dir Color", (f32 *)&GameState->DirectionalLight.Color);
+                        ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
+                        GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
+
+                        if (ImGui::BeginTable("Graphics toggles", 2))
+                        {
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("Show Camera", (bool *)&GameState->Options.ShowCamera);
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("Show Cascades", (bool *)&GameState->Options.ShowCascades);
+
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("Show Bounding Volumes", (bool *)&GameState->Options.ShowBoundingVolumes);
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("Show Skeletons", (bool *)&GameState->Options.ShowSkeletons);
+
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("Show Grid", (bool *)&GameState->Options.ShowGrid);
+
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("Show Skybox", (bool *)&GameState->Options.ShowSkybox);
+
+                            ImGui::TableNextRow();
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
+
+                            ImGui::TableNextRow();
+                            ImGui::TableNextColumn();
+                            ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
+
+                            ImGui::EndTable();
+                        }
+
+                        ImGui::EndMenu();
+                    }
+
+                    if (ImGui::BeginMenu("Audio"))
+                    {
+                        ImGui::SliderFloat("Master Volume", &GameState->MasterVolume, 0.f, 1.f);
+
+                        ImGui::EndMenu();
+                    }
+
+                    ImGui::EndMenu();
+                }
+
+    #if 0
+                if (ImGui::BeginMenu("Assets"))
+                {
+                    game_assets *Assets = &GameState->Assets;
+                    char *Search = EditorState->Search;
+                    u32 SearchSize = ArrayCount(EditorState->Search);
+
+                    ImGui::RadioButton("Models", &EditorState->AssetType, AssetType_Model);
+                    ImGui::SameLine();
+                    ImGui::RadioButton("Fonts", &EditorState->AssetType, AssetType_Font);
+                    ImGui::SameLine();
+                    ImGui::RadioButton("Audio", &EditorState->AssetType, AssetType_AudioClip);
+
+                    ImGui::InputText("Search", Search, SearchSize);
+
+                    if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
+                    {
+                        switch (EditorState->AssetType)
+                        {
+                            case AssetType_Model:
+                            {
+                                for (u32 ModelIndex = 0; ModelIndex < Assets->Models.Count; ++ModelIndex)
                                 {
-                                    if (StringIncludes(Model->Key, Search))
+                                    model *Model = Assets->Models.Values + ModelIndex;
+                                    char *Key = Model->Key;
+                                    b32 Selected = EditorState->SelectedAssetIndex == ModelIndex;
+
+                                    if (StringLength(Search) > 0)
+                                    {
+                                        if (StringIncludes(Model->Key, Search))
+                                        {
+                                            if (ImGui::Selectable(Model->Key, Selected))
+                                            {
+                                                EditorState->SelectedAssetIndex = ModelIndex;
+                                            }
+                                        }
+                                    }
+                                    else if (!IsSlotEmpty(Model->Key))
                                     {
                                         if (ImGui::Selectable(Model->Key, Selected))
                                         {
                                             EditorState->SelectedAssetIndex = ModelIndex;
+                                            EditorState->SelectedModel = Model;
+
+                                            // todo: move out to utility function
+                                            game_entity *Entity = CreateGameEntity(GameState);
+
+                                            Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+                                            AddModel(GameState, Entity, &GameState->Assets, Model->Key, RenderCommands, &GameState->PermanentArena);
+
+                                            // todo(continue): add other components?
+                                            /*bounds ModelBounds = GetEntityBounds(Entity);
+                                            vec3 Size = ModelBounds.Max - ModelBounds.Min;
+                                            AddBoxCollider(Entity, Size, &GameState->PermanentArena);*/
+
+                                            AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
+
+                                            GameState->SelectedEntity = Entity;
+
+                                            EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
+                                            //
                                         }
                                     }
                                 }
-                                else if (!IsSlotEmpty(Model->Key))
-                                {
-                                    if (ImGui::Selectable(Model->Key, Selected))
-                                    {
-                                        EditorState->SelectedAssetIndex = ModelIndex;
-                                        EditorState->SelectedModel = Model;
 
-                                        // todo: move out to utility function
-                                        game_entity *Entity = CreateGameEntity(GameState);
-
-                                        Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-                                        AddModel(GameState, Entity, &GameState->Assets, Model->Key, RenderCommands, &GameState->PermanentArena);
-
-                                        // todo(continue): add other components?
-                                        /*bounds ModelBounds = GetEntityBounds(Entity);
-                                        vec3 Size = ModelBounds.Max - ModelBounds.Min;
-                                        AddBoxCollider(Entity, Size, &GameState->PermanentArena);*/
-
-                                        AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
-
-                                        GameState->SelectedEntity = Entity;
-
-                                        EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-                                        //
-                                    }
-                                }
+                                break;
                             }
-
-                            break;
-                        }
-                        case AssetType_Font:
-                        {
-                            for (u32 FontIndex = 0; FontIndex < Assets->Fonts.Count; ++FontIndex)
+                            case AssetType_Font:
                             {
-                                font *Font = Assets->Fonts.Values + FontIndex;
-                                char *Key = Font->Key;
-                                b32 Selected = EditorState->SelectedAssetIndex == FontIndex;
-
-                                if (StringLength(Search) > 0)
+                                for (u32 FontIndex = 0; FontIndex < Assets->Fonts.Count; ++FontIndex)
                                 {
-                                    if (StringIncludes(Key, Search))
+                                    font *Font = Assets->Fonts.Values + FontIndex;
+                                    char *Key = Font->Key;
+                                    b32 Selected = EditorState->SelectedAssetIndex == FontIndex;
+
+                                    if (StringLength(Search) > 0)
+                                    {
+                                        if (StringIncludes(Key, Search))
+                                        {
+                                            if (ImGui::Selectable(Key, Selected))
+                                            {
+                                                EditorState->SelectedAssetIndex = FontIndex;
+                                            }
+                                        }
+                                    }
+                                    else if (!IsSlotEmpty(Key))
                                     {
                                         if (ImGui::Selectable(Key, Selected))
                                         {
@@ -1217,28 +1237,28 @@ Win32RenderEditor(
                                         }
                                     }
                                 }
-                                else if (!IsSlotEmpty(Key))
-                                {
-                                    if (ImGui::Selectable(Key, Selected))
-                                    {
-                                        EditorState->SelectedAssetIndex = FontIndex;
-                                    }
-                                }
+
+                                break;
                             }
-
-                            break;
-                        }
-                        case AssetType_AudioClip:
-                        {
-                            for (u32 AudioClipIndex = 0; AudioClipIndex < Assets->AudioClips.Count; ++AudioClipIndex)
+                            case AssetType_AudioClip:
                             {
-                                audio_clip *AudioClip = Assets->AudioClips.Values + AudioClipIndex;
-                                char *Key = AudioClip->Key;
-                                b32 Selected = EditorState->SelectedAssetIndex == AudioClipIndex;
-
-                                if (StringLength(Search) > 0)
+                                for (u32 AudioClipIndex = 0; AudioClipIndex < Assets->AudioClips.Count; ++AudioClipIndex)
                                 {
-                                    if (StringIncludes(Key, Search))
+                                    audio_clip *AudioClip = Assets->AudioClips.Values + AudioClipIndex;
+                                    char *Key = AudioClip->Key;
+                                    b32 Selected = EditorState->SelectedAssetIndex == AudioClipIndex;
+
+                                    if (StringLength(Search) > 0)
+                                    {
+                                        if (StringIncludes(Key, Search))
+                                        {
+                                            if (ImGui::Selectable(Key, Selected))
+                                            {
+                                                EditorState->SelectedAssetIndex = AudioClipIndex;
+                                            }
+                                        }
+                                    }
+                                    else if (!IsSlotEmpty(Key))
                                     {
                                         if (ImGui::Selectable(Key, Selected))
                                         {
@@ -1246,257 +1266,260 @@ Win32RenderEditor(
                                         }
                                     }
                                 }
-                                else if (!IsSlotEmpty(Key))
-                                {
-                                    if (ImGui::Selectable(Key, Selected))
-                                    {
-                                        EditorState->SelectedAssetIndex = AudioClipIndex;
-                                    }
-                                }
-                            }
 
-                            break;
+                                break;
+                            }
                         }
+
+                        ImGui::EndListBox();
                     }
 
-                    ImGui::EndListBox();
+                    ImGui::EndMenu();
+                }
+    #endif
+
+                char Text[256];
+                FormatString(
+                    Text,
+                    "%.3f ms/frame (%.1f FPS) | Time scale: %.2f",
+                    GameParameters->UnscaledDelta * 1000.f,
+                    1.f / GameParameters->UnscaledDelta,
+                    GameParameters->TimeScale
+                );
+
+                ImVec2 TextSize = ImGui::CalcTextSize(Text);
+                ImGui::SetCursorPosX(Viewport->Size.x - TextSize.x - 10);
+                ImGui::Text(Text);
+
+                ImGui::EndMainMenuBar();
+            }
+
+            ImGui::End();
+        }
+
+        stream *Streams[] = { &GameState->Stream, &PlatformState->Stream, &RendererState->Stream, &AudioState->Stream };
+        const char *StreamNames[] = { "Game", "Platform", "Renderer", "Audio" };
+
+        Assert(ArrayCount(Streams) == ArrayCount(StreamNames));
+
+        EditorLogWindow(EditorState, ArrayCount(Streams), Streams, StreamNames);
+
+        stream *Stream = &PlatformState->Stream;
+
+        ImGui::Begin("Shadow Maps");
+        {
+            ImVec2 WindowSize = ImVec2(512, 512);
+
+            if (ImGui::BeginTable("Shadow Maps", 4, ImGuiTableFlags_ScrollX))
+            {
+                for (u32 CascadeIndex = 0; CascadeIndex < ArrayCount(RendererState->CascadeShadowMaps); ++CascadeIndex)
+                {
+                    ImGui::TableNextColumn();
+                    ImGui::Image((ImTextureID)(umm)RendererState->CascadeShadowMaps[CascadeIndex], WindowSize, ImVec2(0, 1), ImVec2(1, 0));
                 }
 
-                ImGui::EndMenu();
+                ImGui::EndTable();
             }
-#endif
+        }
+        ImGui::End();
 
-            if (ImGui::BeginMenu("Profiler"))
+        ImGui::Begin("Scene");
+
+        if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, -FLT_MIN)))
+        {
+            for (u32 EntityIndex = 0; EntityIndex < GameState->WorldArea.EntityCount; ++EntityIndex)
             {
-                platform_profiler *Profiler = GameMemory->Profiler;
-                profiler_frame_samples *FrameSamples = ProfilerGetPreviousFrameSamples(Profiler);
+                game_entity *Entity = GameState->WorldArea.Entities + EntityIndex;
 
-                f32 *ElapsedMillisecondsValues = PushArray(ScopedMemory.Arena, FrameSamples->SampleCount, f32);
+                if (!Entity->Destroyed)
+                {
+                    char EntityName[256];
+                    FormatString(EntityName, "Id: %d, %s", Entity->Id, Entity->Name);
+
+                    if (ImGui::Selectable(EntityName, GameState->SelectedEntity == Entity))
+                    {
+                        GameState->SelectedEntity = Entity;
+                    }
+                }
+            }
+
+            ImGui::EndListBox();
+        }
+
+        ImGui::End();
+
+        ImGui::Begin("Profiler");
+        {
+            platform_profiler *Profiler = GameMemory->Profiler;
+            profiler_frame_samples *FrameSamples = ProfilerGetPreviousFrameSamples(Profiler);
+
+            f32 *ElapsedMillisecondsValues = PushArray(ScopedMemory.Arena, FrameSamples->SampleCount, f32);
+
+            for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
+            {
+                profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
+                f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
+                *ElapsedMilliseconds = Sample->ElapsedMilliseconds;
+            }
+
+            ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
+
+            if (ImGui::BeginTable("Profiler stats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
+            {
+                ImGui::TableSetupColumn("Block", 0, 3.f);
+                ImGui::TableSetupColumn("Ticks", 0, 1.f);
+                ImGui::TableSetupColumn("Milliseconds", 0, 1.f);
+                ImGui::TableHeadersRow();
+
+                u64 TotalTicks = 0;
+                f32 TotalMilliseconds = 0.f;
 
                 for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
                 {
                     profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
-                    f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
-                    *ElapsedMilliseconds = Sample->ElapsedMilliseconds;
-                }
-
-                ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
-
-                if (ImGui::BeginTable("Profiler stats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
-                {
-                    ImGui::TableSetupColumn("Block", 0, 3.f);
-                    ImGui::TableSetupColumn("Ticks", 0, 1.f);
-                    ImGui::TableSetupColumn("Milliseconds", 0, 1.f);
-                    ImGui::TableHeadersRow();
-
-                    u64 TotalTicks = 0;
-                    f32 TotalMilliseconds = 0.f;
-
-                    for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
-                    {
-                        profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
-
-                        ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
-
-                        if (Sample->ElapsedMilliseconds >= 1.0f)
-                        {
-                            Color = ImVec4(1.f, 0.f, 0.f, 1.f);
-                        }
-                        else if (0.1f <= Sample->ElapsedMilliseconds && Sample->ElapsedMilliseconds < 1.f)
-                        {
-                            Color = ImVec4(1.f, 1.f, 0.f, 1.f);
-                        }
-
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(Color, "%s", Sample->Name);
-
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
-
-                        ImGui::TableNextColumn();
-                        ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMilliseconds);
-
-                        TotalTicks += Sample->ElapsedTicks;
-                        TotalMilliseconds += Sample->ElapsedMilliseconds;
-                    }
 
                     ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
 
-                    if (TotalMilliseconds >= 4.0f)
+                    if (Sample->ElapsedMilliseconds >= 1.0f)
                     {
                         Color = ImVec4(1.f, 0.f, 0.f, 1.f);
                     }
-                    else if (1.f <= TotalMilliseconds && TotalMilliseconds < 4.f)
+                    else if (0.1f <= Sample->ElapsedMilliseconds && Sample->ElapsedMilliseconds < 1.f)
                     {
                         Color = ImVec4(1.f, 1.f, 0.f, 1.f);
                     }
 
                     ImGui::TableNextColumn();
-                    ImGui::TextColored(Color, "Total");
+                    ImGui::TextColored(Color, "%s", Sample->Name);
 
                     ImGui::TableNextColumn();
-                    ImGui::TextColored(Color, "%d ticks", TotalTicks);
+                    ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
 
                     ImGui::TableNextColumn();
-                    ImGui::TextColored(Color, "%.3f ms", TotalMilliseconds);
+                    ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMilliseconds);
 
-                    ImGui::EndTable();
+                    TotalTicks += Sample->ElapsedTicks;
+                    TotalMilliseconds += Sample->ElapsedMilliseconds;
                 }
 
-                ImGui::EndMenu();
+                ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
+
+                if (TotalMilliseconds >= 4.0f)
+                {
+                    Color = ImVec4(1.f, 0.f, 0.f, 1.f);
+                }
+                else if (1.f <= TotalMilliseconds && TotalMilliseconds < 4.f)
+                {
+                    Color = ImVec4(1.f, 1.f, 0.f, 1.f);
+                }
+
+                ImGui::TableNextColumn();
+                ImGui::TextColored(Color, "Total");
+
+                ImGui::TableNextColumn();
+                ImGui::TextColored(Color, "%d ticks", TotalTicks);
+
+                ImGui::TableNextColumn();
+                ImGui::TextColored(Color, "%.3f ms", TotalMilliseconds);
+
+                ImGui::EndTable();
+            }
+        }
+        ImGui::End();
+
+        // todo: https://github.com/ocornut/imgui/issues/5921
+#if 0
+        //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::SetNextWindowSize(ImVec2(1600, 900));
+        ImGui::Begin("Game");
+
+        ImGuizmo::SetDrawlist();
+
+        ImVec2 GameWindowPosition = ImGui::GetWindowPos();
+        ImVec2 GameWindowSize = ImGui::GetContentRegionAvail();
+
+        GameParameters->WindowWidth = (u32)GameWindowSize.x;
+        GameParameters->WindowHeight = (u32)GameWindowSize.y;
+        GameParameters->WindowPositionX = (u32)GameWindowPosition.x;
+        GameParameters->WindowPositionY = (u32)GameWindowPosition.y;
+
+        ImGui::Image((ImTextureID)(umm)RendererState->FinalFramebuffer.ColorTarget, GameWindowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+        ImGui::End();
+        //ImGui::PopStyleVar();
+#endif
+
+        bool SelectedEntity = true;
+
+        if (GameState->SelectedEntity)
+        {
+            game_entity *Entity = GameState->SelectedEntity;
+
+            ImGui::Begin("Entity", &SelectedEntity);
+            EditorRenderEntityInfo(EditorState, GameState, Platform, RendererState, Entity, RenderCommands);
+            ImGui::End();
+
+            // Gizmos
+            ImGuizmo::Enable(!GameInput->EnableFreeCameraMovement.IsActive);
+            ImGuizmo::SetRect(0, 0, (f32)GameParameters->WindowWidth, (f32)GameParameters->WindowHeight);
+
+            mat4 WorldToCamera = Transpose(GetCameraTransform(Camera));
+            mat4 WorldProjection = Transpose(FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane));
+            mat4 EntityTransform = Transpose(Transform(Entity->Transform));
+
+            bool32 Snap = io.KeyCtrl;
+
+            f32 SnapValue = 0.5f;
+            if (EditorState->CurrentGizmoOperation == ImGuizmo::OPERATION::ROTATE)
+            {
+                SnapValue = 45.f;
             }
 
-            char Text[256];
-            FormatString(
-                Text,
-                "%.3f ms/frame (%.1f FPS) | Time scale: %.2f",
-                GameParameters->UnscaledDelta * 1000.f,
-                1.f / GameParameters->UnscaledDelta,
-                GameParameters->TimeScale
+            f32 SnapValues[] = { SnapValue, SnapValue, SnapValue };
+
+            ImGuizmo::Manipulate(
+                (f32 *)WorldToCamera.Elements,
+                (f32 *)WorldProjection.Elements,
+                (ImGuizmo::OPERATION)EditorState->CurrentGizmoOperation,
+                ImGuizmo::LOCAL, (f32 *)EntityTransform.Elements,
+                0,
+                Snap ? SnapValues : 0
             );
 
-            ImVec2 TextSize = ImGui::CalcTextSize(Text);
-            ImGui::SetCursorPosX(Viewport->Size.x - TextSize.x - 10);
-            ImGui::Text(Text);
-
-            ImGui::EndMenuBar();
-        }
-
-        ImGui::End();
-    }
-
-    stream *Streams[] = { &GameState->Stream, &PlatformState->Stream, &RendererState->Stream, &AudioState->Stream };
-    const char *StreamNames[] = { "Game", "Platform", "Renderer", "Audio" };
-
-    Assert(ArrayCount(Streams) == ArrayCount(StreamNames));
-
-    EditorLogWindow(EditorState, ArrayCount(Streams), Streams, StreamNames);
-
-    stream *Stream = &PlatformState->Stream;
-
-#if 0
-    // todo: find a better place to put it
-    ImGui::Begin("Cascaded Shadow Maps");
-    {
-        ImVec2 WindowSize = ImVec2(512, 512);
-
-        if (ImGui::BeginTable("Shadow Maps", 4, ImGuiTableFlags_ScrollX))
-        {
-            for (u32 CascadeIndex = 0; CascadeIndex < ArrayCount(RendererState->CascadeShadowMaps); ++CascadeIndex)
+            if (ImGuizmo::IsUsing())
             {
-                ImGui::TableNextColumn();
-                ImGui::Image((ImTextureID)(umm)RendererState->CascadeShadowMaps[CascadeIndex], WindowSize, ImVec2(0, 1), ImVec2(1, 0));
-            }
+                vec3 Translation;
+                vec3 Rotation;
+                vec3 Scale;
+                ImGuizmo::DecomposeMatrixToComponents((f32 *)EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
 
-            ImGui::EndTable();
-        }
-    }
-    ImGui::End();
-#endif
+                transform EntityTransform = {};
 
-    //ImGui::SetNextWindowPos(ImVec2(Viewport->Size.x - 210, ImGui::GetFrameHeight() + 5));
-    //ImGui::SetNextWindowSize(ImVec2(200, 0));
+                EntityTransform.Translation = Translation;
+                EntityTransform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+                EntityTransform.Scale = Scale;
 
-#if 1
-    ImGui::Begin("Scene");
+                Entity->Transform = EntityTransform;
 
-    if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, -FLT_MIN)))
-    {
-        for (u32 EntityIndex = 0; EntityIndex < GameState->WorldArea.EntityCount; ++EntityIndex)
-        {
-            game_entity *Entity = GameState->WorldArea.Entities + EntityIndex;
-
-            if (!Entity->Destroyed)
-            {
-                char EntityName[256];
-                FormatString(EntityName, "Id: %d, %s", Entity->Id, Entity->Name);
-
-                if (ImGui::Selectable(EntityName, GameState->SelectedEntity == Entity))
+                // todo: probably should update colliders or smth
+                if (Entity->Body)
                 {
-                    GameState->SelectedEntity = Entity;
+                    Entity->Body->Position = Translation;
+                    Entity->Body->Orientation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+                }
+
+                if (Entity->Collider)
+                {
+                    // todo: rotate collider?
+                    UpdateColliderPosition(Entity->Collider, Translation);
                 }
             }
         }
 
-        ImGui::EndListBox();
-    }
-
-    ImGui::End();
-#endif
-
-    bool SelectedEntity = true;
-
-    if (GameState->SelectedEntity)
-    {
-        game_entity *Entity = GameState->SelectedEntity;
-
-        ImGui::SetNextWindowPos(ImVec2(Viewport->Size.x - 500, ImGui::GetFrameHeight() + 5));
-        ImGui::SetNextWindowSize(ImVec2(500, 0));
-
-        ImGui::Begin("Entity", &SelectedEntity);
-        EditorRenderEntityInfo(EditorState, GameState, Platform, RendererState, Entity, RenderCommands);
-        ImGui::End();
-
-        // Gizmos
-        ImGuizmo::Enable(!GameInput->EnableFreeCameraMovement.IsActive);
-        ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-
-        mat4 WorldToCamera = Transpose(GetCameraTransform(Camera));
-        mat4 WorldProjection = Transpose(FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane));
-        mat4 EntityTransform = Transpose(Transform(Entity->Transform));
-
-        bool32 Snap = io.KeyCtrl;
-
-        f32 SnapValue = 0.5f;
-        if (EditorState->CurrentGizmoOperation == ImGuizmo::OPERATION::ROTATE)
+        if (!SelectedEntity)
         {
-            SnapValue = 45.f;
+            GameState->SelectedEntity = 0;
         }
-
-        f32 SnapValues[] = { SnapValue, SnapValue, SnapValue };
-
-        ImGuizmo::Manipulate(
-            (f32 *)WorldToCamera.Elements,
-            (f32 *)WorldProjection.Elements,
-            (ImGuizmo::OPERATION)EditorState->CurrentGizmoOperation,
-            ImGuizmo::LOCAL, (f32 *)EntityTransform.Elements,
-            0,
-            Snap ? SnapValues : 0
-        );
-
-        if (ImGuizmo::IsUsing())
-        {
-            vec3 Translation;
-            vec3 Rotation;
-            vec3 Scale;
-            ImGuizmo::DecomposeMatrixToComponents((f32 *)EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
-
-            transform EntityTransform = {};
-
-            EntityTransform.Translation = Translation;
-            EntityTransform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
-            EntityTransform.Scale = Scale;
-
-            Entity->Transform = EntityTransform;
-
-            // todo: probably should update colliders or smth
-            if (Entity->Body)
-            {
-                Entity->Body->Position = Translation;
-                Entity->Body->Orientation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
-            }
-
-            if (Entity->Collider)
-            {
-                // todo: rotate collider?
-                UpdateColliderPosition(Entity->Collider, Translation);
-            }
-        }
-    }
-
-    if (!SelectedEntity)
-    {
-        GameState->SelectedEntity = 0;
     }
 
     if ((GameState->Mode == GameMode_Editor || io.KeyCtrl) && !ImGui::GetIO().WantCaptureKeyboard)
@@ -1555,6 +1578,11 @@ Win32RenderEditor(
                 GameParameters->PrevTimeScale = GameParameters->TimeScale;
                 GameParameters->TimeScale = 0.f;
             }
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_H))
+        {
+            EditorState->ToggleUI = !EditorState->ToggleUI;
         }
 
 #if 0

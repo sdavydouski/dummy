@@ -1,6 +1,4 @@
-#include <glad.h>
 #include <glad.c>
-#include <wglext.h>
 
 #include "dummy.h"
 #include "win32_dummy.h"
@@ -1068,6 +1066,7 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
 {
     State->SourceFramebuffer = {};
     State->DestFramebuffer = {};
+    State->FinalFramebuffer = {};
 
     State->SourceFramebuffer.Width = WindowWidth;
     State->SourceFramebuffer.Height = WindowHeight;
@@ -1076,6 +1075,10 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
     State->DestFramebuffer.Width = WindowWidth;
     State->DestFramebuffer.Height = WindowHeight;
 
+    State->FinalFramebuffer.Width = WindowWidth;
+    State->FinalFramebuffer.Height = WindowHeight;
+
+    // Source (multisampled) Framebuffer
     glCreateFramebuffers(1, &State->SourceFramebuffer.Handle);
 
     glCreateRenderbuffers(1, &State->SourceFramebuffer.ColorTarget);
@@ -1089,6 +1092,7 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
     GLenum MultiSampledFramebufferStatus = glCheckNamedFramebufferStatus(State->SourceFramebuffer.Handle, GL_FRAMEBUFFER);
     Assert(MultiSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
 
+    // Dest Framebuffer
     glCreateFramebuffers(1, &State->DestFramebuffer.Handle);
 
     glCreateTextures(GL_TEXTURE_2D, 1, &State->DestFramebuffer.ColorTarget);
@@ -1103,6 +1107,22 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
 
     GLenum SingleSampledFramebufferStatus = glCheckNamedFramebufferStatus(State->DestFramebuffer.Handle, GL_FRAMEBUFFER);
     Assert(SingleSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
+
+    // Final Framebuffer
+    glCreateFramebuffers(1, &State->FinalFramebuffer.Handle);
+
+    glCreateTextures(GL_TEXTURE_2D, 1, &State->FinalFramebuffer.ColorTarget);
+    glTextureStorage2D(State->FinalFramebuffer.ColorTarget, 1, GL_RGBA16F, WindowWidth, WindowHeight);
+
+    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glNamedFramebufferTexture(State->FinalFramebuffer.Handle, GL_COLOR_ATTACHMENT0, State->FinalFramebuffer.ColorTarget, 0);
+
+    GLenum FinalFramebufferStatus = glCheckNamedFramebufferStatus(State->FinalFramebuffer.Handle, GL_FRAMEBUFFER);
+    Assert(FinalFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
 }
 
 dummy_internal void
@@ -1226,7 +1246,8 @@ OpenGLLogMessage(GLenum Source, GLenum Type, GLuint Id, GLenum Severity, GLsizei
         };
     }
 
-    Out(Stream, "%s: %s - %s: %s", SourceString, TypeString, SeverityString, Message);
+    // todo:
+    //Out(Stream, "%s: %s - %s: %s", SourceString, TypeString, SeverityString, Message);
 }
 
 dummy_internal void
@@ -2335,7 +2356,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         OpenGLRenderScene(State, Commands, &RenderOptions);
     }
 
-#if 1
     // Resolve multisample framebuffer
     GLenum Attachments[] = { GL_COLOR_ATTACHMENT0, GL_DEPTH_STENCIL_ATTACHMENT };
 
@@ -2354,8 +2374,21 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
 
     // Draw a full screen triangle for postprocessing
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#if 0
+    glBindFramebuffer(GL_FRAMEBUFFER, State->FinalFramebuffer.Handle);
 
+    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
+
+    glUseProgram(Shader->Program);
+    glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);
+    glBindVertexArray(State->Rectangle.VAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#else
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

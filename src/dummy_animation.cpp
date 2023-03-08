@@ -142,7 +142,7 @@ CalculateAdditiveTransform(transform TargetTransform, transform BaseTransform)
     Result.Rotation = Normalize(TargetTransform.Rotation * Inverse(BaseTransform.Rotation));
     Result.Translation = TargetTransform.Translation - BaseTransform.Translation;
     // In order to support blending between different additive scales, we save [(target scale)/(source scale) - 1.f], 
-    // and this can blend with other delta scale valu
+    // and this can blend with other delta scale value
     Result.Scale = TargetTransform.Scale * SafeReciprocal(BaseTransform.Scale) - vec3(1.f);
 
     Assert(IsFinite(Result));
