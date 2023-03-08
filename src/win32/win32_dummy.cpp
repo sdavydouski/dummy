@@ -34,17 +34,15 @@ Win32GetLastWriteTime(char *FileName)
 #define EDITOR_UI_SHUTDOWN(...) Win32ShutdownEditor(__VA_ARGS__)
 
 #define EDITOR_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
-#define EDITOR_UI_REMOVE_FOCUS(...) ImGui::FocusWindow(0)
-#define EDITOR_UI_CAPTURE_KEYBOARD ImGui::GetIO().WantCaptureKeyboard
-#define EDITOR_UI_CAPTURE_MOUSE ImGui::GetIO().WantCaptureMouse
+#define EDITOR_UI_REMOVE_FOCUS(...) EditorRemoveFocus(__VA_ARGS__)
+#define EDITOR_UI_CAPTURE_INPUT(...) EditorCaptureInput(__VA_ARGS__)
 #else
 #define EDITOR_UI_INIT(...)
 #define EDITOR_UI_RENDER(...)
 #define EDITOR_UI_SHUTDOWN(...)
 #define EDITOR_UI_WND_PROC_HANDLER(...)
-#define EDITOR_UI_REMOVE_FOCUS(...)
-#define EDITOR_UI_CAPTURE_KEYBOARD false
-#define EDITOR_UI_CAPTURE_MOUSE false
+#define EDITOR_UI_REMOVE_FOCUS(...) false
+#define EDITOR_UI_CAPTURE_INPUT(...) false
 #endif
 
 inline void *
@@ -611,8 +609,8 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
         }
         case MouseMode_Cursor:
         {
-            MouseInput->x = MouseCursorX;
-            MouseInput->y = MouseCursorY;
+            MouseInput->x = MouseCursorX - PlatformState->GameWindowPositionX;
+            MouseInput->y = MouseCursorY - PlatformState->GameWindowPositionY;
 
             break;
         }
@@ -1296,8 +1294,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             if (GameCode.IsValid)
             {
+#if 0
                 GameParameters.WindowWidth = PlatformState.WindowWidth;
                 GameParameters.WindowHeight = PlatformState.WindowHeight;
+#endif
 
                 // Input
                 {
@@ -1305,12 +1305,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                     XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
-                    if (!EDITOR_UI_CAPTURE_KEYBOARD)
+                    if (!EDITOR_UI_CAPTURE_INPUT(&EditorState))
                     {
                         KeyboardInput2GameInput(&KeyboardInput, &GameInput);
                     }
 
-                    if (!EDITOR_UI_CAPTURE_MOUSE)
+                    if (!EDITOR_UI_CAPTURE_INPUT(&EditorState))
                     {
                         MouseInput2GameInput(&MouseInput, &GameInput);
                     }

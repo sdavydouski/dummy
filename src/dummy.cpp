@@ -1985,11 +1985,9 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         // ...
     }
 
-    vec2 MouseCoords = Input->MouseCoords;
-
     if (State->Mode == GameMode_Editor && Input->LeftClick.IsActivated)
     {
-        ray Ray = ScreenPointToWorldRay(MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->EditorCamera);
+        ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->EditorCamera);
 
         f32 MinDistance = F32_MAX;
 
@@ -2344,7 +2342,7 @@ DLLExport GAME_RENDER(GameRender)
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
-#if 1
+#if 0
         //
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
@@ -2352,20 +2350,6 @@ DLLExport GAME_RENDER(GameRender)
             State->Player = (State->WorldArea.Entities + 0);
         }
         //
-#endif
-
-#if 0
-        game_entity *ParentEntity = CreateGameEntity(State);
-        ParentEntity->Transform.Translation = vec3(0.f);
-        ParentEntity->Transform.Scale = vec3(1.f);
-        AddModel(State, ParentEntity, &State->Assets, "cube", RenderCommands, &State->PermanentArena);
-        AddBoxCollider(ParentEntity, vec3(1.f), &State->PermanentArena);
-
-        game_entity *ChildEntity = CreateGameEntity(State);
-        ChildEntity->Transform.Translation = vec3(1.f, 0.f, 1.f);
-        ChildEntity->Transform.Scale = vec3(0.5f);
-        AddModel(State, ChildEntity, &State->Assets, "cube", RenderCommands, &State->PermanentArena);
-        AddBoxCollider(ChildEntity, vec3(0.5f), &State->PermanentArena);
 #endif
     }
 
@@ -2394,6 +2378,9 @@ DLLExport GAME_RENDER(GameRender)
         {
             game_camera *Camera = State->Mode == GameMode_World ? &State->GameCamera : &State->EditorCamera;
             bool32 EnableFrustrumCulling = State->Mode == GameMode_World;
+
+            // todo:
+            Camera->AspectRatio = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
 
             SetListener(AudioCommands, Camera->Transform.Translation, -Camera->Direction);
 

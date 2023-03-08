@@ -25,6 +25,9 @@ struct win32_platform_state
 
     i32 WindowPositionX;
     i32 WindowPositionY;
+
+    i32 GameWindowPositionX;
+    i32 GameWindowPositionY;
     
     i32 ScreenWidth;
     i32 ScreenHeight;

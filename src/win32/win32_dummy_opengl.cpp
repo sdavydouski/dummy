@@ -1246,7 +1246,7 @@ OpenGLLogMessage(GLenum Source, GLenum Type, GLuint Id, GLenum Severity, GLsizei
         };
     }
 
-    // todo:
+    // todo: problem with shadow map display
     //Out(Stream, "%s: %s - %s: %s", SourceString, TypeString, SeverityString, Message);
 }
 
@@ -2374,7 +2374,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
 
     // Draw a full screen triangle for postprocessing
-#if 0
+#if 1
     glBindFramebuffer(GL_FRAMEBUFFER, State->FinalFramebuffer.Handle);
 
     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);

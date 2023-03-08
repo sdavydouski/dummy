@@ -168,7 +168,6 @@ EditorSetupStyle()
     ImNodesStyle.Colors[ImNodesCol_TitleBarSelected] = IM_COL32(51, 51, 55, 255);
 
     // todo:
-
     Style.WindowRounding = 0.0f;
     Style.ChildRounding = 0.0f;
     Style.FrameRounding = 0.0f;
@@ -176,6 +175,19 @@ EditorSetupStyle()
     Style.PopupRounding = 0.0f;
     Style.ScrollbarRounding = 0.0f;
     Style.TabRounding = 0.0f;
+}
+
+inline void
+EditorRemoveFocus()
+{
+    ImGui::FocusWindow(0);
+}
+
+inline bool32
+EditorCaptureInput(editor_state *EditorState)
+{
+    bool32 Result = !EditorState->GameWindowHovered;
+    return Result;
 }
 
 dummy_internal void
@@ -1000,12 +1012,12 @@ Win32RenderEditor(
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
 
-    //ImGui::ShowDemoWindow();
-
     const ImGuiViewport *Viewport = ImGui::GetMainViewport();
     ImGuiIO &io = ImGui::GetIO();
 
-    ImGui::DockSpaceOverViewport(Viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGui::DockSpaceOverViewport(Viewport);
+
+    //ImGui::ShowDemoWindow();
 
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImVec2(Viewport->Size.x, ImGui::GetFrameHeight()));
@@ -1310,7 +1322,7 @@ Win32RenderEditor(
         {
             ImVec2 WindowSize = ImVec2(512, 512);
 
-            if (ImGui::BeginTable("Shadow Maps", 4, ImGuiTableFlags_ScrollX))
+            if (ImGui::BeginTable("Shadow Maps", 1, ImGuiTableFlags_ScrollX))
             {
                 for (u32 CascadeIndex = 0; CascadeIndex < ArrayCount(RendererState->CascadeShadowMaps); ++CascadeIndex)
                 {
@@ -1427,41 +1439,64 @@ Win32RenderEditor(
         }
         ImGui::End();
 
-        // todo: https://github.com/ocornut/imgui/issues/5921
-#if 0
-        //ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-        ImGui::SetNextWindowSize(ImVec2(1600, 900));
-        ImGui::Begin("Game");
+        // Game View
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+        ImGui::Begin("Game View");
+
+        EditorState->GameWindowHovered = ImGui::IsWindowHovered();
 
         ImGuizmo::SetDrawlist();
 
         ImVec2 GameWindowPosition = ImGui::GetWindowPos();
         ImVec2 GameWindowSize = ImGui::GetContentRegionAvail();
 
-        GameParameters->WindowWidth = (u32)GameWindowSize.x;
-        GameParameters->WindowHeight = (u32)GameWindowSize.y;
-        GameParameters->WindowPositionX = (u32)GameWindowPosition.x;
-        GameParameters->WindowPositionY = (u32)GameWindowPosition.y;
+        ImVec2 GameWindowContentPosition = ImGui::GetCursorScreenPos();
+
+        // todo:
+        GameParameters->WindowWidth = (u32) GameWindowSize.x;
+        GameParameters->WindowHeight = (u32) GameWindowSize.y;
+
+        PlatformState->GameWindowPositionX = (i32) GameWindowContentPosition.x;
+        PlatformState->GameWindowPositionY = (i32) GameWindowContentPosition.y;
 
         ImGui::Image((ImTextureID)(umm)RendererState->FinalFramebuffer.ColorTarget, GameWindowSize, ImVec2(0, 1), ImVec2(1, 0));
 
+        ImGui::PushClipRect(GameWindowPosition, GameWindowPosition + GameWindowSize, false);
+
         ImGui::End();
-        //ImGui::PopStyleVar();
-#endif
+
+        ImGui::PopStyleVar();
+        //
+
+        ImGui::SetNextWindowPos(GameWindowContentPosition);
+        ImGui::SetNextWindowBgAlpha(0.3f);
+        ImGui::Begin("Game Overlay", 0, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
+        ImGui::Text("Size: %d, %d", GameParameters->WindowWidth, GameParameters->WindowHeight);
+        ImGui::End();
 
         bool SelectedEntity = true;
+
+        ImGui::Begin("Entity");
+
+        if (GameState->SelectedEntity)
+        {
+            EditorRenderEntityInfo(EditorState, GameState, Platform, RendererState, GameState->SelectedEntity, RenderCommands);
+        }
+        else
+        {
+            ImGui::Text("Select entity to see details");
+        }
+
+        ImGui::End();
 
         if (GameState->SelectedEntity)
         {
             game_entity *Entity = GameState->SelectedEntity;
 
-            ImGui::Begin("Entity", &SelectedEntity);
-            EditorRenderEntityInfo(EditorState, GameState, Platform, RendererState, Entity, RenderCommands);
-            ImGui::End();
-
             // Gizmos
             ImGuizmo::Enable(!GameInput->EnableFreeCameraMovement.IsActive);
-            ImGuizmo::SetRect(0, 0, (f32)GameParameters->WindowWidth, (f32)GameParameters->WindowHeight);
+            ImGuizmo::SetRect(GameWindowPosition.x, GameWindowPosition.y, GameWindowSize.x, GameWindowSize.y);
 
             mat4 WorldToCamera = Transpose(GetCameraTransform(Camera));
             mat4 WorldProjection = Transpose(FrustrumProjection(Camera->FieldOfView, Camera->AspectRatio, Camera->NearClipPlane, Camera->FarClipPlane));
