@@ -1,5 +1,7 @@
 #pragma once
 
+#define EDITOR 1
+
 #define WIN32_FILE_PATH MAX_PATH
 
 #define GET_MOUSE_CURSOR_X(lParam) (i32)(i16)((lParam) & 0xFFFF)
@@ -25,6 +27,9 @@ struct win32_platform_state
 
     i32 WindowPositionX;
     i32 WindowPositionY;
+
+    i32 GameWindowWidth;
+    i32 GameWindowHeight;
 
     i32 GameWindowPositionX;
     i32 GameWindowPositionY;

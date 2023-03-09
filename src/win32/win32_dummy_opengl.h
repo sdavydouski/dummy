@@ -272,7 +272,7 @@ struct opengl_state
 
     opengl_framebuffer SourceFramebuffer;
     opengl_framebuffer DestFramebuffer;
-    opengl_framebuffer FinalFramebuffer;
+    opengl_framebuffer EditorFramebuffer;
 
     opengl_buffer Line;
     opengl_buffer Rectangle;

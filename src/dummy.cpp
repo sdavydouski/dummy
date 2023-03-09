@@ -338,7 +338,6 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "ybot",
             "assets\\ybot.model.asset"
         },
-#if 1
         {
             "pelegrini",
             "assets\\pelegrini.model.asset"
@@ -367,7 +366,6 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "cerberus",
             "assets\\cerberus.model.asset"
         },
-#endif
         {
             "cube",
             "assets\\cube.model.asset"
@@ -1339,14 +1337,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     }
                 }
 
-                // todo(continue): apply animations (https://answers.unity.com/questions/1488445/root-motion-and-jump.html)
-                // todo: I need three: jump, jump_idle, land
-                // todo: additive blend with locomotion when landing?
-                // todo: https://github.com/mrdoob/three.js/blob/master/src/animation/AnimationUtils.js#L229
-                // todo: https://github.com/mrdoob/three.js/blob/dev/examples/webgl_animation_skinning_additive_blending.html
-
                 if (Body->RootMotionEnabled && Entity->IsGrounded)
-                //if (false)
                 {
                     // Partial integration
                     f32 dt = Data->UpdateRate;
@@ -2244,7 +2235,10 @@ DLLExport GAME_UPDATE(GameUpdate)
         Job->Parameters = JobData;
     }
 
-    Platform->KickJobsAndWait(State->JobQueue, UpdateEntityBatchJobCount, UpdateEntityBatchJobs);
+    if (UpdateEntityBatchJobCount > 0)
+    {
+        Platform->KickJobsAndWait(State->JobQueue, UpdateEntityBatchJobCount, UpdateEntityBatchJobs);
+    }
 #else
     for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
     {
@@ -2430,10 +2424,10 @@ DLLExport GAME_RENDER(GameRender)
                 // Camera is looking downwards
                 if (State->GameCamera.Direction.y < 0.f)
                 {
-                    f32 MinY = 1.f;
-                    plane LowestPlane = ComputePlane(vec3(-1.f, MinY, 0.f), vec3(0.f, MinY, 1.f), vec3(1.f, MinY, 0.f));
+                    //f32 MinY = 1.f;
+                    //plane LowestPlane = ComputePlane(vec3(-1.f, MinY, 0.f), vec3(0.f, MinY, 1.f), vec3(1.f, MinY, 0.f));
 
-                    ClipPolyhedron(&State->Frustrum, LowestPlane, &VisibilityRegion);
+                    ClipPolyhedron(&State->Frustrum, State->Ground, &VisibilityRegion);
                 }
 
                 vec4 LightPosition = vec4(-State->DirectionalLight.Direction * 100.f, 0.f);
@@ -2489,7 +2483,10 @@ DLLExport GAME_RENDER(GameRender)
                     Job->Parameters = JobData;
                 }
 
-                Platform->KickJobsAndWait(State->JobQueue, ProcessEntityBatchJobCount, ProcessEntityBatchJobs);
+                if (ProcessEntityBatchJobCount > 0)
+                {
+                    Platform->KickJobsAndWait(State->JobQueue, ProcessEntityBatchJobCount, ProcessEntityBatchJobs);
+                }
             }
 
             {
@@ -2523,7 +2520,10 @@ DLLExport GAME_RENDER(GameRender)
                     }
                 }
 
-                Platform->KickJobsAndWait(State->JobQueue, AnimationJobCount, AnimationJobs);
+                if (AnimationJobCount > 0)
+                {
+                    Platform->KickJobsAndWait(State->JobQueue, AnimationJobCount, AnimationJobs);
+                }
             }
 
             {
@@ -2647,7 +2647,10 @@ DLLExport GAME_RENDER(GameRender)
                     }
                 }
 
-                Platform->KickJobsAndWait(State->JobQueue, ParticleJobCount, ParticleJobs);
+                if (ParticleJobCount > 0)
+                {
+                    Platform->KickJobsAndWait(State->JobQueue, ParticleJobCount, ParticleJobs);
+                }
             }   
 
             {

@@ -1066,7 +1066,7 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
 {
     State->SourceFramebuffer = {};
     State->DestFramebuffer = {};
-    State->FinalFramebuffer = {};
+    State->EditorFramebuffer = {};
 
     State->SourceFramebuffer.Width = WindowWidth;
     State->SourceFramebuffer.Height = WindowHeight;
@@ -1075,8 +1075,8 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
     State->DestFramebuffer.Width = WindowWidth;
     State->DestFramebuffer.Height = WindowHeight;
 
-    State->FinalFramebuffer.Width = WindowWidth;
-    State->FinalFramebuffer.Height = WindowHeight;
+    State->EditorFramebuffer.Width = WindowWidth;
+    State->EditorFramebuffer.Height = WindowHeight;
 
     // Source (multisampled) Framebuffer
     glCreateFramebuffers(1, &State->SourceFramebuffer.Handle);
@@ -1109,19 +1109,19 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
     Assert(SingleSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
 
     // Final Framebuffer
-    glCreateFramebuffers(1, &State->FinalFramebuffer.Handle);
+    glCreateFramebuffers(1, &State->EditorFramebuffer.Handle);
 
-    glCreateTextures(GL_TEXTURE_2D, 1, &State->FinalFramebuffer.ColorTarget);
-    glTextureStorage2D(State->FinalFramebuffer.ColorTarget, 1, GL_RGBA16F, WindowWidth, WindowHeight);
+    glCreateTextures(GL_TEXTURE_2D, 1, &State->EditorFramebuffer.ColorTarget);
+    glTextureStorage2D(State->EditorFramebuffer.ColorTarget, 1, GL_RGBA16F, WindowWidth, WindowHeight);
 
-    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(State->FinalFramebuffer.ColorTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(State->EditorFramebuffer.ColorTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(State->EditorFramebuffer.ColorTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(State->EditorFramebuffer.ColorTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(State->EditorFramebuffer.ColorTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glNamedFramebufferTexture(State->FinalFramebuffer.Handle, GL_COLOR_ATTACHMENT0, State->FinalFramebuffer.ColorTarget, 0);
+    glNamedFramebufferTexture(State->EditorFramebuffer.Handle, GL_COLOR_ATTACHMENT0, State->EditorFramebuffer.ColorTarget, 0);
 
-    GLenum FinalFramebufferStatus = glCheckNamedFramebufferStatus(State->FinalFramebuffer.Handle, GL_FRAMEBUFFER);
+    GLenum FinalFramebufferStatus = glCheckNamedFramebufferStatus(State->EditorFramebuffer.Handle, GL_FRAMEBUFFER);
     Assert(FinalFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
 }
 
@@ -1137,6 +1137,9 @@ OpenGLOnWindowResize(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32
 
     glDeleteFramebuffers(1, &State->DestFramebuffer.Handle);
     glDeleteTextures(1, &State->DestFramebuffer.ColorTarget);
+
+    glDeleteFramebuffers(1, &State->EditorFramebuffer.Handle);
+    glDeleteTextures(1, &State->EditorFramebuffer.ColorTarget);
 
     OpenGLInitFramebuffers(State, WindowWidth, WindowHeight, Samples);
 }
@@ -2374,8 +2377,9 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
 
     // Draw a full screen triangle for postprocessing
-#if 1
-    glBindFramebuffer(GL_FRAMEBUFFER, State->FinalFramebuffer.Handle);
+    
+#if EDITOR
+    glBindFramebuffer(GL_FRAMEBUFFER, State->EditorFramebuffer.Handle);
 
     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
 

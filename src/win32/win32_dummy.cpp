@@ -24,25 +24,23 @@ Win32GetLastWriteTime(char *FileName)
 #include "win32_dummy_xaudio2.cpp"
 #include "win32_dummy_opengl.cpp"
 
-#define EDITOR_UI 1
-
-#if EDITOR_UI
+#if EDITOR
 #include "win32_dummy_editor.cpp"
 
-#define EDITOR_UI_INIT(...) Win32InitEditor(__VA_ARGS__)
-#define EDITOR_UI_RENDER(...) Win32RenderEditor(__VA_ARGS__)
-#define EDITOR_UI_SHUTDOWN(...) Win32ShutdownEditor(__VA_ARGS__)
+#define EDITOR_INIT(...) Win32InitEditor(__VA_ARGS__)
+#define EDITOR_RENDER(...) Win32RenderEditor(__VA_ARGS__)
+#define EDITOR_SHUTDOWN(...) Win32ShutdownEditor(__VA_ARGS__)
 
-#define EDITOR_UI_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
-#define EDITOR_UI_REMOVE_FOCUS(...) EditorRemoveFocus(__VA_ARGS__)
-#define EDITOR_UI_CAPTURE_INPUT(...) EditorCaptureInput(__VA_ARGS__)
+#define EDITOR_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
+#define EDITOR_REMOVE_FOCUS(...) EditorRemoveFocus(__VA_ARGS__)
+#define EDITOR_CAPTURE_INPUT(...) EditorCaptureInput(__VA_ARGS__)
 #else
-#define EDITOR_UI_INIT(...)
-#define EDITOR_UI_RENDER(...)
-#define EDITOR_UI_SHUTDOWN(...)
-#define EDITOR_UI_WND_PROC_HANDLER(...)
-#define EDITOR_UI_REMOVE_FOCUS(...) false
-#define EDITOR_UI_CAPTURE_INPUT(...) false
+#define EDITOR_INIT(...)
+#define EDITOR_RENDER(...)
+#define EDITOR_SHUTDOWN(...)
+#define EDITOR_WND_PROC_HANDLER(...)
+#define EDITOR_REMOVE_FOCUS(...)
+#define EDITOR_CAPTURE_INPUT(...) false
 #endif
 
 inline void *
@@ -294,7 +292,7 @@ Win32ToggleFullScreen(win32_platform_state *PlatformState)
 
 LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, _In_ LPARAM lParam)
 {
-    EDITOR_UI_WND_PROC_HANDLER();
+    EDITOR_WND_PROC_HANDLER();
 
     switch (uMsg)
     {
@@ -592,15 +590,15 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
 inline void
 Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *PlatformState, MSG *WindowMessage)
 {
-    i32 MouseCursorX = GET_MOUSE_CURSOR_X(WindowMessage->lParam);
-    i32 MouseCursorY = GET_MOUSE_CURSOR_Y(WindowMessage->lParam);
+    i32 MouseCursorX = GET_MOUSE_CURSOR_X(WindowMessage->lParam) - PlatformState->GameWindowPositionX;
+    i32 MouseCursorY = GET_MOUSE_CURSOR_Y(WindowMessage->lParam) - PlatformState->GameWindowPositionY;
 
     switch (PlatformState->MouseMode)
     {
         case MouseMode_Navigation:
         {
-            i32 WindowCenterX = PlatformState->WindowWidth / 2;
-            i32 WindowCenterY = PlatformState->WindowHeight / 2;
+            i32 WindowCenterX = PlatformState->GameWindowWidth / 2;
+            i32 WindowCenterY = PlatformState->GameWindowHeight / 2;
 
             MouseInput->dx = MouseCursorX - WindowCenterX;
             MouseInput->dy = MouseCursorY - WindowCenterY;
@@ -609,8 +607,8 @@ Win32ProcessMouseInput(platform_input_mouse *MouseInput, win32_platform_state *P
         }
         case MouseMode_Cursor:
         {
-            MouseInput->x = MouseCursorX - PlatformState->GameWindowPositionX;
-            MouseInput->y = MouseCursorY - PlatformState->GameWindowPositionY;
+            MouseInput->x = MouseCursorX;
+            MouseInput->y = MouseCursorY;
 
             break;
         }
@@ -673,9 +671,6 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
                     MouseInput->LeftButton.IsPressed = IsLeftMouseDown;
                     MouseInput->RightButton.IsPressed = IsRightMouseDown;
 
-                    i32 WindowCenterX = PlatformState->WindowWidth / 2;
-                    i32 WindowCenterY = PlatformState->WindowHeight / 2;
-
                     MouseInput->dx = 0;
                     MouseInput->dy = 0;
                 }
@@ -708,18 +703,16 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
         }
     }
 
-    //
     if (PlatformState->MouseMode == MouseMode_Navigation)
     {
-        i32 WindowCenterX = PlatformState->WindowWidth / 2;
-        i32 WindowCenterY = PlatformState->WindowHeight / 2;
+        i32 WindowCenterX = PlatformState->GameWindowPositionX + PlatformState->GameWindowWidth / 2;
+        i32 WindowCenterY = PlatformState->GameWindowPositionY + PlatformState->GameWindowHeight / 2;
 
         if (Abs(MouseInput->dx) > 0 || Abs(MouseInput->dy) > 0)
         {
             SetCursorPos(PlatformState->WindowPositionX + WindowCenterX, PlatformState->WindowPositionY + WindowCenterY);
         }
     }
-    //
 
     EndProcessMouseInput(MouseInput);
     EndProcessKeyboardInput(KeyboardInput);
@@ -737,12 +730,15 @@ dummy_internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
         {
             case MouseMode_Navigation:
             {
+                i32 WindowCenterX = PlatformState->GameWindowPositionX + PlatformState->GameWindowWidth / 2;
+                i32 WindowCenterY = PlatformState->GameWindowPositionY + PlatformState->GameWindowHeight / 2;
+
                 Win32HideMouseCursor();
-                SetCursorPos(PlatformState->WindowPositionX + PlatformState->WindowWidth / 2, PlatformState->WindowPositionY + PlatformState->WindowHeight / 2);
+                SetCursorPos(PlatformState->WindowPositionX + WindowCenterX, PlatformState->WindowPositionY + WindowCenterY);
                 RECT ClipRegion = GetCursorClipRect(PlatformState);
                 ClipCursor(&ClipRegion);
 
-                EDITOR_UI_REMOVE_FOCUS();
+                EDITOR_REMOVE_FOCUS();
 
                 break;
             }
@@ -1084,6 +1080,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 #if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
+    PlatformState.GameWindowWidth = PlatformState.WindowWidth;
+    PlatformState.GameWindowHeight = PlatformState.WindowHeight;
 #else
     PlatformState.WindowWidth = 1600;
     PlatformState.WindowHeight = 900;
@@ -1226,12 +1224,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         
         Win32SetMouseMode((void *)&PlatformState, MouseMode_Cursor);
 
-#if EDITOR_UI
+#if EDITOR
         editor_state EditorState = {};
         umm EditorArenaSize = Megabytes(32);
         InitMemoryArena(&EditorState.Arena, Win32AllocateMemory(0, EditorArenaSize), EditorArenaSize);
 #endif
-        EDITOR_UI_INIT(&PlatformState, &EditorState);
+        EDITOR_INIT(&PlatformState, &EditorState);
 
         game_parameters GameParameters = {};
         game_input GameInput = {};
@@ -1294,10 +1292,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             if (GameCode.IsValid)
             {
-#if 0
-                GameParameters.WindowWidth = PlatformState.WindowWidth;
-                GameParameters.WindowHeight = PlatformState.WindowHeight;
-#endif
+                GameParameters.WindowWidth = PlatformState.GameWindowWidth;
+                GameParameters.WindowHeight = PlatformState.GameWindowHeight;
 
                 // Input
                 {
@@ -1305,12 +1301,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                     XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
-                    if (!EDITOR_UI_CAPTURE_INPUT(&EditorState))
+                    if (!EDITOR_CAPTURE_INPUT(&EditorState))
                     {
                         KeyboardInput2GameInput(&KeyboardInput, &GameInput);
                     }
 
-                    if (!EDITOR_UI_CAPTURE_INPUT(&EditorState))
+                    if (!EDITOR_CAPTURE_INPUT(&EditorState))
                     {
                         MouseInput2GameInput(&MouseInput, &GameInput);
                     }
@@ -1352,7 +1348,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             {
                 PROFILE(&PlatformProfiler, "EDITOR_UI_RENDER");
-                EDITOR_UI_RENDER(&EditorState, &PlatformState, &Win32OpenGLState.OpenGL, &XAudio2State, &GameMemory, &GameParameters, &GameInput);
+                EDITOR_RENDER(&EditorState, &PlatformState, &Win32OpenGLState.OpenGL, &XAudio2State, &GameMemory, &GameParameters, &GameInput);
             }
 
             GameInput = {};
@@ -1389,7 +1385,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         }
 
         // Cleanup
-        EDITOR_UI_SHUTDOWN();
+        EDITOR_SHUTDOWN();
 
         Win32XAudio2Shutdown(&XAudio2State);
 
