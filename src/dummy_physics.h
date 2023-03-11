@@ -5,7 +5,10 @@ struct rigid_body
     vec3 PrevPosition;
     vec3 Position;
 
+    vec3 PrevVelocity;
     vec3 Velocity;
+
+    vec3 PrevAcceleration;
     vec3 Acceleration;
 
     quat Orientation;

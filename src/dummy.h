@@ -21,12 +21,17 @@
 #include "dummy_job.h"
 #include "dummy_platform.h"
 
+struct game_assets;
+
 void PublishEvent(game_event_list *EventList, const char *EventName, void *Params);
 void TransitionToNode(animation_graph *Graph, const char *NodeName);
 animation_node *GetAnimationNode(animation_graph *Graph, const char *NodeName);
+additive_animation *GetAdditiveAnimation(animation_node *Node, const char *AnimationClipName);
 bool32 AnimationClipFinished(animation_state Animation);
 bool32 AdditiveAnimationsFinished(animation_node *Node);
+audio_clip *GetAudioClipAsset(game_assets *Assets, const char *Name);
 
+#define SID(String) Hash(String)
 #define MAX_ENTITY_NAME 256
 
 enum game_mode
@@ -315,7 +320,8 @@ struct game_state
     game_mode PrevMode;
     game_mode Mode;
 
-    game_input Input;
+    vec2 TargetMove;
+    vec2 CurrentMove;
 
     vec2 ViewFrustrumSize;
 
@@ -347,11 +353,6 @@ struct game_state
     hash_table<game_process> Processes;
     // linked-list (for efficient adding/removal and traversing)
     game_process ProcessSentinel;
-
-    // todo:
-    vec2 CurrentMove;
-    vec2 TargetMove;
-    //
 
     random_sequence GeneralEntropy;
     random_sequence ParticleEntropy;

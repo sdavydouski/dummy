@@ -1,7 +1,4 @@
-﻿//#define sid u32
-//#define SID(String) Hash(String)
-
-#include "dummy_assets.cpp"
+﻿#include "dummy_assets.cpp"
 #include "dummy_audio.cpp"
 #include "dummy_renderer.cpp"
 #include "dummy_events.cpp"
@@ -639,16 +636,16 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
     for (u32 JointIndex = 0; JointIndex < Pose->Skeleton->JointCount; ++JointIndex)
     {
         joint *Joint = Pose->Skeleton->Joints + JointIndex;
-        transform *LocalJointPose = Pose->LocalJointPoses + JointIndex;
-        mat4 *GlobalJointPose = Pose->GlobalJointPoses + JointIndex;
+        transform LocalJointPose = Pose->LocalJointPoses[JointIndex];
+        mat4 GlobalJointPose = Pose->GlobalJointPoses[JointIndex];
 
-        transform Transform = CreateTransform(GetTranslation(*GlobalJointPose), vec3(0.01f), LocalJointPose->Rotation);
+        transform Transform = CreateTransform(GetTranslation(GlobalJointPose), vec3(0.01f), LocalJointPose.Rotation);
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
 
-        quat Rotation = LocalJointPose->Rotation;
-        vec3 Scale = LocalJointPose->Scale;
+        quat Rotation = LocalJointPose.Rotation;
+        vec3 Scale = LocalJointPose.Scale;
 
         char RotationLabel[256];
         FormatString(RotationLabel, "index: %d; rot: %.2f, %.2f, %.2f, %.2f", JointIndex, Rotation.x, Rotation.y, Rotation.z, Rotation.w);
@@ -656,15 +653,15 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         char ScaleLabel[256];
         FormatString(ScaleLabel, "index: %d; scale: %.2f, %.2f, %.2f", JointIndex, Scale.x, Scale.y, Scale.z);
 
-        //DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.1f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
-        DrawText(RenderCommands, RotationLabel, Font, Transform.Translation, 0.02f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.05f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+        //DrawText(RenderCommands, RotationLabel, Font, Transform.Translation, 0.02f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
-            mat4 *ParentGlobalJointPose = Pose->GlobalJointPoses + Joint->ParentIndex;
+            mat4 ParentGlobalJointPose = Pose->GlobalJointPoses[Joint->ParentIndex];
 
-            vec3 LineStart = GetTranslation(*ParentGlobalJointPose);
-            vec3 LineEnd = GetTranslation(*GlobalJointPose);
+            vec3 LineStart = GetTranslation(ParentGlobalJointPose);
+            vec3 LineEnd = GetTranslation(GlobalJointPose);
 
             DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 2.f);
         }
@@ -980,202 +977,62 @@ CopyGameEntity(game_state *State, render_commands *RenderCommands, game_entity *
     }
 }
 
-inline void
-GameInput2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
-{
-    game_input *Input = &State->Input;
-    f32 Random = Random01(&State->GeneralEntropy);
-
-    // todo:
-    Params->MaxTime = 5.f;
-    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
-    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
-    Params->IsGrounded = Entity->IsGrounded;
-    Params->Velocity = Entity->Body->Velocity;
-    Params->Acceleration = Entity->Body->Acceleration;
-
-    Params->ToStateActionIdle = State->Player == Entity;
-    Params->ToStateStandingIdle = !(State->Player == Entity);
-
-    Params->ToStateActionIdle1 = Random < 0.5f;
-    Params->ToStateActionIdle2 = Random >= 0.5f;
-    Params->ToStateIdle1 = Random < 0.5f;
-    Params->ToStateIdle2 = Random >= 0.5f;
-
-    if (Input->Dance.IsActivated || Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
-        Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
-    }
-}
-
-inline void
-GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
-{
-    f32 Random = Random01(&State->GeneralEntropy);
-
-    // todo:
-    Params->MaxTime = 8.f;
-    Params->ToStateActionIdle = State->Player == Entity;
-    Params->ToStateStandingIdle = !(State->Player == Entity);
-    Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
-    Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
-
-    if (Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = State->DanceMode.Value;
-        Params->ToStateActionIdleFromDancing = !State->DanceMode.Value;
-    }
-}
-
-inline void
-GameInput2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_animator_params *Params)
-{
-    game_input *Input = &State->Input;
-    f32 Random = Random01(&State->GeneralEntropy);
-
-    // todo:
-    Params->MaxTime = 5.f;
-    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
-    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
-
-    Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
-    Params->ToStateActionIdle2 = 0.33f <= Random && Random <= 0.66f;
-    Params->ToStateActionIdle3 = 0.66f <= Random && Random <= 1.f;
-
-    if (Input->Dance.IsActivated || Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
-        Params->ToStateActionIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
-    }
-
-    Params->LightAttack = State->Mode == GameMode_World && Input->LightAttack.IsActivated;
-    Params->StrongAttack = State->Mode == GameMode_World && Input->StrongAttack.IsActivated;
-}
-
-inline void
-GameLogic2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_animator_params *Params)
-{
-    f32 Random = Random01(&State->GeneralEntropy);
-
-    // todo:
-    Params->MaxTime = 8.f;
-    Params->ToStateActionIdle1 = 0.f <= Random && Random < 0.33f;
-    Params->ToStateActionIdle2 = 0.33f <= Random && Random < 0.66f;
-
-    if (Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = State->DanceMode.Value;
-        Params->ToStateActionIdleFromDancing = !State->DanceMode.Value;
-    }
-}
-
-inline void
-GameInput2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_animator_params *Params)
-{
-    game_input *Input = &State->Input;
-
-    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
-    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
-    Params->Attack = State->Mode == GameMode_World && Input->LightAttack.IsActivated;
-
-    if (Input->Dance.IsActivated || Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
-        Params->ToStateIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
-    }
-}
-
-inline void
-GameLogic2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_animator_params *Params)
-{
-    if (Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = State->DanceMode.Value;
-        Params->ToStateIdleFromDancing = !State->DanceMode.Value;
-    }
-}
-
-inline void
-GameInput2ClericAnimatorParams(game_state *State, game_entity *Entity, cleric_animator_params *Params)
-{
-    game_input *Input = &State->Input;
-
-    Params->Move = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
-    Params->MoveMagnitude = State->Mode == GameMode_World ? Clamp(Magnitude(Input->Move.Range), 0.f, 1.f) : 0.f;
-
-    if (Input->Dance.IsActivated || Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = Input->Dance.IsActivated || State->DanceMode.Value;
-        Params->ToStateIdleFromDancing = Input->Dance.IsActivated || !State->DanceMode.Value;
-    }
-}
-
-inline void
-GameLogic2ClericAnimatorParams(game_state *State, game_entity *Entity, cleric_animator_params *Params)
-{
-    if (Changed(State->DanceMode))
-    {
-        Params->ToStateDancing = State->DanceMode.Value;
-        Params->ToStateIdleFromDancing = !State->DanceMode.Value;
-    }
-}
-
 dummy_internal void *
-GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
+GetAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, memory_arena *Arena)
 {
     void *Params = 0;
 
-    if (StringEquals(Entity->Animation->Animator, "Bot"))
+    switch (SID(Entity->Animation->Animator))
     {
-        Params = PushType(Arena, bot_animator_params);
+        case SID("Bot"):
+        {
+            Params = PushType(Arena, bot_animator_params);
 
-        if (State->Player == Entity)
-        {
-            GameInput2BotAnimatorParams(State, Entity, (bot_animator_params *) Params);
-        }
-        else
-        {
-            GameLogic2BotAnimatorParams(State, Entity, (bot_animator_params *) Params);
-        }
-    }
-    else if (StringEquals(Entity->Animation->Animator, "Paladin"))
-    {
-        Params = PushType(Arena, paladin_animator_params);
+            if (State->Player == Entity && State->Mode == GameMode_World)
+            {
+                GameInput2BotAnimatorParams(State, Input, Entity, (bot_animator_params *)Params);
+            }
+            else
+            {
+                GameLogic2BotAnimatorParams(State, Entity, (bot_animator_params *)Params);
+            }
 
-        if (State->Player == Entity)
-        {
-            GameInput2PaladinAnimatorParams(State, Entity, (paladin_animator_params *) Params);
+            break;
         }
-        else
+        case SID("Paladin"):
         {
-            GameLogic2PaladinAnimatorParams(State, Entity, (paladin_animator_params *) Params);
-        }
-    }
-    else if (StringEquals(Entity->Animation->Animator, "Monstar"))
-    {
-        Params = PushType(Arena, monstar_animator_params);
+            Params = PushType(Arena, paladin_animator_params);
 
-        if (State->Player = Entity)
-        {
-            GameInput2MonstarAnimatorParams(State, Entity, (monstar_animator_params *) Params);
-        }
-        else
-        {
-            GameLogic2MonstarAnimatorParams(State, Entity, (monstar_animator_params *) Params);
-        }
-    }
-    else if (StringEquals(Entity->Animation->Animator, "Cleric"))
-    {
-        Params = PushType(Arena, cleric_animator_params);
+            if (State->Player == Entity && State->Mode == GameMode_World)
+            {
+                GameInput2PaladinAnimatorParams(State, Input, Entity, (paladin_animator_params *)Params);
+            }
+            else
+            {
+                GameLogic2PaladinAnimatorParams(State, Entity, (paladin_animator_params *)Params);
+            }
 
-        if (State->Player == Entity)
-        {
-            GameInput2ClericAnimatorParams(State, Entity, (cleric_animator_params *) Params);
+            break;
         }
-        else
+        case SID("Monstar"):
         {
-            GameLogic2ClericAnimatorParams(State, Entity, (cleric_animator_params *) Params);
+            Params = PushType(Arena, monstar_animator_params);
+
+            if (State->Player == Entity && State->Mode == GameMode_World)
+            {
+                GameInput2MonstarAnimatorParams(State, Input, Entity, (monstar_animator_params *)Params);
+            }
+            else
+            {
+                GameLogic2MonstarAnimatorParams(State, Entity, (monstar_animator_params *)Params);
+            }
+
+            break;
+        }
+        default:
+        {
+            Assert(!"Animator is not supported");
+            break;
         }
     }
 
@@ -1183,7 +1040,7 @@ GetAnimatorParams(game_state *State, game_entity *Entity, memory_arena *Arena)
 }
 
 dummy_internal void
-AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 Delta)
+AnimateEntity(game_state *State, game_input *Input, game_entity *Entity, memory_arena *Arena, f32 Delta)
 {
     Assert(Entity->Skinning);
 
@@ -1193,7 +1050,7 @@ AnimateEntity(game_state *State, game_entity *Entity, memory_arena *Arena, f32 D
 
     if (Entity->Animation)
     {
-        void *Params = GetAnimatorParams(State, Entity, Arena);
+        void *Params = GetAnimatorParams(State, Input, Entity, Arena);
 
         AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
         AnimationGraphPerFrameUpdate(Entity->Animation, Delta);
@@ -1341,6 +1198,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 {
                     // Partial integration
                     f32 dt = Data->UpdateRate;
+
                     Body->Acceleration += Body->ForceAccumulator * Body->InverseMass;
                     Body->Velocity += Body->Acceleration * dt;
                     Body->Velocity *= Power(Body->Damping, dt);
@@ -1358,7 +1216,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
                     Integrate(Body, Data->UpdateRate);
 
-                    Clamp(&Body->Acceleration.y, -100.f, 100.f);
+                    Clamp(&Body->Acceleration.y, -120.f, 120.f);
 
                     if (Body->Position.y < 0.f)
                     {
@@ -1442,6 +1300,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 struct animate_entity_job
 {
     game_state *State;
+    game_input *Input;
     game_entity *Entity;
     memory_arena Arena;
     f32 Delta;
@@ -1450,7 +1309,7 @@ struct animate_entity_job
 JOB_ENTRY_POINT(AnimateEntityJob)
 {
     animate_entity_job *Data = (animate_entity_job *) Parameters;
-    AnimateEntity(Data->State, Data->Entity, &Data->Arena, Data->Delta);
+    AnimateEntity(Data->State, Data->Input, Data->Entity, &Data->Arena, Data->Delta);
 }
 
 struct process_entity_batch_job
@@ -1564,9 +1423,6 @@ LoadAnimators(animator *Animator)
 
     animator_controller *MonstarController = HashTableLookup(&Animator->Controllers, (char *) "Monstar");
     MonstarController->Func = MonstarAnimatorController;
-
-    animator_controller *ClericController = HashTableLookup(&Animator->Controllers, (char *) "Cleric");
-    ClericController->Func = ClericAnimatorController;
 
     animator_controller *SimpleController = HashTableLookup(&Animator->Controllers, (char *) "Simple");
     SimpleController->Func = SimpleAnimatorController;
@@ -1868,9 +1724,6 @@ DLLExport GAME_INIT(GameInit)
 
     ClearAudioCommands(Memory);
 
-    State->CurrentMove = vec2(0.f);
-    State->TargetMove = vec2(0.f);
-
     State->Options = {};
     State->Options.ShowBoundingVolumes = false;
     State->Options.ShowGrid = true;
@@ -1937,8 +1790,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     platform_api *Platform = Memory->Platform;
     audio_commands *AudioCommands = GetAudioCommands(Memory);
 
-    State->Input = *Input;
-
     vec3 xAxis = vec3(1.f, 0.f, 0.f);
     vec3 yAxis = vec3(0.f, 1.f, 0.f);
     vec3 zAxis = vec3(0.f, 0.f, 1.f);
@@ -1952,7 +1803,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         Move = Normalize(Move);
     }
-    else if (Abs(Move.x) == 2.f && Abs(Move.y) == 2.f)
+
+    if (Abs(Move.x) == 2.f && Abs(Move.y) == 2.f)
     {
         Move = Normalize(Move) * 2.f;
     }
@@ -2037,6 +1889,13 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         case GameMode_World:
         {
+            State->TargetMove = Move;
+
+            if (State->TargetMove != State->CurrentMove)
+            {
+                StartGameProcess(State, SmoothInputMoveProcess);
+            }
+
             // Camera
             // https://www.gamasutra.com/blogs/YoannPignole/20150928/249412/Third_person_camera_design_with_free_move_zone.php
             game_camera *PlayerCamera = &State->GameCamera;
@@ -2102,13 +1961,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 f32 zMoveX = Dot(xMoveAxis, zAxis) * Move.x;
 
                 vec3 PlayerDirection = vec3(Dot(vec3(Move.x, 0.f, Move.y), xMoveAxis), 0.f, Dot(vec3(Move.x, 0.f, Move.y), yMoveAxis));
-
-                State->TargetMove = Move;
-
-                if (State->TargetMove != State->CurrentMove)
-                {
-                    StartGameProcess(State, PlayerMoveLerpProcess);
-                }
 
                 if (Player->IsGrounded)
                 {
@@ -2336,7 +2188,7 @@ DLLExport GAME_RENDER(GameRender)
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
-#if 0
+#if 1
         //
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
@@ -2511,6 +2363,7 @@ DLLExport GAME_RENDER(GameRender)
                         ++AnimationJobCount;
 
                         JobData->State = State;
+                        JobData->Input = Input;
                         JobData->Entity = Entity;
                         JobData->Arena = SubMemoryArena(ScopedMemory.Arena, Kilobytes(512), NoClear());
                         JobData->Delta = Parameters->Delta;

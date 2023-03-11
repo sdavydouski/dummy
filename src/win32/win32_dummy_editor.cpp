@@ -186,7 +186,7 @@ EditorRemoveFocus()
 inline bool32
 EditorCaptureInput(editor_state *EditorState)
 {
-    bool32 Result = !EditorState->GameWindowHovered;
+    bool32 Result = !EditorState->GameWindowHovered || ImGuizmo::IsOver();
     return Result;
 }
 

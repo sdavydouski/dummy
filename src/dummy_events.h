@@ -18,7 +18,7 @@ struct game_event_list
     memory_arena Arena;
 };
 
-struct animation_footstep_event
+struct animation_event_data
 {
     u32 EntityId;
     f32 Weight;

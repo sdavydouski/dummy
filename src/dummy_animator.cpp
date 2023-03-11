@@ -1,37 +1,60 @@
 #include "dummy.h"
 
-// Bot Animator
-// todo:
+// Bot
 struct bot_animator_params
 {
-    f32 MaxTime;
-    f32 Move;
-    f32 MoveMagnitude;
-    bool32 IsGrounded;
     vec3 Velocity;
-    vec3 Acceleration;
 
-    bool32 ToStateIdle1;
-    bool32 ToStateIdle2;
+    f32 TargetMoveMagnitude;
+    f32 CurrentMoveMagnitude;
 
-    bool32 ToStateActionIdle1;
-    bool32 ToStateActionIdle2;
+    bool32 IsGrounded;
+    bool32 IsPlayer;
+    bool32 IsDanceMode;
 
-    bool32 ToStateActionIdle;
-    bool32 ToStateStandingIdle;
-
-    bool32 ToStateDancing;
-    bool32 ToStateActionIdleFromDancing;
+    f32 MaxActionIdleTime;
+    f32 ActionIdleRandomTransition;
 };
+
+inline void
+GameInput2BotAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, bot_animator_params *Params)
+{
+    Params->TargetMoveMagnitude = Magnitude(State->TargetMove);
+    Params->CurrentMoveMagnitude = Magnitude(State->CurrentMove);
+    Params->IsGrounded = Entity->IsGrounded;
+    Params->Velocity = Entity->Body->PrevVelocity;
+    Params->IsPlayer = (State->Player == Entity);
+    Params->IsDanceMode = State->DanceMode.Value;
+
+    Params->MaxActionIdleTime = 5.f;
+    Params->ActionIdleRandomTransition = Random01(&State->GeneralEntropy);
+}
+
+inline void
+GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
+{
+    Params->IsGrounded = Entity->IsGrounded;
+    Params->Velocity = Entity->Body->PrevVelocity;
+    Params->IsPlayer = (State->Player == Entity);
+    Params->IsDanceMode = State->DanceMode.Value;
+
+    Params->MaxActionIdleTime = 5.f;
+    Params->ActionIdleRandomTransition = Random01(&State->GeneralEntropy);
+}
 
 dummy_internal void
 BotLocomotionNode(animation_graph *Root, animation_graph *Locomotion, bot_animator_params *Params, f32 Delta)
 {
     animation_node *LocomotionActive = Locomotion->Active;
 
-    if (Params->ToStateStandingIdle)
+    if (!Params->IsPlayer)
     {
         TransitionToNode(Root, "StandingIdle");
+    }
+
+    if (Params->IsDanceMode)
+    {
+        TransitionToNode(Root, "Dance");
     }
 
     if (!Params->IsGrounded)
@@ -46,66 +69,83 @@ BotLocomotionNode(animation_graph *Root, animation_graph *Locomotion, bot_animat
         }
     }
 
-    if (StringEquals((LocomotionActive->Name), "ActionIdle"))
+    switch (SID(LocomotionActive->Name))
     {
-        animation_graph *ActionIdleGraph = LocomotionActive->Graph;
-        animation_node *ActionIdleGraphActive = ActionIdleGraph->Active;
-
-        if (Params->MoveMagnitude > EPSILON)
+        case SID("ActionIdle"):
         {
-            TransitionToNode(Locomotion, "Moving");
-        }
+            animation_graph *ActionIdleGraph = LocomotionActive->Graph;
+            animation_node *ActionIdleGraphActive = ActionIdleGraph->Active;
 
-        if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_0"))
-        {
-            ActionIdleGraph->State.Time += Delta;
-
-            if (ActionIdleGraph->State.Time > Params->MaxTime)
+            if (Params->TargetMoveMagnitude > EPSILON)
             {
-                ActionIdleGraph->State.Time = 0.f;
+                TransitionToNode(Locomotion, "Moving");
+            }
 
-                if (Params->ToStateActionIdle1)
+            switch (SID(ActionIdleGraphActive->Name))
+            {
+                case SID("ActionIdle_0"):
                 {
-                    TransitionToNode(ActionIdleGraph, "ActionIdle_1");
-                }
+                    ActionIdleGraph->AnimatorState.Time += Delta;
 
-                if (Params->ToStateActionIdle2)
+                    if (ActionIdleGraph->AnimatorState.Time >= Params->MaxActionIdleTime)
+                    {
+                        ActionIdleGraph->AnimatorState.Time = 0.f;
+
+                        if (Params->ActionIdleRandomTransition <= 0.5)
+                        {
+                            TransitionToNode(ActionIdleGraph, "ActionIdle_1");
+                        }
+                        else
+                        {
+                            TransitionToNode(ActionIdleGraph, "ActionIdle_2");
+                        }
+                    }
+
+                    break;
+                }
+                case SID("ActionIdle_1"):
                 {
-                    TransitionToNode(ActionIdleGraph, "ActionIdle_2");
+                    if (AnimationClipFinished(ActionIdleGraphActive->Animation))
+                    {
+                        TransitionToNode(ActionIdleGraph, "ActionIdle_0");
+                    }
+
+                    break;
+                }
+                case SID("ActionIdle_2"):
+                {
+                    if (AnimationClipFinished(ActionIdleGraphActive->Animation))
+                    {
+                        TransitionToNode(ActionIdleGraph, "ActionIdle_0");
+                    }
+
+                    break;
+                }
+                default:
+                {
+                    Assert(!"Invalid state");
+                    break;
                 }
             }
+
+            break;
         }
-        else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_1"))
+        case SID("Moving"):
         {
-            if (AnimationClipFinished(ActionIdleGraphActive->Animation))
+            LocomotionActive->BlendSpace->Parameter = Params->CurrentMoveMagnitude;
+
+            if (Params->TargetMoveMagnitude < EPSILON)
             {
-                TransitionToNode(ActionIdleGraph, "ActionIdle_0");
+                TransitionToNode(Locomotion, "ActionIdle");
             }
+
+            break;
         }
-        else if (StringEquals(ActionIdleGraphActive->Name, "ActionIdle_2"))
-        {
-            if (AnimationClipFinished(ActionIdleGraphActive->Animation))
-            {
-                TransitionToNode(ActionIdleGraph, "ActionIdle_0");
-            }
-        }
-        else
+        default: 
         {
             Assert(!"Invalid state");
+            break;
         }
-    }
-    else if (StringEquals(LocomotionActive->Name, "Moving"))
-    {
-        LocomotionActive->BlendSpace->Parameter = Params->Move;
-
-        if (Params->MoveMagnitude < EPSILON)
-        {
-            TransitionToNode(Locomotion, "ActionIdle");
-        }
-    }
-    else
-    {
-        Assert(!"Invalid state");
     }
 }
 
@@ -115,192 +155,227 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
 
     animation_node *Active = Graph->Active;
 
-    if (StringEquals(Active->Name, "StandingIdle"))
+    switch (SID(Active->Name))
     {
-        if (BotParams->ToStateActionIdle)
+        case SID("StandingIdle"):
         {
-            TransitionToNode(Graph, "Locomotion");
-        }
-    }
-    else if (StringEquals(Active->Name, "Locomotion"))
-    {
-        BotLocomotionNode(Graph, Active->Graph, BotParams, Delta);
-    }
-    else if (StringEquals(Active->Name, "Jump_Start"))
-    {
-        if (AnimationClipFinished(Active->Animation))
-        {
-            TransitionToNode(Graph, "Jump_Idle");
-        }
-    }
-    else if (StringEquals(Active->Name, "Jump_Idle"))
-    {
-        if (BotParams->IsGrounded)
-        {
-            TransitionToNode(Graph, "Jump_Land");
-        }
-    }
-    else if (StringEquals(Active->Name, "Jump_Land"))
-    {
-        BotLocomotionNode(Graph, Active->Reference->Graph, BotParams, Delta);
+            if (BotParams->IsPlayer)
+            {
+                TransitionToNode(Graph, "Locomotion");
+            }
 
-        if (AdditiveAnimationsFinished(Active))
-        {
-            TransitionToNode(Graph, "Locomotion");
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "StandingIdleToLocomotion"))
-    {
-        if (BotParams->ToStateStandingIdle)
+        case SID("Locomotion"):
         {
-            TransitionToNode(Graph, "StandingIdle");
-        }
+            BotLocomotionNode(Graph, Active->Graph, BotParams, Delta);
 
-        if (AnimationClipFinished(Active->Animation))
-        {
-            TransitionToNode(Graph, "Locomotion");
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "LocomotionToStandingIdle"))
-    {
-        if (BotParams->ToStateActionIdle)
+        case SID("Jump_Start"):
         {
-            TransitionToNode(Graph, "Locomotion");
-        }
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "Jump_Idle");
+            }
 
-        if (AnimationClipFinished(Active->Animation))
-        {
-            TransitionToNode(Graph, "StandingIdle");
+            break;
         }
-    }
-    else
-    {
-        Assert(!"Invalid state");
+        case SID("Jump_Idle"):
+        {
+            if (BotParams->IsGrounded)
+            {
+                animation_node *JumpLandNode = GetAnimationNode(Graph, "Jump_Land");
+
+                f32 Velocity = Abs(BotParams->Velocity.y);
+                f32 VelocityMin = 0.f;
+                f32 VelocityMax = 12.f;
+                f32 FallImpact = NormalizeRange(Velocity, VelocityMin, VelocityMax);
+
+                additive_animation *Landing = GetAdditiveAnimation(JumpLandNode, "falling_to_landing::additive");
+                Landing->Weight = FallImpact;
+
+                TransitionToNode(Graph, "Jump_Land");
+            }
+            break;
+        }
+        case SID("Jump_Land"):
+        {
+            BotLocomotionNode(Graph, Active->Reference->Graph, BotParams, Delta);
+
+            if (AdditiveAnimationsFinished(Active))
+            {
+                TransitionToNode(Graph, "Locomotion");
+            }
+
+            break;
+        }
+        case SID("Dance"):
+        {
+            if (!BotParams->IsDanceMode)
+            {
+                TransitionToNode(Graph, "Locomotion");
+            }
+
+            break;
+        }
+        case SID("StandingIdleToLocomotion"):
+        {
+            if (!BotParams->IsPlayer)
+            {
+                TransitionToNode(Graph, "StandingIdle");
+            }
+
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "Locomotion");
+            }
+
+            break;
+        }
+        case SID("LocomotionToStandingIdle"):
+        {
+            if (BotParams->IsPlayer)
+            {
+                TransitionToNode(Graph, "Locomotion");
+            }
+
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "StandingIdle");
+            }
+
+            break;
+        }
+        default:
+        {
+            Assert(!"Invalid state");
+            break;
+        }
     }
 }
 
+// Paladin
 struct paladin_animator_params
 {
-    f32 MaxTime;
-    f32 Move;
-    f32 MoveMagnitude;
+    f32 TargetMoveMagnitude;
+    f32 CurrentMoveMagnitude;
 
-    bool32 ToStateActionIdle1;
-    bool32 ToStateActionIdle2;
-    bool32 ToStateActionIdle3;
+    bool32 IsDanceMode;
 
-    bool32 ToStateDancing;
-    bool32 ToStateActionIdleFromDancing;
+    f32 MaxActionIdleTime;
+    f32 ActionIdleRandomTransition;
 
     bool32 LightAttack;
     bool32 StrongAttack;
 };
+
+inline void
+GameInput2PaladinAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, paladin_animator_params *Params)
+{
+    Params->TargetMoveMagnitude = Magnitude(State->TargetMove);
+    Params->CurrentMoveMagnitude = Magnitude(State->CurrentMove);
+
+    Params->IsDanceMode = State->DanceMode.Value;
+
+    Params->MaxActionIdleTime = 5.f;
+    Params->ActionIdleRandomTransition = Random01(&State->GeneralEntropy);
+
+    Params->LightAttack = Input->LightAttack.IsActivated;
+    Params->StrongAttack = Input->StrongAttack.IsActivated;
+}
+
+inline void
+GameLogic2PaladinAnimatorParams(game_state *State, game_entity *Entity, paladin_animator_params *Params)
+{
+    Params->IsDanceMode = State->DanceMode.Value;
+
+    Params->MaxActionIdleTime = 5.f;
+    Params->ActionIdleRandomTransition = Random01(&State->GeneralEntropy);
+}
 
 dummy_internal void
 PaladinActionIdlePerFrameUpdate(animation_graph *Graph, paladin_animator_params *Params, f32 Delta)
 {
     animation_node *Active = Graph->Active;
 
-    if (StringEquals(Active->Name, "sword and shield idle (4)"))
+    switch (SID(Active->Name))
     {
-        Graph->State.Time += Delta;
-
-        if (Graph->State.Time > Params->MaxTime)
+        case SID("sword and shield idle (4)"):
         {
-            Graph->State.Time = 0.f;
+            Graph->AnimatorState.Time += Delta;
 
-            if (Params->ToStateActionIdle1)
+            if (Graph->AnimatorState.Time >= Params->MaxActionIdleTime)
             {
-                Graph->State.Time = 0.f;
-                TransitionToNode(Graph, "sword and shield idle");
+                Graph->AnimatorState.Time = 0.f;
+
+                if (Params->ActionIdleRandomTransition >= 0.f && Params->ActionIdleRandomTransition < 0.33f)
+                {
+                    TransitionToNode(Graph, "sword and shield idle");
+                }
+                else if (Params->ActionIdleRandomTransition >= 0.33f && Params->ActionIdleRandomTransition < 0.66f)
+                {
+                    TransitionToNode(Graph, "sword and shield idle (2)");
+                }
+                else
+                {
+                    TransitionToNode(Graph, "sword and shield idle (3)");
+                }
             }
 
-            if (Params->ToStateActionIdle2)
+            break;
+        }
+        case SID("sword and shield idle"):
+        {
+            if (AnimationClipFinished(Active->Animation))
             {
-                TransitionToNode(Graph, "sword and shield idle (2)");
+                TransitionToNode(Graph, "sword and shield idle (4)");
             }
 
-            if (Params->ToStateActionIdle3)
+            break;
+        }
+        case SID("sword and shield idle (2)"):
+        {
+            if (AnimationClipFinished(Active->Animation))
             {
-                TransitionToNode(Graph, "sword and shield idle (3)");
+                TransitionToNode(Graph, "sword and shield idle (4)");
             }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "sword and shield idle"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        case SID("sword and shield idle (3)"):
         {
-            TransitionToNode(Graph, "sword and shield idle (4)");
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "sword and shield idle (4)");
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "sword and shield idle (2)"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        default:
         {
-            TransitionToNode(Graph, "sword and shield idle (4)");
+            Assert(!"Invalid state");
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "sword and shield idle (3)"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
-        {
-            TransitionToNode(Graph, "sword and shield idle (4)");
-        }
-    }
-    else
-    {
-        Assert(!"Invalid state");
     }
 }
-//
 
 ANIMATOR_CONTROLLER(PaladinAnimatorController)
 {
     paladin_animator_params *PaladinParams = (paladin_animator_params *) Params;
-
-    animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
-    WalkingNode->BlendSpace->Parameter = PaladinParams->Move;
-
     animation_node *Active = Graph->Active;
 
-    if (StringEquals(Active->Name, "ActionIdle"))
+    switch (SID(Active->Name))
     {
-        animation_graph *StateIdleGraph = Active->Graph;
-        PaladinActionIdlePerFrameUpdate(StateIdleGraph, PaladinParams, Delta);
+        case SID("ActionIdle"):
+        {
+            PaladinActionIdlePerFrameUpdate(Active->Graph, PaladinParams, Delta);
 
-        if (PaladinParams->MoveMagnitude > 0.f)
-        {
-            StateIdleGraph->State.Time = 0.f;
-            TransitionToNode(Graph, "Moving");
-        }
+            if (PaladinParams->TargetMoveMagnitude > 0.f)
+            {
+                TransitionToNode(Graph, "Moving");
+            }
 
-        if (PaladinParams->LightAttack)
-        {
-            StateIdleGraph->State.Time = 0.f;
-            TransitionToNode(Graph, "LightAttack");
-        }
-
-        if (PaladinParams->StrongAttack)
-        {
-            StateIdleGraph->State.Time = 0.f;
-            TransitionToNode(Graph, "StrongAttack");
-        }
-
-        if (PaladinParams->ToStateDancing)
-        {
-            StateIdleGraph->State.Time = 0.f;
-            TransitionToNode(Graph, "Dancing");
-        }
-    }
-    else if (StringEquals(Active->Name, "Moving"))
-    {
-        if (PaladinParams->MoveMagnitude < EPSILON)
-        {
-            TransitionToNode(Graph, "ActionIdle");
-        }
-
-        if (PaladinParams->MoveMagnitude <= 0.5f)
-        {
             if (PaladinParams->LightAttack)
             {
                 TransitionToNode(Graph, "LightAttack");
@@ -310,171 +385,188 @@ ANIMATOR_CONTROLLER(PaladinAnimatorController)
             {
                 TransitionToNode(Graph, "StrongAttack");
             }
-        }
-        else
-        {
-            if (PaladinParams->LightAttack)
+
+            if (PaladinParams->IsDanceMode)
             {
-                TransitionToNode(Graph, "LightAttackMoving");
+                TransitionToNode(Graph, "Dancing");
             }
 
-            if (PaladinParams->StrongAttack)
+            break;
+        }
+        case SID("Moving"):
+        {
+            Active->BlendSpace->Parameter = PaladinParams->CurrentMoveMagnitude;
+
+            if (PaladinParams->TargetMoveMagnitude < EPSILON)
             {
-                TransitionToNode(Graph, "StrongAttackMoving");
+                TransitionToNode(Graph, "ActionIdle");
             }
+
+            if (PaladinParams->TargetMoveMagnitude <= 0.5f)
+            {
+                if (PaladinParams->LightAttack)
+                {
+                    TransitionToNode(Graph, "LightAttack");
+                }
+
+                if (PaladinParams->StrongAttack)
+                {
+                    TransitionToNode(Graph, "StrongAttack");
+                }
+            }
+            else
+            {
+                if (PaladinParams->LightAttack)
+                {
+                    TransitionToNode(Graph, "LightAttackMoving");
+                }
+
+                if (PaladinParams->StrongAttack)
+                {
+                    TransitionToNode(Graph, "StrongAttackMoving");
+                }
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "LightAttack"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        case SID("LightAttack"):
         {
-            TransitionToNode(Graph, "ActionIdle");
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "ActionIdle");
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "StrongAttack"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        case SID("StrongAttack"):
         {
-            TransitionToNode(Graph, "ActionIdle");
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "ActionIdle");
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "LightAttackMoving"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        case SID("LightAttackMoving"):
         {
-            TransitionToNode(Graph, "Moving");
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "Moving");
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "StrongAttackMoving"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
+        case SID("StrongAttackMoving"):
         {
-            TransitionToNode(Graph, "Moving");
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "Moving");
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "Dancing"))
-    {
-        if (PaladinParams->ToStateActionIdleFromDancing && PaladinParams->MoveMagnitude < EPSILON)
+        case SID("Dancing"):
         {
-            TransitionToNode(Graph, "ActionIdle");
+            if (!PaladinParams->IsDanceMode)
+            {
+                TransitionToNode(Graph, "ActionIdle");
+            }
+
+            break;
         }
-    }
-    else
-    {
-        Assert(!"Invalid state");
+        default:
+        {
+            Assert(!"Invalid state");
+            break;
+        }
     }
 }
 
+// Monstar
 struct monstar_animator_params
 {
-    f32 Move;
-    f32 MoveMagnitude;
-    bool32 Attack;
+    f32 TargetMoveMagnitude;
+    f32 CurrentMoveMagnitude;
 
-    bool32 ToStateDancing;
-    bool32 ToStateIdleFromDancing;
+    bool32 IsDanceMode;
+    bool32 Attack;
 };
+
+inline void
+GameInput2MonstarAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, monstar_animator_params *Params)
+{
+    Params->TargetMoveMagnitude = Magnitude(State->TargetMove);
+    Params->CurrentMoveMagnitude = Magnitude(State->CurrentMove);
+    Params->IsDanceMode = State->DanceMode.Value;
+    Params->Attack = Input->LightAttack.IsActivated;
+}
+
+inline void
+GameLogic2MonstarAnimatorParams(game_state *State, game_entity *Entity, monstar_animator_params *Params)
+{
+    Params->IsDanceMode = State->DanceMode.Value;
+}
 
 ANIMATOR_CONTROLLER(MonstarAnimatorController)
 {
     monstar_animator_params *MonstarParams = (monstar_animator_params *) Params;
-
-    animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
-    WalkingNode->BlendSpace->Parameter = MonstarParams->Move;
-
     animation_node *Active = Graph->Active;
 
-    if (StringEquals(Active->Name, "Idle"))
+    switch (SID(Active->Name))
     {
-        if (MonstarParams->MoveMagnitude > 0.f)
+        case SID("Idle"):
         {
-            TransitionToNode(Graph, "Moving");
-        }
+            if (MonstarParams->TargetMoveMagnitude > 0.f)
+            {
+                TransitionToNode(Graph, "Moving");
+            }
 
-        if (MonstarParams->Attack)
-        {
-            TransitionToNode(Graph, "Attack");
-        }
+            if (MonstarParams->Attack)
+            {
+                TransitionToNode(Graph, "Attack");
+            }
 
-        if (MonstarParams->ToStateDancing)
-        {
-            TransitionToNode(Graph, "Dancing");
-        }
-    }
-    else if (StringEquals(Active->Name, "Moving"))
-    {
-        if (MonstarParams->MoveMagnitude < EPSILON)
-        {
-            TransitionToNode(Graph, "Idle");
-        }
-    }
-    else if (StringEquals(Active->Name, "Attack"))
-    {
-        if (Active->Animation.Time >= Active->Animation.Clip->Duration)
-        {
-            TransitionToNode(Graph, "Idle");
-        }
-    }
-    else if (StringEquals(Active->Name, "Dancing"))
-    {
-        if (MonstarParams->ToStateIdleFromDancing && MonstarParams->MoveMagnitude < EPSILON)
-        {
-            TransitionToNode(Graph, "Idle");
-        }
-    }
-    else
-    {
-        Assert(!"Invalid state");
-    }
-}
+            if (MonstarParams->IsDanceMode)
+            {
+                TransitionToNode(Graph, "Dancing");
+            }
 
-struct cleric_animator_params
-{
-    f32 Move;
-    f32 MoveMagnitude;
-
-    bool32 ToStateDancing;
-    bool32 ToStateIdleFromDancing;
-};
-
-ANIMATOR_CONTROLLER(ClericAnimatorController)
-{
-    cleric_animator_params *ClericParams = (cleric_animator_params *) Params;
-
-    animation_node *WalkingNode = GetAnimationNode(Graph, "Moving");
-    WalkingNode->BlendSpace->Parameter = ClericParams->Move;
-
-    animation_node *Active = Graph->Active;
-
-    if (StringEquals(Active->Name, "ActionIdle"))
-    {
-        if (ClericParams->MoveMagnitude > 0.f)
-        {
-            TransitionToNode(Graph, "Moving");
+            break;
         }
+        case SID("Moving"):
+        {
+            Active->BlendSpace->Parameter = MonstarParams->CurrentMoveMagnitude;
 
-        if (ClericParams->ToStateDancing)
-        {
-            TransitionToNode(Graph, "Dancing");
+            if (MonstarParams->TargetMoveMagnitude < EPSILON)
+            {
+                TransitionToNode(Graph, "Idle");
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "Moving"))
-    {
-        if (ClericParams->MoveMagnitude < EPSILON)
+        case SID("Attack"):
         {
-            TransitionToNode(Graph, "ActionIdle");
+            if (AnimationClipFinished(Active->Animation))
+            {
+                TransitionToNode(Graph, "Idle");
+            }
+
+            break;
         }
-    }
-    else if (StringEquals(Active->Name, "Dancing"))
-    {
-        if (ClericParams->ToStateIdleFromDancing && ClericParams->MoveMagnitude < EPSILON)
+        case SID("Dancing"):
         {
-            TransitionToNode(Graph, "ActionIdle");
+            if (!MonstarParams->IsDanceMode)
+            {
+                TransitionToNode(Graph, "Idle");
+            }
+
+            break;
         }
-    }
-    else
-    {
-        Assert(!"Invalid state");
+        default:
+        {
+            Assert(!"Invalid state");
+            break;
+        }
     }
 }
 

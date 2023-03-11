@@ -117,6 +117,7 @@ struct game_input_range
 struct game_input
 {
     game_input_range Move;
+
     game_input_action Jump;
     game_input_action Dance;
     game_input_action Activate;
@@ -367,4 +368,10 @@ MouseInput2GameInput(platform_input_mouse *MouseInput, game_input *GameInput)
     ProcessInputAction(&GameInput->StrongAttack, &MouseInput->RightButton);
 
     ProcessInputState(&GameInput->EnableFreeCameraMovement, &MouseInput->RightButton);
+}
+
+inline void
+ClearGameInput(game_input *Input)
+{
+    *Input = {};
 }

@@ -31,7 +31,7 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
 
         if (StringEquals(Event->Name, "footstep"))
         {
-            animation_footstep_event *Data = (animation_footstep_event *) Event->Params;
+            animation_event_data *Data = (animation_event_data *) Event->Params;
             f32 Weight = Data->Weight;
 
             if (Weight >= 0.5f)

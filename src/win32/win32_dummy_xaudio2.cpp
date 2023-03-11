@@ -92,8 +92,6 @@ XAudio2CalculateOutputMatrix(xaudio2_state *State, vec3 EmitterPosition, vec3 Li
 dummy_internal void
 Win32InitXAudio2(xaudio2_state *State)
 {
-    CoInitializeEx(0, COINIT_MULTITHREADED);
-
     XAudio2Create(&State->XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
 
     State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(1)));

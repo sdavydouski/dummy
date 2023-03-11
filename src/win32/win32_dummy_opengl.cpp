@@ -4,7 +4,7 @@
 #include "win32_dummy.h"
 #include "win32_dummy_opengl.h"
 
-dummy_internal void OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight, u32 Samples);
+void OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight, u32 Samples);
 
 #define GladLoadGLLoader gladLoadGLLoader
 
@@ -111,7 +111,8 @@ Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, 
                 State->wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
                 State->wglGetSwapIntervalEXT = (PFNWGLGETSWAPINTERVALEXTPROC)wglGetProcAddress("wglGetSwapIntervalEXT");
 
-                i32 PixelAttribs[] = {
+                i32 PixelAttribs[] = 
+                {
                     WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
                     WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
                     WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
@@ -122,7 +123,7 @@ Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, 
                     WGL_STENCIL_BITS_ARB, 8,
                     WGL_ALPHA_BITS_ARB, 8,
                     WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
-                    WGL_SAMPLES_ARB, 8,
+                    WGL_SAMPLES_ARB, (i32) PlatformState->Samples,
                     0
                 };
 
@@ -1108,7 +1109,7 @@ OpenGLInitFramebuffers(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u
     GLenum SingleSampledFramebufferStatus = glCheckNamedFramebufferStatus(State->DestFramebuffer.Handle, GL_FRAMEBUFFER);
     Assert(SingleSampledFramebufferStatus == GL_FRAMEBUFFER_COMPLETE);
 
-    // Final Framebuffer
+    // Editor Framebuffer
     glCreateFramebuffers(1, &State->EditorFramebuffer.Handle);
 
     glCreateTextures(GL_TEXTURE_2D, 1, &State->EditorFramebuffer.ColorTarget);
@@ -2377,7 +2378,6 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
 
     // Draw a full screen triangle for postprocessing
-    
 #if EDITOR
     glBindFramebuffer(GL_FRAMEBUFFER, State->EditorFramebuffer.Handle);
 

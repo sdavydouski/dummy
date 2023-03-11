@@ -280,7 +280,7 @@ AnimateSkeletonPose(animation_graph *Graph, skeleton_pose *SkeletonPose, animati
         {
             Event->IsFired = true;
 
-            animation_footstep_event *FootstepEvent = PushType(&Graph->EventList->Arena, animation_footstep_event);
+            animation_event_data *FootstepEvent = PushType(&Graph->EventList->Arena, animation_event_data);
             FootstepEvent->EntityId = Graph->EntityId;
             FootstepEvent->Weight = Animation->Weight;
             PublishEvent(Graph->EventList, Event->Name, FootstepEvent);
@@ -367,7 +367,6 @@ DisableAnimationNode(animation_node *Node, animation_node *ToNode = 0)
             }
 
             Node->Graph->Mixer = {};
-            Node->Graph->State = {};
             Node->Graph->Active = Node->Graph->Entry;
             EnableAnimationNode(Node->Graph->Entry);
 
@@ -723,11 +722,38 @@ CreateAnimationState(animation_clip *Clip, bool32 IsLooping, bool32 EnableRootMo
 }
 
 inline void
-BuildAnimationNode(animation_node *Node, const char *Name, animation_clip *Clip, bool32 IsLooping, bool32 EnableRootMotion)
+BuildAnimationNode(animation_node *Node, animation_node_asset *NodeAsset, model *Model)
 {
-    CopyString(Name, Node->Name);
     Node->Type = AnimationNodeType_Clip;
-    Node->Animation = CreateAnimationState(Clip, IsLooping, EnableRootMotion);
+    CopyString(NodeAsset->Name, Node->Name);
+
+    animation_state_asset *AnimationAsset = NodeAsset->Animation;
+    animation_clip *AnimationClip = GetAnimationClip(Model, AnimationAsset->AnimationClipName);
+    Node->Animation = CreateAnimationState(AnimationClip, AnimationAsset->IsLooping, AnimationAsset->EnableRootMotion);
+}
+
+inline void
+BuildAnimationNode(animation_node *Node, const char *Name, blend_space_1d *BlendSpace)
+{
+    Node->Type = AnimationNodeType_BlendSpace;
+    Node->BlendSpace = BlendSpace;
+    CopyString(Name, Node->Name);
+}
+
+inline void
+BuildAnimationNode(animation_node *Node, const char *Name, animation_node *Reference)
+{
+    Node->Type = AnimationNodeType_Reference;
+    Node->Reference = Reference;
+    CopyString(Name, Node->Name);
+}
+
+inline void
+BuildAnimationNode(animation_node *Node, const char *Name, animation_graph *Graph)
+{
+    Node->Type = AnimationNodeType_Graph;
+    Node->Graph = Graph;
+    CopyString(Name, Node->Name);
 }
 
 inline void
@@ -772,30 +798,6 @@ BuildAdditiveAnimation(additive_animation *Additive, animation_clip *Target, ani
             AdditiveKeyFrame->Pose = CalculateAdditiveTransform(TargetKeyFrame->Pose, BaseKeyFrame->Pose);
         }
     }
-}
-
-inline void
-BuildAnimationNode(animation_node *Node, const char *Name, blend_space_1d *BlendSpace)
-{
-    CopyString(Name, Node->Name);
-    Node->Type = AnimationNodeType_BlendSpace;
-    Node->BlendSpace = BlendSpace;
-}
-
-inline void
-BuildAnimationNode(animation_node *Node, const char *Name, animation_node *Reference)
-{
-    CopyString(Name, Node->Name);
-    Node->Type = AnimationNodeType_Reference;
-    Node->Reference = Reference;
-}
-
-inline void
-BuildAnimationNode(animation_node *Node, const char *Name, animation_graph *Graph)
-{
-    CopyString(Name, Node->Name);
-    Node->Type = AnimationNodeType_Graph;
-    Node->Graph = Graph;
 }
 
 inline void
@@ -861,6 +863,27 @@ GetAnimationNode(animation_graph *Graph, const char *NodeName)
     return Result;
 }
 
+inline additive_animation *
+GetAdditiveAnimation(animation_node *Node, const char *AnimationClipName)
+{
+    additive_animation *Result = 0;
+
+    for (u32 AdditiveAnimationIndex = 0; AdditiveAnimationIndex < Node->AdditiveAnimationCount; ++AdditiveAnimationIndex)
+    {
+        additive_animation *Additive = Node->AdditiveAnimations + AdditiveAnimationIndex;
+
+        if (StringEquals(Additive->Animation.Clip->Name, AnimationClipName))
+        {
+            Result = Additive;
+            break;
+        }
+    }
+
+    Assert(Result);
+
+    return Result;
+}
+
 dummy_internal void
 BuildAnimationGraph(animation_graph *Root, animation_graph *Graph, animation_graph_asset *Asset, model *Model, u32 EntityId, game_event_list *EventList, memory_arena *Arena)
 {
@@ -877,13 +900,7 @@ BuildAnimationGraph(animation_graph *Root, animation_graph *Graph, animation_gra
         {
             case AnimationNodeType_Clip:
             {
-                BuildAnimationNode(
-                    Node,
-                    NodeAsset->Name,
-                    GetAnimationClip(Model, NodeAsset->Animation->AnimationClipName),
-                    NodeAsset->Animation->IsLooping,
-                    NodeAsset->Animation->EnableRootMotion
-                );
+                BuildAnimationNode(Node, NodeAsset, Model);
 
                 break;
             }
@@ -996,8 +1013,8 @@ BuildAnimationGraph(animation_graph *Root, animation_graph *Graph, animation_gra
     Graph->EventList = EventList;
 }
 
-dummy_internal u32 GetActiveAnimationCount(animation_graph *Graph);
-dummy_internal void GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight);
+u32 GetActiveAnimationCount(animation_graph *Graph);
+void GetActiveAnimations(animation_graph *Graph, animation_state **ActiveAnimations, u32 &ActiveAnimationIndex, f32 GraphWeight);
 
 dummy_internal u32
 GetActiveAnimationCount(animation_node *Node, f32 Weight = 0.f)

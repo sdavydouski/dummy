@@ -56,6 +56,11 @@
                         "to": "Jump_Idle",
                         "type": "crossfade",
                         "blend": 0.1
+                    },
+                    {
+                        "to": "Dance",
+                        "type": "crossfade",
+                        "blend": 0.2
                     }
                 ],
                 "nodes": [
@@ -239,6 +244,21 @@
                         "base": "action_idle_0",
                         "base_keyframe_index": 0,
                         "looping": false
+                    }
+                ]
+            },
+
+            {
+                "name": "Dance",
+                "type": "Animation",
+                "clip": "samba_dance",
+                "looping": true,
+                "root_motion": true,
+                "transitions": [
+                    {
+                        "to": "Locomotion",
+                        "type": "crossfade",
+                        "blend": 0.2
                     }
                 ]
             }

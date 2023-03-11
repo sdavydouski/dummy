@@ -184,8 +184,7 @@ struct animation_mixer
     animation_node *FadeOut;
 };
 
-// todo: remove?
-struct animation_graph_state
+struct animator_state
 {
     f32 Time;
 };
@@ -199,10 +198,11 @@ struct animation_graph
     animation_node *Active;
 
     animation_mixer Mixer;
-    animation_graph_state State;
+
+    vec3 AccRootMotion;
 
     char Animator[256];
-    vec3 AccRootMotion;
+    animator_state AnimatorState;
 
     u32 EntityId;
     game_event_list *EventList;

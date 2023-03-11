@@ -30,7 +30,6 @@ Win32GetLastWriteTime(char *FileName)
 #define EDITOR_INIT(...) Win32InitEditor(__VA_ARGS__)
 #define EDITOR_RENDER(...) Win32RenderEditor(__VA_ARGS__)
 #define EDITOR_SHUTDOWN(...) Win32ShutdownEditor(__VA_ARGS__)
-
 #define EDITOR_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
 #define EDITOR_REMOVE_FOCUS(...) EditorRemoveFocus(__VA_ARGS__)
 #define EDITOR_CAPTURE_INPUT(...) EditorCaptureInput(__VA_ARGS__)
@@ -176,7 +175,8 @@ Win32HideMouseCursor()
     }
 }
 
-dummy_internal PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
+dummy_internal 
+PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
@@ -718,7 +718,8 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
     EndProcessKeyboardInput(KeyboardInput);
 }
 
-dummy_internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
+dummy_internal 
+PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
@@ -757,7 +758,8 @@ dummy_internal PLATFORM_SET_MOUSE_MODE(Win32SetMouseMode)
     }
 }
 
-dummy_internal PLATFORM_READ_FILE(Win32ReadFile)
+dummy_internal 
+PLATFORM_READ_FILE(Win32ReadFile)
 {
     read_file_result Result = {};
 
@@ -807,7 +809,8 @@ dummy_internal PLATFORM_READ_FILE(Win32ReadFile)
     return Result;
 }
 
-dummy_internal PLATFORM_WRITE_FILE(Win32WriteFile)
+dummy_internal 
+PLATFORM_WRITE_FILE(Win32WriteFile)
 {
     bool32 Result = false;
 
@@ -837,19 +840,22 @@ dummy_internal PLATFORM_WRITE_FILE(Win32WriteFile)
     return Result;
 }
 
-dummy_internal PLATFORM_ENTER_CRITICAL_SECTION(Win32EnterCriticalSection)
+dummy_internal 
+PLATFORM_ENTER_CRITICAL_SECTION(Win32EnterCriticalSection)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
     EnterCriticalSection(&PlatformState->CriticalSection);
 }
 
-dummy_internal PLATFORM_LEAVE_CRITICAL_SECTION(Win32LeaveCriticalSection)
+dummy_internal 
+PLATFORM_LEAVE_CRITICAL_SECTION(Win32LeaveCriticalSection)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
     LeaveCriticalSection(&PlatformState->CriticalSection);
 }
 
-dummy_internal PLATFORM_KICK_JOB(Win32KickJob)
+dummy_internal 
+PLATFORM_KICK_JOB(Win32KickJob)
 {
     CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
 
@@ -866,7 +872,8 @@ dummy_internal PLATFORM_KICK_JOB(Win32KickJob)
     LeaveCriticalSection(CriticalSection);
 }
 
-dummy_internal PLATFORM_KICK_JOBS(Win32KickJobs)
+dummy_internal 
+PLATFORM_KICK_JOBS(Win32KickJobs)
 {
     CRITICAL_SECTION *CriticalSection = (CRITICAL_SECTION *) JobQueue->CriticalSection;
 
@@ -883,14 +890,16 @@ dummy_internal PLATFORM_KICK_JOBS(Win32KickJobs)
     LeaveCriticalSection(CriticalSection);
 }
 
-dummy_internal PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
+dummy_internal 
+PLATFORM_KICK_JOB_AND_WAIT(Win32KickJobAndWait)
 {
     Win32KickJob(JobQueue, Job);
 
     while (JobQueue->CurrentJobCount > 0) {}
 }
 
-dummy_internal PLATFORM_KICK_JOBS_AND_WAIT(Win32KickJobsAndWait)
+dummy_internal 
+PLATFORM_KICK_JOBS_AND_WAIT(Win32KickJobsAndWait)
 {
     Win32KickJobs(JobQueue, JobCount, Jobs);
 
@@ -955,6 +964,7 @@ Win32MakeJobQueue(job_queue *JobQueue, u32 WorkerThreadCount, win32_job_queue_sy
     }
 }
 
+dummy_internal
 PLATFORM_GET_TIMESTAMP(Win32GetTimeStamp)
 {
     LARGE_INTEGER PerformanceCounter;
@@ -985,7 +995,8 @@ COMDLG_FILTERSPEC DialogFileTypes[] =
     { L"All", L"*.*"},
 };
 
-dummy_internal PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
+dummy_internal
+PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
 {
     IFileOpenDialog *pFileOpen;
 
@@ -1017,7 +1028,8 @@ dummy_internal PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
     }
 }
 
-dummy_internal PLATFORM_SAVE_FILE_DIALOG(Win32SaveFileDialog)
+dummy_internal
+PLATFORM_SAVE_FILE_DIALOG(Win32SaveFileDialog)
 {
     IFileSaveDialog *pFileSave;
 
@@ -1052,8 +1064,8 @@ dummy_internal PLATFORM_SAVE_FILE_DIALOG(Win32SaveFileDialog)
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
-    CoInitializeEx(0, COINIT_MULTITHREADED);
     SetProcessDPIAware();
+    CoInitializeEx(0, COINIT_MULTITHREADED);
 
     win32_platform_state PlatformState = {};
 
@@ -1088,7 +1100,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 #endif
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
-    PlatformState.Samples = 8;
+    PlatformState.Samples = 4;
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
     PlatformState.IsFullScreen = false;
     PlatformState.VSync = false;
@@ -1323,7 +1335,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                     while (GameParameters.UpdateLag >= GameParameters.UpdateRate && UpdateCount < MaxUpdateCount)
                     {
-                        GameCode.Update(&GameMemory, &GameParameters);
+                        GameCode.Update(&GameMemory, &GameParameters, &GameInput);
 
                         GameParameters.UpdateLag -= GameParameters.UpdateRate;
                         UpdateCount++;
@@ -1333,7 +1345,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 }
 
                 // Render
-                GameCode.Render(&GameMemory, &GameParameters);
+                GameCode.Render(&GameMemory, &GameParameters, &GameInput);
 
                 audio_commands *AudioCommands = GetAudioCommands(&GameMemory);
                 XAudio2ProcessAudioCommands(&XAudio2State, AudioCommands);
@@ -1351,7 +1363,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 EDITOR_RENDER(&EditorState, &PlatformState, &Win32OpenGLState.OpenGL, &XAudio2State, &GameMemory, &GameParameters, &GameInput);
             }
 
-            GameInput = {};
+            ClearGameInput(&GameInput);
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
             {

@@ -369,8 +369,8 @@ typedef GAME_RELOAD(game_reload);
 #define GAME_PROCESS_INPUT(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
 typedef GAME_PROCESS_INPUT(game_process_input);
 
-#define GAME_UPDATE(name) void name(game_memory *Memory, game_parameters *Parameters)
+#define GAME_UPDATE(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
 typedef GAME_UPDATE(game_update);
 
-#define GAME_RENDER(name) void name(game_memory *Memory, game_parameters *Parameters)
+#define GAME_RENDER(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
 typedef GAME_RENDER(game_render);

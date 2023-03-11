@@ -221,6 +221,13 @@ Clamp(f32 *Value, f32 Min, f32 Max)
     if (*Value > Max) *Value = Max;
 }
 
+inline f32
+NormalizeRange(f32 Value, f32 RangeMin, f32 RangeMax)
+{
+    f32 Result = (Value - RangeMin) / (RangeMax - RangeMin);
+    return Result;
+}
+
 inline bool32
 NearlyEqual(f32 a, f32 b, f32 Epsilon)
 {
@@ -770,8 +777,8 @@ Swap(f32 &a, f32 &b)
 }
 
 // djb2 by Dan Bernstein
-inline u64
-Hash(char *String)
+constexpr u64
+Hash(const char *String)
 {
     u64 Hash = 5381;
 
@@ -784,7 +791,7 @@ Hash(char *String)
 }
 
 // todo: better hash function?
-inline u32
+constexpr u32
 Hash(const u32 Key)
 {
     u32 Hash = Key;
