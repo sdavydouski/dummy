@@ -1632,6 +1632,12 @@ ClearWorldArea(game_state *State)
 {
     State->NextFreeEntityId = 0;
 
+    for (u32 EntityIndex = 0; EntityIndex < State->WorldArea.EntityCount; ++EntityIndex)
+    {
+        game_entity *Entity = State->WorldArea.Entities + EntityIndex;
+        RemoveFromSpacialGrid(&State->WorldArea.SpatialGrid, Entity);
+    }
+
     State->WorldArea.EntityCount = 0;
     ClearMemoryArena(&State->WorldArea.Arena);
 
@@ -1756,7 +1762,7 @@ DLLExport GAME_INIT(GameInit)
     /*State->Player = State->Dummy;
     State->Player->Controllable = true;*/
 
-    State->MasterVolume = 0.f;
+    State->MasterVolume = 0.75f;
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1823,11 +1829,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
     }
 
-    if (Input->Reset.IsActivated)
-    {
-        // ...
-    }
-
     if (State->Mode == GameMode_Editor && Input->LeftClick.IsActivated)
     {
         ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->EditorCamera);
@@ -1880,10 +1881,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
         }
     }
-
-#if 0
-    State->IsBackgroundHighlighted = Input->HighlightBackground.IsActive;
-#endif
 
     switch (State->Mode)
     {
@@ -2186,7 +2183,7 @@ DLLExport GAME_RENDER(GameRender)
 
         AddSkybox(RenderCommands, State->SkyboxId, 4096, GetTextureAsset(&State->Assets, "Environment"));
 
-        Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
+        //Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
 #if 1
         //
@@ -2203,13 +2200,13 @@ DLLExport GAME_RENDER(GameRender)
     {
         if (State->DanceMode.Value)
         {
-            Pause(AudioCommands, 2);
+            //Pause(AudioCommands, 2);
             Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "samba"), SetAudioPlayOptions(0.75f, true), 3);
         }
         else
         {
             Stop(AudioCommands, 3);
-            Resume(AudioCommands, 2);
+            //Resume(AudioCommands, 2);
         }
     }
 

@@ -1,7 +1,5 @@
 #include "dummy.h"
 
-inline game_entity * GetGameEntity(game_state *State, u32 EntityId);
-
 inline void
 PublishEvent(game_event_list *EventList, const char *EventName, void *Params)
 {
@@ -40,23 +38,27 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
                 vec3 Position = Entity->Transform.Translation;
 
                 audio_clip *AudioClip = 0;
-                char *ModelName = Entity->Model->Key;
 
-                if (StringEquals(ModelName, "paladin"))
+                switch (SID(Entity->Model->Key))
                 {
-                    AudioClip = GetAudioClipAsset(Assets, "step_metal");
-                }
-                else if (StringEquals(ModelName, "pelegrini"))
-                {
-                    AudioClip = GetAudioClipAsset(Assets, "step_lth1");
-                }
-                else if (StringEquals(ModelName, "xbot") || StringEquals(ModelName, "ybot"))
-                {
-                    AudioClip = GetAudioClipAsset(Assets, "step_cloth1");
-                }
-                else if (StringEquals(ModelName, "warrok") || StringEquals(ModelName, "maw"))
-                {
-                    AudioClip = GetAudioClipAsset(Assets, "step_lth4");
+                    case SID("xbot"):
+                    case SID("ybot"):
+                    case SID("pelegrini"):
+                    {
+                        AudioClip = GetAudioClipAsset(Assets, "step_cloth1");
+                        break;
+                    }
+                    case SID("paladin"):
+                    {
+                        AudioClip = GetAudioClipAsset(Assets, "step_metal");
+                        break;
+                    }
+                    case SID("warrok"):
+                    case SID("maw"):
+                    {
+                        AudioClip = GetAudioClipAsset(Assets, "step_lth4");
+                        break;
+                    }
                 }
 
                 Assert(AudioClip);

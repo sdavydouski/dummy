@@ -1,28 +1,15 @@
 #include "dummy.h"
 
 // Bot
-struct bot_animator_params
-{
-    vec3 Velocity;
-
-    f32 TargetMoveMagnitude;
-    f32 CurrentMoveMagnitude;
-
-    bool32 IsGrounded;
-    bool32 IsPlayer;
-    bool32 IsDanceMode;
-
-    f32 MaxActionIdleTime;
-    f32 ActionIdleRandomTransition;
-};
-
 inline void
 GameInput2BotAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, bot_animator_params *Params)
 {
-    Params->TargetMoveMagnitude = Magnitude(State->TargetMove);
-    Params->CurrentMoveMagnitude = Magnitude(State->CurrentMove);
+    Params->TargetMoveMagnitude = Clamp(Magnitude(State->TargetMove), 0.f, 2.f);
+    Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
+
     Params->IsGrounded = Entity->IsGrounded;
-    Params->Velocity = Entity->Body->PrevVelocity;
+    Params->PrevVelocity = Entity->Body->PrevVelocity;
+    Params->Velocity = Entity->Body->Velocity;
     Params->IsPlayer = (State->Player == Entity);
     Params->IsDanceMode = State->DanceMode.Value;
 
@@ -34,7 +21,8 @@ inline void
 GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
 {
     Params->IsGrounded = Entity->IsGrounded;
-    Params->Velocity = Entity->Body->PrevVelocity;
+    Params->PrevVelocity = Entity->Body->PrevVelocity;
+    Params->Velocity = Entity->Body->Velocity;
     Params->IsPlayer = (State->Player == Entity);
     Params->IsDanceMode = State->DanceMode.Value;
 
@@ -164,6 +152,11 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
                 TransitionToNode(Graph, "Locomotion");
             }
 
+            if (BotParams->IsDanceMode)
+            {
+                TransitionToNode(Graph, "Dance");
+            }
+
             break;
         }
         case SID("Locomotion"):
@@ -187,7 +180,7 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
             {
                 animation_node *JumpLandNode = GetAnimationNode(Graph, "Jump_Land");
 
-                f32 Velocity = Abs(BotParams->Velocity.y);
+                f32 Velocity = Abs(BotParams->PrevVelocity.y);
                 f32 VelocityMin = 0.f;
                 f32 VelocityMax = 12.f;
                 f32 FallImpact = NormalizeRange(Velocity, VelocityMin, VelocityMax);
@@ -256,25 +249,11 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
 }
 
 // Paladin
-struct paladin_animator_params
-{
-    f32 TargetMoveMagnitude;
-    f32 CurrentMoveMagnitude;
-
-    bool32 IsDanceMode;
-
-    f32 MaxActionIdleTime;
-    f32 ActionIdleRandomTransition;
-
-    bool32 LightAttack;
-    bool32 StrongAttack;
-};
-
 inline void
 GameInput2PaladinAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, paladin_animator_params *Params)
 {
-    Params->TargetMoveMagnitude = Magnitude(State->TargetMove);
-    Params->CurrentMoveMagnitude = Magnitude(State->CurrentMove);
+    Params->TargetMoveMagnitude = Clamp(Magnitude(State->TargetMove), 0.f, 2.f);
+    Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
 
     Params->IsDanceMode = State->DanceMode.Value;
 
@@ -483,20 +462,11 @@ ANIMATOR_CONTROLLER(PaladinAnimatorController)
 }
 
 // Monstar
-struct monstar_animator_params
-{
-    f32 TargetMoveMagnitude;
-    f32 CurrentMoveMagnitude;
-
-    bool32 IsDanceMode;
-    bool32 Attack;
-};
-
 inline void
 GameInput2MonstarAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, monstar_animator_params *Params)
 {
-    Params->TargetMoveMagnitude = Magnitude(State->TargetMove);
-    Params->CurrentMoveMagnitude = Magnitude(State->CurrentMove);
+    Params->TargetMoveMagnitude = Clamp(Magnitude(State->TargetMove), 0.f, 2.f);
+    Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
     Params->IsDanceMode = State->DanceMode.Value;
     Params->Attack = Input->LightAttack.IsActivated;
 }

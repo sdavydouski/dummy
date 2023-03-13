@@ -1250,8 +1250,7 @@ OpenGLLogMessage(GLenum Source, GLenum Type, GLuint Id, GLenum Severity, GLsizei
         };
     }
 
-    // todo: problem with shadow map display
-    //Out(Stream, "%s: %s - %s: %s", SourceString, TypeString, SeverityString, Message);
+    Out(Stream, "%s: %s - %s: %s", SourceString, TypeString, SeverityString, Message);
 }
 
 dummy_internal void
@@ -1431,10 +1430,6 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 
                 break;
             }
-            /*default:
-            {
-                Assert(!"Render command is not supported");
-            }*/
         }
 
         BaseAddress += Entry->Size;

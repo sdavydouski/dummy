@@ -14,6 +14,7 @@
 #include "dummy_spatial.h"
 #include "dummy_process.h"
 #include "dummy_animation.h"
+#include "dummy_animator.h"
 #include "dummy_assets.h"
 #include "dummy_audio.h"
 #include "dummy_renderer.h"
@@ -23,13 +24,24 @@
 
 struct game_assets;
 
+game_entity *GetGameEntity(game_state *State, u32 EntityId);
+
 void PublishEvent(game_event_list *EventList, const char *EventName, void *Params);
+
 void TransitionToNode(animation_graph *Graph, const char *NodeName);
 animation_node *GetAnimationNode(animation_graph *Graph, const char *NodeName);
 additive_animation *GetAdditiveAnimation(animation_node *Node, const char *AnimationClipName);
 bool32 AnimationClipFinished(animation_state Animation);
 bool32 AdditiveAnimationsFinished(animation_node *Node);
+
 audio_clip *GetAudioClipAsset(game_assets *Assets, const char *Name);
+
+bounds GetEntityBounds(game_entity *Entity);
+vec3 GetAABBHalfSize(bounds Box);
+vec3 GetAABBCenter(bounds Box);
+bool32 TestAABBAABB(bounds a, bounds b);
+
+audio_play_options SetVolume(f32 Volume);
 
 #define SID(String) Hash(String)
 #define MAX_ENTITY_NAME 256
@@ -46,7 +58,6 @@ struct game_entity
     u32 Id;
     char Name[MAX_ENTITY_NAME];
     ivec3 GridCellCoords[2];
-
     transform Transform;
 
     model *Model;
@@ -216,16 +227,6 @@ struct entity_render_batch
         mesh_instance *MeshInstances;
         skinned_mesh_instance *SkinnedMeshInstances;
     };
-};
-
-struct game_process
-{
-    game_process_on_update *OnUpdatePerFrame;
-    game_process *Child;
-
-    char Key[256];
-    game_process *Prev;
-    game_process *Next;
 };
 
 struct game_asset

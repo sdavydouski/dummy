@@ -32,14 +32,16 @@ Win32GetLastWriteTime(char *FileName)
 #define EDITOR_SHUTDOWN(...) Win32ShutdownEditor(__VA_ARGS__)
 #define EDITOR_WND_PROC_HANDLER(...) if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam)) { return true; }
 #define EDITOR_REMOVE_FOCUS(...) EditorRemoveFocus(__VA_ARGS__)
-#define EDITOR_CAPTURE_INPUT(...) EditorCaptureInput(__VA_ARGS__)
+#define EDITOR_CAPTURE_KEYBOARD_INPUT(...) EditorCaptureKeyboardInput(__VA_ARGS__)
+#define EDITOR_CAPTURE_MOUSE_INPUT(...) EditorCaptureMouseInput(__VA_ARGS__)
 #else
 #define EDITOR_INIT(...)
 #define EDITOR_RENDER(...)
 #define EDITOR_SHUTDOWN(...)
 #define EDITOR_WND_PROC_HANDLER(...)
 #define EDITOR_REMOVE_FOCUS(...)
-#define EDITOR_CAPTURE_INPUT(...) false
+#define EDITOR_CAPTURE_KEYBOARD_INPUT(...) false
+#define EDITOR_CAPTURE_MOUSE_INPUT(...) false
 #endif
 
 inline void *
@@ -180,8 +182,9 @@ PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
 {
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
-    wchar GameCodeDLLFullPath[WIN32_FILE_PATH];
-    ConcatenateStrings(PlatformState->EXEDirectoryFullPath, L"dummy_temp.dll", GameCodeDLLFullPath);
+    wchar GameCodeDLLFullPath[WIN32_FILE_PATH] = L"";
+    ConcatenateString(GameCodeDLLFullPath, PlatformState->EXEDirectoryFullPath, WIN32_FILE_PATH);
+    ConcatenateString(GameCodeDLLFullPath, (wchar *) L"dummy_temp.dll", WIN32_FILE_PATH);
 
     HMODULE GameDLL = GetModuleHandle(GameCodeDLLFullPath);
     void *Result = GetProcAddress(GameDLL, FunctionName);
@@ -1157,14 +1160,17 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     Win32GetFullPathToEXEDirectory(PlatformState.EXEDirectoryFullPath);
 
-    wchar SourceGameCodeDLLFullPath[WIN32_FILE_PATH];
-    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"dummy.dll", SourceGameCodeDLLFullPath);
+    wchar SourceGameCodeDLLFullPath[WIN32_FILE_PATH] = L"";
+    ConcatenateString(SourceGameCodeDLLFullPath, PlatformState.EXEDirectoryFullPath, WIN32_FILE_PATH);
+    ConcatenateString(SourceGameCodeDLLFullPath, (wchar *) L"dummy.dll", WIN32_FILE_PATH);
 
-    wchar TempGameCodeDLLFullPath[WIN32_FILE_PATH];
-    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"dummy_temp.dll", TempGameCodeDLLFullPath);
+    wchar TempGameCodeDLLFullPath[WIN32_FILE_PATH] = L"";
+    ConcatenateString(TempGameCodeDLLFullPath, PlatformState.EXEDirectoryFullPath, WIN32_FILE_PATH);
+    ConcatenateString(TempGameCodeDLLFullPath, (wchar *)L"dummy_temp.dll", WIN32_FILE_PATH);
 
-    wchar GameCodeLockFullPath[WIN32_FILE_PATH];
-    ConcatenateStrings(PlatformState.EXEDirectoryFullPath, L"dummy_lock.tmp", GameCodeLockFullPath);
+    wchar GameCodeLockFullPath[WIN32_FILE_PATH] = L"";
+    ConcatenateString(GameCodeLockFullPath, PlatformState.EXEDirectoryFullPath, WIN32_FILE_PATH);
+    ConcatenateString(GameCodeLockFullPath, (wchar *)L"dummy_lock.dll", WIN32_FILE_PATH);
 
     win32_game_code GameCode = Win32LoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath, GameCodeLockFullPath);
 
@@ -1238,6 +1244,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 #if EDITOR
         editor_state EditorState = {};
+        EditorState.Platform = &PlatformApi;
         umm EditorArenaSize = Megabytes(32);
         InitMemoryArena(&EditorState.Arena, Win32AllocateMemory(0, EditorArenaSize), EditorArenaSize);
 #endif
@@ -1313,12 +1320,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
                     XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
 
-                    if (!EDITOR_CAPTURE_INPUT(&EditorState))
+                    if (!EDITOR_CAPTURE_KEYBOARD_INPUT(&EditorState))
                     {
                         KeyboardInput2GameInput(&KeyboardInput, &GameInput);
                     }
 
-                    if (!EDITOR_CAPTURE_INPUT(&EditorState))
+                    if (!EDITOR_CAPTURE_MOUSE_INPUT(&EditorState))
                     {
                         MouseInput2GameInput(&MouseInput, &GameInput);
                     }
@@ -1397,7 +1404,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         }
 
         // Cleanup
-        EDITOR_SHUTDOWN();
+        EDITOR_SHUTDOWN(&EditorState);
 
         Win32XAudio2Shutdown(&XAudio2State);
 

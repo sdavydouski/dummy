@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="dummy.h" />
     <ClInclude Include="dummy_animation.h" />
+    <ClInclude Include="dummy_animator.h" />
     <ClInclude Include="dummy_assets.h" />
     <ClInclude Include="dummy_audio.h" />
     <ClInclude Include="dummy_events.h" />

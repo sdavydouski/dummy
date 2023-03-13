@@ -18,18 +18,17 @@
                         "type": "transitional",
                         "through": "StandingIdleToLocomotion",
                         "blend": 0.2
+                    },
+                    {
+                        "to": "Dance",
+                        "type": "crossfade",
+                        "blend": 0.2
                     }
                 ],
                 "additive": [
                     {
-                        "target": "agree",
-                        "base": "agree",
-                        "base_keyframe_index": 0,
-                        "looping": true
-                    },
-                     {
-                        "target": "shake_fist",
-                        "base": "shake_fist",
+                        "target": "waving",
+                        "base": "waving",
                         "base_keyframe_index": 0,
                         "looping": true
                     }

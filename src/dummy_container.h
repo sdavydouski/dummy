@@ -141,7 +141,7 @@ Push(stack<T> *Stack, T NewValue)
 {
     T *Value = Stack->Values + Stack->Head++;
 
-    Assert(Stack->Head < Stack->MaxCount);
+    Assert(Stack->Head <= Stack->MaxCount);
 
     *Value = NewValue;
 }

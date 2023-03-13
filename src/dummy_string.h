@@ -16,6 +16,44 @@ StringEquals(const wchar *Str1, const wchar *Str2) {
     return Result;
 }
 
+inline u32
+StringLength(const char *String) {
+    u32 Result = (u32)strlen(String);
+    return Result;
+}
+
+inline u32
+StringLength(const wchar *String) {
+    u32 Result = (u32)wcslen(String);
+    return Result;
+}
+
+inline void
+ConcatenateString(char *Dest, char *Source, u32 DestLength)
+{
+    strcat_s(Dest, DestLength, Source);
+}
+
+inline void
+ConcatenateString(wchar *Dest, wchar *Source, u32 DestLength)
+{
+    wcscat_s(Dest, DestLength, Source);
+}
+
+inline void
+CopyString_(const char *Source, char *Dest, u32 DestLength)
+{
+    strcpy_s(Dest, DestLength, Source);
+}
+
+inline void
+CopyString_(const wchar *Source, wchar *Dest, u32 DestLength)
+{
+    wcscpy_s(Dest, DestLength, Source);
+}
+
+#define CopyString(Source, Dest) CopyString_(Source, Dest, sizeof(Dest))
+
 inline char *
 GetLastAfterDelimiter(char *String, const char Delimiter) {
     char *Result = String;
@@ -42,47 +80,6 @@ GetLastAfterDelimiter(wchar *String, const wchar Delimiter) {
     return Result;
 }
 
-inline u32
-StringLength(const char *String) {
-    u32 Result = (u32)strlen(String);
-    return Result;
-}
-
-inline u32
-StringLength(const wchar *String) {
-    u32 Result = (u32)wcslen(String);
-    return Result;
-}
-
-inline void
-ConcatenateStrings(const wchar *SourceA, const wchar *SourceB, wchar *Dest) {
-    u32 SourceALength = StringLength(SourceA);
-    for (u32 Index = 0; Index < SourceALength; ++Index) {
-        *Dest++ = *SourceA++;
-    }
-
-    u32 SourceBLength = StringLength(SourceB);
-    for (u32 Index = 0; Index < SourceBLength; ++Index) {
-        *Dest++ = *SourceB++;
-    }
-
-    *Dest++ = 0;
-}
-
-inline void
-CopyString_(const char *Source, char *Dest, u32 DestLength)
-{
-    strcpy_s(Dest, DestLength, Source);
-}
-
-inline void
-CopyString_(const wchar *Source, wchar *Dest, u32 DestLength)
-{
-    wcscpy_s(Dest, DestLength, Source);
-}
-
-#define CopyString(Source, Dest) CopyString_(Source, Dest, sizeof(Dest))
-
 inline void
 CopyStringUnsafe(const char *Source, char *Dest, u32 DestLength)
 {
@@ -107,13 +104,6 @@ FormatString_(char *String, u32 Size, const char *Format, ...)
 }
 
 inline u32
-FormatStringArgs(char *String, u32 Size, const char *Format, va_list Args)
-{
-    u32 StringSize = vsnprintf(String, Size, Format, Args);
-    return StringSize;
-}
-
-inline u32
 FormatString_(wchar *String, u32 Size, const wchar *Format, ...)
 {
     va_list ArgPtr;
@@ -126,6 +116,13 @@ FormatString_(wchar *String, u32 Size, const wchar *Format, ...)
 }
 
 #define FormatString(String, Format, ...) FormatString_(String, ArrayCount(String), Format, __VA_ARGS__)
+
+inline u32
+FormatStringArgs(char *String, u32 Size, const char *Format, va_list Args)
+{
+    u32 StringSize = vsnprintf(String, Size, Format, Args);
+    return StringSize;
+}
 
 inline void
 GetDirectoryPath(const char *FilePath, char *DirectoryPath)
@@ -149,8 +146,6 @@ ConvertToWideString(const char *Source, wchar *Dest)
     u32 SourceLength = StringLength(Source);
     u32 DestLength = StringLength(Dest);
 
-    //Assert(SourceLength < DestLength);
-
     mbstowcs_s(0, Dest, SourceLength + 1, Source, SourceLength);
 }
 
@@ -159,8 +154,6 @@ ConvertToString(const wchar *Source, char *Dest)
 {
     u32 SourceLength = StringLength(Source);
     u32 DestLength = StringLength(Dest);
-
-    //Assert(SourceLength < DestLength);
 
     wcstombs_s(0, Dest, SourceLength + 1, Source, SourceLength);
 }
@@ -174,4 +167,11 @@ StringIncludes(char *Str1, char *Str2)
     }
 
     return false;
+}
+
+inline char *
+SplitString(char *String, const char *Delimiter, char **Context)
+{
+    char *Token = strtok_s(String, Delimiter, Context);
+    return Token;
 }

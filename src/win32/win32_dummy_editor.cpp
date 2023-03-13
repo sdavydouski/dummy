@@ -184,7 +184,14 @@ EditorRemoveFocus()
 }
 
 inline bool32
-EditorCaptureInput(editor_state *EditorState)
+EditorCaptureKeyboardInput(editor_state *EditorState)
+{
+    bool32 Result = !EditorState->GameWindowHovered;
+    return Result;
+}
+
+inline bool32
+EditorCaptureMouseInput(editor_state *EditorState)
 {
     bool32 Result = !EditorState->GameWindowHovered || ImGuizmo::IsOver();
     return Result;
@@ -196,8 +203,33 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+
+    // Load ImNodes state
     ImNodes::CreateContext();
-    ImNodes::LoadCurrentEditorStateFromIniFile("imnodes.ini");
+
+    for (u32 ContextIndex = 0; ContextIndex < MAX_IMNODE_CONTEXT_COUNT; ++ContextIndex)
+    {
+        ImNodesEditorContext *Context = ImNodes::EditorContextCreate();
+        EditorState->ImNodesContexts[ContextIndex] = Context;
+    }
+
+    read_file_result ImNodesFile = EditorState->Platform->ReadFile((char *)"imnodes.ini", &EditorState->Arena, ReadText());
+
+    char *ImNodesString = (char *) ImNodesFile.Contents;
+
+    char *NextToken = 0;
+    char *Token = SplitString(ImNodesString, "#", &NextToken);
+
+    u32 ContextIndex = 0;
+
+    while (Token)
+    {
+        ImNodesEditorContext *Context = EditorState->ImNodesContexts[ContextIndex++];
+        ImNodes::GetCurrentContext()->EditorCtx = Context;
+        ImNodes::LoadEditorStateFromIniString(Context, Token, StringLength(Token));
+
+        Token = SplitString(0, "#", &NextToken);
+    }
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -217,18 +249,36 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
     // Init State
     EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
     EditorState->LogAutoScroll = true;
-
     EditorState->CurrentStreamIndex = 0;
-    InitStack(&EditorState->AnimationGraphStack, 10, &EditorState->Arena);
+
+    InitStack(&EditorState->AnimationGraphStack, MAX_IMNODE_CONTEXT_COUNT, &EditorState->Arena);
 }
 
 dummy_internal void
-Win32ShutdownEditor()
+Win32ShutdownEditor(editor_state *EditorState)
 {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplWin32_Shutdown();
-    ImNodes::SaveCurrentEditorStateToIniFile("imnodes.ini");
+
+    // Save ImNodes state
+    char Buffer[4096] = "";
+
+    for (u32 ContextIndex = 0; ContextIndex < MAX_IMNODE_CONTEXT_COUNT; ++ContextIndex)
+    {
+        ImNodesEditorContext *Context = EditorState->ImNodesContexts[ContextIndex];
+
+        char *ContextString = (char *) ImNodes::SaveEditorStateToIniString(Context);
+        ConcatenateString(Buffer, ContextString, ArrayCount(Buffer));
+        ConcatenateString(Buffer, (char *) "#", ArrayCount(Buffer));
+
+        ImNodes::EditorContextFree(Context);
+    }
+
+    EditorState->Platform->WriteFile((char *) "imnodes.ini", Buffer, StringLength(Buffer));
+
     ImNodes::DestroyContext();
+    //
+
     ImGui::DestroyContext();
 }
 
@@ -408,11 +458,15 @@ EditorRenderRigidBodyInfo(rigid_body *Body)
 dummy_internal void
 EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState)
 {
+    u32 ContextIndex = EditorState->AnimationGraphStack.Head - 1;
+    ImNodes::GetCurrentContext()->EditorCtx = EditorState->ImNodesContexts[ContextIndex];
+    ImNodes::EditorContextSet(EditorState->ImNodesContexts[ContextIndex]);
+
     ImGui::Begin("Animation Graph");
 
     if (Size(&EditorState->AnimationGraphStack) > 1)
     {
-        if (ImGui::Button("Back"))
+        if (ImGui::Button("Back", ImVec2(-FLT_MIN, 0.f)))
         {
             Pop(&EditorState->AnimationGraphStack);
         }
@@ -1312,7 +1366,8 @@ Win32RenderEditor(
 
     EditorLogWindow(EditorState, ArrayCount(Streams), Streams, StreamNames);
 
-    stream *Stream = &PlatformState->Stream;
+    // todo:
+    ClearStream(&RendererState->Stream);
 
     ImGui::Begin("Shadow Maps");
     {

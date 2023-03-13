@@ -28,6 +28,7 @@
     <ClInclude Include="dummy_events.h" />
     <ClInclude Include="dummy_text.h" />
     <ClInclude Include="dummy_process.h" />
+    <ClInclude Include="dummy_animator.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_renderer.cpp" />
