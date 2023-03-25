@@ -75,7 +75,6 @@ GetIncomingTransitions(animation_node *Node, animation_graph *Graph, animation_t
     return TransitionCount;
 }
 
-// todo:
 inline i32
 GetTransitionId(animation_node *Node, animation_transition *Transition)
 {
@@ -161,13 +160,6 @@ EditorSetupStyle()
     Colors[ImGuiCol_TabUnfocusedActive] = panelActiveColor;
     Colors[ImGuiCol_TabHovered] = panelHoverColor;
 
-    // imnodes
-    ImNodesStyle &ImNodesStyle = ImNodes::GetStyle();
-    ImNodesStyle.Colors[ImNodesCol_TitleBar] = IM_COL32(37, 37, 38, 255);
-    ImNodesStyle.Colors[ImNodesCol_TitleBarHovered] = IM_COL32(51, 51, 55, 255);
-    ImNodesStyle.Colors[ImNodesCol_TitleBarSelected] = IM_COL32(51, 51, 55, 255);
-
-    // todo:
     Style.WindowRounding = 0.0f;
     Style.ChildRounding = 0.0f;
     Style.FrameRounding = 0.0f;
@@ -175,6 +167,12 @@ EditorSetupStyle()
     Style.PopupRounding = 0.0f;
     Style.ScrollbarRounding = 0.0f;
     Style.TabRounding = 0.0f;
+
+    // imnodes
+    ImNodesStyle &ImNodesStyle = ImNodes::GetStyle();
+    ImNodesStyle.Colors[ImNodesCol_TitleBar] = IM_COL32(37, 37, 38, 255);
+    ImNodesStyle.Colors[ImNodesCol_TitleBarHovered] = IM_COL32(51, 51, 55, 255);
+    ImNodesStyle.Colors[ImNodesCol_TitleBarSelected] = IM_COL32(51, 51, 55, 255);
 }
 
 inline void
@@ -193,7 +191,17 @@ EditorCaptureKeyboardInput(editor_state *EditorState)
 inline bool32
 EditorCaptureMouseInput(editor_state *EditorState)
 {
-    bool32 Result = !EditorState->GameWindowHovered || ImGuizmo::IsOver();
+    bool32 Result = false;
+
+    if (!EditorState->GameWindowHovered)
+    {
+        Result = true;
+    }
+    else if (!ImGui::GetIO().MouseDown[1])
+    {
+        Result = EditorState->GizmoVisible && ImGuizmo::IsOver();
+    }
+
     return Result;
 }
 
@@ -268,8 +276,8 @@ Win32ShutdownEditor(editor_state *EditorState)
         ImNodesEditorContext *Context = EditorState->ImNodesContexts[ContextIndex];
 
         char *ContextString = (char *) ImNodes::SaveEditorStateToIniString(Context);
-        ConcatenateString(Buffer, ContextString, ArrayCount(Buffer));
-        ConcatenateString(Buffer, (char *) "#", ArrayCount(Buffer));
+        ConcatenateString(Buffer, ContextString);
+        ConcatenateString(Buffer, "#");
 
         ImNodes::EditorContextFree(Context);
     }
@@ -277,8 +285,6 @@ Win32ShutdownEditor(editor_state *EditorState)
     EditorState->Platform->WriteFile((char *) "imnodes.ini", Buffer, StringLength(Buffer));
 
     ImNodes::DestroyContext();
-    //
-
     ImGui::DestroyContext();
 }
 
@@ -495,7 +501,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
         {
             case AnimationNodeType_Clip:
             {
-                ImGui::BeginChild("ClipChild", ImVec2(400.f, 200.f));
+                ImGui::BeginChild("ClipChild", ImVec2(400.f, 120.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
@@ -520,7 +526,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
             }
             case AnimationNodeType_BlendSpace:
             {
-                ImGui::BeginChild("BlendSpaceChild", ImVec2(1200.f, 180.f));
+                ImGui::BeginChild("BlendSpaceChild", ImVec2(1200.f, 120.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
@@ -563,7 +569,7 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
             }
             case AnimationNodeType_Reference:
             {
-                ImGui::BeginChild("ReferenceChild", ImVec2(500.f, 200.f));
+                ImGui::BeginChild("ReferenceChild", ImVec2(400.f, 180.f));
 
                 ImGui::ProgressBar(Node->Weight);
 
@@ -622,7 +628,6 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
             animation_node *From = IncomingTransition->From;
 
             ImNodes::BeginInputAttribute(GetTransitionId(Node, IncomingTransition));
-            //ImGui::Text("From:%s", From->Name);
             ImNodes::EndInputAttribute();
         }
 
@@ -632,7 +637,6 @@ EditorRenderAnimationGraphInfo(animation_graph *Graph, editor_state *EditorState
             animation_node *To = GetTransitionDestinationNode(OutgoingTransition);
 
             ImNodes::BeginOutputAttribute(GetTransitionId(Node, OutgoingTransition));
-            //ImGui::Text("To:%s", To->Name);
             ImNodes::EndOutputAttribute();
         }
 
@@ -744,6 +748,8 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
         {
             game_assets *Assets = &GameState->Assets;
 
+            EditorState->ModelFilter.Draw("Filter##Model");
+
             if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
             {
                 for (u32 ModelIndex = 0; ModelIndex < Assets->Models.Count; ++ModelIndex)
@@ -752,9 +758,13 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
 
                     if (!IsSlotEmpty(Model->Key))
                     {
-                        if (ImGui::Selectable(Model->Key))
+                        if (EditorState->ModelFilter.PassFilter(Model->Key))
                         {
-                            AddModel(GameState, Entity, Assets, Model->Key, RenderCommands, &GameState->WorldArea.Arena);
+                            if (ImGui::Selectable(Model->Key))
+                            {
+                                AddModel(GameState, Entity, Assets, Model->Key, RenderCommands, &GameState->WorldArea.Arena);
+                                EditorState->ModelFilter.Clear();
+                            }
                         }
                     }
                 }
@@ -815,14 +825,14 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
         {
             if (Size(&EditorState->AnimationGraphStack) == 0)
             {
-                if (ImGui::Button("Show Animation Graph"))
+                if (ImGui::Button("Show Animation Graph", ImVec2(WindowSize.x, 0)))
                 {
                     Push(&EditorState->AnimationGraphStack, Entity->Animation);
                 }
             }
             else
             {
-                if (ImGui::Button("Hide Animation Graph"))
+                if (ImGui::Button("Hide Animation Graph", ImVec2(WindowSize.x, 0)))
                 {
                     Clear(&EditorState->AnimationGraphStack);
                 }
@@ -923,29 +933,13 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
     }
 
     ImGui::NewLine();
-
-    // todo: shortcuts? https://github.com/ocornut/imgui/issues/456
-    if (!ImGui::GetIO().WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_X))
-    {
-        RemoveGameEntity(Entity);
-
-        if (GameState->SelectedEntity == GameState->Player)
-        {
-            GameState->Player = 0;
-        }
-
-        GameState->SelectedEntity = 0;
-    }
 }
 
 dummy_internal void
 EditorAddEntity(editor_state *EditorState, game_state *GameState)
 {
     game_entity *Entity = CreateGameEntity(GameState);
-
     Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-
-    //AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
 
     GameState->SelectedEntity = Entity;
 
@@ -1052,7 +1046,6 @@ Win32RenderEditor(
 )
 {
     memory_arena *Arena = &EditorState->Arena;
-
     scoped_memory ScopedMemory(Arena);
 
     game_state *GameState = GetGameState(GameMemory);
@@ -1083,7 +1076,7 @@ Win32RenderEditor(
         ImGuiWindowFlags_MenuBar;
 
     game_camera *Camera = GameState->Mode == GameMode_World
-        ? &GameState->GameCamera
+        ? &GameState->PlayerCamera
         : &GameState->EditorCamera;
 
     if (ImGui::Begin("MenuBar", 0, Flags))
@@ -1168,12 +1161,17 @@ Win32RenderEditor(
                     if (ImGui::BeginTable("Graphics toggles", 2))
                     {
                         ImGui::TableNextColumn();
+                        ImGui::Checkbox("Enable Shadows", (bool *)&GameState->Options.EnableShadows);
+
+                        ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Camera", (bool *)&GameState->Options.ShowCamera);
+
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Cascades", (bool *)&GameState->Options.ShowCascades);
 
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Bounding Volumes", (bool *)&GameState->Options.ShowBoundingVolumes);
+
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Skeletons", (bool *)&GameState->Options.ShowSkeletons);
 
@@ -1183,11 +1181,9 @@ Win32RenderEditor(
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Skybox", (bool *)&GameState->Options.ShowSkybox);
 
-                        ImGui::TableNextRow();
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
 
-                        ImGui::TableNextRow();
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
 
@@ -1206,139 +1202,6 @@ Win32RenderEditor(
 
                 ImGui::EndMenu();
             }
-
-#if 0
-            if (ImGui::BeginMenu("Assets"))
-            {
-                game_assets *Assets = &GameState->Assets;
-                char *Search = EditorState->Search;
-                u32 SearchSize = ArrayCount(EditorState->Search);
-
-                ImGui::RadioButton("Models", &EditorState->AssetType, AssetType_Model);
-                ImGui::SameLine();
-                ImGui::RadioButton("Fonts", &EditorState->AssetType, AssetType_Font);
-                ImGui::SameLine();
-                ImGui::RadioButton("Audio", &EditorState->AssetType, AssetType_AudioClip);
-
-                ImGui::InputText("Search", Search, SearchSize);
-
-                if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
-                {
-                    switch (EditorState->AssetType)
-                    {
-                        case AssetType_Model:
-                        {
-                            for (u32 ModelIndex = 0; ModelIndex < Assets->Models.Count; ++ModelIndex)
-                            {
-                                model *Model = Assets->Models.Values + ModelIndex;
-                                char *Key = Model->Key;
-                                b32 Selected = EditorState->SelectedAssetIndex == ModelIndex;
-
-                                if (StringLength(Search) > 0)
-                                {
-                                    if (StringIncludes(Model->Key, Search))
-                                    {
-                                        if (ImGui::Selectable(Model->Key, Selected))
-                                        {
-                                            EditorState->SelectedAssetIndex = ModelIndex;
-                                        }
-                                    }
-                                }
-                                else if (!IsSlotEmpty(Model->Key))
-                                {
-                                    if (ImGui::Selectable(Model->Key, Selected))
-                                    {
-                                        EditorState->SelectedAssetIndex = ModelIndex;
-                                        EditorState->SelectedModel = Model;
-
-                                        // todo: move out to utility function
-                                        game_entity *Entity = CreateGameEntity(GameState);
-
-                                        Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-                                        AddModel(GameState, Entity, &GameState->Assets, Model->Key, RenderCommands, &GameState->PermanentArena);
-
-                                        /*bounds ModelBounds = GetEntityBounds(Entity);
-                                        vec3 Size = ModelBounds.Max - ModelBounds.Min;
-                                        AddBoxCollider(Entity, Size, &GameState->PermanentArena);*/
-
-                                        AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
-
-                                        GameState->SelectedEntity = Entity;
-
-                                        EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-                                        //
-                                    }
-                                }
-                            }
-
-                            break;
-                        }
-                        case AssetType_Font:
-                        {
-                            for (u32 FontIndex = 0; FontIndex < Assets->Fonts.Count; ++FontIndex)
-                            {
-                                font *Font = Assets->Fonts.Values + FontIndex;
-                                char *Key = Font->Key;
-                                b32 Selected = EditorState->SelectedAssetIndex == FontIndex;
-
-                                if (StringLength(Search) > 0)
-                                {
-                                    if (StringIncludes(Key, Search))
-                                    {
-                                        if (ImGui::Selectable(Key, Selected))
-                                        {
-                                            EditorState->SelectedAssetIndex = FontIndex;
-                                        }
-                                    }
-                                }
-                                else if (!IsSlotEmpty(Key))
-                                {
-                                    if (ImGui::Selectable(Key, Selected))
-                                    {
-                                        EditorState->SelectedAssetIndex = FontIndex;
-                                    }
-                                }
-                            }
-
-                            break;
-                        }
-                        case AssetType_AudioClip:
-                        {
-                            for (u32 AudioClipIndex = 0; AudioClipIndex < Assets->AudioClips.Count; ++AudioClipIndex)
-                            {
-                                audio_clip *AudioClip = Assets->AudioClips.Values + AudioClipIndex;
-                                char *Key = AudioClip->Key;
-                                b32 Selected = EditorState->SelectedAssetIndex == AudioClipIndex;
-
-                                if (StringLength(Search) > 0)
-                                {
-                                    if (StringIncludes(Key, Search))
-                                    {
-                                        if (ImGui::Selectable(Key, Selected))
-                                        {
-                                            EditorState->SelectedAssetIndex = AudioClipIndex;
-                                        }
-                                    }
-                                }
-                                else if (!IsSlotEmpty(Key))
-                                {
-                                    if (ImGui::Selectable(Key, Selected))
-                                    {
-                                        EditorState->SelectedAssetIndex = AudioClipIndex;
-                                    }
-                                }
-                            }
-
-                            break;
-                        }
-                    }
-
-                    ImGui::EndListBox();
-                }
-
-                ImGui::EndMenu();
-            }
-#endif
 
             char Text[256];
             FormatString(
@@ -1366,24 +1229,19 @@ Win32RenderEditor(
 
     EditorLogWindow(EditorState, ArrayCount(Streams), Streams, StreamNames);
 
-    // todo:
-    ClearStream(&RendererState->Stream);
-
     ImGui::Begin("Shadow Maps");
+
+    if (ImGui::BeginTable("Shadow Maps", 1, ImGuiTableFlags_ScrollX))
     {
-        ImVec2 WindowSize = ImVec2(512, 512);
-
-        if (ImGui::BeginTable("Shadow Maps", 1, ImGuiTableFlags_ScrollX))
+        for (u32 CascadeIndex = 0; CascadeIndex < ArrayCount(RendererState->CascadeShadowMaps); ++CascadeIndex)
         {
-            for (u32 CascadeIndex = 0; CascadeIndex < ArrayCount(RendererState->CascadeShadowMaps); ++CascadeIndex)
-            {
-                ImGui::TableNextColumn();
-                ImGui::Image((ImTextureID)(umm)RendererState->CascadeShadowMaps[CascadeIndex], WindowSize, ImVec2(0, 1), ImVec2(1, 0));
-            }
-
-            ImGui::EndTable();
+            ImGui::TableNextColumn();
+            ImGui::Image((ImTextureID)(umm)RendererState->CascadeShadowMaps[CascadeIndex], ImVec2(512, 512), ImVec2(0, 1), ImVec2(1, 0));
         }
+
+        ImGui::EndTable();
     }
+
     ImGui::End();
 
     ImGui::Begin("Scene");
@@ -1411,88 +1269,88 @@ Win32RenderEditor(
 
     ImGui::End();
 
+    // Profiler
     ImGui::Begin("Profiler");
-    {
-        platform_profiler *Profiler = GameMemory->Profiler;
-        profiler_frame_samples *FrameSamples = ProfilerGetPreviousFrameSamples(Profiler);
 
-        f32 *ElapsedMillisecondsValues = PushArray(ScopedMemory.Arena, FrameSamples->SampleCount, f32);
+    platform_profiler *Profiler = GameMemory->Profiler;
+    profiler_frame_samples *FrameSamples = ProfilerGetPreviousFrameSamples(Profiler);
+
+    f32 *ElapsedMillisecondsValues = PushArray(ScopedMemory.Arena, FrameSamples->SampleCount, f32);
+
+    for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
+    {
+        profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
+        f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
+        *ElapsedMilliseconds = Sample->ElapsedMilliseconds;
+    }
+
+    ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
+
+    if (ImGui::BeginTable("Profiler stats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
+    {
+        ImGui::TableSetupColumn("Block", 0, 3.f);
+        ImGui::TableSetupColumn("Ticks", 0, 1.f);
+        ImGui::TableSetupColumn("Milliseconds", 0, 1.f);
+        ImGui::TableHeadersRow();
+
+        u64 TotalTicks = 0;
+        f32 TotalMilliseconds = 0.f;
 
         for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
         {
             profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
-            f32 *ElapsedMilliseconds = ElapsedMillisecondsValues + SampleIndex;
-            *ElapsedMilliseconds = Sample->ElapsedMilliseconds;
-        }
-
-        ImGui::PlotLines("Frame timing", ElapsedMillisecondsValues, FrameSamples->SampleCount);
-
-        if (ImGui::BeginTable("Profiler stats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
-        {
-            ImGui::TableSetupColumn("Block", 0, 3.f);
-            ImGui::TableSetupColumn("Ticks", 0, 1.f);
-            ImGui::TableSetupColumn("Milliseconds", 0, 1.f);
-            ImGui::TableHeadersRow();
-
-            u64 TotalTicks = 0;
-            f32 TotalMilliseconds = 0.f;
-
-            for (u32 SampleIndex = 0; SampleIndex < FrameSamples->SampleCount; ++SampleIndex)
-            {
-                profiler_sample *Sample = FrameSamples->Samples + SampleIndex;
-
-                ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
-
-                if (Sample->ElapsedMilliseconds >= 1.0f)
-                {
-                    Color = ImVec4(1.f, 0.f, 0.f, 1.f);
-                }
-                else if (0.1f <= Sample->ElapsedMilliseconds && Sample->ElapsedMilliseconds < 1.f)
-                {
-                    Color = ImVec4(1.f, 1.f, 0.f, 1.f);
-                }
-
-                ImGui::TableNextColumn();
-                ImGui::TextColored(Color, "%s", Sample->Name);
-
-                ImGui::TableNextColumn();
-                ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
-
-                ImGui::TableNextColumn();
-                ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMilliseconds);
-
-                TotalTicks += Sample->ElapsedTicks;
-                TotalMilliseconds += Sample->ElapsedMilliseconds;
-            }
 
             ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
 
-            if (TotalMilliseconds >= 4.0f)
+            if (Sample->ElapsedMilliseconds >= 1.0f)
             {
                 Color = ImVec4(1.f, 0.f, 0.f, 1.f);
             }
-            else if (1.f <= TotalMilliseconds && TotalMilliseconds < 4.f)
+            else if (0.1f <= Sample->ElapsedMilliseconds && Sample->ElapsedMilliseconds < 1.f)
             {
                 Color = ImVec4(1.f, 1.f, 0.f, 1.f);
             }
 
             ImGui::TableNextColumn();
-            ImGui::TextColored(Color, "Total");
+            ImGui::TextColored(Color, "%s", Sample->Name);
 
             ImGui::TableNextColumn();
-            ImGui::TextColored(Color, "%d ticks", TotalTicks);
+            ImGui::TextColored(Color, "%d ticks", Sample->ElapsedTicks);
 
             ImGui::TableNextColumn();
-            ImGui::TextColored(Color, "%.3f ms", TotalMilliseconds);
+            ImGui::TextColored(Color, "%.3f ms", Sample->ElapsedMilliseconds);
 
-            ImGui::EndTable();
+            TotalTicks += Sample->ElapsedTicks;
+            TotalMilliseconds += Sample->ElapsedMilliseconds;
         }
+
+        ImVec4 Color = ImVec4(0.f, 1.f, 0.f, 1.f);
+
+        if (TotalMilliseconds >= 4.0f)
+        {
+            Color = ImVec4(1.f, 0.f, 0.f, 1.f);
+        }
+        else if (1.f <= TotalMilliseconds && TotalMilliseconds < 4.f)
+        {
+            Color = ImVec4(1.f, 1.f, 0.f, 1.f);
+        }
+
+        ImGui::TableNextColumn();
+        ImGui::TextColored(Color, "Total");
+
+        ImGui::TableNextColumn();
+        ImGui::TextColored(Color, "%d ticks", TotalTicks);
+
+        ImGui::TableNextColumn();
+        ImGui::TextColored(Color, "%.3f ms", TotalMilliseconds);
+
+        ImGui::EndTable();
     }
+
     ImGui::End();
 
     // Game View
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-
     ImGui::Begin("Game View");
 
     EditorState->GameWindowHovered = ImGui::IsWindowHovered();
@@ -1514,17 +1372,26 @@ Win32RenderEditor(
     ImGui::PushClipRect(GameWindowPosition, GameWindowPosition + GameWindowSize, false);
 
     ImGui::End();
-
     ImGui::PopStyleVar();
-    //
 
     ImGui::SetNextWindowPos(GameWindowContentPosition);
     ImGui::SetNextWindowBgAlpha(0.3f);
     ImGui::Begin("Game Overlay", 0, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
     ImGui::Text("Size: %d, %d", GameParameters->WindowWidth, GameParameters->WindowHeight);
+    ImGui::Text("Editor capture mouse input: %d", EditorCaptureMouseInput(EditorState));
+    ImGui::Text("Editor capture keyboard input: %d", EditorCaptureKeyboardInput(EditorState));
+
+    game_camera *PlayerCamera = &GameState->PlayerCamera;
+    game_camera *EditorCamera = &GameState->EditorCamera;
+
+    ImGui::Text("Camera position: %.2f, %.2f, %.2f", EditorCamera->Position.x, EditorCamera->Position.y, EditorCamera->Position.z);
+    //ImGui::Text("Camera target position: %.2f, %.2f, %.2f", GameState->PlayerCamera.TargetPosition.x, GameState->PlayerCamera.TargetPosition.y, GameState->PlayerCamera.TargetPosition.z);
+    //ImGui::Text("Camera distance: %.2f", GameState->PlayerCamera.SphericalCoords.x);
+    ImGui::Text("Camera azimuth: %.2f", DEGREES(EditorCamera->SphericalCoords.y));
+    ImGui::Text("Camera altitude: %.2f", DEGREES(EditorCamera->SphericalCoords.z));
     ImGui::End();
 
-    bool SelectedEntity = true;
+    bool32 SelectedEntity = true;
 
     ImGui::Begin("Entity");
 
@@ -1539,8 +1406,12 @@ Win32RenderEditor(
 
     ImGui::End();
 
-    if (GameState->SelectedEntity)
+    EditorState->GizmoVisible = false;
+
+    if (GameState->SelectedEntity && GameState->Mode == GameMode_Editor)
     {
+        EditorState->GizmoVisible = true;
+
         game_entity *Entity = GameState->SelectedEntity;
 
         // Gizmos
@@ -1605,8 +1476,24 @@ Win32RenderEditor(
         GameState->SelectedEntity = 0;
     }
 
+    // todo: shortcuts? https://github.com/ocornut/imgui/issues/456
     if ((GameState->Mode == GameMode_Editor || io.KeyCtrl) && !ImGui::GetIO().WantCaptureKeyboard)
     {
+        if (ImGui::IsKeyPressed(ImGuiKey_X))
+        {
+            if (GameState->SelectedEntity)
+            {
+                RemoveGameEntity(GameState->SelectedEntity);
+
+                if (GameState->SelectedEntity == GameState->Player)
+                {
+                    GameState->Player = 0;
+                }
+
+                GameState->SelectedEntity = 0;
+            }
+        }
+
         if (ImGui::IsKeyPressed(ImGuiKey_T))
         {
             EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
@@ -1621,11 +1508,6 @@ Win32RenderEditor(
         {
             EditorState->CurrentGizmoOperation = ImGuizmo::ROTATE;
         }
-
-        /*if (ImGui::IsKeyPressed(ImGuiKey_U))
-        {
-            EditorState->CurrentGizmoOperation = 0;
-        }*/
 
         if (ImGui::IsKeyPressed(ImGuiKey_E))
         {
@@ -1662,31 +1544,6 @@ Win32RenderEditor(
                 GameParameters->TimeScale = 0.f;
             }
         }
-
-#if 0
-        if (ImGui::IsKeyPressed(ImGuiKey_Z))
-        {
-            if (EditorState->SelectedModel)
-            {
-                // todo: move out to utility function
-                game_entity *Entity = CreateGameEntity(GameState);
-
-                Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
-                AddModel(GameState, Entity, &GameState->Assets, EditorState->SelectedModel->Key, RenderCommands, &GameState->PermanentArena);
-
-                /*bounds ModelBounds = GetEntityBounds(Entity);
-                vec3 Size = ModelBounds.Max - ModelBounds.Min;
-                AddBoxCollider(Entity, Size, &GameState->PermanentArena);*/
-
-                AddToSpacialGrid(&GameState->WorldArea.SpatialGrid, Entity);
-
-                GameState->SelectedEntity = Entity;
-
-                EditorState->CurrentGizmoOperation = ImGuizmo::TRANSLATE;
-                //
-            }
-        }
-#endif
     }
 
     // Rendering

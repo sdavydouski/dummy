@@ -62,42 +62,48 @@ void main()
 
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
 
+    vec3 Ambient = AmbientColor * DiffuseColor;
+    float Shadow = 1.f;
+
+    if (u_EnableShadows)
+    {
+		// Shadows
+        vec3 CascadeBlend = CalculateCascadeBlend(GroundPoint, u_CameraDirection, u_CameraPosition);
+        vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, GroundPoint);
+
+        Shadow = ShadowResult.x;
+
+        int CascadeIndex1 = int(ShadowResult.y);
+        int CascadeIndex2 = int(ShadowResult.z);
+
+        if (u_ShowCascades)
+        {
+            // Visualising cascades
+            if (CascadeIndex1 == 0 && CascadeIndex2 == 1)
+            {
+                Result += vec3(1.f, 0.f, 0.f);
+            }
+            else if (CascadeIndex2 == 1 && CascadeIndex1 == 2)
+            {
+                Result += vec3(0.f, 1.f, 0.f);
+            }
+            else if (CascadeIndex1 == 2 && CascadeIndex2 == 3)
+            {
+                Result += vec3(0.f, 0.f, 1.f);
+            }
+            else 
+            {
+                Result += vec3(1.f, 1.f, 0.f);
+            }
+        }
+    }
+
+    Result = Ambient + Result * Shadow;
+
     for (int PointLightIndex = 0; PointLightIndex < u_PointLightCount; ++PointLightIndex)
     {
         point_light PointLight = u_PointLights[PointLightIndex];
         Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, GroundPoint);
-    }
-
-	// Shadow
-    vec3 CascadeBlend = CalculateCascadeBlend(GroundPoint, u_CameraDirection, u_CameraPosition);
-    vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, GroundPoint);
-
-    float Shadow = ShadowResult.x;
-    int CascadeIndex1 = int(ShadowResult.y);
-    int CascadeIndex2 = int(ShadowResult.z);
-
-    vec3 Ambient = AmbientColor * DiffuseColor;
-    Result = Ambient + Result * Shadow;
-
-    if (u_ShowCascades)
-    {
-        // Visualising cascades
-        if (CascadeIndex1 == 0 && CascadeIndex2 == 1)
-        {
-            Result += vec3(1.f, 0.f, 0.f);
-        }
-        else if (CascadeIndex2 == 1 && CascadeIndex1 == 2)
-        {
-            Result += vec3(0.f, 1.f, 0.f);
-        }
-        else if (CascadeIndex1 == 2 && CascadeIndex2 == 3)
-        {
-            Result += vec3(0.f, 0.f, 1.f);
-        }
-        else 
-        {
-            Result += vec3(1.f, 1.f, 0.f);
-        }
     }
 
 	out_Color = vec4(Result, 1.f - Opacity);

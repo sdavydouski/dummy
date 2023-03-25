@@ -17,6 +17,7 @@
 
 #define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
 //#define Assert(...)
+#define CTAssert(Expression) static_assert(Expression)
 
 #define i8 int8_t
 #define u8 uint8_t

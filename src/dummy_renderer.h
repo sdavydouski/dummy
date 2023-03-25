@@ -76,36 +76,6 @@ struct particle_emitter
     vec2 Size;
 };
 
-struct game_camera
-{
-    transform Transform;
-    vec3 Direction;
-    vec3 Up;
-
-    f32 Pitch;
-    f32 Yaw;
-
-    // Vertical field of view
-    f32 FieldOfView;
-    f32 FocalLength;
-    f32 AspectRatio;
-    f32 NearClipPlane;
-    f32 FarClipPlane;
-
-    // For orbiting camera
-    vec3 PivotPosition;
-    f32 Radius;
-    vec3_lerp PivotPositionLerp;
-    //
-};
-
-inline mat4
-GetCameraTransform(game_camera *Camera)
-{
-    mat4 Result = LookAt(Camera->Transform.Translation, Camera->Transform.Translation + Camera->Direction, Camera->Up);
-    return Result;
-}
-
 struct skinning_data
 {
     skeleton_pose *BindPose;
@@ -142,7 +112,9 @@ enum render_command_type
     RenderCommand_DrawParticles,
     RenderCommand_DrawTexturedQuad,
     RenderCommand_DrawBillboard,
-    RenderCommand_DrawSkybox
+    RenderCommand_DrawSkybox,
+
+    RenderCommand_Count
 };
 
 const char *RenderCommandNames[] =
@@ -175,6 +147,8 @@ const char *RenderCommandNames[] =
     "DrawBillboard",
     "DrawSkybox"
 };
+
+CTAssert(ArrayCount(RenderCommandNames) == RenderCommand_Count);
 
 struct render_command_header
 {
@@ -446,7 +420,7 @@ struct render_commands_settings
     f32 PixelsPerUnit;
     f32 UnitsPerPixel;
     bool32 ShowCascades;
-    bool32 EnableCascadedShadowMaps;
+    bool32 EnableShadows;
     game_camera *Camera;
     mat4 WorldToCamera;
     mat4 CameraToWorld;

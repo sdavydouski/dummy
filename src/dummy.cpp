@@ -20,12 +20,12 @@ NormalizeRGB(vec3 RGB)
 inline void
 InitCamera(game_camera *Camera, f32 FieldOfView, f32 AspectRatio, f32 NearClipPlane, f32 FarClipPlane, vec3 Position, f32 Pitch, f32 Yaw, vec3 Up = vec3(0.f, 1.f, 0.f))
 {
-    Camera->Transform = CreateTransform(Position, vec3(1.f), Euler2Quat(Yaw, Pitch, 0.f));
+    Camera->Position = Position;
     Camera->Direction = Euler2Direction(Yaw, Pitch);
     Camera->Up = Up;
 
-    Camera->Pitch = Pitch;
-    Camera->Yaw = Yaw;
+    Camera->SphericalCoords.y = Yaw;
+    Camera->SphericalCoords.z = Pitch;
 
     Camera->FieldOfView = FieldOfView;
     Camera->FocalLength = 1.f / Tan(FieldOfView * 0.5f);
@@ -314,7 +314,7 @@ ScreenPointToWorldRay(vec2 ScreenPoint, vec2 ScreenSize, game_camera *Camera)
     vec3 WorldRay = (Inverse(View) * CameraRay).xyz;
 
     ray Result = {};
-    Result.Origin = Camera->Transform.Translation;
+    Result.Origin = Camera->Position;
     Result.Direction = Normalize(WorldRay);
 
     return Result;
@@ -356,12 +356,8 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "assets\\maw.model.asset"
         },
         {
-            "Ganfaul",
-            "assets\\Ganfaul.model.asset"
-        },
-        {
-            "cerberus",
-            "assets\\cerberus.model.asset"
+            "ninja",
+            "assets\\ninja.model.asset"
         },
         {
             "cube",
@@ -375,33 +371,41 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
             "quad",
             "assets\\quad.model.asset"
         },
-        {
-            "ramp",
-            "assets\\ramp.model.asset"
-        },
 
         // Dungeon Assets
         {
-            "floor_standard",
-            "assets\\Floor_Standard.model.asset"
+            "barrel",
+            "assets\\barrel.model.asset"
         },
         {
-            "wall",
-            "assets\\Wall.model.asset"
+            "chair",
+            "assets\\chair.model.asset"
         },
 
         {
-            "barrel",
-            "assets\\Barrel.model.asset"
+            "coinsLarge",
+            "assets\\coinsLarge.model.asset"
         },
         {
             "crate",
-            "assets\\Crate.model.asset"
+            "assets\\crate.model.asset"
+        },
+        {
+            "pillar",
+            "assets\\pillar.model.asset"
+        },
+        {
+            "tableLarge",
+            "assets\\tableLarge.model.asset"
         },
         {
             "torch",
             "assets\\torch.model.asset"
-        }
+        },
+        {
+            "wall",
+            "assets\\wall.model.asset"
+        },
     };
 
     Assets->ModelAssetCount = ArrayCount(ModelAssets);
@@ -558,10 +562,7 @@ JOB_ENTRY_POINT(LoadGameAssetsJob)
 dummy_internal void
 InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
-    // Using a prime table size in conjunction with quadratic probing tends to yield 
-    // the best coverage of the available table slots with minimal clustering
-    Assets->Models.Count = 251;
-    Assets->Models.Values = PushArray(&Assets->Arena, Assets->Models.Count, model);
+    InitHashTable(&Assets->Models, 251, &Assets->Arena);
 
     Assert(Assets->Models.Count > Assets->ModelAssetCount);
 
@@ -577,9 +578,7 @@ InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *Ren
 dummy_internal void
 InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
-    // todo:
-    Assets->Fonts.Count = 251;
-    Assets->Fonts.Values = PushArray(&Assets->Arena, Assets->Fonts.Count, font);
+    InitHashTable(&Assets->Fonts, 31, &Assets->Arena);
 
     Assert(Assets->Fonts.Count > Assets->FontAssetCount);
 
@@ -595,9 +594,7 @@ InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *Rend
 dummy_internal void
 InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
-    // todo:
-    Assets->Textures.Count = 251;
-    Assets->Textures.Values = PushArray(&Assets->Arena, Assets->Textures.Count, texture);
+    InitHashTable(&Assets->Textures, 127, &Assets->Arena);
 
     Assert(Assets->Textures.Count > Assets->TextureAssetCount);
 
@@ -613,9 +610,7 @@ InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *R
 dummy_internal void
 InitGameAudioClipAssets(game_assets *Assets)
 {
-    // todo:
-    Assets->AudioClips.Count = 251;
-    Assets->AudioClips.Values = PushArray(&Assets->Arena, Assets->AudioClips.Count, audio_clip);
+    InitHashTable(&Assets->AudioClips, 251, &Assets->Arena);
 
     Assert(Assets->AudioClips.Count > Assets->AudioClipAssetCount);
 
@@ -644,6 +639,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
 
         DrawBox(RenderCommands, Transform, Color);
 
+#if 0
         quat Rotation = LocalJointPose.Rotation;
         vec3 Scale = LocalJointPose.Scale;
 
@@ -652,9 +648,9 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
 
         char ScaleLabel[256];
         FormatString(ScaleLabel, "index: %d; scale: %.2f, %.2f, %.2f", JointIndex, Scale.x, Scale.y, Scale.z);
+#endif
 
         DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.05f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
-        //DrawText(RenderCommands, RotationLabel, Font, Transform.Translation, 0.02f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -1154,6 +1150,11 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
             if (Body)
             {
+                // Save previous state
+                Body->PrevPosition = Body->Position;
+                Body->PrevVelocity = Body->Velocity;
+                Body->PrevAcceleration = Body->Acceleration;
+
                 u32 MaxNearbyEntityCount = 10;
                 game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
                 bounds Bounds = { vec3(-0.01f), vec3(0.f) };
@@ -1197,18 +1198,18 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 if (Body->RootMotionEnabled && Entity->IsGrounded)
                 {
                     // Partial integration
-                    f32 dt = Data->UpdateRate;
+                    vec3 BodyPosition = Body->Position;
 
-                    Body->Acceleration += Body->ForceAccumulator * Body->InverseMass;
-                    Body->Velocity += Body->Acceleration * dt;
-                    Body->Velocity *= Power(Body->Damping, dt);
+                    Integrate(Body, Data->UpdateRate);
+
+                    Body->Position = BodyPosition;
 
                     Assert(Entity->Animation);
 
+                    // Applying root motion
                     vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
                     vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
 
-                    Entity->Body->PrevPosition = Entity->Body->Position;
                     Entity->Body->Position += RotatedScaledRootMotion;
                 }
                 else
@@ -1576,7 +1577,6 @@ LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform,
         game_entity *Entity = CreateGameEntity(State);
 
         Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
-        AddToSpacialGrid(&Area->SpatialGrid, Entity);
     }
 
     Out(&State->Stream, "Loaded %s (Entity Count: %d)", FileName, EntityCount);
@@ -1601,7 +1601,6 @@ LoadEntityFromFile(game_state *State,  game_entity *Entity, char *FileName, plat
     world_area *Area = &State->WorldArea;
 
     Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
-    AddToSpacialGrid(&Area->SpatialGrid, Entity);
 }
 
 dummy_internal void
@@ -1686,8 +1685,7 @@ DLLExport GAME_INIT(GameInit)
     CopyString("Sentinel", Sentinel->Key);
     Sentinel->Next = Sentinel->Prev = Sentinel;
 
-    State->Processes.Count = 31;
-    State->Processes.Values = PushArray(&State->PermanentArena, State->Processes.Count, game_process);
+    InitHashTable(&State->Processes, 31, &State->PermanentArena);
 
     // Event System
     game_event_list *EventList = &State->EventList;
@@ -1699,8 +1697,7 @@ DLLExport GAME_INIT(GameInit)
 
     // Animator Setup
     State->Animator = {};
-    State->Animator.Controllers.Count = 31;
-    State->Animator.Controllers.Values = PushArray(&State->PermanentArena, State->Animator.Controllers.Count, animator_controller);
+    InitHashTable(&State->Animator.Controllers, 31, &State->PermanentArena);
 
     LoadAnimators(&State->Animator);
     //
@@ -1712,9 +1709,9 @@ DLLExport GAME_INIT(GameInit)
     f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
     f32 FieldOfView = RADIANS(45.f);
     InitCamera(&State->EditorCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 4.f, 8.f), RADIANS(-20.f), RADIANS(-90.f));
-    InitCamera(&State->GameCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(0.f));
+    InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), RADIANS(20.f), RADIANS(180.f));
     // todo:
-    State->GameCamera.Radius = 4.f;
+    State->PlayerCamera.SphericalCoords.x = 4.f;
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
@@ -1731,6 +1728,7 @@ DLLExport GAME_INIT(GameInit)
     ClearAudioCommands(Memory);
 
     State->Options = {};
+    State->Options.EnableShadows = true;
     State->Options.ShowBoundingVolumes = false;
     State->Options.ShowGrid = true;
     State->Options.ShowSkybox = true;
@@ -1762,7 +1760,7 @@ DLLExport GAME_INIT(GameInit)
     /*State->Player = State->Dummy;
     State->Player->Controllable = true;*/
 
-    State->MasterVolume = 0.75f;
+    State->MasterVolume = 0.f;
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1796,81 +1794,25 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     platform_api *Platform = Memory->Platform;
     audio_commands *AudioCommands = GetAudioCommands(Memory);
 
-    vec3 xAxis = vec3(1.f, 0.f, 0.f);
-    vec3 yAxis = vec3(0.f, 1.f, 0.f);
-    vec3 zAxis = vec3(0.f, 0.f, 1.f);
-
     f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
     Assert(0.f <= Lag && Lag <= 1.f);
-
-    vec2 Move = Input->Move.Range;
-
-    if (Abs(Move.x) == 1.f && Abs(Move.y) == 1.f)
-    {
-        Move = Normalize(Move);
-    }
-
-    if (Abs(Move.x) == 2.f && Abs(Move.y) == 2.f)
-    {
-        Move = Normalize(Move) * 2.f;
-    }
 
     if (Input->Menu.IsActivated)
     {
         if (State->Mode == GameMode_Menu)
         {
-            State->Mode = State->PrevMode;
+            State->Mode = GameMode_World;
         }
-        else if (State->Mode == GameMode_World || State->Mode == GameMode_Editor)
+        else
         {
-            State->PrevMode = State->Mode;
             State->Mode = GameMode_Menu;
             InitGameMenu(State);
         }
     }
 
-    if (State->Mode == GameMode_Editor && Input->LeftClick.IsActivated)
-    {
-        ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32) Parameters->WindowWidth, (f32) Parameters->WindowHeight), &State->EditorCamera);
-
-        f32 MinDistance = F32_MAX;
-
-        game_entity *SelectedEntity = 0;
-
-        world_area *Area = &State->WorldArea;
-
-        for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
-        {
-            game_entity *Entity = Area->Entities + EntityIndex;
-
-            if (!Entity->Destroyed)
-            {
-                State->SelectedEntity = 0;
-                bounds Box = GetEntityBounds(Entity);
-
-                vec3 IntersectionPoint;
-                if (IntersectRayAABB(Ray, Box, IntersectionPoint))
-                {
-                    f32 Distance = Magnitude(IntersectionPoint - State->EditorCamera.Transform.Translation);
-
-                    if (Distance < MinDistance)
-                    {
-                        MinDistance = Distance;
-                        SelectedEntity = Entity;
-                    }
-                }
-            }
-        }
-
-        if (SelectedEntity)
-        {
-            State->SelectedEntity = SelectedEntity;
-        }
-    }
-
     if (Input->EditMode.IsActivated)
     {
-        if (State->Mode == GameMode_World || State->Mode == GameMode_Menu)
+        if (State->Mode == GameMode_World)
         {
             State->Mode = GameMode_Editor;
             Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
@@ -1886,6 +1828,17 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         case GameMode_World:
         {
+            vec2 Move = Input->Move.Range;
+
+            if (Abs(Move.x) == 1.f && Abs(Move.y) == 1.f)
+            {
+                Move = Normalize(Move);
+            }
+            if (Abs(Move.x) == 2.f && Abs(Move.y) == 2.f)
+            {
+                Move = Normalize(Move) * 2.f;
+            }
+
             State->TargetMove = Move;
 
             if (State->TargetMove != State->CurrentMove)
@@ -1893,94 +1846,64 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 StartGameProcess(State, SmoothInputMoveProcess);
             }
 
-            // Camera
-            // https://www.gamasutra.com/blogs/YoannPignole/20150928/249412/Third_person_camera_design_with_free_move_zone.php
-            game_camera *PlayerCamera = &State->GameCamera;
-
-            PlayerCamera->Pitch -= Input->Camera.Range.y;
-            PlayerCamera->Pitch = Clamp(PlayerCamera->Pitch, RADIANS(0.f), RADIANS(89.f));
-
-            PlayerCamera->Yaw += Input->Camera.Range.x;
-            PlayerCamera->Yaw = Mod(PlayerCamera->Yaw, 2 * PI);
-
-            PlayerCamera->Radius -= Input->ZoomDelta;
-            PlayerCamera->Radius = Clamp(PlayerCamera->Radius, 4.f, 16.f);
-
-            f32 CameraHeight = Max(0.1f, PlayerCamera->Radius * Sin(PlayerCamera->Pitch));
-
-            vec3 PlayerPosition = State->Player ? State->Player->Transform.Translation : vec3(0.f);
-
-            if (PlayerPosition != PlayerCamera->PivotPosition)
-            {
-                f32 Distance = Magnitude(PlayerPosition - PlayerCamera->PivotPosition);
-                f32 Duration = LogisticFunction(0.8f, 0.5f, 5.f, Distance);
-
-                SetVec3Lerp(&PlayerCamera->PivotPositionLerp, 0.f, Duration, PlayerCamera->PivotPosition, PlayerPosition);
-                StartGameProcess(State, CameraPivotPositionLerpProcess);
-            }
-
-            PlayerCamera->Transform.Translation.x = PlayerCamera->PivotPosition.x +
-                Sqrt(Square(PlayerCamera->Radius) - Square(CameraHeight)) * Sin(PlayerCamera->Yaw);
-            PlayerCamera->Transform.Translation.y = PlayerCamera->PivotPosition.y + CameraHeight;
-            PlayerCamera->Transform.Translation.z = PlayerCamera->PivotPosition.z -
-                Sqrt(Square(PlayerCamera->Radius) - Square(CameraHeight)) * Cos(PlayerCamera->Yaw);
-
-            PlayerCamera->Transform.Rotation = Euler2Quat(PlayerCamera->Yaw, PlayerCamera->Pitch, 0.f);
-
-            // todo:
-            vec3 CameraLookAtPoint = PlayerCamera->PivotPosition + vec3(0.f, 1.2f, 0.f);
-            PlayerCamera->Direction = Normalize(CameraLookAtPoint - State->GameCamera.Transform.Translation);
-
             game_entity *Player = State->Player;
 
-            // todo:
-            if (Player && Player->Body)
+            if (Player)
             {
-                //
-                if (Input->Jump.IsActivated)
+                bounds PlayerBounds = GetEntityBounds(Player);
+                vec3 PlayerSize = PlayerBounds.Max - PlayerBounds.Min;
+
+                vec3 PlayerPosition = Player->Transform.Translation;
+                vec3 TargetPosition = PlayerPosition + vec3(0.f, 0.8f * PlayerSize.y, 0.f);
+
+                ChaseCameraPerFrameUpdate(&State->PlayerCamera, Input, TargetPosition, Parameters->Delta);
+
+                if (Player->Body)
                 {
+                    if (Input->Jump.IsActivated)
+                    {
+                        if (Player->IsGrounded)
+                        {
+                            Player->Body->Acceleration.y = 80.f;
+                            // todo:
+                            Player->Body->Position.y += 0.01f;
+                        }
+                    }
+
+                    vec3 xAxis = vec3(1.f, 0.f, 0.f);
+                    vec3 yAxis = vec3(0.f, 1.f, 0.f);
+                    vec3 zAxis = vec3(0.f, 0.f, 1.f);
+
+                    vec3 yMoveAxis = Normalize(Projection(State->PlayerCamera.Direction, State->Ground));
+                    vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
+
+                    f32 xMoveY = Dot(yMoveAxis, xAxis) * Move.y;
+                    f32 zMoveY = Dot(yMoveAxis, zAxis) * Move.y;
+
+                    f32 xMoveX = Dot(xMoveAxis, xAxis) * Move.x;
+                    f32 zMoveX = Dot(xMoveAxis, zAxis) * Move.x;
+
+                    vec3 PlayerDirection = vec3(Dot(vec3(Move.x, 0.f, Move.y), xMoveAxis), 0.f, Dot(vec3(Move.x, 0.f, Move.y), yMoveAxis));
+
                     if (Player->IsGrounded)
                     {
-                        Player->Body->Acceleration.y = 80.f;
-                        // todo:
-                        Player->Body->Position.y += 0.01f;
+                        Player->Body->Acceleration.x = (xMoveX + xMoveY) * 40.f;
+                        Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
                     }
-                }
-                //
 
-                vec3 yMoveAxis = Normalize(Projection(State->GameCamera.Direction, State->Ground));
-                vec3 xMoveAxis = Normalize(Orthogonal(yMoveAxis, State->Ground));
+                    quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
 
-                f32 xMoveY = Dot(yMoveAxis, xAxis) * Move.y;
-                f32 zMoveY = Dot(yMoveAxis, zAxis) * Move.y;
+                    f32 MoveMaginute = Clamp(Magnitude(Move), 0.f, 1.f);
 
-                f32 xMoveX = Dot(xMoveAxis, xAxis) * Move.x;
-                f32 zMoveX = Dot(xMoveAxis, zAxis) * Move.x;
-
-                vec3 PlayerDirection = vec3(Dot(vec3(Move.x, 0.f, Move.y), xMoveAxis), 0.f, Dot(vec3(Move.x, 0.f, Move.y), yMoveAxis));
-
-                if (Player->IsGrounded)
-                {
-                    Player->Body->Acceleration.x = (xMoveX + xMoveY) * 40.f;
-                    Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
-                }
-
-                quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
-
-                f32 MoveMaginute = Clamp(Magnitude(Move), 0.f, 1.f);
-
-                if (MoveMaginute > 0.f)
-                {
-                    SetQuatLerp(&Player->Body->OrientationLerp, 0.f, 0.2f, Player->Body->Orientation, PlayerOrientation);
-
-                    // todo: make helper function to generate names for game processes
-                    //AttachChildGameProcess(State, Stringify(PlayerOrientationLerpProcess), "PlayerOrientationLerpProcess_DelayProcess", DelayProcess);
-                    //AttachChildGameProcess(State, "PlayerOrientationLerpProcess_DelayProcess", "PlayerOrientationLerpProcess_DelayProcess_ChangeBackgroundProcess", ChangeBackgroundProcess);
-                    StartGameProcess(State, PlayerOrientationLerpProcess);
-                }
-                else
-                {
-                    EndGameProcess(State, Stringify(PlayerOrientationLerpProcess));
+                    if (MoveMaginute > 0.f)
+                    {
+                        SetQuatLerp(&Player->Body->OrientationLerp, 0.f, 0.2f, Player->Body->Orientation, PlayerOrientation);
+                        StartGameProcess(State, PlayerOrientationLerpProcess);
+                    }
+                    else
+                    {
+                        EndGameProcess(State, Stringify(PlayerOrientationLerpProcess));
+                    }
                 }
             }
 
@@ -1988,41 +1911,61 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
         case GameMode_Editor:
         {
-            game_camera *FreeCamera = &State->EditorCamera;
-
-            f32 FreeCameraSpeed = 10.f;
-
             if (Input->EnableFreeCameraMovement.IsActive)
             {
                 Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
-
-                FreeCamera->Pitch += Input->Camera.Range.y;
-                FreeCamera->Pitch = Clamp(FreeCamera->Pitch, RADIANS(-89.f), RADIANS(89.f));
-
-                FreeCamera->Yaw += Input->Camera.Range.x;
-                FreeCamera->Yaw = Mod(FreeCamera->Yaw, 2 * PI);
-
-                FreeCamera->Direction = Euler2Direction(FreeCamera->Yaw, FreeCamera->Pitch);
-                FreeCamera->Transform.Rotation = Euler2Quat(FreeCamera->Yaw, FreeCamera->Pitch, 0.f);
             }
             else
             {
                 Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Cursor);
             }
 
-            FreeCamera->Transform.Translation += (
-                Move.x * (Normalize(Cross(FreeCamera->Direction, FreeCamera->Up))) +
-                Move.y * FreeCamera->Direction) * FreeCameraSpeed * Parameters->UnscaledDelta;
+            if (Input->LeftClick.IsActivated)
+            {
+                ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32)Parameters->WindowWidth, (f32)Parameters->WindowHeight), &State->EditorCamera);
+
+                f32 MinDistance = F32_MAX;
+
+                game_entity *SelectedEntity = 0;
+
+                world_area *Area = &State->WorldArea;
+
+                for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
+                {
+                    game_entity *Entity = Area->Entities + EntityIndex;
+
+                    if (!Entity->Destroyed)
+                    {
+                        State->SelectedEntity = 0;
+                        bounds Box = GetEntityBounds(Entity);
+
+                        vec3 IntersectionPoint;
+                        if (IntersectRayAABB(Ray, Box, IntersectionPoint))
+                        {
+                            f32 Distance = Magnitude(IntersectionPoint - State->EditorCamera.Position);
+
+                            if (Distance < MinDistance)
+                            {
+                                MinDistance = Distance;
+                                SelectedEntity = Entity;
+                            }
+                        }
+                    }
+                }
+
+                if (SelectedEntity)
+                {
+                    State->SelectedEntity = SelectedEntity;
+                }
+            }
+
+            FreeCameraPerFrameUpdate(&State->EditorCamera, Input, Parameters->UnscaledDelta);
 
             break;
         }
         case GameMode_Menu:
         {
             break;
-        }
-        default:
-        {
-            Assert(!"GameMode is not supported");
         }
     }
 }
@@ -2045,19 +1988,10 @@ DLLExport GAME_UPDATE(GameUpdate)
         if (!Entity->Destroyed)
         {
             Entity->DebugColor = Entity->TestColor;
-
-#if 0
-            if (Entity->Body)
-            {
-                rigid_body *Body = Entity->Body;
-                Body->Acceleration = vec3(RandomBetween(&State->Entropy, -500.f, 500.f), 0.f, RandomBetween(&State->Entropy, -500.f, 500.f));
-            }
-#endif
         }
     }
 #endif
 
-#if 1
     u32 EntityBatchCount = 100;
     u32 UpdateEntityBatchJobCount = Ceil((f32) Area->EntityCount / (f32) EntityBatchCount);
     job *UpdateEntityBatchJobs = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, job);
@@ -2088,60 +2022,6 @@ DLLExport GAME_UPDATE(GameUpdate)
     {
         Platform->KickJobsAndWait(State->JobQueue, UpdateEntityBatchJobCount, UpdateEntityBatchJobs);
     }
-#else
-    for (u32 EntityIndex = 0; EntityIndex < State->EntityCount; ++EntityIndex)
-    {
-        game_entity *Entity = State->Entities + EntityIndex;
-        rigid_body *Body = Entity->Body;
-
-        if (Body)
-        {
-            if (Body->RootMotionEnabled)
-            {
-                Assert(Entity->Animation);
-
-                vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
-                vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
-
-                Entity->Body->PrevPosition = Entity->Body->Position;
-                Entity->Body->Position += RotatedScaledRootMotion;
-
-                Entity->Animation->AccRootMotion = vec3(0.f);
-            }
-            else
-            {
-                Integrate(Body, Parameters->UpdateRate);
-            }
-
-            u32 MaxNearbyEntityCount = 100;
-            game_entity **NearbyEntities = PushArray(ScopedMemory.Arena, MaxNearbyEntityCount, game_entity *);
-            aabb Bounds = { vec3(-5.f), vec3(5.f) };
-
-            u32 NearbyEntityCount = FindNearbyEntities(&State->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
-
-            for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
-            {
-                game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
-                rigid_body *NearbyBody = NearbyEntity->Body;
-
-                if (Entity->Id == State->Player->Id || Entity->DebugView)
-                {
-                    NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
-                }
-
-                if (NearbyBody)
-                {
-                    // Collision detection and resolution
-                    vec3 mtv;
-                    if (TestAABBAABB(GetRigidBodyAABB(Entity->Body), GetRigidBodyAABB(NearbyBody), &mtv))
-                    {
-                        Entity->Body->Position += mtv;
-                    }
-                }
-            }
-        }
-    }
-#endif
 }
 
 DLLExport GAME_RENDER(GameRender)
@@ -2183,16 +2063,14 @@ DLLExport GAME_RENDER(GameRender)
 
         AddSkybox(RenderCommands, State->SkyboxId, 4096, GetTextureAsset(&State->Assets, "Environment"));
 
-        //Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
+        Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
 #if 1
-        //
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
             LoadWorldAreaFromFile(State, (char *)"scene_4.dummy", Platform, RenderCommands, ScopedMemory.Arena);
             State->Player = (State->WorldArea.Entities + 0);
         }
-        //
 #endif
     }
 
@@ -2200,13 +2078,13 @@ DLLExport GAME_RENDER(GameRender)
     {
         if (State->DanceMode.Value)
         {
-            //Pause(AudioCommands, 2);
+            Pause(AudioCommands, 2);
             Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "samba"), SetAudioPlayOptions(0.75f, true), 3);
         }
         else
         {
             Stop(AudioCommands, 3);
-            //Resume(AudioCommands, 2);
+            Resume(AudioCommands, 2);
         }
     }
 
@@ -2219,17 +2097,17 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_World:
         case GameMode_Editor:
         {
-            game_camera *Camera = State->Mode == GameMode_World ? &State->GameCamera : &State->EditorCamera;
+            game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->EditorCamera;
             bool32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
             // todo:
             Camera->AspectRatio = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
 
-            SetListener(AudioCommands, Camera->Transform.Translation, -Camera->Direction);
+            SetListener(AudioCommands, Camera->Position, -Camera->Direction);
 
             mat4 WorldToCamera = GetCameraTransform(Camera);
 
-            RenderCommands->Settings.EnableCascadedShadowMaps = true;
+            RenderCommands->Settings.EnableShadows = State->Options.EnableShadows;
             RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
             RenderCommands->Settings.Camera = Camera;
             RenderCommands->Settings.WorldToCamera = GetCameraTransform(Camera);
@@ -2266,12 +2144,12 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:BuildVisibilityRegion");
 
-                BuildFrustrumPolyhedron(&State->GameCamera, &State->Frustrum);
+                BuildFrustrumPolyhedron(&State->PlayerCamera, &State->Frustrum);
 
                 polyhedron VisibilityRegion = State->Frustrum;
 
                 // Camera is looking downwards
-                if (State->GameCamera.Direction.y < 0.f)
+                if (State->PlayerCamera.Direction.y < 0.f)
                 {
                     //f32 MinY = 1.f;
                     //plane LowestPlane = ComputePlane(vec3(-1.f, MinY, 0.f), vec3(0.f, MinY, 1.f), vec3(1.f, MinY, 0.f));
@@ -2289,14 +2167,14 @@ DLLExport GAME_RENDER(GameRender)
                     RenderFrustrum(RenderCommands, &VisibilityRegion);
 
                     // Render camera axes
-                    game_camera *Camera = &State->GameCamera;
+                    game_camera *Camera = &State->PlayerCamera;
                     mat4 CameraTransform = GetCameraTransform(Camera);
 
                     vec3 xAxis = CameraTransform[0].xyz;
                     vec3 yAxis = CameraTransform[1].xyz;
                     vec3 zAxis = CameraTransform[2].xyz;
 
-                    vec3 Origin = Camera->Transform.Translation;
+                    vec3 Origin = Camera->Position;
                     f32 AxisLength = 3.f;
 
                     DrawLine(RenderCommands, Origin, Origin + xAxis * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
@@ -2383,8 +2261,8 @@ DLLExport GAME_RENDER(GameRender)
                 u32 PointLightCount = 0;
                 point_light *PointLights = PushArray(&State->TransientArena, MaxPointLightCount, point_light);
 
-                State->EntityBatches.Count = 32;
-                State->EntityBatches.Values = PushArray(&State->TransientArena, State->EntityBatches.Count, entity_render_batch);
+                InitHashTable(&State->EntityBatches, 31, &State->TransientArena);
+
                 State->RenderableEntityCount = 0;
                 State->ActiveEntitiesCount = 0;
 
@@ -2438,7 +2316,9 @@ DLLExport GAME_RENDER(GameRender)
                 }
 
                 // todo: https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping
-                SetPointLights(RenderCommands, PointLightCount, PointLights);
+                {
+                    SetPointLights(RenderCommands, PointLightCount, PointLights);
+                }
             }
 
             {
@@ -2489,7 +2369,7 @@ DLLExport GAME_RENDER(GameRender)
                         ++ParticleJobCount;
 
                         JobData->ParticleEmitter = Entity->ParticleEmitter;
-                        JobData->CameraPosition = Camera->Transform.Translation;
+                        JobData->CameraPosition = Camera->Position;
                         JobData->Delta = Parameters->Delta;
 
                         Job->EntryPoint = ProcessParticlesJob;
@@ -2581,7 +2461,7 @@ DLLExport GAME_RENDER(GameRender)
         }
         case GameMode_Menu:
         {
-            RenderCommands->Settings.EnableCascadedShadowMaps = false;
+            RenderCommands->Settings.EnableShadows = false;
 
             Clear(RenderCommands, vec4(0.f));
 

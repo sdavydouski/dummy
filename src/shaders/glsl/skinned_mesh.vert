@@ -31,6 +31,11 @@ void main()
 {
     mat4 Model = mat4(0.f);
 
+    // TODO:
+    // If the same skinned mesh is going to be re-drawn several times in a frame (e.g. when it's casting several shadows), 
+    // then the results from the vertex shader can be written into a temporary vertex buffer by the GPU (via stream-out functionality) 
+    // so that the model doesn't have to be re-skinned each time it's drawn.
+    // https://open.gl/feedback
     for (int Index = 0; Index <  MAX_WEIGHT_COUNT; ++Index)
     {
         int SkinningMatricesSamplerOffset = in_JointIndices[Index] * 4;

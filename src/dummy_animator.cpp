@@ -8,10 +8,14 @@ GameInput2BotAnimatorParams(game_state *State, game_input *Input, game_entity *E
     Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
 
     Params->IsGrounded = Entity->IsGrounded;
-    Params->PrevVelocity = Entity->Body->PrevVelocity;
-    Params->Velocity = Entity->Body->Velocity;
     Params->IsPlayer = (State->Player == Entity);
     Params->IsDanceMode = State->DanceMode.Value;
+
+    if (Entity->Body)
+    {
+        Params->Velocity = Entity->Body->Velocity;
+        Params->PrevVelocity = Entity->Body->PrevVelocity;
+    }
 
     Params->MaxActionIdleTime = 5.f;
     Params->ActionIdleRandomTransition = Random01(&State->GeneralEntropy);
@@ -21,10 +25,14 @@ inline void
 GameLogic2BotAnimatorParams(game_state *State, game_entity *Entity, bot_animator_params *Params)
 {
     Params->IsGrounded = Entity->IsGrounded;
-    Params->PrevVelocity = Entity->Body->PrevVelocity;
-    Params->Velocity = Entity->Body->Velocity;
     Params->IsPlayer = (State->Player == Entity);
     Params->IsDanceMode = State->DanceMode.Value;
+
+    if (Entity->Body)
+    {
+        Params->Velocity = Entity->Body->Velocity;
+        Params->PrevVelocity = Entity->Body->PrevVelocity;
+    }
 
     Params->MaxActionIdleTime = 5.f;
     Params->ActionIdleRandomTransition = Random01(&State->GeneralEntropy);
@@ -252,8 +260,8 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
 inline void
 GameInput2PaladinAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, paladin_animator_params *Params)
 {
-    Params->TargetMoveMagnitude = Clamp(Magnitude(State->TargetMove), 0.f, 2.f);
-    Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
+    Params->TargetMoveMagnitude = Clamp(Magnitude(State->TargetMove), 0.f, 1.f);
+    Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
 
     Params->IsDanceMode = State->DanceMode.Value;
 
@@ -465,8 +473,8 @@ ANIMATOR_CONTROLLER(PaladinAnimatorController)
 inline void
 GameInput2MonstarAnimatorParams(game_state *State, game_input *Input, game_entity *Entity, monstar_animator_params *Params)
 {
-    Params->TargetMoveMagnitude = Clamp(Magnitude(State->TargetMove), 0.f, 2.f);
-    Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 2.f);
+    Params->TargetMoveMagnitude = Clamp(Magnitude(State->TargetMove), 0.f, 1.f);
+    Params->CurrentMoveMagnitude = Clamp(Magnitude(State->CurrentMove), 0.f, 1.f);
     Params->IsDanceMode = State->DanceMode.Value;
     Params->Attack = Input->LightAttack.IsActivated;
 }

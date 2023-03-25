@@ -229,7 +229,6 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 SourceVoice->SubmitSourceBuffer(&AudioBuffer);
                 //
 
-                // todo: https://learn.microsoft.com/en-us/windows/win32/xaudio2/how-to--integrate-x3daudio-with-xaudio2 ?
                 f32 Volume = XAudio2CalculateVoiceVolume(EmitterPosition, ListenerPosition);
 
                 f32 OutputMatrix[8] = {};

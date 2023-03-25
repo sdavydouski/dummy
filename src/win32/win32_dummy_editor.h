@@ -15,13 +15,14 @@ struct editor_add_entity
 struct editor_state
 {
     bool32 GameWindowHovered;
+    bool32 LogAutoScroll;
 
+    u32 GizmoVisible;
     u32 CurrentGizmoOperation;
-
     u32 CurrentStreamIndex;
 
-    bool32 LogAutoScroll;
     ImGuiTextFilter LogFilter;
+    ImGuiTextFilter ModelFilter;
 
     platform_api *Platform;
     memory_arena Arena;

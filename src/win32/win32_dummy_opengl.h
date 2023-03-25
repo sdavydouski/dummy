@@ -3,7 +3,7 @@
 #include <glad.h>
 #include <wglext.h>
 
-#define WIN32_RELOADABLE_SHADERS 0
+#define OPENGL_RELOADABLE_SHADERS 0
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 8
 #define OPENGL_WORLD_SPACE_MODE 0x1
@@ -129,25 +129,22 @@ struct opengl_uniform
     GLint Size;
 };
 
-#if WIN32_RELOADABLE_SHADERS
 struct win32_shader_file
 {
     char FileName[MAX_SHADER_FILE_PATH];
     FILETIME LastWriteTime;
 };
-#endif
 
 struct opengl_shader
 {
     u32 Key;
     GLuint Program;
 
-#if WIN32_RELOADABLE_SHADERS
     win32_shader_file CommonShaders[OPENGL_COMMON_SHADER_COUNT];
     win32_shader_file VertexShader;
     win32_shader_file GeometryShader;
+    win32_shader_file ComputeShader;
     win32_shader_file FragmentShader;
-#endif
 
     u32 UniformCount;
     hash_table<opengl_uniform> Uniforms;
@@ -225,7 +222,6 @@ struct opengl_uniform_buffer_transform
     f32 Time;
 };
 
-// todo:
 struct opengl_directional_light
 {
     alignas(16) vec3 LightDirection;
@@ -242,6 +238,7 @@ struct opengl_point_light
 struct opengl_uniform_buffer_shading
 {
     opengl_directional_light DirectinalLight;
+
     u32 PointLightCount;
     opengl_point_light PointLights[OPENGL_MAX_POINT_LIGHT_COUNT];
 };
@@ -250,6 +247,7 @@ struct opengl_render_options
 {
     bool32 RenderShadowMap;
     bool32 ShowCascades;
+    bool32 EnableShadows;
     mat4 CascadeView;
     mat4 CascadeProjection;
     u32 CascadeIndex;

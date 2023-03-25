@@ -29,13 +29,13 @@ StringLength(const wchar *String) {
 }
 
 inline void
-ConcatenateString(char *Dest, char *Source, u32 DestLength)
+ConcatenateString_(char *Dest, const char *Source, u32 DestLength)
 {
     strcat_s(Dest, DestLength, Source);
 }
 
 inline void
-ConcatenateString(wchar *Dest, wchar *Source, u32 DestLength)
+ConcatenateString_(wchar *Dest, const wchar *Source, u32 DestLength)
 {
     wcscat_s(Dest, DestLength, Source);
 }
@@ -52,7 +52,8 @@ CopyString_(const wchar *Source, wchar *Dest, u32 DestLength)
     wcscpy_s(Dest, DestLength, Source);
 }
 
-#define CopyString(Source, Dest) CopyString_(Source, Dest, sizeof(Dest))
+#define CopyString(Source, Dest) CopyString_(Source, Dest, ArrayCount(Dest))
+#define ConcatenateString(Dest, Source) ConcatenateString_(Dest, Source, ArrayCount(Dest))
 
 inline char *
 GetLastAfterDelimiter(char *String, const char Delimiter) {

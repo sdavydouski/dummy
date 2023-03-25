@@ -57,6 +57,8 @@ template <typename T>
 inline void
 InitHashTable(hash_table<T> *HashTable, u32 Count, memory_arena *Arena)
 {
+    // Using a prime table size in conjunction with quadratic probing tends to yield 
+    // the best coverage of the available table slots with minimal clustering
     Assert(IsPrime(Count));
 
     HashTable->Count = Count;

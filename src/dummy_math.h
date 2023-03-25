@@ -731,7 +731,7 @@ Slerp(quat A, f32 t, quat B)
     return Result;
 }
 
-/**
+/*
 * Computes barycentric coordinates (u, v, w) for
 * point p with respect to triangle (a, b, c)
 */
@@ -754,6 +754,33 @@ Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
     w = (d00 * d21 - d01 * d20) / d;
     u = 1.f - v - w;
 }
+
+// todo: ?
+#if 0
+inline vec3
+Spherical2Cartesian(vec3 SphericalCoords)
+{
+    vec3 Result;
+
+    Result.x = SphericalCoords.x * Cos(SphericalCoords.y) * Sin(SphericalCoords.z);
+    Result.y = SphericalCoords.x * Cos(SphericalCoords.z);
+    Result.z = SphericalCoords.x * Sin(SphericalCoords.y) * Sin(SphericalCoords.z);
+    
+    return Result;
+}
+
+inline vec3
+Cartesian2Spherical(vec3 CartesianCoords)
+{
+    vec3 Result;
+
+    Result.x = Sqrt(Square(CartesianCoords.x) + Square(CartesianCoords.y) + Square(CartesianCoords.z));
+    Result.y = Atan2(CartesianCoords.x, CartesianCoords.z);
+    Result.z = Acos(CartesianCoords.y / CartesianCoords.x);
+
+    return Result;
+}
+#endif
 
 inline vec3
 UnprojectPoint(vec3 p, mat4 View, mat4 Projection)

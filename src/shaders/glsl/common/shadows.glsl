@@ -1,6 +1,7 @@
 //? #include "version.glsl"
 //? #include "math.glsl"
 
+uniform bool u_EnableShadows;
 uniform bool u_ShowCascades;
 uniform vec2 u_CascadeBounds[4];
 uniform mat4 u_CascadeViewProjection[4];

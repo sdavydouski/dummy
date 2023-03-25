@@ -44,6 +44,7 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
                     case SID("xbot"):
                     case SID("ybot"):
                     case SID("pelegrini"):
+                    case SID("ninja"):
                     {
                         AudioClip = GetAudioClipAsset(Assets, "step_cloth1");
                         break;

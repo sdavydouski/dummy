@@ -5,9 +5,11 @@
 #include "dummy_random.h"
 #include "dummy_memory.h"
 #include "dummy_string.h"
+#include "dummy_stream.h"
 #include "dummy_container.h"
 #include "dummy_input.h"
 #include "dummy_events.h"
+#include "dummy_camera.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_visibility.h"
@@ -20,6 +22,7 @@
 #include "dummy_renderer.h"
 #include "dummy_text.h"
 #include "dummy_job.h"
+#include "dummy_profiler.h"
 #include "dummy_platform.h"
 
 struct game_assets;
@@ -292,6 +295,7 @@ struct game_assets
 
 struct game_options
 {
+    bool32 EnableShadows;
     bool32 ShowCascades;
     bool32 ShowBoundingVolumes;
     bool32 ShowSkeletons;
@@ -318,7 +322,6 @@ struct game_state
     
     stream Stream;
 
-    game_mode PrevMode;
     game_mode Mode;
 
     vec2 TargetMove;
@@ -326,7 +329,7 @@ struct game_state
 
     vec2 ViewFrustrumSize;
 
-    game_camera GameCamera;
+    game_camera PlayerCamera;
     game_camera EditorCamera;
 
     polyhedron Frustrum;

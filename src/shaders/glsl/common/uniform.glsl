@@ -18,6 +18,7 @@ layout(std140, binding = 1) uniform Shading
 {
     // todo: multile directional lights
     directional_light u_DirectionalLight;
+
     int u_PointLightCount;
     point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
 };

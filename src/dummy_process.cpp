@@ -87,17 +87,6 @@ DLLExport GAME_PROCESS_ON_UPDATE(DelayProcess)
 }
 #endif
 
-DLLExport GAME_PROCESS_ON_UPDATE(ChangeBackgroundProcess)
-{
-    f32 Red = Random01(&State->GeneralEntropy);
-    f32 Green = Random01(&State->GeneralEntropy);
-    f32 Blue = Random01(&State->GeneralEntropy);
-
-    State->DirectionalLight.Color = vec3(Red, Green, Blue);
-
-    EndGameProcess(State, Process->Key);
-}
-
 DLLExport GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
 {
     rigid_body *PlayerBody = State->Player->Body;
@@ -111,25 +100,6 @@ DLLExport GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
         if (t <= 1.f)
         {
             PlayerBody->Orientation = Slerp(PlayerBody->OrientationLerp.From, t, PlayerBody->OrientationLerp.To);
-        }
-        else
-        {
-            EndGameProcess(State, Process->Key);
-        }
-    }
-}
-
-DLLExport GAME_PROCESS_ON_UPDATE(CameraPivotPositionLerpProcess)
-{
-    if (State->GameCamera.PivotPositionLerp.Duration > 0.f)
-    {
-        State->GameCamera.PivotPositionLerp.Time += Delta;
-
-        f32 t = State->GameCamera.PivotPositionLerp.Time / State->GameCamera.PivotPositionLerp.Duration;
-
-        if (t <= 1.f)
-        {
-            State->GameCamera.PivotPosition = Lerp(State->GameCamera.PivotPositionLerp.From, t, State->GameCamera.PivotPositionLerp.To);
         }
         else
         {

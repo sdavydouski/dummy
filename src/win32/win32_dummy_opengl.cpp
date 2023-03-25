@@ -4,6 +4,7 @@
 #include "win32_dummy.h"
 #include "win32_dummy_opengl.h"
 
+FILETIME Win32GetLastWriteTime(char *FileName);
 void OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight, u32 Samples);
 
 #define GladLoadGLLoader gladLoadGLLoader
@@ -815,24 +816,36 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
         {
             char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_VERTEX_SHADER, Count, Source);
+
+            CopyString(Params.VertexShaderFileName, Shader->VertexShader.FileName);
+            Shader->VertexShader.LastWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
         }
 
         if (Params.GeometryShaderFileName)
         {
             char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, Source);
+
+            CopyString(Params.GeometryShaderFileName, Shader->GeometryShader.FileName);
+            Shader->GeometryShader.LastWriteTime = Win32GetLastWriteTime(Shader->GeometryShader.FileName);
         }
 
         if (Params.FragmentShaderFileName)
         {
             char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, Source);
+
+            CopyString(Params.FragmentShaderFileName, Shader->FragmentShader.FileName);
+            Shader->FragmentShader.LastWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
         }
 
         if (Params.ComputeShaderFileName)
         {
             char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.ComputeShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_COMPUTE_SHADER, Count, Source);
+
+            CopyString(Params.ComputeShaderFileName, Shader->ComputeShader.FileName);
+            Shader->ComputeShader.LastWriteTime = Win32GetLastWriteTime(Shader->ComputeShader.FileName);
         }
 
         GLuint Program = OpenGLCreateProgram(ShaderCount, Shaders);
@@ -841,8 +854,6 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
         Shader->Program = Program;
     }
 
-#if WIN32_RELOADABLE_SHADERS
-    // todo: update
     for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
     {
         win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
@@ -851,52 +862,51 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
         CommonShader->LastWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
     }
 
-    CopyString(Params.VertexShaderFileName, Shader->VertexShader.FileName);
-    Shader->VertexShader.LastWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
-
-    CopyString(Params.FragmentShaderFileName, Shader->FragmentShader.FileName);
-    Shader->FragmentShader.LastWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
-
-    if (Params.GeometryShaderFileName)
-    {
-        CopyString(Params.GeometryShaderFileName, Shader->GeometryShader.FileName);
-        Shader->GeometryShader.LastWriteTime = Win32GetLastWriteTime(Shader->GeometryShader.FileName);
-    }
-#endif
-
     OpenGLLoadShaderUniforms(Shader, &State->Arena);
 }
 
-#if WIN32_RELOADABLE_SHADERS
 dummy_internal void
-OpenGLReloadShader(opengl_state *State, u32 Id)
+OpenGLReloadShader(opengl_state *State, u32 ShaderId)
 {
-    opengl_shader *Shader = OpenGLGetShader(State, Id);
+    opengl_shader *Shader = HashTableLookup(&State->Shaders, ShaderId);
 
-    // todo: update
+    Assert(!IsSlotEmpty(Shader->Key));
+
+    GLuint Program = 0;
 
     {
         scoped_memory ScopedMemory(&State->Arena);
 
         u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
-        char **VertexSource = OpenGLLoadShaderFile(State, Id, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
-        char **FragmentSource = OpenGLLoadShaderFile(State, Id, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
 
-        CreateProgramParams.VertexShader = OpenGLCreateShader(GL_VERTEX_SHADER, Count, VertexSource, false);
-        CreateProgramParams.FragmentShader = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, FragmentSource, false);
+        u32 ShaderCount = 0;
+        GLuint Shaders[4] = {};
+
+        if (!StringEquals(Shader->VertexShader.FileName, ""))
+        {
+            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_VERTEX_SHADER, Count, Source);
+        }
 
         if (!StringEquals(Shader->GeometryShader.FileName, ""))
         {
-            char **GeometrySource = OpenGLLoadShaderFile(State, Id, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
-            CreateProgramParams.GeometryShader = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, GeometrySource);
+            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, Source);
         }
-    }
 
-    GLuint Program = 0;
+        if (!StringEquals(Shader->FragmentShader.FileName, ""))
+        {
+            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, Source);
+        }
 
-    if (CreateProgramParams.VertexShader && CreateProgramParams.FragmentShader)
-    {
-        Program = OpenGLCreateProgram(CreateProgramParams, false);
+        if (!StringEquals(Shader->ComputeShader.FileName, ""))
+        {
+            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->ComputeShader.FileName, Count, ScopedMemory.Arena);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_COMPUTE_SHADER, Count, Source);
+        }
+
+        Program = OpenGLCreateProgram(ShaderCount, Shaders);
     }
 
     if (Program)
@@ -907,7 +917,20 @@ OpenGLReloadShader(opengl_state *State, u32 Id)
         OpenGLLoadShaderUniforms(Shader, &State->Arena);
     }
 }
-#endif
+
+dummy_internal void
+Win32GetShaderWriteTime(win32_shader_file *ShaderFile, bool32 *ShouldReload)
+{
+    if (!StringEquals(ShaderFile->FileName, ""))
+    {
+        FILETIME NewShaderWriteTime = Win32GetLastWriteTime(ShaderFile->FileName);
+        if (CompareFileTime(&NewShaderWriteTime, &ShaderFile->LastWriteTime) != 0)
+        {
+            ShaderFile->LastWriteTime = NewShaderWriteTime;
+            *ShouldReload = true;
+        }
+    }
+}
 
 dummy_internal void
 OpenGLInitShaders(opengl_state *State)
@@ -943,6 +966,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
         glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_CascadeViewProjection[0]") + CascadeIndex, 1, GL_TRUE, (f32 *)CascadeViewProjection.Elements);
     }
 
+    glUniform1i(OpengLGetUniformLocation(Shader, "u_EnableShadows"), Options->EnableShadows);
     glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
 
     if (MeshMaterial)
@@ -954,8 +978,9 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
         // default values
         vec3 DefaultAmbient = vec3(0.2f);
+        f32 DefaultSpecularShininess = 30.f;
         glUniform3f(OpengLGetUniformLocation(Shader, "u_Material.AmbientColor"), DefaultAmbient.x, DefaultAmbient.y, DefaultAmbient.z);
-        glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.SpecularShininess"), 1.f);
+        glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.SpecularShininess"), DefaultSpecularShininess);
 
         for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
         {
@@ -1494,7 +1519,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     game_camera *Camera = Command->Camera;
 
-                    vec3 CameraPosition = Camera->Transform.Translation;
+                    vec3 CameraPosition = Camera->Position;
                     vec3 CameraDirection = -Camera->Direction;
                     vec3 CameraTarget = CameraPosition + Camera->Direction;
 
@@ -2176,10 +2201,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                 break;
             }
-            /* default:
-             {
-                 Assert(!"Render command is not supported");
-             }*/
         }
 
         BaseAddress += Entry->Size;
@@ -2191,55 +2212,41 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 {
     //PROFILE(State->Profiler, "OpenGLProcessRenderCommands");
 
-#if WIN32_RELOADABLE_SHADERS
+    for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
+    {
+        render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
+        Out(&State->Stream, "RenderCommand::%s", RenderCommandNames[Entry->Type]);
+
+        BaseAddress += Entry->Size;
+    }
+
+#if OPENGL_RELOADABLE_SHADERS
     {
         PROFILE(State->Profiler, "OpenGLReloadableShaders");
 
-        for (u32 ShaderIndex = 0; ShaderIndex < State->CurrentShaderCount; ++ShaderIndex)
+        for (u32 ShaderIndex = 0; ShaderIndex < State->Shaders.Count; ++ShaderIndex)
         {
-            opengl_shader *Shader = State->Shaders + ShaderIndex;
+            opengl_shader *Shader = State->Shaders.Values + ShaderIndex;
 
-            bool32 ShouldReload = false;
-
-            for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
+            if (!IsSlotEmpty(Shader->Key))
             {
-                win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
+                bool32 ShouldReload = false;
 
-                FILETIME NewCommonShaderWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
-                if (CompareFileTime(&NewCommonShaderWriteTime, &CommonShader->LastWriteTime) != 0)
+                for (u32 FileIndex = 0; FileIndex < ArrayCount(Shader->CommonShaders); ++FileIndex)
                 {
-                    CommonShader->LastWriteTime = NewCommonShaderWriteTime;
-                    ShouldReload = true;
+                    win32_shader_file *CommonShader = Shader->CommonShaders + FileIndex;
+                    Win32GetShaderWriteTime(CommonShader, &ShouldReload);
                 }
-            }
 
-            FILETIME NewVertexShaderWriteTime = Win32GetLastWriteTime(Shader->VertexShader.FileName);
-            if (CompareFileTime(&NewVertexShaderWriteTime, &Shader->VertexShader.LastWriteTime) != 0)
-            {
-                Shader->VertexShader.LastWriteTime = NewVertexShaderWriteTime;
-                ShouldReload = true;
-            }
+                Win32GetShaderWriteTime(&Shader->VertexShader, &ShouldReload);
+                Win32GetShaderWriteTime(&Shader->GeometryShader, &ShouldReload);
+                Win32GetShaderWriteTime(&Shader->FragmentShader, &ShouldReload);
+                Win32GetShaderWriteTime(&Shader->ComputeShader, &ShouldReload);
 
-            FILETIME NewFragmentShaderWriteTime = Win32GetLastWriteTime(Shader->FragmentShader.FileName);
-            if (CompareFileTime(&NewFragmentShaderWriteTime, &Shader->FragmentShader.LastWriteTime) != 0)
-            {
-                Shader->FragmentShader.LastWriteTime = NewFragmentShaderWriteTime;
-                ShouldReload = true;
-            }
-
-            if (!StringEquals(Shader->GeometryShader.FileName, ""))
-            {
-                FILETIME NewGeometryShaderWriteTime = Win32GetLastWriteTime(Shader->GeometryShader.FileName);
-                if (CompareFileTime(&NewGeometryShaderWriteTime, &Shader->GeometryShader.LastWriteTime) != 0)
+                if (ShouldReload)
                 {
-                    Shader->GeometryShader.LastWriteTime = NewGeometryShaderWriteTime;
-                    ShouldReload = true;
+                    OpenGLReloadShader(State, Shader->Key);
                 }
-            }
-
-            if (ShouldReload)
-            {
-                OpenGLReloadShader(State, Shader->Id);
             }
         }
     }
@@ -2258,7 +2265,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     }
 
 #if 1
-    if (RenderSettings->EnableCascadedShadowMaps)
+    if (RenderSettings->EnableShadows)
     {
         PROFILE(State->Profiler, "OpenGLCascadedShadowMaps");
 
@@ -2352,50 +2359,55 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
         opengl_render_options RenderOptions = {};
         RenderOptions.ShowCascades = RenderSettings->ShowCascades;
+        RenderOptions.EnableShadows = RenderSettings->EnableShadows;
         OpenGLRenderScene(State, Commands, &RenderOptions);
     }
 
-    // Resolve multisample framebuffer
-    GLenum Attachments[] = { GL_COLOR_ATTACHMENT0, GL_DEPTH_STENCIL_ATTACHMENT };
+    {
+        PROFILE(State->Profiler, "OpenGLResolveFramebuffer");
 
-    glBlitNamedFramebuffer(
-        State->SourceFramebuffer.Handle,
-        State->DestFramebuffer.Handle,
-        0, 0,
-        State->SourceFramebuffer.Width,
-        State->SourceFramebuffer.Height,
-        0, 0,
-        State->DestFramebuffer.Width,
-        State->DestFramebuffer.Height,
-        GL_COLOR_BUFFER_BIT,
-        GL_NEAREST
-    );
-    glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
+        // Resolve multisample framebuffer
+        GLenum Attachments[] = { GL_COLOR_ATTACHMENT0, GL_DEPTH_STENCIL_ATTACHMENT };
 
-    // Draw a full screen triangle for postprocessing
+        glBlitNamedFramebuffer(
+            State->SourceFramebuffer.Handle,
+            State->DestFramebuffer.Handle,
+            0, 0,
+            State->SourceFramebuffer.Width,
+            State->SourceFramebuffer.Height,
+            0, 0,
+            State->DestFramebuffer.Width,
+            State->DestFramebuffer.Height,
+            GL_COLOR_BUFFER_BIT,
+            GL_NEAREST
+        );
+        glInvalidateNamedFramebufferData(State->SourceFramebuffer.Handle, ArrayCount(Attachments), Attachments);
+
+        // Draw a full screen triangle for postprocessing
 #if EDITOR
-    glBindFramebuffer(GL_FRAMEBUFFER, State->EditorFramebuffer.Handle);
+        glBindFramebuffer(GL_FRAMEBUFFER, State->EditorFramebuffer.Handle);
 
-    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
+        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
 
-    glUseProgram(Shader->Program);
-    glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);
-    glBindVertexArray(State->Rectangle.VAO);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glUseProgram(Shader->Program);
+        glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);
+        glBindVertexArray(State->Rectangle.VAO);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 #else
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
+        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
 
-    glUseProgram(Shader->Program);
-    glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);
-    glBindVertexArray(State->Rectangle.VAO);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glUseProgram(Shader->Program);
+        glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);
+        glBindVertexArray(State->Rectangle.VAO);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 #endif
+    }
 }

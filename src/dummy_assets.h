@@ -233,7 +233,6 @@ struct font_asset
     glyph *Glyphs;
 };
 
-// todo: same as font_asset
 struct font
 {
     char Key[64];
@@ -256,7 +255,7 @@ struct font
     glyph *Glyphs;
 };
 
-// todo: same as audio_asset
+// todo: almost the same as audio_asset
 struct audio_clip
 {
     char Key[64];

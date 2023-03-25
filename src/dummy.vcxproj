@@ -24,11 +24,14 @@
     <ClInclude Include="dummy_animator.h" />
     <ClInclude Include="dummy_assets.h" />
     <ClInclude Include="dummy_audio.h" />
+    <ClInclude Include="dummy_camera.h" />
     <ClInclude Include="dummy_events.h" />
     <ClInclude Include="dummy_job.h" />
     <ClInclude Include="dummy_plane.h" />
     <ClInclude Include="dummy_process.h" />
+    <ClInclude Include="dummy_profiler.h" />
     <ClInclude Include="dummy_spatial.h" />
+    <ClInclude Include="dummy_stream.h" />
     <ClInclude Include="dummy_text.h" />
     <ClInclude Include="dummy_visibility.h" />
     <None Include="dummy_collision.cpp" />

@@ -7,20 +7,6 @@
 #include "win32_dummy.h"
 #include "win32_resource.h"
 
-inline FILETIME
-Win32GetLastWriteTime(char *FileName)
-{
-    FILETIME LastWriteTime = {};
-
-    WIN32_FILE_ATTRIBUTE_DATA FileInformation;
-    if (GetFileAttributesExA(FileName, GetFileExInfoStandard, &FileInformation))
-    {
-        LastWriteTime = FileInformation.ftLastWriteTime;
-    }
-
-    return LastWriteTime;
-}
-
 #include "win32_dummy_xaudio2.cpp"
 #include "win32_dummy_opengl.cpp"
 
@@ -154,6 +140,20 @@ Win32FileExists(wchar *FileName)
 }
 
 inline FILETIME
+Win32GetLastWriteTime(char *FileName)
+{
+    FILETIME LastWriteTime = {};
+
+    WIN32_FILE_ATTRIBUTE_DATA FileInformation;
+    if (GetFileAttributesExA(FileName, GetFileExInfoStandard, &FileInformation))
+    {
+        LastWriteTime = FileInformation.ftLastWriteTime;
+    }
+
+    return LastWriteTime;
+}
+
+inline FILETIME
 Win32GetLastWriteTime(wchar *FileName)
 {
     FILETIME LastWriteTime = {};
@@ -183,8 +183,8 @@ PLATFORM_LOAD_FUNCTION(Win32LoadFunction)
     win32_platform_state *PlatformState = (win32_platform_state *) PlatformHandle;
 
     wchar GameCodeDLLFullPath[WIN32_FILE_PATH] = L"";
-    ConcatenateString(GameCodeDLLFullPath, PlatformState->EXEDirectoryFullPath, WIN32_FILE_PATH);
-    ConcatenateString(GameCodeDLLFullPath, (wchar *) L"dummy_temp.dll", WIN32_FILE_PATH);
+    ConcatenateString(GameCodeDLLFullPath, PlatformState->EXEDirectoryFullPath);
+    ConcatenateString(GameCodeDLLFullPath, L"dummy_temp.dll");
 
     HMODULE GameDLL = GetModuleHandle(GameCodeDLLFullPath);
     void *Result = GetProcAddress(GameDLL, FunctionName);
@@ -1161,16 +1161,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     Win32GetFullPathToEXEDirectory(PlatformState.EXEDirectoryFullPath);
 
     wchar SourceGameCodeDLLFullPath[WIN32_FILE_PATH] = L"";
-    ConcatenateString(SourceGameCodeDLLFullPath, PlatformState.EXEDirectoryFullPath, WIN32_FILE_PATH);
-    ConcatenateString(SourceGameCodeDLLFullPath, (wchar *) L"dummy.dll", WIN32_FILE_PATH);
+    ConcatenateString(SourceGameCodeDLLFullPath, PlatformState.EXEDirectoryFullPath);
+    ConcatenateString(SourceGameCodeDLLFullPath, L"dummy.dll");
 
     wchar TempGameCodeDLLFullPath[WIN32_FILE_PATH] = L"";
-    ConcatenateString(TempGameCodeDLLFullPath, PlatformState.EXEDirectoryFullPath, WIN32_FILE_PATH);
-    ConcatenateString(TempGameCodeDLLFullPath, (wchar *)L"dummy_temp.dll", WIN32_FILE_PATH);
+    ConcatenateString(TempGameCodeDLLFullPath, PlatformState.EXEDirectoryFullPath);
+    ConcatenateString(TempGameCodeDLLFullPath, L"dummy_temp.dll");
 
     wchar GameCodeLockFullPath[WIN32_FILE_PATH] = L"";
-    ConcatenateString(GameCodeLockFullPath, PlatformState.EXEDirectoryFullPath, WIN32_FILE_PATH);
-    ConcatenateString(GameCodeLockFullPath, (wchar *)L"dummy_lock.dll", WIN32_FILE_PATH);
+    ConcatenateString(GameCodeLockFullPath, PlatformState.EXEDirectoryFullPath);
+    ConcatenateString(GameCodeLockFullPath, L"dummy_lock.dll");
 
     win32_game_code GameCode = Win32LoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath, GameCodeLockFullPath);
 
@@ -1370,6 +1370,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 EDITOR_RENDER(&EditorState, &PlatformState, &Win32OpenGLState.OpenGL, &XAudio2State, &GameMemory, &GameParameters, &GameInput);
             }
 
+            ClearStream(&Win32OpenGLState.OpenGL.Stream);
             ClearGameInput(&GameInput);
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
