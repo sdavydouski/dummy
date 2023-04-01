@@ -9,6 +9,7 @@
 #define OPENGL_WORLD_SPACE_MODE 0x1
 #define OPENGL_SCREEN_SPACE_MODE 0x2
 #define OPENGL_MAX_JOINT_COUNT 256
+#define OPENGL_MAX_WEIGHT_COUNT 4
 #define OPENGL_UNIFORM_MAX_LENGTH 64
 #define OPENGL_UNIFORM_MAX_COUNT 257
 
@@ -28,6 +29,8 @@
 #define OPENGL_BILLBOARD_SHADER_ID 0x11
 #define OPENGL_SKYBOX_SHADER_ID 0x12
 #define OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID 0x13
+#define OPENGL_SKINNED_SHADER_ID 0x14
+#define OPENGL_SKINNED_INSTANCED_SHADER_ID 0x15
 
 const char *OpenGLCommonShaders[] =
 {
@@ -119,6 +122,14 @@ opengl_load_shader_params OpenGLShaders[] =
         .ShaderId = OPENGL_SKYBOX_SHADER_ID,
         .VertexShaderFileName = "shaders\\glsl\\skybox.vert",
         .FragmentShaderFileName = "shaders\\glsl\\skybox.frag"
+    },
+    {
+        .ShaderId = OPENGL_SKINNED_SHADER_ID,
+        .ComputeShaderFileName = "shaders\\glsl\\skinned_mesh.comp"
+    },
+    {
+        .ShaderId = OPENGL_SKINNED_INSTANCED_SHADER_ID,
+        .ComputeShaderFileName = "shaders\\glsl\\skinned_mesh_instanced.comp"
     }
 };
 
@@ -159,6 +170,7 @@ struct opengl_buffer
 struct opengl_mesh_buffer
 {
     u32 Key;
+
     u32 VertexCount;
     u32 IndexCount;
 
@@ -167,6 +179,11 @@ struct opengl_mesh_buffer
     GLuint InstanceBuffer;
     GLuint IndexBuffer;
 
+    GLuint PositionsBuffer;
+    GLuint WeightsBuffer;
+    GLuint JointIndicesBuffer;
+    GLuint SkinningMatricesBuffer;
+
     u32 BufferSize;
     u32 InstanceCount;
 };
@@ -174,6 +191,7 @@ struct opengl_mesh_buffer
 struct opengl_skinning_buffer
 {
     u32 Key;
+
     GLuint SkinningTBO;
     GLuint SkinningTBOTexture;
 };
@@ -181,6 +199,10 @@ struct opengl_skinning_buffer
 struct opengl_texture
 {
     u32 Key;
+
+    u32 Width;
+    u32 Height;
+
     GLuint Handle;
 };
 

@@ -15,3 +15,7 @@
 #define MAX_JOINT_COUNT %d
 //! #undef MAX_JOINT_COUNT
 //! #define MAX_JOINT_COUNT 256
+
+#define MAX_WEIGHT_COUNT %d
+//! #undef MAX_WEIGHT_COUNT
+//! #define MAX_WEIGHT_COUNT 4

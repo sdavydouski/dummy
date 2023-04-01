@@ -2068,7 +2068,7 @@ DLLExport GAME_RENDER(GameRender)
 #if 1
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
-            LoadWorldAreaFromFile(State, (char *)"scene_4.dummy", Platform, RenderCommands, ScopedMemory.Arena);
+            LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, ScopedMemory.Arena);
             State->Player = (State->WorldArea.Entities + 0);
         }
 #endif

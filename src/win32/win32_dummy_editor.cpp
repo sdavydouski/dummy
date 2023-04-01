@@ -230,7 +230,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
 
     u32 ContextIndex = 0;
 
-    while (Token)
+    while (Token && ContextIndex < MAX_IMNODE_CONTEXT_COUNT)
     {
         ImNodesEditorContext *Context = EditorState->ImNodesContexts[ContextIndex++];
         ImNodes::GetCurrentContext()->EditorCtx = Context;
@@ -390,36 +390,36 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
                     }
                     case MaterialProperty_Texture_Diffuse:
                     {
-                        ImGui::Text("Diffuse Texture");
-
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+
+                        ImGui::Text("Diffuse Texture (%dx%d)", Texture->Width, Texture->Height);
                         ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
                     }
                     case MaterialProperty_Texture_Specular:
                     {
-                        ImGui::Text("Specular Texture");
-
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+
+                        ImGui::Text("Specular Texture (%dx%d)", Texture->Width, Texture->Height);
                         ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
                     }
                     case MaterialProperty_Texture_Shininess:
                     {
-                        ImGui::Text("Shininess Texture");
-
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+
+                        ImGui::Text("Shininess Texture (%dx%d)", Texture->Width, Texture->Height);
                         ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
                     }
                     case MaterialProperty_Texture_Normal:
                     {
-                        ImGui::Text("Normal Texture");
-
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+
+                        ImGui::Text("Normal Texture (%dx%d)", Texture->Width, Texture->Height);
                         ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
 
                         break;
@@ -1378,6 +1378,8 @@ Win32RenderEditor(
     ImGui::SetNextWindowBgAlpha(0.3f);
     ImGui::Begin("Game Overlay", 0, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
     ImGui::Text("Size: %d, %d", GameParameters->WindowWidth, GameParameters->WindowHeight);
+
+#if 0
     ImGui::Text("Editor capture mouse input: %d", EditorCaptureMouseInput(EditorState));
     ImGui::Text("Editor capture keyboard input: %d", EditorCaptureKeyboardInput(EditorState));
 
@@ -1389,6 +1391,8 @@ Win32RenderEditor(
     //ImGui::Text("Camera distance: %.2f", GameState->PlayerCamera.SphericalCoords.x);
     ImGui::Text("Camera azimuth: %.2f", DEGREES(EditorCamera->SphericalCoords.y));
     ImGui::Text("Camera altitude: %.2f", DEGREES(EditorCamera->SphericalCoords.z));
+#endif
+
     ImGui::End();
 
     bool32 SelectedEntity = true;

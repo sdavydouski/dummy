@@ -338,6 +338,47 @@ TestAABBPlane(bounds Box, plane Plane)
     return Result;
 }
 
+dummy_internal bool32
+IntersectMovingAABBAABB(bounds a, bounds b, vec3 VelocityA, vec3 VelocityB, f32 *tFirst, f32 *tLast)
+{
+    // Exit early if a and b initially overlapping
+    if (TestAABBAABB(a, b))
+    {
+        *tFirst = 0.f;
+        *tLast = 0.f;
+        return true;
+    }
+
+    // Use relative velocity; effectively treating a as stationary
+    vec3 v = VelocityB - VelocityA;
+
+    // Initialize times of first and last contact
+    *tFirst = 0.f;
+    *tLast = 1.f;
+
+    // For each axis, determine times of first and last contact, if any
+    for (u32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+    {
+        if (v[AxisIndex] < 0.f)
+        {
+            // todo:
+        }
+
+        if (v[AxisIndex] > 0.f)
+        {
+            // todo:
+        }
+
+        // No overlap possible if time of first contact occurs after time of last contact
+        if (*tFirst > *tLast)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /*
     Fast Ray-Box Intersection
     by Andrew Woo
@@ -350,9 +391,9 @@ bool32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
     vec3 BoxMin = Box.Min;
     vec3 BoxMax = Box.Max;
 
-    constexpr i32 Right = 0;
-    constexpr i32 Left = 1;
-    constexpr i32 Middle = 2;
+    i32 Right = 0;
+    i32 Left = 1;
+    i32 Middle = 2;
 
     bool32 IsInside = true;
     i32 WhichPlane;

@@ -1,0 +1,53 @@
+//! #include "common/version.glsl"
+//! #include "common/constants.glsl"
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(std140, binding = 0) restrict readonly buffer Positions
+{
+    vec4 in_Positions[];
+};
+
+layout(std140, binding = 1) restrict readonly buffer Weights
+{
+    vec4 in_Weights[];
+};
+
+layout(std140, binding = 2) restrict readonly buffer JointIndices
+{
+    ivec4 in_JointIndices[];
+};
+
+layout(std140, binding = 3) restrict writeonly buffer SkinningMatrices
+{
+    mat4 out_SkinningMatrices[];
+};
+
+uniform samplerBuffer u_SkinningMatricesSampler;
+
+void main()
+{
+    int VertexIndex = int(gl_WorkGroupID.x);
+
+    vec4 Position = in_Positions[VertexIndex];
+    vec4 Weights = in_Weights[VertexIndex];
+    ivec4 JointIndices = in_JointIndices[VertexIndex];
+
+    mat4 WeightedSkinningMatrix = mat4(0.f);
+
+    for (int WeightIndex = 0; WeightIndex < MAX_WEIGHT_COUNT; ++WeightIndex)
+    {
+        int SkinningMatricesSamplerOffset = JointIndices[WeightIndex] * 4;
+
+        vec4 Row0 = texelFetch(u_SkinningMatricesSampler, SkinningMatricesSamplerOffset + 0);
+        vec4 Row1 = texelFetch(u_SkinningMatricesSampler, SkinningMatricesSamplerOffset + 1);
+        vec4 Row2 = texelFetch(u_SkinningMatricesSampler, SkinningMatricesSamplerOffset + 2);
+        vec4 Row3 = texelFetch(u_SkinningMatricesSampler, SkinningMatricesSamplerOffset + 3);
+
+        mat4 SkinningMatrix = transpose(mat4(Row0, Row1, Row2, Row3));
+                
+        WeightedSkinningMatrix += SkinningMatrix * Weights[WeightIndex];
+    }
+
+    out_SkinningMatrices[VertexIndex] = WeightedSkinningMatrix;
+}

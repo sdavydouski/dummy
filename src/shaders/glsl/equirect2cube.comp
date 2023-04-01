@@ -28,7 +28,7 @@ vec3 GetSamplingVector()
     }
 }
 
-void main(void)
+void main()
 {
 	vec3 v = normalize(GetSamplingVector());
 

@@ -547,108 +547,119 @@ OpenGLAddMeshBuffer(
     u32 *Indices
 )
 {
-    GLuint VAO;
-    GLuint VertexBuffer;
-    GLuint InstanceBuffer;
-    GLuint IndexBuffer;
+    opengl_mesh_buffer *MeshBuffer = HashTableLookup(&State->MeshBuffers, MeshId);
+
+    Assert(IsSlotEmpty(MeshBuffer->Key));
 
     u32 BufferSize = GetMeshVerticesSize(VertexCount, Positions, Normals, Tangents, Bitangents, TextureCoords, Weights, JointIndices);
 
-    glCreateVertexArrays(1, &VAO);
+    MeshBuffer->Key = MeshId;
+    MeshBuffer->VertexCount = VertexCount;
+    MeshBuffer->IndexCount = IndexCount;
+    MeshBuffer->BufferSize = BufferSize;
+    MeshBuffer->InstanceCount = 0;
 
-    glCreateBuffers(1, &VertexBuffer);
-    glNamedBufferData(VertexBuffer, BufferSize, 0, GL_STATIC_DRAW);
+    glCreateVertexArrays(1, &MeshBuffer->VAO);
+
+    glCreateBuffers(1, &MeshBuffer->VertexBuffer);
+    glNamedBufferData(MeshBuffer->VertexBuffer, BufferSize, 0, GL_STATIC_DRAW);
 
     // per-vertex attributes
     u32 Offset = 0;
     if (Positions)
     {
-        OpenGLVertexAttribute(VAO, VertexBuffer, 0, 3, Offset, 0, sizeof(vec3));
-
-        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Positions);
-
+        OpenGLVertexAttribute(MeshBuffer->VAO, MeshBuffer->VertexBuffer, 0, 3, Offset, 0, sizeof(vec3));
+        glNamedBufferSubData(MeshBuffer->VertexBuffer, Offset, VertexCount * sizeof(vec3), Positions);
         Offset += VertexCount * sizeof(vec3);
+
+        //
+        scoped_memory ScopedMemory(&State->Arena);
+        vec4 *PositionsVec4 = PushArray(ScopedMemory.Arena, VertexCount, vec4);
+
+        for (u32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+        {
+            vec3 Position = Positions[VertexIndex];
+            vec4 *PositionVec4 = PositionsVec4 + VertexIndex;
+
+            PositionVec4->x = Position.x;
+            PositionVec4->y = Position.y;
+            PositionVec4->z = Position.z;
+            PositionVec4->w = 1.f;
+        }
+
+        glCreateBuffers(1, &MeshBuffer->PositionsBuffer);
+        glNamedBufferData(MeshBuffer->PositionsBuffer, VertexCount * sizeof(vec4), PositionsVec4, GL_STATIC_DRAW);
+        //
     }
 
     if (Normals)
     {
-        OpenGLVertexAttribute(VAO, VertexBuffer, 1, 3, Offset, 0, sizeof(vec3));
-
-        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Normals);
-
+        OpenGLVertexAttribute(MeshBuffer->VAO, MeshBuffer->VertexBuffer, 1, 3, Offset, 0, sizeof(vec3));
+        glNamedBufferSubData(MeshBuffer->VertexBuffer, Offset, VertexCount * sizeof(vec3), Normals);
         Offset += VertexCount * sizeof(vec3);
     }
 
     if (Tangents)
     {
-        OpenGLVertexAttribute(VAO, VertexBuffer, 2, 3, Offset, 0, sizeof(vec3));
-
-        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Tangents);
-
+        OpenGLVertexAttribute(MeshBuffer->VAO, MeshBuffer->VertexBuffer, 2, 3, Offset, 0, sizeof(vec3));
+        glNamedBufferSubData(MeshBuffer->VertexBuffer, Offset, VertexCount * sizeof(vec3), Tangents);
         Offset += VertexCount * sizeof(vec3);
     }
 
     if (Bitangents)
     {
-        OpenGLVertexAttribute(VAO, VertexBuffer, 3, 3, Offset, 0, sizeof(vec3));
-
-        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec3), Bitangents);
+        OpenGLVertexAttribute(MeshBuffer->VAO, MeshBuffer->VertexBuffer, 3, 3, Offset, 0, sizeof(vec3));
+        glNamedBufferSubData(MeshBuffer->VertexBuffer, Offset, VertexCount * sizeof(vec3), Bitangents);
         Offset += VertexCount * sizeof(vec3);
     }
 
     if (TextureCoords)
     {
-        OpenGLVertexAttribute(VAO, VertexBuffer, 4, 2, Offset, 0, sizeof(vec2));
-
-        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec2), TextureCoords);
+        OpenGLVertexAttribute(MeshBuffer->VAO, MeshBuffer->VertexBuffer, 4, 2, Offset, 0, sizeof(vec2));
+        glNamedBufferSubData(MeshBuffer->VertexBuffer, Offset, VertexCount * sizeof(vec2), TextureCoords);
         Offset += VertexCount * sizeof(vec2);
     }
 
     if (Weights)
     {
-        OpenGLVertexAttribute(VAO, VertexBuffer, 5, 4, Offset, 0, sizeof(vec4));
-
-        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(vec4), Weights);
+        OpenGLVertexAttribute(MeshBuffer->VAO, MeshBuffer->VertexBuffer, 5, 4, Offset, 0, sizeof(vec4));
+        glNamedBufferSubData(MeshBuffer->VertexBuffer, Offset, VertexCount * sizeof(vec4), Weights);
         Offset += VertexCount * sizeof(vec4);
+
+        glCreateBuffers(1, &MeshBuffer->WeightsBuffer);
+        glNamedBufferData(MeshBuffer->WeightsBuffer, VertexCount * sizeof(vec4), Weights, GL_STATIC_DRAW);
     }
 
     if (JointIndices)
     {
-        OpenGLVertexAttributeInteger(VAO, VertexBuffer, 6, 4, Offset, 0, sizeof(ivec4));
-
-        glNamedBufferSubData(VertexBuffer, Offset, VertexCount * sizeof(ivec4), JointIndices);
+        OpenGLVertexAttributeInteger(MeshBuffer->VAO, MeshBuffer->VertexBuffer, 6, 4, Offset, 0, sizeof(ivec4));
+        glNamedBufferSubData(MeshBuffer->VertexBuffer, Offset, VertexCount * sizeof(ivec4), JointIndices);
         Offset += VertexCount * sizeof(ivec4);
+
+        glCreateBuffers(1, &MeshBuffer->JointIndicesBuffer);
+        glNamedBufferData(MeshBuffer->JointIndicesBuffer, VertexCount * sizeof(ivec4), JointIndices, GL_STATIC_DRAW);
     }
 
-    glCreateBuffers(1, &InstanceBuffer);
-    glNamedBufferData(InstanceBuffer, 0, 0, GL_STREAM_DRAW);
+    if (Weights && JointIndices)
+    {
+        glCreateBuffers(1, &MeshBuffer->SkinningMatricesBuffer);
+        glNamedBufferData(MeshBuffer->SkinningMatricesBuffer, VertexCount * sizeof(mat4), 0, GL_STREAM_DRAW);
+    }
+
+    glCreateBuffers(1, &MeshBuffer->InstanceBuffer);
+    glNamedBufferData(MeshBuffer->InstanceBuffer, 0, 0, GL_STREAM_DRAW);
 
     // per-instance attributes
-    OpenGLInstanceAttribute(VAO, InstanceBuffer, 7, 4, 0, (StructOffset(mesh_instance, Model) + 0 * sizeof(vec4)), sizeof(mesh_instance));
-    OpenGLInstanceAttribute(VAO, InstanceBuffer, 8, 4, 0, (StructOffset(mesh_instance, Model) + 1 * sizeof(vec4)), sizeof(mesh_instance));
-    OpenGLInstanceAttribute(VAO, InstanceBuffer, 9, 4, 0, (StructOffset(mesh_instance, Model) + 2 * sizeof(vec4)), sizeof(mesh_instance));
-    OpenGLInstanceAttribute(VAO, InstanceBuffer, 10, 4, 0, (StructOffset(mesh_instance, Model) + 3 * sizeof(vec4)), sizeof(mesh_instance));
-    OpenGLInstanceAttribute(VAO, InstanceBuffer, 11, 3, 0, StructOffset(mesh_instance, Color), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(MeshBuffer->VAO, MeshBuffer->InstanceBuffer, 7, 4, 0, (StructOffset(mesh_instance, Model) + 0 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(MeshBuffer->VAO, MeshBuffer->InstanceBuffer, 8, 4, 0, (StructOffset(mesh_instance, Model) + 1 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(MeshBuffer->VAO, MeshBuffer->InstanceBuffer, 9, 4, 0, (StructOffset(mesh_instance, Model) + 2 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(MeshBuffer->VAO, MeshBuffer->InstanceBuffer, 10, 4, 0, (StructOffset(mesh_instance, Model) + 3 * sizeof(vec4)), sizeof(mesh_instance));
+    OpenGLInstanceAttribute(MeshBuffer->VAO, MeshBuffer->InstanceBuffer, 11, 3, 0, StructOffset(mesh_instance, Color), sizeof(mesh_instance));
 
-    glCreateBuffers(1, &IndexBuffer);
-    glNamedBufferStorage(IndexBuffer, IndexCount * sizeof(u32), Indices, 0);
+    glCreateBuffers(1, &MeshBuffer->IndexBuffer);
+    glNamedBufferStorage(MeshBuffer->IndexBuffer, IndexCount * sizeof(u32), Indices, 0);
 
-    glVertexArrayElementBuffer(VAO, IndexBuffer);
-
-    opengl_mesh_buffer *MeshBuffer = HashTableLookup(&State->MeshBuffers, MeshId);
-
-    Assert(IsSlotEmpty(MeshBuffer->Key));
-
-    MeshBuffer->Key = MeshId;
-    MeshBuffer->VertexCount = VertexCount;
-    MeshBuffer->IndexCount = IndexCount;
-    MeshBuffer->VAO = VAO;
-    MeshBuffer->VertexBuffer = VertexBuffer;
-    MeshBuffer->InstanceBuffer = InstanceBuffer;
-    MeshBuffer->IndexBuffer = IndexBuffer;
-
-    MeshBuffer->BufferSize = BufferSize;
-    MeshBuffer->InstanceCount = 0;
+    glVertexArrayElementBuffer(MeshBuffer->VAO, MeshBuffer->IndexBuffer);
 }
 
 inline GLint
@@ -712,6 +723,8 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
 
     Texture->Key = Id;
     Texture->Handle = TextureHandle;
+    Texture->Width = Bitmap->Width;
+    Texture->Height = Bitmap->Height;
 }
 
 inline opengl_uniform *
@@ -774,7 +787,8 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
         OPENGL_MAX_POINT_LIGHT_COUNT,
         OPENGL_WORLD_SPACE_MODE,
         OPENGL_SCREEN_SPACE_MODE,
-        OPENGL_MAX_JOINT_COUNT
+        OPENGL_MAX_JOINT_COUNT,
+        OPENGL_MAX_WEIGHT_COUNT
     );
 
     return Result;
@@ -1455,10 +1469,97 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 
                 break;
             }
+            case RenderCommand_DrawSkinnedMesh:
+            {
+                render_command_draw_skinned_mesh *Command = (render_command_draw_skinned_mesh *) Entry;
+
+                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
+                opengl_skinning_buffer *SkinningBuffer = OpenGLGetSkinningBuffer(State, Command->SkinningBufferId);
+
+                opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKINNED_SHADER_ID);
+
+                glUseProgram(Shader->Program);
+
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->PositionsBuffer);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, MeshBuffer->WeightsBuffer);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, MeshBuffer->JointIndicesBuffer);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, MeshBuffer->SkinningMatricesBuffer);
+
+                glNamedBufferSubData(SkinningBuffer->SkinningTBO, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
+                glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
+                glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
+
+                glUniform1i(OpengLGetUniformLocation(Shader, "u_SkinningMatricesSampler"), 0);
+
+                glDispatchCompute(MeshBuffer->VertexCount, 1, 1);
+
+                break;
+            }
+            case RenderCommand_DrawSkinnedMeshInstanced:
+            {
+                render_command_draw_skinned_mesh_instanced *Command = (render_command_draw_skinned_mesh_instanced *) Entry;
+
+                opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
+                opengl_skinning_buffer *SkinningBuffer = OpenGLGetSkinningBuffer(State, Command->SkinningBufferId);
+                scoped_memory ScopedMemory(&State->Arena);
+
+                mat4 *SkinningMatrices = PushArray(ScopedMemory.Arena, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT, mat4, Align(16));
+
+                u32 SkinningMatricesIndex = 0;
+                for (u32 InstanceIndex = 0; InstanceIndex < Command->InstanceCount; ++InstanceIndex)
+                {
+                    skinned_mesh_instance *Instance = Command->Instances + InstanceIndex;
+
+                    Assert(Instance->SkinningMatrixCount < OPENGL_MAX_JOINT_COUNT);
+
+                    for (u32 JointIndex = 0; JointIndex < OPENGL_MAX_JOINT_COUNT; ++JointIndex)
+                    {
+                        mat4 *Dest = SkinningMatrices + SkinningMatricesIndex++;
+                        mat4 Source = mat4(0.f);
+
+                        if (JointIndex < Instance->SkinningMatrixCount)
+                        {
+                            Source = Instance->SkinningMatrices[JointIndex];
+                        }
+
+                        *Dest = Source;
+                    }
+                }
+
+                glBindVertexArray(MeshBuffer->VAO);
+
+                if (MeshBuffer->InstanceCount < Command->InstanceCount)
+                {
+                    MeshBuffer->InstanceCount = (u32)(Command->InstanceCount * 1.5f);
+                    glNamedBufferData(SkinningBuffer->SkinningTBO, MeshBuffer->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), 0, GL_STREAM_DRAW);
+                    glNamedBufferData(MeshBuffer->SkinningMatricesBuffer, MeshBuffer->InstanceCount * MeshBuffer->VertexCount * sizeof(mat4), 0, GL_STREAM_DRAW);
+                }
+
+                opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKINNED_INSTANCED_SHADER_ID);
+
+                glUseProgram(Shader->Program);
+
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->PositionsBuffer);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, MeshBuffer->WeightsBuffer);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, MeshBuffer->JointIndicesBuffer);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, MeshBuffer->SkinningMatricesBuffer);
+
+                glNamedBufferSubData(SkinningBuffer->SkinningTBO, 0, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), SkinningMatrices);
+                glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
+                glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
+
+                glUniform1i(OpengLGetUniformLocation(Shader, "u_SkinningMatricesSampler"), 0);
+
+                glDispatchCompute(MeshBuffer->VertexCount, Command->InstanceCount, 1);
+
+                break;
+            }
         }
 
         BaseAddress += Entry->Size;
     }
+
+    glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
 }
 
 dummy_internal void
@@ -1993,7 +2094,6 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
                 {
                     opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
-                    opengl_skinning_buffer *SkinningBuffer = OpenGLGetSkinningBuffer(State, Command->SkinningBufferId);
 
                     glBindVertexArray(MeshBuffer->VAO);
 
@@ -2007,12 +2107,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             glUseProgram(Shader->Program);
 
-                            glNamedBufferSubData(SkinningBuffer->SkinningTBO, 0, Command->SkinningMatrixCount * sizeof(mat4), Command->SkinningMatrices);
-
-                            glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
-                            glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
-
-                            glUniform1i(OpengLGetUniformLocation(Shader, "u_SkinningMatricesSampler"), 0);
+                            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
 
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
@@ -2043,41 +2138,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
                 {
                     opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
-                    opengl_skinning_buffer *SkinningBuffer = OpenGLGetSkinningBuffer(State, Command->SkinningBufferId);
-                    scoped_memory ScopedMemory(&State->Arena);
-
-                    mat4 *SkinningMatrices = PushArray(ScopedMemory.Arena, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT, mat4);
-
-                    u32 SkinningMatricesIndex = 0;
-                    for (u32 InstanceIndex = 0; InstanceIndex < Command->InstanceCount; ++InstanceIndex)
-                    {
-                        skinned_mesh_instance *Instance = Command->Instances + InstanceIndex;
-
-                        Assert(Instance->SkinningMatrixCount < OPENGL_MAX_JOINT_COUNT);
-
-                        for (u32 JointIndex = 0; JointIndex < OPENGL_MAX_JOINT_COUNT; ++JointIndex)
-                        {
-                            mat4 *Dest = SkinningMatrices + SkinningMatricesIndex++;
-                            mat4 Source = mat4(0.f);
-
-                            if (JointIndex < Instance->SkinningMatrixCount)
-                            {
-                                Source = Instance->SkinningMatrices[JointIndex];
-                            }
-
-                            *Dest = Source;
-                        }
-                    }
 
                     glBindVertexArray(MeshBuffer->VAO);
-
-                    if (MeshBuffer->InstanceCount < Command->InstanceCount)
-                    {
-                        MeshBuffer->InstanceCount = (u32)(Command->InstanceCount * 1.5f);
-                        glNamedBufferData(SkinningBuffer->SkinningTBO, MeshBuffer->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), 0, GL_STREAM_DRAW);
-                    }
-
-                    glNamedBufferSubData(SkinningBuffer->SkinningTBO, 0, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT * sizeof(mat4), SkinningMatrices);
 
                     switch (Command->Material.Type)
                     {
@@ -2089,10 +2151,8 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             glUseProgram(Shader->Program);
 
-                            glBindTextureUnit(0, SkinningBuffer->SkinningTBOTexture);
-                            glTextureBuffer(SkinningBuffer->SkinningTBOTexture, GL_RGBA32F, SkinningBuffer->SkinningTBO);
-
-                            glUniform1i(OpengLGetUniformLocation(Shader, "u_SkinningMatricesSampler"), 0);
+                            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
+                            glUniform1i(OpengLGetUniformLocation(Shader, "u_VertexCount"), MeshBuffer->VertexCount);
 
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
