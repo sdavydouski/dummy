@@ -270,6 +270,8 @@ struct opengl_render_options
     bool32 RenderShadowMap;
     bool32 ShowCascades;
     bool32 EnableShadows;
+    bool32 WireframeMode;
+
     mat4 CascadeView;
     mat4 CascadeProjection;
     u32 CascadeIndex;
@@ -313,4 +315,12 @@ struct opengl_state
     GLuint CascadeShadowMaps[4];
     vec2 CascadeBounds[4];
     mat4 CascadeViewProjection[4];
+};
+
+struct win32_opengl_state
+{
+    opengl_state OpenGL;
+
+    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+    PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
 };

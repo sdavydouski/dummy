@@ -34,11 +34,26 @@ ReadText()
     return Result;
 }
 
+struct platform_file
+{
+    wchar FileName[256];
+    u64 FileSize;
+};
+
+struct get_files_result
+{
+    u32 FileCount;
+    platform_file *Files;
+};
+
 #define PLATFORM_READ_FILE(name) read_file_result name(char *FileName, memory_arena *Arena, read_file_options Options)
 typedef PLATFORM_READ_FILE(platform_read_file);
 
 #define PLATFORM_WRITE_FILE(name) bool32 name(char *FileName, void *Buffer, u32 BufferSize)
 typedef PLATFORM_WRITE_FILE(platform_write_file);
+
+#define PLATFORM_GET_FILES(name) get_files_result name(wchar *Directory, memory_arena *Arena)
+typedef PLATFORM_GET_FILES(platform_get_files);
 
 #define PLATFORM_SET_MOUSE_MODE(name) void name(void *PlatformHandle, mouse_mode MouseMode)
 typedef PLATFORM_SET_MOUSE_MODE(platform_set_mouse_mode);
@@ -76,6 +91,7 @@ struct platform_api
 
     platform_read_file *ReadFile;
     platform_write_file *WriteFile;
+    platform_get_files *GetFiles;
 
     platform_set_mouse_mode *SetMouseMode;
     platform_load_function *LoadFunction;

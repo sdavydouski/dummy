@@ -167,6 +167,39 @@ Win32GetLastWriteTime(wchar *FileName)
     return LastWriteTime;
 }
 
+inline u32
+Win32GetFileCount(wchar *Directory)
+{
+    WIN32_FIND_DATA FindData;
+    HANDLE FindHandle = FindFirstFile(Directory, &FindData);
+
+    u32 FileCount = 0;
+
+    if (FindHandle != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            {
+                // Directory
+            }
+            else
+            {
+                // File
+                ++FileCount;
+            }
+        } 
+        while (FindNextFile(FindHandle, &FindData));
+    }
+    else
+    {
+        DWORD Error = GetLastError();
+        Assert(!"FindFirstFile failed");
+    }
+
+    return FileCount;
+}
+
 inline void
 Win32HideMouseCursor()
 {
@@ -843,6 +876,49 @@ PLATFORM_WRITE_FILE(Win32WriteFile)
     return Result;
 }
 
+dummy_internal
+PLATFORM_GET_FILES(Win32GetFiles)
+{
+    get_files_result Result = {};
+
+    u32 FileCount = Win32GetFileCount(Directory);
+
+    Result.FileCount = FileCount;
+    Result.Files = PushArray(Arena, Result.FileCount, platform_file);
+
+    WIN32_FIND_DATA FindData;
+    HANDLE FindHandle = FindFirstFile(Directory, &FindData);
+
+    u32 FileIndex = 0;
+
+    if (FindHandle != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            {
+                // Directory
+            }
+            else
+            {
+                // File
+                platform_file *File = Result.Files + FileIndex++;
+
+                CopyString(FindData.cFileName, File->FileName);
+                File->FileSize = (((u64) FindData.nFileSizeHigh << (u64) 32) | (u64) FindData.nFileSizeLow);
+            }
+        }
+        while (FindNextFile(FindHandle, &FindData));
+    }
+    else
+    {
+        DWORD Error = GetLastError();
+        Assert(!"FindFirstFile failed");
+    }
+
+    return Result;
+}
+
 dummy_internal 
 PLATFORM_ENTER_CRITICAL_SECTION(Win32EnterCriticalSection)
 {
@@ -1105,7 +1181,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.Samples = 4;
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.IsFullScreen = false;
+    PlatformState.IsFullScreen = true;
     PlatformState.VSync = false;
 
     Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
@@ -1123,6 +1199,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformApi.SetMouseMode = Win32SetMouseMode;
     PlatformApi.ReadFile = Win32ReadFile;
     PlatformApi.WriteFile = Win32WriteFile;
+    PlatformApi.GetFiles = Win32GetFiles;
     PlatformApi.OpenFileDialog = Win32OpenFileDialog;
     PlatformApi.SaveFileDialog = Win32SaveFileDialog;
     PlatformApi.LoadFunction = Win32LoadFunction;
@@ -1145,7 +1222,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     GameMemory.Profiler = &PlatformProfiler;
     GameMemory.JobQueue = &JobQueue;
 
-#if NDEBUG
+#if RELEASE
     void *BaseAddress = 0;
 #else
     void *BaseAddress = (void *)Terabytes(2);

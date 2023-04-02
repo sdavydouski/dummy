@@ -10,25 +10,33 @@ BuildModelAssets(const char *InputPath, const char *OutputPath)
 {
     for (const fs::directory_entry &Entry : fs::directory_iterator(InputPath))
     {
+        fs::path EntryPath = Entry.path();
+        fs::path EntryName = Entry.path().stem();
+
         if (Entry.is_directory())
         {
-            fs::path DirectoryPath = Entry.path();
-            fs::path DirectoryName = Entry.path().filename();
-
             char FilePath[256];
-            FormatString(FilePath, "%s/%s.fbx", DirectoryPath.generic_string().c_str(), DirectoryName.generic_string().c_str());
+            FormatString(FilePath, "%s/%s.fbx", EntryPath.generic_string().c_str(), EntryName.generic_string().c_str());
 
             char AnimationConfigPath[256];
-            FormatString(AnimationConfigPath, "%s/animation_graph.json", DirectoryPath.generic_string().c_str());
+            FormatString(AnimationConfigPath, "%s/animation_graph.json", EntryPath.generic_string().c_str());
 
             char AnimationClipsPath[256];
-            FormatString(AnimationClipsPath, "%s/clips", DirectoryPath.generic_string().c_str());
+            FormatString(AnimationClipsPath, "%s/clips", EntryPath.generic_string().c_str());
 
             char AssetPath[256];
-            FormatString(AssetPath, "%s/%s.model.asset", OutputPath, DirectoryName.generic_string().c_str());
+            FormatString(AssetPath, "%s/%s.model.asset", OutputPath, EntryName.generic_string().c_str());
 
             printf("Processing %s...\n", FilePath);
             ProcessModelAsset(FilePath, AnimationConfigPath, AnimationClipsPath, AssetPath);
+        }
+        else
+        {
+            char AssetPath[256];
+            FormatString(AssetPath, "%s/%s.model.asset", OutputPath, EntryName.generic_string().c_str());
+
+            printf("Processing %s...\n", EntryPath.generic_string().c_str());
+            ProcessModelAsset(EntryPath.generic_string().c_str(), AssetPath);
         }
     }
 }

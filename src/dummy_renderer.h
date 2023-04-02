@@ -419,11 +419,16 @@ struct render_commands_settings
     f32 Time;
     f32 PixelsPerUnit;
     f32 UnitsPerPixel;
+    
     bool32 ShowCascades;
     bool32 EnableShadows;
+    bool32 WireframeMode;
+    
     game_camera *Camera;
+    
     mat4 WorldToCamera;
     mat4 CameraToWorld;
+
     directional_light *DirectionalLight;
 };
 

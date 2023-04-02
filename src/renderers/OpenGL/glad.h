@@ -1,4 +1,4 @@
-#if NDEBUG
+#if RELEASE
 #ifndef __glad_h_
 #define __glad_h_
 

@@ -2161,3 +2161,33 @@ ProcessModelAsset(const char *FilePath, const char *AnimationConfigPath, const c
     ReadModelAsset(OutputPath, &TestAsset, &Asset);
 #endif
 }
+
+dummy_internal void
+ProcessModelAsset(const char *FilePath, const char *OutputPath)
+{
+    u32 Flags =
+        aiProcess_Triangulate |
+        aiProcess_FlipUVs |
+        aiProcess_GenNormals |
+        aiProcess_CalcTangentSpace |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_ValidateDataStructure |
+        aiProcess_LimitBoneWeights |
+        aiProcess_RemoveRedundantMaterials |
+        aiProcess_FixInfacingNormals |
+        aiProcess_OptimizeGraph |
+        aiProcess_OptimizeMeshes;
+
+    model_asset Asset;
+
+    LoadModelAsset(FilePath, &Asset, Flags);
+
+    //OptimizeModelAsset(&Asset);
+
+    WriteModelAsset(OutputPath, &Asset);
+
+#if 1
+    model_asset TestAsset = {};
+    ReadModelAsset(OutputPath, &TestAsset, &Asset);
+#endif
+}

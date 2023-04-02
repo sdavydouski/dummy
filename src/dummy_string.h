@@ -142,6 +142,23 @@ GetDirectoryPath(const char *FilePath, char *DirectoryPath)
 }
 
 inline void
+RemoveExtension(char *FilePath, char *FileName)
+{
+    char *LastDelimiter = FilePath;
+
+    for (char *Scan = FilePath; *Scan; ++Scan)
+    {
+        if (*Scan == '.')
+        {
+            LastDelimiter = Scan;
+            break;
+        }
+    }
+
+    CopyStringUnsafe(FilePath, FileName, (u32)(LastDelimiter - FilePath));
+}
+
+inline void
 ConvertToWideString(const char *Source, wchar *Dest)
 {
     u32 SourceLength = StringLength(Source);

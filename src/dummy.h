@@ -1,5 +1,9 @@
 #pragma once
 
+#define EDITOR 1
+#define PROFILER 1
+#define ASSERT 1
+
 #include "dummy_defs.h"
 #include "dummy_math.h"
 #include "dummy_random.h"
@@ -27,6 +31,7 @@
 
 struct game_assets;
 
+//
 game_entity *GetGameEntity(game_state *State, u32 EntityId);
 
 void PublishEvent(game_event_list *EventList, const char *EventName, void *Params);
@@ -45,6 +50,7 @@ vec3 GetAABBCenter(bounds Box);
 bool32 TestAABBAABB(bounds a, bounds b);
 
 audio_play_options SetVolume(f32 Volume);
+//
 
 #define SID(String) Hash(String)
 #define MAX_ENTITY_NAME 256
@@ -234,8 +240,8 @@ struct entity_render_batch
 
 struct game_asset
 {
-    char Name[64];
-    char Path[64];
+    char Name[256];
+    char Path[256];
 };
 
 struct game_asset_model
@@ -302,6 +308,7 @@ struct game_options
     bool32 ShowCamera;
     bool32 ShowGrid;
     bool32 ShowSkybox;
+    bool32 WireframeMode;
 };
 
 struct game_menu_quad

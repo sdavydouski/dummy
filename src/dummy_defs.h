@@ -15,8 +15,12 @@
 #define StructOffset(StructType, StructMember) ((u64)(&(((StructType *)0)->StructMember)))
 #define Stringify(Arg) #Arg
 
+#if ASSERT
 #define Assert(Expression) if (!(Expression)) { *(volatile int *)0 = 0; }
-//#define Assert(...)
+#else
+#define Assert(...)
+#endif
+
 #define CTAssert(Expression) static_assert(Expression)
 
 #define i8 int8_t

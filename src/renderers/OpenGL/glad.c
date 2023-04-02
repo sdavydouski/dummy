@@ -1,4 +1,4 @@
-#if NDEBUG
+#if RELEASE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

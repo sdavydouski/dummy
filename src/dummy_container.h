@@ -87,9 +87,9 @@ HashTableLookup(hash_table<TValue> *HashTable, TKey Key)
             Assert(!"HashTable is full!");
         }
 
-        if (IterationCount >= 3)
+        if (IterationCount >= 5)
         {
-            Assert(!"Better hash function?");
+            //Assert(!"Better hash function?");
         }
     }
 

@@ -16,7 +16,7 @@
 #include <imgui_impl_win32.h>
 #include <imgui_impl_win32.cpp>
 
-#if NDEBUG
+#if RELEASE
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM <release/glad.h>
 #else
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM <debug/glad.h>
@@ -1162,6 +1162,9 @@ Win32RenderEditor(
                     {
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Enable Shadows", (bool *)&GameState->Options.EnableShadows);
+
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("Wireframe Mode", (bool *)&GameState->Options.WireframeMode);
 
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Camera", (bool *)&GameState->Options.ShowCamera);

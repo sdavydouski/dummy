@@ -327,91 +327,45 @@ GetRenderBatch(game_state *State, char *Name)
     return Result;
 }
 
+dummy_internal game_asset *
+GetGameAssets(platform_api *Platform, const wchar *Wildcard, memory_arena *Arena, u32 *AssetCount)
+{
+    get_files_result GetFilesResult = Platform->GetFiles((wchar *)Wildcard, Arena);
+    *AssetCount = GetFilesResult.FileCount;
+
+    game_asset *GameAssets = PushArray(Arena, *AssetCount, game_asset);
+
+    for (u32 AssetIndex = 0; AssetIndex < *AssetCount; ++AssetIndex)
+    {
+        platform_file *ModelFile = GetFilesResult.Files + AssetIndex;
+        game_asset *GameAsset = GameAssets + AssetIndex;
+
+        char AssetFileNameName[256];
+        ConvertToString(ModelFile->FileName, AssetFileNameName);
+
+        char AssetName[256];
+        RemoveExtension(AssetFileNameName, AssetName);
+
+        char AssetPath[256];
+        FormatString(AssetPath, "assets\\%s", AssetFileNameName);
+
+        CopyString(AssetName, GameAsset->Name);
+        CopyString(AssetPath, GameAsset->Path);
+    }
+
+    return GameAssets;
+}
+
 dummy_internal void
 LoadModelAssets(game_assets *Assets, platform_api *Platform)
 {
-    game_asset ModelAssets[] = {
-        {
-            "ybot",
-            "assets\\ybot.model.asset"
-        },
-        {
-            "pelegrini",
-            "assets\\pelegrini.model.asset"
-        },
-        {
-            "xbot",
-            "assets\\xbot.model.asset"
-        },
-        {
-            "paladin",
-            "assets\\paladin.model.asset"
-        },
-        {
-            "warrok",
-            "assets\\warrok.model.asset"
-        },
-        {
-            "maw",
-            "assets\\maw.model.asset"
-        },
-        {
-            "ninja",
-            "assets\\ninja.model.asset"
-        },
-        {
-            "cube",
-            "assets\\cube.model.asset"
-        },
-        {
-            "sphere",
-            "assets\\sphere.model.asset"
-        },
-        {
-            "quad",
-            "assets\\quad.model.asset"
-        },
+    u32 ModelAssetCount;
+    game_asset *ModelAssets = GetGameAssets(Platform, L"assets\\*.model.asset", &Assets->Arena, &ModelAssetCount);
 
-        // Dungeon Assets
-        {
-            "barrel",
-            "assets\\barrel.model.asset"
-        },
-        {
-            "chair",
-            "assets\\chair.model.asset"
-        },
-
-        {
-            "coinsLarge",
-            "assets\\coinsLarge.model.asset"
-        },
-        {
-            "crate",
-            "assets\\crate.model.asset"
-        },
-        {
-            "pillar",
-            "assets\\pillar.model.asset"
-        },
-        {
-            "tableLarge",
-            "assets\\tableLarge.model.asset"
-        },
-        {
-            "torch",
-            "assets\\torch.model.asset"
-        },
-        {
-            "wall",
-            "assets\\wall.model.asset"
-        },
-    };
-
-    Assets->ModelAssetCount = ArrayCount(ModelAssets);
+    Assets->ModelAssetCount = ModelAssetCount;
     Assets->ModelAssets = PushArray(&Assets->Arena, Assets->ModelAssetCount, game_asset_model);
 
-    for (u32 ModelAssetIndex = 0; ModelAssetIndex < ArrayCount(ModelAssets); ++ModelAssetIndex)
+    for (u32 ModelAssetIndex = 0; ModelAssetIndex < ModelAssetCount; ++ModelAssetIndex)
     {
         game_asset GameAsset = ModelAssets[ModelAssetIndex];
         game_asset_model *GameAssetModel = Assets->ModelAssets + ModelAssetIndex;
@@ -426,21 +380,13 @@ LoadModelAssets(game_assets *Assets, platform_api *Platform)
 dummy_internal void
 LoadFontAssets(game_assets *Assets, platform_api *Platform)
 {
-    game_asset FontAssets[] = {
-        {
-            "Consolas",
-            "assets\\Consolas.font.asset"
-        },
-        {
-            "Where My Keys",
-            "assets\\Where My Keys.font.asset"
-        }
-    };
+    u32 FontAssetCount;
+    game_asset *FontAssets = GetGameAssets(Platform, L"assets\\*.font.asset", &Assets->Arena, &FontAssetCount);
 
-    Assets->FontAssetCount = ArrayCount(FontAssets);
+    Assets->FontAssetCount = FontAssetCount;
     Assets->FontAssets = PushArray(&Assets->Arena, Assets->FontAssetCount, game_asset_font);
 
-    for (u32 FontAssetIndex = 0; FontAssetIndex < ArrayCount(FontAssets); ++FontAssetIndex)
+    for (u32 FontAssetIndex = 0; FontAssetIndex < FontAssetCount; ++FontAssetIndex)
     {
         game_asset GameAsset = FontAssets[FontAssetIndex];
 
@@ -456,37 +402,13 @@ LoadFontAssets(game_assets *Assets, platform_api *Platform)
 dummy_internal void
 LoadAudioClipAssets(game_assets *Assets, platform_api *Platform)
 {
-    game_asset AudioClipAssets[] = {
-        {
-            "Ambient 5",
-            "assets\\Ambient 5.audio.asset"
-        },
-        {
-            "samba",
-            "assets\\samba.audio.asset"
-        },
-        {
-            "step_metal",
-            "assets\\step_metal.audio.asset"
-        },
-        {
-            "step_cloth1",
-            "assets\\step_cloth1.audio.asset"
-        },
-        {
-            "step_lth1",
-            "assets\\step_lth1.audio.asset"
-        },
-        {
-            "step_lth4",
-            "assets\\step_lth4.audio.asset"
-        }
-    };
+    u32 AudioClipAssetCount;
+    game_asset *AudioClipAssets = GetGameAssets(Platform, L"assets\\*.audio.asset", &Assets->Arena, &AudioClipAssetCount);
 
-    Assets->AudioClipAssetCount = ArrayCount(AudioClipAssets);
+    Assets->AudioClipAssetCount = AudioClipAssetCount;
     Assets->AudioClipAssets = PushArray(&Assets->Arena, Assets->AudioClipAssetCount, game_asset_audio_clip);
 
-    for (u32 AudioClipAssetIndex = 0; AudioClipAssetIndex < ArrayCount(AudioClipAssets); ++AudioClipAssetIndex)
+    for (u32 AudioClipAssetIndex = 0; AudioClipAssetIndex < AudioClipAssetCount; ++AudioClipAssetIndex)
     {
         game_asset GameAsset = AudioClipAssets[AudioClipAssetIndex];
 
@@ -502,26 +424,13 @@ LoadAudioClipAssets(game_assets *Assets, platform_api *Platform)
 dummy_internal void
 LoadTextureAssets(game_assets *Assets, platform_api *Platform)
 {
-    game_asset TextureAssets[] = {
-        {
-            "Environment",
-            "assets\\environment.texture.asset"
-        },
+    u32 TextureAssetCount;
+    game_asset *TextureAssets = GetGameAssets(Platform, L"assets\\*.texture.asset", &Assets->Arena, &TextureAssetCount);
 
-        {
-            "PointLight",
-            "assets\\point_light.texture.asset"
-        },
-        {
-            "ParticleEmitter",
-            "assets\\particle_emitter.texture.asset"
-        }
-    };
-
-    Assets->TextureAssetCount = ArrayCount(TextureAssets);
+    Assets->TextureAssetCount = TextureAssetCount;
     Assets->TextureAssets = PushArray(&Assets->Arena, Assets->TextureAssetCount, game_asset_texture);
 
-    for (u32 TextureAssetIndex = 0; TextureAssetIndex < ArrayCount(TextureAssets); ++TextureAssetIndex)
+    for (u32 TextureAssetIndex = 0; TextureAssetIndex < TextureAssetCount; ++TextureAssetIndex)
     {
         game_asset GameAsset = TextureAssets[TextureAssetIndex];
 
@@ -562,7 +471,7 @@ JOB_ENTRY_POINT(LoadGameAssetsJob)
 dummy_internal void
 InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
 {
-    InitHashTable(&Assets->Models, 251, &Assets->Arena);
+    InitHashTable(&Assets->Models, 1021, &Assets->Arena);
 
     Assert(Assets->Models.Count > Assets->ModelAssetCount);
 
@@ -809,15 +718,15 @@ InitRenderBatch(entity_render_batch *Batch, game_entity *Entity, u32 MaxEntityCo
     Batch->MaxEntityCount = MaxEntityCount;
     Batch->Model = Entity->Model;
     Batch->Skinning = Entity->Skinning;
-    Batch->Entities = PushArray(Arena, Batch->MaxEntityCount, game_entity *);
+    Batch->Entities = PushArray(Arena, Batch->MaxEntityCount, game_entity *, NoClear());
 
     if (Batch->Skinning)
     {
-        Batch->SkinnedMeshInstances = PushArray(Arena, Batch->MaxEntityCount, skinned_mesh_instance);
+        Batch->SkinnedMeshInstances = PushArray(Arena, Batch->MaxEntityCount, skinned_mesh_instance, NoClear());
     }
     else
     {
-        Batch->MeshInstances = PushArray(Arena, Batch->MaxEntityCount, mesh_instance);
+        Batch->MeshInstances = PushArray(Arena, Batch->MaxEntityCount, mesh_instance, NoClear());
     }
 }
 
@@ -1733,6 +1642,7 @@ DLLExport GAME_INIT(GameInit)
     State->Options.ShowGrid = true;
     State->Options.ShowSkybox = true;
     State->Options.ShowSkeletons = false;
+    State->Options.WireframeMode = false;
 
     InitGameMenu(State);
 
@@ -2061,7 +1971,7 @@ DLLExport GAME_RENDER(GameRender)
 
         State->Assets.State = GameAssetsState_Ready;
 
-        AddSkybox(RenderCommands, State->SkyboxId, 4096, GetTextureAsset(&State->Assets, "Environment"));
+        AddSkybox(RenderCommands, State->SkyboxId, 4096, GetTextureAsset(&State->Assets, "environment"));
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
@@ -2107,6 +2017,7 @@ DLLExport GAME_RENDER(GameRender)
 
             mat4 WorldToCamera = GetCameraTransform(Camera);
 
+            RenderCommands->Settings.WireframeMode = State->Options.WireframeMode;
             RenderCommands->Settings.EnableShadows = State->Options.EnableShadows;
             RenderCommands->Settings.ShowCascades = State->Options.ShowCascades;
             RenderCommands->Settings.Camera = Camera;
@@ -2259,9 +2170,9 @@ DLLExport GAME_RENDER(GameRender)
 
                 u32 MaxPointLightCount = 32;
                 u32 PointLightCount = 0;
-                point_light *PointLights = PushArray(&State->TransientArena, MaxPointLightCount, point_light);
+                point_light *PointLights = PushArray(&State->TransientArena, MaxPointLightCount, point_light, NoClear());
 
-                InitHashTable(&State->EntityBatches, 31, &State->TransientArena);
+                InitHashTable(&State->EntityBatches, 521, &State->TransientArena);
 
                 State->RenderableEntityCount = 0;
                 State->ActiveEntitiesCount = 0;

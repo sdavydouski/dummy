@@ -1,7 +1,5 @@
 #pragma once
 
-#define EDITOR 1
-
 #define WIN32_FILE_PATH MAX_PATH
 
 #define GET_MOUSE_CURSOR_X(lParam) (i32)(i16)((lParam) & 0xFFFF)

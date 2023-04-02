@@ -88,8 +88,6 @@ struct auto_profiler
     }
 };
 
-#define PROFILER 1
-
 #if PROFILER
 #define PROFILE(Profiler, Name) auto_profiler Profile(Profiler, (char *) Name)
 #define PROFILER_START_FRAME(Profiler) ProfilerStartFrame(Profiler)
