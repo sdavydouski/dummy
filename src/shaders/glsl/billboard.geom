@@ -8,7 +8,8 @@ layout (points) in;
 layout (triangle_strip) out;
 layout (max_vertices = 4) out;
 
-out GS_OUT {
+out GS_OUT 
+{
     vec2 TextureCoords;
 } gs_out; 
 

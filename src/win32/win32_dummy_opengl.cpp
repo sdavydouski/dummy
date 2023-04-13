@@ -1363,7 +1363,7 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
 
     OpenGLAddTexture(State, 0, &WhiteTexture);
 
-#if 1
+#if 0
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);

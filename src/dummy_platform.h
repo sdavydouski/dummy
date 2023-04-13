@@ -38,6 +38,7 @@ struct platform_file
 {
     wchar FileName[256];
     u64 FileSize;
+    u64 FileDate;
 };
 
 struct get_files_result

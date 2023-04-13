@@ -187,7 +187,17 @@ Abs(vec3 Value)
 inline i32
 Sign(f32 Value)
 {
-    i32 Result = Value >= 0.f ? 1 : -1;
+    i32 Result = 0;
+
+    if (Value > 0.f)
+    {
+        Result = 1;
+    }
+    else if (Value < 0.f)
+    {
+        Result = -1;
+    }
+
     return Result;
 }
 
@@ -823,11 +833,20 @@ Hash(const u32 Key)
 {
     u32 Hash = Key;
 
+#if 0
     Hash = (Hash ^ 61) ^ (Hash >> 16);
     Hash = Hash + (Hash << 3);
     Hash = Hash ^ (Hash >> 4);
     Hash = Hash * 0x27d4eb2d;
     Hash = Hash ^ (Hash >> 15);
+#else
+    Hash = (Hash + 0x7ed55d16) + (Hash << 12);
+    Hash = (Hash ^ 0xc761c23c) ^ (Hash >> 19);
+    Hash = (Hash + 0x165667b1) + (Hash << 5);
+    Hash = (Hash + 0xd3a2646c) ^ (Hash << 9);
+    Hash = (Hash + 0xfd7046c5) + (Hash << 3);
+    Hash = (Hash ^ 0xb55a4f09) ^ (Hash >> 16);
+#endif
 
     return Hash;
 }

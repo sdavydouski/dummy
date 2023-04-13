@@ -5,7 +5,8 @@ layout (location = 1) in vec2 in_Size;
 layout (location = 2) in vec2 in_SpriteSize;
 layout (location = 3) in vec2 in_SpriteOffset;
 
-out VS_OUT {
+out VS_OUT 
+{
     vec2 Size;
     vec2 SpriteSize;
     vec2 SpriteOffset;

@@ -1059,19 +1059,21 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
             if (Body)
             {
-                // Save previous state
+                // todo: save previous state
                 Body->PrevPosition = Body->Position;
                 Body->PrevVelocity = Body->Velocity;
                 Body->PrevAcceleration = Body->Acceleration;
 
+                f32 MaxStepHeight = 0.5f;
+
                 u32 MaxNearbyEntityCount = 10;
                 game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                bounds Bounds = { vec3(-0.01f), vec3(0.f) };
+                bounds Bounds = { vec3(0.f, -MaxStepHeight, 0.f), vec3(0.f, 0.f, 0.f) };
 
                 u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
-                bool32 OnTheGround = Abs(Body->Position.y - 0.f) < 0.01f;
-                bool32 OnTheSurface = false;
+                vec3 MinIntersectionPoint = Body->Position;
+                f32 MinDistance = F32_MAX;
 
                 for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
                 {
@@ -1085,7 +1087,41 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         Ray.Direction = vec3(0.f, -1.f, 0.f);
 
                         vec3 IntersectionPoint;
-                        OnTheSurface |= IntersectRayAABB(Ray, GetColliderBounds(NearbyBodyCollider), IntersectionPoint);
+                        if (IntersectRayAABB(Ray, GetColliderBounds(NearbyBodyCollider), IntersectionPoint))
+                        {
+                            f32 Distance = Magnitude(Body->Position - IntersectionPoint);
+
+                            if (Distance < MinDistance)
+                            {
+                                MinDistance = Distance;
+                                MinIntersectionPoint = IntersectionPoint;
+                            }
+                        }
+                    }
+                }
+
+                bool32 OnTheGround = Body->Position.y == 0.f;
+                bool32 OnTheSurface = false;
+
+                if (MinDistance <= MaxStepHeight)
+                {
+                    if (Body->Acceleration.y == 0.f)
+                    {
+                        Body->Position.y = MinIntersectionPoint.y;
+                        OnTheSurface = true;
+                    }
+                    else
+                    {
+                        OnTheSurface = NearlyEqual(MinDistance, 0.f);
+                    }
+
+                }
+                else if (Body->Position.y <= MaxStepHeight)
+                {
+                    if (Body->Acceleration.y == 0.f)
+                    {
+                        Body->Position.y = 0.f;
+                        OnTheGround = true;
                     }
                 }
 
@@ -1102,6 +1138,11 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     {
                         Body->Acceleration.y = 0.f;
                     }
+                }
+
+                if (!Entity->IsGrounded)
+                {
+                    AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
                 }
 
                 if (Body->RootMotionEnabled && Entity->IsGrounded)
@@ -1123,7 +1164,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 }
                 else
                 {
-                    AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
                     Integrate(Body, Data->UpdateRate);
 
                     Clamp(&Body->Acceleration.y, -120.f, 120.f);
@@ -1155,19 +1195,37 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         rigid_body *NearbyBody = NearbyEntity->Body;
                         collider *NearbyBodyCollider = NearbyEntity->Collider;
 
+#if 0
                         if (Entity->Id == Data->PlayerId)
                         {
-                            //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                            NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
                         }
+#endif
 
-                        // todo: https://catlikecoding.com/unity/tutorials/movement/ ?
                         if (NearbyBodyCollider)
                         {
                             // Collision detection and resolution
                             vec3 mtv;
                             if (TestColliders(Entity->Collider, NearbyEntity->Collider, &mtv))
                             {
-                                Entity->Body->Position += mtv;
+                                bounds NearbyEntityBounds = GetColliderBounds(NearbyEntity->Collider);
+                                vec3 NearbyEntityHalfSize = GetAABBHalfSize(NearbyEntityBounds);
+                                vec3 NearbyEntityCenter = GetAABBCenter(NearbyEntityBounds);
+
+                                f32 RelativeHeight = NearbyEntityCenter.y + NearbyEntityHalfSize.y - Entity->Body->Position.y;
+
+                                if (Dot(Entity->Body->Velocity, mtv) < 0.f && InRange(RelativeHeight, 0.f, MaxStepHeight))
+                                {
+                                    bounds EntityBounds = GetColliderBounds(Entity->Collider);
+                                    vec3 EntityHalfSize = GetAABBHalfSize(EntityBounds);
+
+                                    Entity->Body->Position.y += RelativeHeight;
+                                }
+                                else
+                                {
+                                    Entity->Body->Position += mtv;
+                                }
+
                                 UpdateColliderPosition(Collider, Entity->Body->Position);
                             }
                         }
@@ -1975,11 +2033,11 @@ DLLExport GAME_RENDER(GameRender)
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
-#if 1
+#if 0
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
-            LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, ScopedMemory.Arena);
-            State->Player = (State->WorldArea.Entities + 0);
+            LoadWorldAreaFromFile(State, (char *)"data\\scene_8.dummy", Platform, RenderCommands, ScopedMemory.Arena);
+            State->Player = (State->WorldArea.Entities + 11);
         }
 #endif
     }
@@ -2220,7 +2278,7 @@ DLLExport GAME_RENDER(GameRender)
 
                             if (State->Mode == GameMode_Editor)
                             {
-                                DrawBillboard(RenderCommands, PointLight->Position, vec2(0.2f), GetTextureAsset(&State->Assets, "PointLight"));
+                                DrawBillboard(RenderCommands, PointLight->Position, vec2(0.2f), GetTextureAsset(&State->Assets, "point_light"));
                             }
                         }
                     }
@@ -2311,7 +2369,7 @@ DLLExport GAME_RENDER(GameRender)
 
                             if (State->Mode == GameMode_Editor)
                             {
-                                DrawBillboard(RenderCommands, Entity->Transform.Translation, vec2(0.2f), GetTextureAsset(&State->Assets, "ParticleEmitter"));
+                                DrawBillboard(RenderCommands, Entity->Transform.Translation, vec2(0.2f), GetTextureAsset(&State->Assets, "particle_emitter"));
                             }
                         }
                     }

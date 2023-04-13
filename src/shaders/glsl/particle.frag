@@ -1,6 +1,7 @@
 //! #include "common/version.glsl"
 
-in GS_OUT {
+in GS_OUT 
+{
     vec4 Color;
     vec2 TextureCoords;
 } fs_in; 

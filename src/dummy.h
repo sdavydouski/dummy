@@ -240,8 +240,8 @@ struct entity_render_batch
 
 struct game_asset
 {
-    char Name[256];
-    char Path[256];
+    char Name[128];
+    char Path[128];
 };
 
 struct game_asset_model

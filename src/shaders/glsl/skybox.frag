@@ -2,7 +2,8 @@
 
 out vec4 out_Color;
 
-in VS_OUT {
+in VS_OUT 
+{
     vec3 LocalPosition;
 } fs_in; 
 

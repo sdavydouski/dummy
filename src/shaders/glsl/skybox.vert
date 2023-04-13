@@ -3,7 +3,8 @@
 
 layout(location = 0) in vec3 in_Position;
 
-out VS_OUT {
+out VS_OUT 
+{
     vec3 LocalPosition;
 } vs_out; 
 

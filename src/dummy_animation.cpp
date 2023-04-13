@@ -1180,7 +1180,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *BindPose, skeleton_
         u32 ActiveAnimationIndex = 0;
         GetActiveAnimations(Graph, ActiveAnimations, ActiveAnimationIndex);
         
-#if 1
+#if DEBUG
         // Checking weights (not necessary)
         f32 TotalWeight = 0.f;
         for (u32 ActiveAnimationIndex = 0; ActiveAnimationIndex < ActiveAnimationCount; ++ActiveAnimationIndex)

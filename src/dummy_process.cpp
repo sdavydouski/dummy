@@ -108,6 +108,29 @@ DLLExport GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
     }
 }
 
+#if 0
+DLLExport GAME_PROCESS_ON_UPDATE(PlayerPositionLerpProcess)
+{
+    rigid_body *PlayerBody = State->Player->Body;
+
+    if (PlayerBody->PositionLerp.Duration > 0.f)
+    {
+        PlayerBody->PositionLerp.Time += Delta;
+
+        f32 t = PlayerBody->PositionLerp.Time / PlayerBody->PositionLerp.Duration;
+
+        if (t <= 1.f)
+        {
+            PlayerBody->Position = Lerp(PlayerBody->PositionLerp.From, t, PlayerBody->PositionLerp.To);
+        }
+        else
+        {
+            EndGameProcess(State, Process->Key);
+        }
+    }
+}
+#endif
+
 DLLExport GAME_PROCESS_ON_UPDATE(SmoothInputMoveProcess)
 {
     f32 InterpolationTime = 0.2f;

@@ -2182,7 +2182,7 @@ ProcessModelAsset(const char *FilePath, const char *OutputPath)
 
     LoadModelAsset(FilePath, &Asset, Flags);
 
-    //OptimizeModelAsset(&Asset);
+    OptimizeModelAsset(&Asset);
 
     WriteModelAsset(OutputPath, &Asset);
 

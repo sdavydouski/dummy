@@ -111,7 +111,8 @@ Win32DebugPrintString(const wchar *Format, ...)
 }
 
 inline win32_platform_state *
-GetWin32PlatformState(HWND WindowHandle) {
+GetWin32PlatformState(HWND WindowHandle)
+{
     win32_platform_state *Result = (win32_platform_state *)GetWindowLongPtr(WindowHandle, GWLP_USERDATA);
     return Result;
 }
@@ -165,6 +166,13 @@ Win32GetLastWriteTime(wchar *FileName)
     }
 
     return LastWriteTime;
+}
+
+inline u64
+Win32PackHighLow(DWORD High, DWORD Low)
+{
+    u64 Result = (((u64) High << (u64) 32) | (u64) Low);
+    return Result;
 }
 
 inline u32
@@ -905,7 +913,8 @@ PLATFORM_GET_FILES(Win32GetFiles)
                 platform_file *File = Result.Files + FileIndex++;
 
                 CopyString(FindData.cFileName, File->FileName);
-                File->FileSize = (((u64) FindData.nFileSizeHigh << (u64) 32) | (u64) FindData.nFileSizeLow);
+                File->FileSize = Win32PackHighLow(FindData.nFileSizeHigh, FindData.nFileSizeLow);
+                File->FileDate = Win32PackHighLow(FindData.ftLastWriteTime.dwHighDateTime, FindData.ftLastWriteTime.dwLowDateTime);
             }
         }
         while (FindNextFile(FindHandle, &FindData));

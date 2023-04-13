@@ -8,12 +8,14 @@ layout (points) in;
 layout (triangle_strip) out;
 layout (max_vertices = 4) out;
 
-in VS_OUT {
+in VS_OUT 
+{
     vec2 Size;
     vec4 Color;
 } gs_in[]; 
 
-out GS_OUT {
+out GS_OUT 
+{
     vec4 Color;
     vec2 TextureCoords;
 } gs_out; 

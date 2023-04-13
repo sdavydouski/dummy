@@ -17,7 +17,8 @@ layout(location = 6) in vec4 in_Weights;
 layout(location = 7) in mat4 in_InstanceModel;
 layout(location = 11) in vec3 in_InstanceColor;
 
-out VS_OUT {
+out VS_OUT 
+{
     vec3 WorldPosition;
     vec3 Normal;
     vec3 CascadeBlend;

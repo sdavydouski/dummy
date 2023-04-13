@@ -5,7 +5,8 @@
 //! #include "common/uniform.glsl"
 //! #include "common/shadows.glsl"
 
-in VS_OUT {
+in VS_OUT 
+{
     vec3 WorldPosition;
     vec3 Normal;
     vec3 CascadeBlend;

@@ -11,7 +11,8 @@ layout(location = 2) in vec3 in_Tangent;
 layout(location = 3) in vec3 in_Bitangent;
 layout(location = 4) in vec2 in_TextureCoords;
 
-out VS_OUT {
+out VS_OUT 
+{
     vec3 WorldPosition;
     vec3 Normal;
     vec3 CascadeBlend;
