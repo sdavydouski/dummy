@@ -1,5 +1,7 @@
 #pragma once
 
+#include <xaudio2.h>
+
 #define SPEAKER_MONO             (SPEAKER_FRONT_CENTER)
 #define SPEAKER_STEREO           (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT)
 #define SPEAKER_2POINT1          (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY)
@@ -66,21 +68,22 @@ struct xaudio2_source_voice
 
 struct xaudio2_state
 {
+    stream *Stream;
+    memory_arena *Arena;
+    platform_api *Platform;
+    platform_profiler *Profiler;
+
     IXAudio2 *XAudio2;
     IXAudio2MasteringVoice *MasterVoice;
     XAUDIO2_VOICE_DETAILS MasterVoiceDetails;
     DWORD MasterVoiceChannelMask;
 
-    XAudio2EngineCallback EngineCallback;
-    XAudio2VoiceCallback VoiceCallback;
+    XAudio2EngineCallback *EngineCallback;
+    XAudio2VoiceCallback *VoiceCallback;
 
     hash_table<xaudio2_source_voice> Voices;
     xaudio2_source_voice VoiceSentinel;
 
     vec3 ListenerPosition;
     vec3 ListenerDirection;
-
-    platform_profiler *Profiler;
-    memory_arena Arena;
-    stream Stream;
 };

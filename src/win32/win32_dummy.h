@@ -13,6 +13,7 @@ struct win32_job_queue_sync
 
 struct win32_platform_state
 {
+    HINSTANCE hInstance;
     HWND WindowHandle;
     WINDOWPLACEMENT WindowPlacement;
     DWORD WindowStyles;
@@ -78,4 +79,44 @@ struct win32_file_attributes
 struct win32_worker_thread
 {
     job_queue *JobQueue;
+};
+
+enum renderer_backend
+{
+    Renderer_OpenGL,
+    Renderer_Direct3D12
+};
+
+struct renderer_state
+{
+    stream Stream;
+    memory_arena Arena;
+    platform_api *Platform;
+    platform_profiler *Profiler;
+
+    renderer_backend Backend;
+    union
+    {
+        opengl_state *OpenGL;
+        d3d12_state *Direct3D12;
+    };
+};
+
+enum audio_backend
+{
+    Audio_XAudio2
+};
+
+struct audio_state
+{
+    stream Stream;
+    memory_arena Arena;
+    platform_api *Platform;
+    platform_profiler *Profiler;
+
+    audio_backend Backend;
+    union
+    {
+        xaudio2_state *XAudio2;
+    };
 };

@@ -279,6 +279,15 @@ struct opengl_render_options
 
 struct opengl_state
 {
+    stream *Stream;
+    memory_arena *Arena;
+    platform_api *Platform;
+    platform_profiler *Profiler;
+
+    HDC WindowDC;
+    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+    PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
+
     char *Vendor;
     char *Renderer;
     char *Version;
@@ -286,11 +295,6 @@ struct opengl_state
 
     u32 WindowWidth;
     u32 WindowHeight;
-
-    stream Stream;
-    memory_arena Arena;
-    platform_api *Platform;
-    platform_profiler *Profiler;
 
     opengl_framebuffer SourceFramebuffer;
     opengl_framebuffer DestFramebuffer;
@@ -315,12 +319,4 @@ struct opengl_state
     GLuint CascadeShadowMaps[4];
     vec2 CascadeBounds[4];
     mat4 CascadeViewProjection[4];
-};
-
-struct win32_opengl_state
-{
-    opengl_state OpenGL;
-
-    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
-    PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
 };

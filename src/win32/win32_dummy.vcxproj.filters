@@ -9,11 +9,13 @@
     <ClInclude Include="win32_dummy_opengl.h" />
     <ClInclude Include="win32_dummy_editor.h" />
     <ClInclude Include="win32_dummy_xaudio2.h" />
+    <ClInclude Include="win32_dummy_d3d12.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="win32_dummy_opengl.cpp" />
     <None Include="win32_dummy_xaudio2.cpp" />
     <None Include="win32_dummy_editor.cpp" />
+    <None Include="win32_dummy_d3d12.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="win32_dummy.rc" />

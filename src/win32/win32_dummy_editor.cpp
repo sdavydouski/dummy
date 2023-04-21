@@ -25,15 +25,23 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_opengl3.cpp>
 
+#include <imgui_impl_dx12.h>
+#include <imgui_impl_dx12.cpp>
+
 #include "dummy.h"
 #include "win32_dummy.h"
 #include "win32_dummy_opengl.h"
+#include "win32_dummy_d3d12.h"
 #include "win32_dummy_xaudio2.h"
 #include "win32_dummy_editor.h"
 
 #include "dummy.cpp"
 
 opengl_texture *OpenGLGetTexture(opengl_state *State, u32 Id);
+
+void Direct3D12ExecuteCommandList(d3d12_state *State);
+void Direct3D12FlushCommandQueue(d3d12_state *State);
+ID3D12Resource *Direct3D12GetCurrentBackBuffer(d3d12_state *State);
 
 inline animation_node *
 GetTransitionDestinationNode(animation_transition *Transition)
@@ -206,7 +214,107 @@ EditorCaptureMouseInput(editor_state *EditorState)
 }
 
 dummy_internal void
-Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
+EditorInitRenderer(editor_state *EditorState)
+{
+    switch (EditorState->Renderer->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            ImGui_ImplOpenGL3_Init();
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            d3d12_state *Direct3D12State = EditorState->Renderer->Direct3D12;
+            d3d12_descriptor_heap DescriptorSRV = Direct3D12State->DescriptorHeapCBV_SRV_UAV;
+
+            ImGui_ImplDX12_Init(
+                Direct3D12State->Device.Get(),
+                SWAP_CHAIN_BUFFER_COUNT,
+                DXGI_FORMAT_R8G8B8A8_UNORM,
+                DescriptorSRV.Heap.Get(),
+                DescriptorSRV.Heap->GetCPUDescriptorHandleForHeapStart(),
+                DescriptorSRV.Heap->GetGPUDescriptorHandleForHeapStart()
+            );
+
+            break;
+        }
+    }
+}
+
+dummy_internal void
+EditorShutdownRenderer(editor_state *EditorState)
+{
+    switch (EditorState->Renderer->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            ImGui_ImplOpenGL3_Shutdown();
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            d3d12_state *Direct3D12 = EditorState->Renderer->Direct3D12;
+            Direct3D12FlushCommandQueue(Direct3D12);
+
+            ImGui_ImplDX12_Shutdown();
+            break;
+        }
+    }
+}
+
+dummy_internal void
+EditorNewFrame(editor_state *EditorState)
+{
+    switch (EditorState->Renderer->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            ImGui_ImplOpenGL3_NewFrame();
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            ImGui_ImplDX12_NewFrame();
+            break;
+        }
+    }
+}
+
+dummy_internal void
+EditorRenderDrawData(editor_state *EditorState)
+{
+    switch (EditorState->Renderer->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            d3d12_state *Direct3D12 = EditorState->Renderer->Direct3D12;
+
+            ID3D12Resource *CurrentBackBuffer = Direct3D12GetCurrentBackBuffer(Direct3D12);
+
+            Direct3D12->CommandList->SetDescriptorHeaps(1, Direct3D12->DescriptorHeapCBV_SRV_UAV.Heap.GetAddressOf());
+
+            ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), Direct3D12->CommandList.Get());
+
+            {
+                CD3DX12_RESOURCE_BARRIER ResourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+                Direct3D12->CommandList->ResourceBarrier(1, &ResourceBarrier);
+            }
+
+            Direct3D12ExecuteCommandList(Direct3D12);
+
+            break;
+        }
+    }
+}
+
+dummy_internal void
+Win32InitEditor(editor_state *EditorState, win32_platform_state *PlatformState)
 {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -244,7 +352,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
 
     // Setup Platform/Renderer bindings
     ImGui_ImplWin32_Init(PlatformState->WindowHandle);
-    ImGui_ImplOpenGL3_Init();
+    EditorInitRenderer(EditorState);
 
     // Load Fonts
     ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
@@ -265,7 +373,7 @@ Win32InitEditor(win32_platform_state *PlatformState, editor_state *EditorState)
 dummy_internal void
 Win32ShutdownEditor(editor_state *EditorState)
 {
-    ImGui_ImplOpenGL3_Shutdown();
+    EditorShutdownRenderer(EditorState);
     ImGui_ImplWin32_Shutdown();
 
     // Save ImNodes state
@@ -338,7 +446,7 @@ EditorRenderModelInfo(model *Model)
 }
 
 dummy_internal void
-EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
+EditorRenderMaterialsInfo(renderer_state *RendererState, model *Model)
 {
     if (ImGui::CollapsingHeader("Materials", ImGuiTreeNodeFlags_DefaultOpen))
     {
@@ -388,6 +496,7 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
 
                         break;
                     }
+#if 0
                     case MaterialProperty_Texture_Diffuse:
                     {
                         opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
@@ -424,6 +533,7 @@ EditorRenderMaterialsInfo(opengl_state *RendererState, model *Model)
 
                         break;
                     }
+#endif
                     default:
                     {
                         break;
@@ -698,7 +808,7 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 }
 
 dummy_internal void
-EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platform_api *Platform, opengl_state *RendererState, game_entity *Entity, render_commands *RenderCommands)
+EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platform_api *Platform, renderer_state *RendererState, game_entity *Entity, render_commands *RenderCommands)
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
 
@@ -1038,8 +1148,6 @@ dummy_internal void
 Win32RenderEditor(
     editor_state *EditorState,
     win32_platform_state *PlatformState,
-    opengl_state *RendererState,
-    xaudio2_state *AudioState,
     game_memory *GameMemory,
     game_parameters *GameParameters,
     game_input *GameInput
@@ -1052,8 +1160,11 @@ Win32RenderEditor(
     platform_api *Platform = GameMemory->Platform;
     render_commands *RenderCommands = GetRenderCommands(GameMemory);
 
+    renderer_state *RendererState = EditorState->Renderer;
+    audio_state *AudioState = EditorState->Audio;
+
     // Start the Dear ImGui frame
-    ImGui_ImplOpenGL3_NewFrame();
+    EditorNewFrame(EditorState);
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
@@ -1232,6 +1343,7 @@ Win32RenderEditor(
 
     EditorLogWindow(EditorState, ArrayCount(Streams), Streams, StreamNames);
 
+#if 0
     ImGui::Begin("Shadow Maps");
 
     if (ImGui::BeginTable("Shadow Maps", 1, ImGuiTableFlags_ScrollX))
@@ -1246,6 +1358,7 @@ Win32RenderEditor(
     }
 
     ImGui::End();
+#endif
 
     ImGui::Begin("Scene");
 
@@ -1370,7 +1483,22 @@ Win32RenderEditor(
     PlatformState->GameWindowPositionX = (i32) GameWindowContentPosition.x;
     PlatformState->GameWindowPositionY = (i32) GameWindowContentPosition.y;
 
-    ImGui::Image((ImTextureID)(umm)RendererState->EditorFramebuffer.ColorTarget, GameWindowSize, ImVec2(0, 1), ImVec2(1, 0));
+    switch (RendererState->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            opengl_state *OpenGL = RendererState->OpenGL;
+
+            ImGui::Image((ImTextureID)(umm)OpenGL->EditorFramebuffer.ColorTarget, GameWindowSize, ImVec2(0, 1), ImVec2(1, 0));
+
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            // todo: not implemented
+            break;
+        }
+    }
 
     ImGui::PushClipRect(GameWindowPosition, GameWindowPosition + GameWindowSize, false);
 
@@ -1555,5 +1683,5 @@ Win32RenderEditor(
 
     // Rendering
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    EditorRenderDrawData(EditorState);
 }

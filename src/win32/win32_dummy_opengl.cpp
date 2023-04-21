@@ -5,7 +5,7 @@
 #include "win32_dummy_opengl.h"
 
 FILETIME Win32GetLastWriteTime(char *FileName);
-void OpenGLInitRenderer(opengl_state* State, i32 WindowWidth, i32 WindowHeight, u32 Samples);
+void OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 Samples);
 
 #define GladLoadGLLoader gladLoadGLLoader
 
@@ -50,30 +50,38 @@ Win32GetOpenGLFuncAddress(char *Name)
 }
 
 inline void
-Win32OpenGLSetVSync(win32_opengl_state *State, bool32 VSync)
+Win32OpenGLSetVSync(opengl_state *State, bool32 VSync)
 {
     State->wglSwapIntervalEXT(VSync);
 }
 
+inline void
+Win32OpenGLPresentFrame(opengl_state *State)
+{
+    SwapBuffers(State->WindowDC);
+}
+
 dummy_internal void
-Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, HINSTANCE hInstance)
+Win32InitOpenGL(opengl_state *State, win32_platform_state *PlatformState)
 {
     RECT WindowRect;
     GetClientRect(PlatformState->WindowHandle, &WindowRect);
 
-    State->OpenGL.WindowWidth = WindowRect.right - WindowRect.left;
-    State->OpenGL.WindowHeight = WindowRect.bottom - WindowRect.top;
+    State->WindowWidth = WindowRect.right - WindowRect.left;
+    State->WindowHeight = WindowRect.bottom - WindowRect.top;
+
+    State->WindowDC = GetDC(PlatformState->WindowHandle);
 
     WNDCLASS FakeWindowClass = {};
     FakeWindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     FakeWindowClass.lpfnWndProc = DefWindowProc;
-    FakeWindowClass.hInstance = hInstance;
+    FakeWindowClass.hInstance = PlatformState->hInstance;
     FakeWindowClass.lpszClassName = L"Fake OpenGL Window Class";
 
     RegisterClass(&FakeWindowClass);
 
     HWND FakeWindowHandle = CreateWindowEx(0, FakeWindowClass.lpszClassName, L"Fake OpenGL Window", 0,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, hInstance, 0
+        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, PlatformState->hInstance, 0
     );
     HDC FakeWindowDC = GetDC(FakeWindowHandle);
 
@@ -152,7 +160,9 @@ Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, 
                         GladLoadGLLoader((GLADloadproc)Win32GetOpenGLFuncAddress);
                         GladSetPostCallback(Win32GladPostCallback);
 
-                        OpenGLInitRenderer(&State->OpenGL, PlatformState->WindowWidth, PlatformState->WindowHeight, PlatformState->Samples);
+                        OpenGLInitRenderer(State, PlatformState->WindowWidth, PlatformState->WindowHeight, PlatformState->Samples);
+
+                        Win32OpenGLSetVSync(State, PlatformState->VSync);
                     }
                     else
                     {
@@ -183,6 +193,12 @@ Win32InitOpenGL(win32_opengl_state *State, win32_platform_state *PlatformState, 
         DWORD Error = GetLastError();
         Assert(!"ChoosePixelFormat failed");
     }
+}
+
+dummy_internal void
+Win32ShutdownOpenGL(opengl_state *State)
+{
+
 }
 
 dummy_internal GLuint
@@ -565,7 +581,7 @@ OpenGLAddMeshBuffer(
         Offset += VertexCount * sizeof(vec3);
 
         //
-        scoped_memory ScopedMemory(&State->Arena);
+        scoped_memory ScopedMemory(State->Arena);
         vec4 *PositionsVec4 = PushArray(ScopedMemory.Arena, VertexCount, vec4);
 
         for (u32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
@@ -811,7 +827,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
     Assert(IsSlotEmpty(Shader->Key));
 
     {
-        scoped_memory ScopedMemory(&State->Arena);
+        scoped_memory ScopedMemory(State->Arena);
 
         u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
 
@@ -868,7 +884,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
         CommonShader->LastWriteTime = Win32GetLastWriteTime(CommonShader->FileName);
     }
 
-    OpenGLLoadShaderUniforms(Shader, &State->Arena);
+    OpenGLLoadShaderUniforms(Shader, State->Arena);
 }
 
 dummy_internal void
@@ -881,7 +897,7 @@ OpenGLReloadShader(opengl_state *State, u32 ShaderId)
     GLuint Program = 0;
 
     {
-        scoped_memory ScopedMemory(&State->Arena);
+        scoped_memory ScopedMemory(State->Arena);
 
         u32 Count = OPENGL_COMMON_SHADER_COUNT + 1;
 
@@ -920,7 +936,7 @@ OpenGLReloadShader(opengl_state *State, u32 ShaderId)
         glDeleteProgram(Shader->Program);
         Shader->Program = Program;
 
-        OpenGLLoadShaderUniforms(Shader, &State->Arena);
+        OpenGLLoadShaderUniforms(Shader, State->Arena);
     }
 }
 
@@ -1292,12 +1308,10 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     State->Version = (char *)glGetString(GL_VERSION);
     State->ShadingLanguageVersion = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    InitHashTable(&State->MeshBuffers, 1021, &State->Arena);
-    InitHashTable(&State->SkinningBuffers, 509, &State->Arena);
-    InitHashTable(&State->Textures, 127, &State->Arena);
-    InitHashTable(&State->Shaders, 61, &State->Arena);
-
-    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(1)));
+    InitHashTable(&State->MeshBuffers, 1021, State->Arena);
+    InitHashTable(&State->SkinningBuffers, 509, State->Arena);
+    InitHashTable(&State->Textures, 127, State->Arena);
+    InitHashTable(&State->Shaders, 61, State->Arena);
 
     State->CascadeShadowMapSize = 4096;
     // todo: set by the game
@@ -1357,7 +1371,7 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     WhiteTexture.Width = 1;
     WhiteTexture.Height = 1;
     WhiteTexture.Channels = 4;
-    u32 *WhitePixel = PushType(&State->Arena, u32);
+    u32 *WhitePixel = PushType(State->Arena, u32);
     *WhitePixel = 0xFFFFFFFF;
     WhiteTexture.Pixels = WhitePixel;
 
@@ -1386,7 +1400,7 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
-    glDebugMessageCallback(OpenGLLogMessage, &State->Stream);
+    glDebugMessageCallback(OpenGLLogMessage, State->Stream);
 #endif
 }
 
@@ -1495,7 +1509,7 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 
                 opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
                 opengl_skinning_buffer *SkinningBuffer = OpenGLGetSkinningBuffer(State, Command->SkinningBufferId);
-                scoped_memory ScopedMemory(&State->Arena);
+                scoped_memory ScopedMemory(State->Arena);
 
                 mat4 *SkinningMatrices = PushArray(ScopedMemory.Arena, Command->InstanceCount * OPENGL_MAX_JOINT_COUNT, mat4, Align(16));
 
@@ -1662,7 +1676,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_set_point_lights *Command = (render_command_set_point_lights *)Entry;
 
-                    scoped_memory ScopedMemory(&State->Arena);
+                    scoped_memory ScopedMemory(State->Arena);
 
                     opengl_point_light *PointLights = PushArray(ScopedMemory.Arena, Command->PointLightCount, opengl_point_light);
 
@@ -1820,7 +1834,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_text *Command = (render_command_draw_text *)Entry;
                     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_TEXT_SHADER_ID);
-                    scoped_memory ScopedMemory(&State->Arena);
+                    scoped_memory ScopedMemory(State->Arena);
 
                     glBindVertexArray(State->Text.VAO);
                     glUseProgram(Shader->Program);
@@ -1914,7 +1928,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_particles *Command = (render_command_draw_particles *)Entry;
                     opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PARTICLE_SHADER_ID);
-                    scoped_memory ScopedMemory(&State->Arena);
+                    scoped_memory ScopedMemory(State->Arena);
 
                     glBindVertexArray(State->Particle.VAO);
                     glUseProgram(Shader->Program);
@@ -2240,7 +2254,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
         render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
-        Out(&State->Stream, "RenderCommand::%s", RenderCommandNames[Entry->Type]);
+        //Out(&State->Stream, "RenderCommand::%s", RenderCommandNames[Entry->Type]);
 
         BaseAddress += Entry->Size;
     }
@@ -2279,7 +2293,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 
     render_commands_settings *RenderSettings = &Commands->Settings;
 
-    if (State->WindowWidth != RenderSettings->WindowWidth || RenderSettings->WindowHeight != RenderSettings->WindowHeight)
+    if (State->WindowWidth != RenderSettings->WindowWidth || State->WindowHeight != RenderSettings->WindowHeight)
     {
         OpenGLOnWindowResize(State, RenderSettings->WindowWidth, RenderSettings->WindowHeight, RenderSettings->Samples);
     }

@@ -1,4 +1,3 @@
-#include <xaudio2.h>
 #include "dummy.h"
 #include "win32_dummy_xaudio2.h"
 
@@ -92,11 +91,15 @@ XAudio2CalculateOutputMatrix(xaudio2_state *State, vec3 EmitterPosition, vec3 Li
 dummy_internal void
 Win32InitXAudio2(xaudio2_state *State)
 {
+    State->EngineCallback = PushType(State->Arena, XAudio2EngineCallback);
+    new(State->EngineCallback) XAudio2EngineCallback();
+
+    State->VoiceCallback = PushType(State->Arena, XAudio2VoiceCallback);
+    new(State->VoiceCallback) XAudio2VoiceCallback();
+
     XAudio2Create(&State->XAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
 
-    State->Stream = CreateStream(SubMemoryArena(&State->Arena, Megabytes(1)));
-
-    State->XAudio2->RegisterForCallbacks(&State->EngineCallback);
+    State->XAudio2->RegisterForCallbacks(State->EngineCallback);
     State->XAudio2->CreateMasteringVoice(&State->MasterVoice);
 
     XAUDIO2_VOICE_DETAILS MasterVoiceDetails;
@@ -115,7 +118,7 @@ Win32InitXAudio2(xaudio2_state *State)
     VoiceSentinel->Next = VoiceSentinel;
 
     State->Voices.Count = 31;
-    State->Voices.Values = PushArray(&State->Arena, State->Voices.Count, xaudio2_source_voice);
+    State->Voices.Values = PushArray(State->Arena, State->Voices.Count, xaudio2_source_voice);
 }
 
 dummy_internal void
@@ -157,7 +160,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * wfx.wBitsPerSample / 8;
 
                 IXAudio2SourceVoice *SourceVoice;
-                State->XAudio2->CreateSourceVoice(&SourceVoice, &wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &State->VoiceCallback);
+                State->XAudio2->CreateSourceVoice(&SourceVoice, &wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, State->VoiceCallback);
 
                 XAUDIO2_VOICE_DETAILS VoiceDetails;
                 SourceVoice->GetVoiceDetails(&VoiceDetails);
@@ -211,7 +214,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 wfx.nAvgBytesPerSec = wfx.nChannels * wfx.nSamplesPerSec * wfx.wBitsPerSample / 8;
 
                 IXAudio2SourceVoice *SourceVoice;
-                State->XAudio2->CreateSourceVoice(&SourceVoice, &wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &State->VoiceCallback);
+                State->XAudio2->CreateSourceVoice(&SourceVoice, &wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, State->VoiceCallback);
 
                 XAUDIO2_VOICE_DETAILS VoiceDetails;
                 SourceVoice->GetVoiceDetails(&VoiceDetails);
@@ -329,7 +332,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
         BaseAddress += Entry->Size;
     }
 
-    HANDLE Events[] = { State->EngineCallback.CriticalError, State->VoiceCallback.BufferEnd };
+    HANDLE Events[] = { State->EngineCallback->CriticalError, State->VoiceCallback->BufferEnd };
 
     switch (WaitForMultipleObjectsEx(ArrayCount(Events), Events, FALSE, 0, FALSE))
     {
@@ -366,9 +369,9 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
 }
 
 inline void
-Win32XAudio2Shutdown(xaudio2_state *State)
+Win32ShutdownXAudio2(xaudio2_state *State)
 {
-    State->XAudio2->UnregisterForCallbacks(&State->EngineCallback);
+    State->XAudio2->UnregisterForCallbacks(State->EngineCallback);
     State->XAudio2->StopEngine();
 
     State->MasterVoice->DestroyVoice();

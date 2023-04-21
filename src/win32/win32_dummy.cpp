@@ -4,11 +4,17 @@
 #include <shobjidl.h>
 
 #include "dummy.h"
+
+#include "win32_dummy_opengl.h"
+#include "win32_dummy_d3d12.h"
+#include "win32_dummy_xaudio2.h"
+
 #include "win32_dummy.h"
 #include "win32_resource.h"
 
-#include "win32_dummy_xaudio2.cpp"
 #include "win32_dummy_opengl.cpp"
+#include "win32_dummy_d3d12.cpp"
+#include "win32_dummy_xaudio2.cpp"
 
 #if EDITOR
 #include "win32_dummy_editor.cpp"
@@ -215,6 +221,157 @@ Win32HideMouseCursor()
     while (DisplayCounter >= 0)
     {
         DisplayCounter = ShowCursor(false);
+    }
+}
+
+dummy_internal void
+Win32InitRenderer(renderer_state *RendererState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, renderer_backend Backend)
+{
+    umm RendererArenaSize = Megabytes(32);
+    InitMemoryArena(&RendererState->Arena, Win32AllocateMemory(0, RendererArenaSize), RendererArenaSize);
+
+    RendererState->Stream = CreateStream(SubMemoryArena(&RendererState->Arena, Megabytes(4)));
+    RendererState->Platform = Platform;
+    RendererState->Profiler = Profiler;
+    RendererState->Backend = Backend;
+
+    switch (RendererState->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            RendererState->OpenGL = PushType(&RendererState->Arena, opengl_state);
+
+            RendererState->OpenGL->Stream = &RendererState->Stream;
+            RendererState->OpenGL->Arena = &RendererState->Arena;
+            RendererState->OpenGL->Platform = RendererState->Platform;
+            RendererState->OpenGL->Profiler = RendererState->Profiler;
+
+            Win32InitOpenGL(RendererState->OpenGL, PlatformState);
+
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            RendererState->Direct3D12 = PushType(&RendererState->Arena, d3d12_state);
+
+            RendererState->Direct3D12->Stream = &RendererState->Stream;
+            RendererState->Direct3D12->Arena = &RendererState->Arena;
+            RendererState->Direct3D12->Platform = RendererState->Platform;
+            RendererState->Direct3D12->Profiler = RendererState->Profiler;
+
+            Win32InitDirect3D12(RendererState->Direct3D12, PlatformState);
+
+            break;
+        }
+    }
+}
+
+dummy_internal void
+ProcessRenderCommands(renderer_state *RendererState, render_commands *RenderCommands)
+{
+    switch (RendererState->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            OpenGLProcessRenderCommands(RendererState->OpenGL, RenderCommands);
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            Direct3D12ProcessRenderCommands(RendererState->Direct3D12, RenderCommands);
+            break;
+        }
+    }
+}
+
+dummy_internal void
+Win32PresentFrame(renderer_state *RendererState)
+{
+    switch (RendererState->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            Win32OpenGLPresentFrame(RendererState->OpenGL);
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            Direct3D12PresentFrame(RendererState->Direct3D12);
+            break;
+        }
+    }
+}
+
+dummy_internal void
+Win32ShutdownRenderer(renderer_state *RendererState)
+{
+    switch (RendererState->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            Win32ShutdownOpenGL(RendererState->OpenGL);
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            ShutdownDirect3D12(RendererState->Direct3D12);
+            break;
+        }
+    }
+}
+
+dummy_internal void
+Win32InitXAudio2(audio_state *AudioState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, audio_backend Backend)
+{
+    umm AudioArenaSize = Megabytes(32);
+    InitMemoryArena(&AudioState->Arena, Win32AllocateMemory(0, AudioArenaSize), AudioArenaSize);
+
+    AudioState->Stream = CreateStream(SubMemoryArena(&AudioState->Arena, Megabytes(4)));
+    AudioState->Platform = Platform;
+    AudioState->Profiler = Profiler;
+    AudioState->Backend = Backend;
+
+    switch (AudioState->Backend)
+    {
+        case Audio_XAudio2:
+        {
+            AudioState->XAudio2 = PushType(&AudioState->Arena, xaudio2_state);
+
+            AudioState->XAudio2->Stream = &AudioState->Stream;
+            AudioState->XAudio2->Arena = &AudioState->Arena;
+            AudioState->XAudio2->Platform = AudioState->Platform;
+            AudioState->XAudio2->Profiler = AudioState->Profiler;
+
+            Win32InitXAudio2(AudioState->XAudio2);
+
+            break;
+        }
+    }
+}
+
+dummy_internal void
+ProcessAudioCommands(audio_state *AudioState, audio_commands *AudioCommands)
+{
+    switch (AudioState->Backend)
+    {
+        case Audio_XAudio2:
+        {
+            XAudio2ProcessAudioCommands(AudioState->XAudio2, AudioCommands);
+            break;
+        }
+    }
+}
+
+dummy_internal void
+Win32ShutdownAudio(audio_state *AudioState)
+{
+    switch (AudioState->Backend)
+    {
+        case Audio_XAudio2:
+        {
+            Win32ShutdownXAudio2(AudioState->XAudio2);
+            break;
+        }
     }
 }
 
@@ -1180,18 +1337,19 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 #if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
-    PlatformState.GameWindowWidth = PlatformState.WindowWidth;
-    PlatformState.GameWindowHeight = PlatformState.WindowHeight;
 #else
     PlatformState.WindowWidth = 1600;
     PlatformState.WindowHeight = 900;
 #endif
+    PlatformState.GameWindowWidth = PlatformState.WindowWidth;
+    PlatformState.GameWindowHeight = PlatformState.WindowHeight;
     PlatformState.ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.Samples = 4;
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.IsFullScreen = true;
+    PlatformState.IsFullScreen = false;
     PlatformState.VSync = false;
+    PlatformState.hInstance = hInstance;
 
     Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
     Out(&PlatformState.Stream, "Platform::Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
@@ -1287,28 +1445,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     if (PlatformState.WindowHandle)
     {
-        HDC WindowDC = GetDC(PlatformState.WindowHandle);
+        renderer_state RendererState = {};
+        Win32InitRenderer(&RendererState, &PlatformState, &PlatformApi, &PlatformProfiler, Renderer_OpenGL);
 
-        // OpenGL
-        win32_opengl_state Win32OpenGLState = {};
-
-        umm RendererArenaSize = Megabytes(32);
-        InitMemoryArena(&Win32OpenGLState.OpenGL.Arena, Win32AllocateMemory(0, RendererArenaSize), RendererArenaSize);
-
-        Win32OpenGLState.OpenGL.Platform = &PlatformApi;
-        Win32OpenGLState.OpenGL.Profiler = &PlatformProfiler;
-
-        Win32InitOpenGL(&Win32OpenGLState, &PlatformState, hInstance);
-        Win32OpenGLSetVSync(&Win32OpenGLState, PlatformState.VSync);
-
-        // XAudio2
-        xaudio2_state XAudio2State = {};
-        XAudio2State.Profiler = &PlatformProfiler;
-
-        umm XAudio2ArenaSize = Megabytes(32);
-        InitMemoryArena(&XAudio2State.Arena, Win32AllocateMemory(0, XAudio2ArenaSize), XAudio2ArenaSize);
-
-        Win32InitXAudio2(&XAudio2State);
+        audio_state AudioState = {};
+        Win32InitXAudio2(&AudioState, &PlatformState, &PlatformApi, &PlatformProfiler, Audio_XAudio2);
 
         // Center window on screen
         PlatformState.WindowPositionX = PlatformState.ScreenWidth / 2 - PlatformState.WindowWidth / 2;
@@ -1330,11 +1471,15 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 #if EDITOR
         editor_state EditorState = {};
+        EditorState.Renderer = &RendererState;
+        EditorState.Audio = &AudioState;
         EditorState.Platform = &PlatformApi;
+
         umm EditorArenaSize = Megabytes(32);
         InitMemoryArena(&EditorState.Arena, Win32AllocateMemory(0, EditorArenaSize), EditorArenaSize);
+
+        EDITOR_INIT(&EditorState, &PlatformState);
 #endif
-        EDITOR_INIT(&PlatformState, &EditorState);
 
         game_parameters GameParameters = {};
         game_input GameInput = {};
@@ -1374,6 +1519,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 PROFILE(&PlatformProfiler, "Win32ProcessWindowMessages");
                 Win32ProcessWindowMessages(&PlatformState, &KeyboardInput, &MouseInput);
             }
+
             {
                 PROFILE(&PlatformProfiler, "Win32ProcessXboxControllerInput");
                 Win32ProcessXboxControllerInput(&PlatformState, &XboxControllerInput);
@@ -1441,11 +1587,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameCode.Render(&GameMemory, &GameParameters, &GameInput);
 
                 audio_commands *AudioCommands = GetAudioCommands(&GameMemory);
-                XAudio2ProcessAudioCommands(&XAudio2State, AudioCommands);
+                ProcessAudioCommands(&AudioState, AudioCommands);
                 ClearAudioCommands(&GameMemory);
 
                 render_commands *RenderCommands = GetRenderCommands(&GameMemory);
-                OpenGLProcessRenderCommands(&Win32OpenGLState.OpenGL, RenderCommands);
+                ProcessRenderCommands(&RendererState, RenderCommands);
                 ClearRenderCommands(&GameMemory);
             }
 
@@ -1453,24 +1599,19 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             {
                 PROFILE(&PlatformProfiler, "EDITOR_UI_RENDER");
-                EDITOR_RENDER(&EditorState, &PlatformState, &Win32OpenGLState.OpenGL, &XAudio2State, &GameMemory, &GameParameters, &GameInput);
+                EDITOR_RENDER(&EditorState, &PlatformState, &GameMemory, &GameParameters, &GameInput);
             }
 
-            ClearStream(&Win32OpenGLState.OpenGL.Stream);
             ClearGameInput(&GameInput);
 
             if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
             {
                 Win32ToggleFullScreen(&PlatformState);
             }
-            if (LastPlatformState.VSync != PlatformState.VSync)
-            {
-                Win32OpenGLSetVSync(&Win32OpenGLState, PlatformState.VSync);
-            }
 
             {
-                PROFILE(&PlatformProfiler, "SwapBuffers");
-                SwapBuffers(WindowDC);
+                PROFILE(&PlatformProfiler, "Win32PresentFrame");
+                Win32PresentFrame(&RendererState);
             }
 
             LARGE_INTEGER CurrentPerformanceCounter;
@@ -1493,9 +1634,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         // Cleanup
         EDITOR_SHUTDOWN(&EditorState);
 
-        Win32XAudio2Shutdown(&XAudio2State);
-
-        Win32DeallocateMemory(PlatformState.GameMemoryBlock);
+        Win32ShutdownRenderer(&RendererState);
+        Win32ShutdownAudio(&AudioState);
 
         DestroyWindow(PlatformState.WindowHandle);
         UnregisterClass(WindowClass.lpszClassName, hInstance);

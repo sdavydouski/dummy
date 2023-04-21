@@ -115,10 +115,10 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\external\imnodes\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\external\imnodes\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\renderers\Direct3D12\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <ExceptionHandling>false</ExceptionHandling>
+      <ExceptionHandling>Sync</ExceptionHandling>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
@@ -126,7 +126,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;Ole32.lib;opengl32.lib;xinput.lib;xaudio2.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;ole32.lib;opengl32.lib;d3d12.lib;dxgi.lib;xinput.lib;xaudio2.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>
       </IgnoreAllDefaultLibraries>
     </Link>
@@ -166,9 +166,9 @@ xcopy "$(SolutionDir)shaders" "$(SolutionDir)..\game\shaders" /s /e /y /i</Comma
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\external\imnodes\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\external\imgui\;$(ProjectDir)\..\external\imgui\backends\;$(ProjectDir)\..\external\ImGuizmo\;$(ProjectDir)\..\external\imnodes\;$(ProjectDir)\..\renderers\OpenGL\;$(ProjectDir)\..\renderers\Direct3D12\;$(ProjectDir)\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <ExceptionHandling>false</ExceptionHandling>
+      <ExceptionHandling>Sync</ExceptionHandling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
@@ -178,7 +178,7 @@ xcopy "$(SolutionDir)shaders" "$(SolutionDir)..\game\shaders" /s /e /y /i</Comma
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;Ole32.lib;opengl32.lib;xinput.lib;xaudio2.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;ole32.lib;opengl32.lib;d3d12.lib;dxgi.lib;xinput.lib;xaudio2.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>
       </IgnoreAllDefaultLibraries>
     </Link>
@@ -193,11 +193,13 @@ xcopy "$(SolutionDir)shaders" "$(SolutionDir)..\game\shaders" /s /e /y /i</Comma
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="win32_dummy.cpp" />
+    <None Include="win32_dummy_d3d12.cpp" />
     <None Include="win32_dummy_editor.cpp" />
     <None Include="win32_dummy_xaudio2.cpp" />
     <None Include="win32_dummy_opengl.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="win32_dummy_d3d12.h" />
     <ClInclude Include="win32_dummy_editor.h" />
     <ClInclude Include="win32_dummy_opengl.h" />
     <ClInclude Include="win32_dummy_xaudio2.h" />
