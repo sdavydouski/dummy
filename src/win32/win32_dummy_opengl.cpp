@@ -50,14 +50,9 @@ Win32GetOpenGLFuncAddress(char *Name)
 }
 
 inline void
-Win32OpenGLSetVSync(opengl_state *State, bool32 VSync)
+Win32OpenGLPresentFrame(opengl_state *State, bool32 VSync)
 {
     State->wglSwapIntervalEXT(VSync);
-}
-
-inline void
-Win32OpenGLPresentFrame(opengl_state *State)
-{
     SwapBuffers(State->WindowDC);
 }
 
@@ -161,8 +156,6 @@ Win32InitOpenGL(opengl_state *State, win32_platform_state *PlatformState)
                         GladSetPostCallback(Win32GladPostCallback);
 
                         OpenGLInitRenderer(State, PlatformState->WindowWidth, PlatformState->WindowHeight, PlatformState->Samples);
-
-                        Win32OpenGLSetVSync(State, PlatformState->VSync);
                     }
                     else
                     {

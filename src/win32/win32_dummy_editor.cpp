@@ -1296,7 +1296,7 @@ Win32RenderEditor(
                         ImGui::Checkbox("Show Skybox", (bool *)&GameState->Options.ShowSkybox);
 
                         ImGui::TableNextColumn();
-                        ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen);
+                        ImGui::Checkbox("FullScreen", (bool *)&PlatformState->IsFullScreen.Value);
 
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("VSync", (bool *)&PlatformState->VSync);
@@ -1478,8 +1478,8 @@ Win32RenderEditor(
 
     ImVec2 GameWindowContentPosition = ImGui::GetCursorScreenPos();
 
-    PlatformState->GameWindowWidth = (u32)GameWindowSize.x;
-    PlatformState->GameWindowHeight = (u32)GameWindowSize.y;
+    PlatformState->GameWindowWidth = (u32) GameWindowSize.x;
+    PlatformState->GameWindowHeight = (u32) GameWindowSize.y;
     PlatformState->GameWindowPositionX = (i32) GameWindowContentPosition.x;
     PlatformState->GameWindowPositionY = (i32) GameWindowContentPosition.y;
 
@@ -1586,7 +1586,7 @@ Win32RenderEditor(
             transform EntityTransform = {};
 
             EntityTransform.Translation = Translation;
-            EntityTransform.Rotation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+            EntityTransform.Rotation = EulerToQuat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
             EntityTransform.Scale = Scale;
 
             Entity->Transform = EntityTransform;
@@ -1595,7 +1595,7 @@ Win32RenderEditor(
             if (Entity->Body)
             {
                 Entity->Body->Position = Translation;
-                Entity->Body->Orientation = Euler2Quat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+                Entity->Body->Orientation = EulerToQuat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
             }
 
             if (Entity->Collider)

@@ -39,8 +39,9 @@ struct win32_platform_state
     u32 Samples;
 
     bool32 IsWindowActive;
-    bool32 IsFullScreen;
     bool32 VSync;
+
+    value_state<bool32> IsFullScreen;
 
     wchar EXEDirectoryFullPath[WIN32_FILE_PATH];
 

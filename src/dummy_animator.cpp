@@ -189,8 +189,9 @@ ANIMATOR_CONTROLLER(BotAnimatorController)
                 animation_node *JumpLandNode = GetAnimationNode(Graph, "Jump_Land");
 
                 f32 Velocity = Abs(BotParams->PrevVelocity.y);
+                // todo:
                 f32 VelocityMin = 0.f;
-                f32 VelocityMax = 12.f;
+                f32 VelocityMax = 14.f;
                 f32 FallImpact = NormalizeRange(Velocity, VelocityMin, VelocityMax);
 
                 additive_animation *Landing = GetAdditiveAnimation(JumpLandNode, "falling_to_landing::additive");

@@ -176,6 +176,14 @@ struct value_state
 
 template <typename T>
 inline void
+InitValueState(value_state<T> *State, T Value)
+{
+    State->Value = Value;
+    State->PrevValue = Value;
+}
+
+template <typename T>
+inline void
 SavePrevValueState(value_state<T> *State)
 {
     State->PrevValue = State->Value;

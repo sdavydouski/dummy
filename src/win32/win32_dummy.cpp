@@ -285,18 +285,18 @@ ProcessRenderCommands(renderer_state *RendererState, render_commands *RenderComm
 }
 
 dummy_internal void
-Win32PresentFrame(renderer_state *RendererState)
+Win32PresentFrame(renderer_state *RendererState, bool32 VSync)
 {
     switch (RendererState->Backend)
     {
         case Renderer_OpenGL:
         {
-            Win32OpenGLPresentFrame(RendererState->OpenGL);
+            Win32OpenGLPresentFrame(RendererState->OpenGL, VSync);
             break;
         }
         case Renderer_Direct3D12:
         {
-            Direct3D12PresentFrame(RendererState->Direct3D12);
+            Direct3D12PresentFrame(RendererState->Direct3D12, VSync);
             break;
         }
     }
@@ -547,6 +547,11 @@ LRESULT CALLBACK WindowProc(_In_ HWND hwnd, _In_ UINT uMsg, _In_ WPARAM wParam, 
 
             PlatformState->WindowWidth = LOWORD(lParam);
             PlatformState->WindowHeight = HIWORD(lParam);
+
+#if (!EDITOR)
+            PlatformState->GameWindowWidth = PlatformState->WindowWidth;
+            PlatformState->GameWindowHeight = PlatformState->WindowHeight;
+#endif
 
             break;
         }
@@ -1347,9 +1352,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
     PlatformState.Samples = 4;
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
-    PlatformState.IsFullScreen = false;
-    PlatformState.VSync = false;
     PlatformState.hInstance = hInstance;
+    PlatformState.VSync = true;
+    InitValueState(&PlatformState.IsFullScreen, (bool32) true);
 
     Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
     Out(&PlatformState.Stream, "Platform::Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
@@ -1462,7 +1467,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
         ShowWindow(PlatformState.WindowHandle, nShowCmd);
 
-        if (PlatformState.IsFullScreen)
+        if (PlatformState.IsFullScreen.Value)
         {
             Win32ToggleFullScreen(&PlatformState);
         }
@@ -1494,11 +1499,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         GameParameters.WindowWidth = PlatformState.WindowWidth;
         GameParameters.WindowHeight = PlatformState.WindowHeight;
         GameParameters.Samples = PlatformState.Samples;
-        GameParameters.UpdateRate = 1.f / 20.f;
+        GameParameters.UpdateRate = 1.f / 50.f;
         GameParameters.TimeScale = 1.f;
-
-        u32 UpdateCount = 0;
-        u32 MaxUpdateCount = 5;
 
         PlatformState.IsGameRunning = true;
 
@@ -1509,7 +1511,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         {
             PROFILER_START_FRAME(&PlatformProfiler);
 
-#if 0
+            if (Changed(PlatformState.IsFullScreen))
+            {
+                Win32ToggleFullScreen(&PlatformState);
+            }
+
+            SavePrevValueState(&PlatformState.IsFullScreen);
+
+#if 1
             char WindowTitle[64];
             FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
             SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
@@ -1570,17 +1579,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                     PROFILE(&PlatformProfiler, "FixedUpdate");
 
                     GameParameters.UpdateLag += GameParameters.Delta;
-                    UpdateCount = 0;
 
-                    while (GameParameters.UpdateLag >= GameParameters.UpdateRate && UpdateCount < MaxUpdateCount)
+                    while (GameParameters.UpdateLag >= GameParameters.UpdateRate)
                     {
                         GameCode.Update(&GameMemory, &GameParameters, &GameInput);
-
                         GameParameters.UpdateLag -= GameParameters.UpdateRate;
-                        UpdateCount++;
                     }
-
-                    GameParameters.UpdateLag = Min(GameParameters.UpdateLag, GameParameters.UpdateRate);
                 }
 
                 // Render
@@ -1595,8 +1599,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 ClearRenderCommands(&GameMemory);
             }
 
-            win32_platform_state LastPlatformState = PlatformState;
-
             {
                 PROFILE(&PlatformProfiler, "EDITOR_UI_RENDER");
                 EDITOR_RENDER(&EditorState, &PlatformState, &GameMemory, &GameParameters, &GameInput);
@@ -1604,14 +1606,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             ClearGameInput(&GameInput);
 
-            if (LastPlatformState.IsFullScreen != PlatformState.IsFullScreen)
-            {
-                Win32ToggleFullScreen(&PlatformState);
-            }
-
             {
                 PROFILE(&PlatformProfiler, "Win32PresentFrame");
-                Win32PresentFrame(&RendererState);
+                Win32PresentFrame(&RendererState, PlatformState.VSync);
             }
 
             LARGE_INTEGER CurrentPerformanceCounter;
@@ -1619,8 +1616,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
             u64 DeltaPerformanceCounter = CurrentPerformanceCounter.QuadPart - LastPerformanceCounter.QuadPart;
             f32 Delta = (f32) DeltaPerformanceCounter / (f32) PlatformState.PerformanceFrequency;
-            // ?
-            Delta = Min(Delta, 1.f);
+
+            // If Delta is too large, we must have resumed from a breakpoint - frame-lock to the target rate this frame
+            if (Delta > 1.f)
+            {
+                Delta = 1.f / 60.f;
+            }
 
             GameParameters.UnscaledDelta = Delta;
             GameParameters.UnscaledTime += GameParameters.UnscaledDelta;

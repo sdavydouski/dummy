@@ -20,26 +20,27 @@ RemoveGameProcess(game_process *Process)
 }
 
 inline void
-InitGameProcess(game_process *Process, char *ProcessName, game_process_on_update *OnUpdatePerFrame)
+InitGameProcess(game_process *Process, char *ProcessName, game_process_on_update *OnUpdatePerFrame, game_process_params Params)
 {
     CopyString(ProcessName, Process->Key);
     Process->OnUpdatePerFrame = OnUpdatePerFrame;
+    Process->Params = Params;
 }
 
 dummy_internal void
-StartGameProcess_(game_state *State, const char *ProcessName, game_process_on_update *OnUpdatePerFrame)
+StartGameProcess_(game_state *State, const char *ProcessName, game_process_on_update *OnUpdatePerFrame, game_process_params Params)
 {
     game_process *Process = GetGameProcess(State, (char *)ProcessName);
 
     if (IsSlotEmpty(Process->Key))
     {
-        InitGameProcess(Process, (char *)ProcessName, OnUpdatePerFrame);
+        InitGameProcess(Process, (char *)ProcessName, OnUpdatePerFrame, Params);
         AddGameProcess(State, Process);
     }
 }
 
 dummy_internal void
-EndGameProcess(game_state *State, const char *ProcessName)
+EndGameProcess_(game_state *State, const char *ProcessName)
 {
     game_process *Process = GetGameProcess(State, (char *)ProcessName);
 
@@ -57,83 +58,68 @@ EndGameProcess(game_state *State, const char *ProcessName)
     }
 }
 
-#define StartGameProcess(State, OnUpdatePerFrame) StartGameProcess_(State, #OnUpdatePerFrame, OnUpdatePerFrame)
+#define StartGameProcess(State, OnUpdatePerFrame, Params) StartGameProcess_(State, #OnUpdatePerFrame, OnUpdatePerFrame, Params)
+#define EndGameProcess(State, OnUpdatePerFrame) EndGameProcess_(State, #OnUpdatePerFrame)
 
 inline void
-AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildProcessName, game_process_on_update *ChildOnUpdatePerFrame)
+AttachChildGameProcess(game_state *State, char *ParentProcessName, char *ChildProcessName, game_process_on_update *ChildOnUpdatePerFrame, game_process_params ChildParams)
 {
     game_process *ParentProcess = GetGameProcess(State, ParentProcessName);
     game_process *ChildProcess = GetGameProcess(State, ChildProcessName);
 
     if (IsSlotEmpty(ChildProcess->Key))
     {
-        InitGameProcess(ChildProcess, ChildProcessName, ChildOnUpdatePerFrame);
+        InitGameProcess(ChildProcess, ChildProcessName, ChildOnUpdatePerFrame, ChildParams);
     }
 
     ParentProcess->Child = ChildProcess;
 }
 
-#if 0
-DLLExport GAME_PROCESS_ON_UPDATE(DelayProcess)
+DLLExport GAME_PROCESS_ON_UPDATE(RigidBodyOrientationLerpProcess)
 {
-    State->DelayTime += Delta;
+    rigid_body *Body = Process->Params.Entity->Body;
 
-    if (State->DelayTime >= State->DelayDuration)
+    if (Body->OrientationLerp.Duration > 0.f)
     {
-        State->DelayTime = 0.f;
+        Body->OrientationLerp.Time += Delta;
 
-        EndGameProcess(State, Process->Key);
-    }
-}
-#endif
-
-DLLExport GAME_PROCESS_ON_UPDATE(PlayerOrientationLerpProcess)
-{
-    rigid_body *PlayerBody = State->Player->Body;
-
-    if (PlayerBody->OrientationLerp.Duration > 0.f)
-    {
-        PlayerBody->OrientationLerp.Time += Delta;
-
-        f32 t = PlayerBody->OrientationLerp.Time / PlayerBody->OrientationLerp.Duration;
+        f32 t = Body->OrientationLerp.Time / Body->OrientationLerp.Duration;
 
         if (t <= 1.f)
         {
-            PlayerBody->Orientation = Slerp(PlayerBody->OrientationLerp.From, t, PlayerBody->OrientationLerp.To);
+            Body->Orientation = Slerp(Body->OrientationLerp.From, t, Body->OrientationLerp.To);
         }
         else
         {
-            EndGameProcess(State, Process->Key);
+            EndGameProcess_(State, Process->Key);
         }
     }
 }
 
-#if 0
-DLLExport GAME_PROCESS_ON_UPDATE(PlayerPositionLerpProcess)
+DLLExport GAME_PROCESS_ON_UPDATE(RigidBodyPositionLerpProcess)
 {
-    rigid_body *PlayerBody = State->Player->Body;
+    rigid_body *Body = Process->Params.Entity->Body;
 
-    if (PlayerBody->PositionLerp.Duration > 0.f)
+    if (Body->PositionLerp.Duration > 0.f)
     {
-        PlayerBody->PositionLerp.Time += Delta;
+        Body->PositionLerp.Time += Delta;
 
-        f32 t = PlayerBody->PositionLerp.Time / PlayerBody->PositionLerp.Duration;
+        f32 t = Body->PositionLerp.Time / Body->PositionLerp.Duration;
 
         if (t <= 1.f)
         {
-            PlayerBody->Position = Lerp(PlayerBody->PositionLerp.From, t, PlayerBody->PositionLerp.To);
+            Body->Position = Lerp(Body->PositionLerp.From, t, Body->PositionLerp.To);
         }
         else
         {
-            EndGameProcess(State, Process->Key);
+            EndGameProcess_(State, Process->Key);
         }
     }
 }
-#endif
 
 DLLExport GAME_PROCESS_ON_UPDATE(SmoothInputMoveProcess)
 {
-    f32 InterpolationTime = 0.2f;
+    f32 InterpolationTime = Process->Params.InterpolationTime;
 
     vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
     State->CurrentMove += dMove * Delta;

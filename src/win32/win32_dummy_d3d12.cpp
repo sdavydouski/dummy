@@ -257,9 +257,9 @@ Direct3D12ProcessRenderCommands(d3d12_state *State, render_commands *Commands)
 }
 
 inline void
-Direct3D12PresentFrame(d3d12_state *State)
+Direct3D12PresentFrame(d3d12_state *State, bool32 VSync)
 {
-    State->SwapChain->Present(0, 0);
+    State->SwapChain->Present(VSync, 0);
 
     u64 PrevFrameFenceValue = State->FenceValues[State->CurrentBackBufferIndex];
     State->CurrentBackBufferIndex = State->SwapChain->GetCurrentBackBufferIndex();

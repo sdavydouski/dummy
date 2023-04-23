@@ -522,7 +522,7 @@ LookAt(vec3 Position, vec3 Target, vec3 Up)
 
 // todo: Roll?
 inline vec3
-Euler2Direction(f32 Yaw, f32 Pitch)
+EulerToDirection(f32 Yaw, f32 Pitch)
 {
     vec3 Result = vec3(1.f);
 
@@ -538,7 +538,7 @@ Euler2Direction(f32 Yaw, f32 Pitch)
 // todo: change ther order!
 // Yaw (Z), Pitch (Y), Roll (X)
 inline quat
-Euler2Quat(f32 Yaw, f32 Pitch, f32 Roll)
+EulerToQuat(f32 Yaw, f32 Pitch, f32 Roll)
 {
     f32 cy = Cos(Yaw * 0.5f);
     f32 sy = Sin(Yaw * 0.5f);
@@ -765,32 +765,36 @@ Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
     u = 1.f - v - w;
 }
 
-// todo: ?
-#if 0
+/*
+    Right-handed Cartesian coordinates
+    
+        y
+        |  
+        |
+        | 
+        |
+        +------------ x
+       /
+      /
+     /
+    z
+
+    SphericalCoords.x - Radial Distance
+    SphericalCoords.y - Azimuth
+    SphericalCoords.z - Altitude
+
+*/
 inline vec3
-Spherical2Cartesian(vec3 SphericalCoords)
+SphericalToCartesian(vec3 SphericalCoords)
 {
     vec3 Result;
 
-    Result.x = SphericalCoords.x * Cos(SphericalCoords.y) * Sin(SphericalCoords.z);
-    Result.y = SphericalCoords.x * Cos(SphericalCoords.z);
-    Result.z = SphericalCoords.x * Sin(SphericalCoords.y) * Sin(SphericalCoords.z);
+    Result.x = SphericalCoords.x * Sin(HALF_PI - SphericalCoords.z) * Sin(SphericalCoords.y);
+    Result.y = SphericalCoords.x * Cos(HALF_PI - SphericalCoords.z);
+    Result.z = SphericalCoords.x * Sin(HALF_PI - SphericalCoords.z) * Cos(SphericalCoords.y);
     
     return Result;
 }
-
-inline vec3
-Cartesian2Spherical(vec3 CartesianCoords)
-{
-    vec3 Result;
-
-    Result.x = Sqrt(Square(CartesianCoords.x) + Square(CartesianCoords.y) + Square(CartesianCoords.z));
-    Result.y = Atan2(CartesianCoords.x, CartesianCoords.z);
-    Result.z = Acos(CartesianCoords.y / CartesianCoords.x);
-
-    return Result;
-}
-#endif
 
 inline vec3
 UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
