@@ -914,14 +914,9 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
         {
             rigid_body_spec *RigidBody = &EditorState->AddEntity.RigidBody;
 
-            if (Entity->Animation)
-            {
-                ImGui::Checkbox("Root Motion##RigidBody", (bool *)&RigidBody->RootMotionEnabled);
-            }
-
             if (ImGui::Button("Add##RigidBody"))
             {
-                AddRigidBody(Entity, RigidBody->RootMotionEnabled, &GameState->WorldArea.Arena);
+                AddRigidBody(Entity, &GameState->WorldArea.Arena);
                 EditorState->AddEntity.RigidBody = {};
             }
         }
@@ -1149,7 +1144,7 @@ Win32RenderEditor(
     editor_state *EditorState,
     win32_platform_state *PlatformState,
     game_memory *GameMemory,
-    game_parameters *GameParameters,
+    game_params *GameParameters,
     game_input *GameInput
 )
 {
@@ -1360,6 +1355,21 @@ Win32RenderEditor(
     ImGui::End();
 #endif
 
+    ImGui::Begin("Processes");
+
+    game_process *GameProcess = GameState->ProcessSentinel.Next;
+
+    while (GameProcess->OnUpdatePerFrame)
+    {
+        char Label[256];
+        FormatString(Label, "%s (Id: %d)", GameProcess->Name, GameProcess->Key);
+        ImGui::Text(Label);
+
+        GameProcess = GameProcess->Next;
+    }
+
+    ImGui::End();
+
     ImGui::Begin("Scene");
 
     if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, -FLT_MIN)))
@@ -1511,17 +1521,11 @@ Win32RenderEditor(
     ImGui::Text("Size: %d, %d", GameParameters->WindowWidth, GameParameters->WindowHeight);
 
 #if 0
-    ImGui::Text("Editor capture mouse input: %d", EditorCaptureMouseInput(EditorState));
-    ImGui::Text("Editor capture keyboard input: %d", EditorCaptureKeyboardInput(EditorState));
-
     game_camera *PlayerCamera = &GameState->PlayerCamera;
-    game_camera *EditorCamera = &GameState->EditorCamera;
 
-    ImGui::Text("Camera position: %.2f, %.2f, %.2f", EditorCamera->Position.x, EditorCamera->Position.y, EditorCamera->Position.z);
-    //ImGui::Text("Camera target position: %.2f, %.2f, %.2f", GameState->PlayerCamera.TargetPosition.x, GameState->PlayerCamera.TargetPosition.y, GameState->PlayerCamera.TargetPosition.z);
-    //ImGui::Text("Camera distance: %.2f", GameState->PlayerCamera.SphericalCoords.x);
-    ImGui::Text("Camera azimuth: %.2f", DEGREES(EditorCamera->SphericalCoords.y));
-    ImGui::Text("Camera altitude: %.2f", DEGREES(EditorCamera->SphericalCoords.z));
+    ImGui::Text("Camera distance: %.2f", PlayerCamera->SphericalCoords.x);
+    ImGui::Text("Camera azimuth: %.2f", DEGREES(PlayerCamera->SphericalCoords.y));
+    ImGui::Text("Camera altitude: %.2f", DEGREES(PlayerCamera->SphericalCoords.z));
 #endif
 
     ImGui::End();

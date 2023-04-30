@@ -54,6 +54,18 @@ struct quat
     }
 };
 
+inline bool32 operator ==(quat q1, quat q2)
+{
+    bool32 Result = q1.x == q2.x && q1.y == q2.y && q1.z == q2.z && q1.w == q2.w;
+    return Result;
+}
+
+inline bool32 operator !=(quat q1, quat q2)
+{
+    bool32 Result = !(q1 == q2);
+    return Result;
+}
+
 inline quat operator *(quat q1, quat q2)
 {
     quat Result = quat(

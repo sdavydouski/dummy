@@ -10,7 +10,7 @@ struct spatial_hash_grid_cell
 
 struct spatial_hash_grid
 {
-    bounds Bounds;
+    aabb Bounds;
     vec3 CellSize;
     ivec3 CellCount;
 

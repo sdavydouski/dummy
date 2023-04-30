@@ -111,16 +111,19 @@ struct platform_api
 struct game_memory
 {
     umm PermanentStorageSize;
-    void *PermanentStorage;
+    u8 *PermanentStorage;
 
-    umm TransientStorageSize;
-    void *TransientStorage;
+    umm FrameStorageSize;
+    u8 *FrameStorage;
+
+    u8 *AssetsStorage;
+    umm AssetsStorageSize;
 
     umm RenderCommandsStorageSize;
-    void *RenderCommandsStorage;
+    u8 *RenderCommandsStorage;
 
     umm AudioCommandsStorageSize;
-    void *AudioCommandsStorage;
+    u8 *AudioCommandsStorage;
 
     platform_api *Platform;
     platform_profiler *Profiler;
@@ -198,7 +201,7 @@ Changed(value_state<T> ValueState)
 }
 //
 
-struct game_parameters
+struct game_params
 {
     u32 WindowWidth;
     u32 WindowHeight;
@@ -211,20 +214,21 @@ struct game_parameters
     f32 PrevTimeScale;
     f32 TimeScale;
     f32 UpdateRate;
+    f32 UpdateAccumulator;
     f32 UpdateLag;
 };
 
-#define GAME_INIT(name) void name(game_memory *Memory, game_parameters *Parameters)
+#define GAME_INIT(name) void name(game_memory *Memory, game_params *Params)
 typedef GAME_INIT(game_init);
 
 #define GAME_RELOAD(name) void name(game_memory *Memory)
 typedef GAME_RELOAD(game_reload);
 
-#define GAME_PROCESS_INPUT(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
+#define GAME_PROCESS_INPUT(name) void name(game_memory *Memory, game_params *Params, game_input *Input)
 typedef GAME_PROCESS_INPUT(game_process_input);
 
-#define GAME_UPDATE(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
+#define GAME_UPDATE(name) void name(game_memory *Memory, game_params *Params, game_input *Input)
 typedef GAME_UPDATE(game_update);
 
-#define GAME_RENDER(name) void name(game_memory *Memory, game_parameters *Parameters, game_input *Input)
+#define GAME_RENDER(name) void name(game_memory *Memory, game_params *Params, game_input *Input)
 typedef GAME_RENDER(game_render);

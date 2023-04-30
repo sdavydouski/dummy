@@ -765,38 +765,15 @@ GetMeshVerticesSize(mesh *Mesh)
     return Size;
 }
 
-// todo: duplicate
-dummy_internal bounds
-CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
-{
-    vec3 vMin = Vertices[0];
-    vec3 vMax = Vertices[0];
-
-    for (u32 VertexIndex = 1; VertexIndex < VertexCount; ++VertexIndex)
-    {
-        vec3 *Vertex = Vertices + VertexIndex;
-
-        vMin = Min(vMin, *Vertex);
-        vMax = Max(vMax, *Vertex);
-    }
-
-    bounds Result = {};
-
-    Result.Min = vMin;
-    Result.Max = vMax;
-
-    return Result;
-}
-
-dummy_internal bounds
+dummy_internal aabb
 CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
 {
-    bounds Result = {};
+    aabb Result = {};
 
     if (MeshCount > 0)
     {
         mesh *FirstMesh = First(Meshes);
-        bounds Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
+        aabb Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
 
         vec3 vMin = Box.Min;
         vec3 vMax = Box.Max;
@@ -804,7 +781,7 @@ CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
         for (u32 MeshIndex = 1; MeshIndex < MeshCount; ++MeshIndex)
         {
             mesh *Mesh = Meshes + MeshIndex;
-            bounds Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
+            aabb Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
 
             vMin = Min(vMin, Box.Min);
             vMax = Max(vMax, Box.Max);

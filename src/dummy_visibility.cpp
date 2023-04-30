@@ -382,7 +382,7 @@ CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowP
 }
 
 dummy_internal bool32
-AxisAlignedBoxVisible(u32 PlaneCount, plane *Planes, bounds Box)
+AxisAlignedBoxVisible(u32 PlaneCount, plane *Planes, aabb Box)
 {
     vec3 BoxCenter = GetAABBCenter(Box);
     vec3 BoxHalfSize = GetAABBHalfSize(Box);

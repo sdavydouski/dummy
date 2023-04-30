@@ -13,6 +13,7 @@
 #include "dummy_container.h"
 #include "dummy_input.h"
 #include "dummy_events.h"
+#include "dummy_bounds.h"
 #include "dummy_collision.h"
 #include "dummy_physics.h"
 #include "dummy_visibility.h"
@@ -32,6 +33,8 @@
 struct game_assets;
 
 //
+u32 GenerateGameProcessId(game_state *State);
+
 game_entity *GetGameEntity(game_state *State, u32 EntityId);
 
 void PublishEvent(game_event_list *EventList, const char *EventName, void *Params);
@@ -44,10 +47,10 @@ bool32 AdditiveAnimationsFinished(animation_node *Node);
 
 audio_clip *GetAudioClipAsset(game_assets *Assets, const char *Name);
 
-bounds GetEntityBounds(game_entity *Entity);
-vec3 GetAABBHalfSize(bounds Box);
-vec3 GetAABBCenter(bounds Box);
-bool32 TestAABBAABB(bounds a, bounds b);
+aabb GetEntityBounds(game_entity *Entity);
+vec3 GetAABBHalfSize(aabb Box);
+vec3 GetAABBCenter(aabb Box);
+bool32 TestAABBAABB(aabb a, aabb b);
 
 audio_play_options SetVolume(f32 Volume);
 //
@@ -148,6 +151,7 @@ Collider2Spec(collider *Collider, collider_spec *Spec)
 struct rigid_body_spec
 {
     bool32 Has;
+    // todo: remove
     bool32 RootMotionEnabled;
 };
 
@@ -155,7 +159,7 @@ inline void
 RigidBody2Spec(rigid_body *Body, rigid_body_spec *Spec)
 {
     Spec->Has = true;
-    Spec->RootMotionEnabled = Body->RootMotionEnabled;
+    Spec->RootMotionEnabled = false;
 }
 
 struct point_light_spec
@@ -321,7 +325,7 @@ struct game_menu_quad
 struct game_state
 {
     memory_arena PermanentArena;
-    memory_arena TransientArena;
+    memory_arena FrameArena;
 
     world_area WorldArea;
 
@@ -350,6 +354,7 @@ struct game_state
     u32 NextFreeMeshId;
     u32 NextFreeTextureId;
     u32 NextFreeSkinningId;
+    u32 NextFreeProcessId;
 
     u32 RenderableEntityCount;
     u32 ActiveEntitiesCount;
@@ -381,4 +386,5 @@ struct game_state
 
     // todo: temp
     u32 SkyboxId;
+    u32 PlayerOrientationLerpProcessId;
 };

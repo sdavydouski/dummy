@@ -22,6 +22,7 @@ inline bool32 IsFinite(f32 n);
 #include "dummy_vec2.h"
 #include "dummy_vec3.h"
 #include "dummy_vec4.h"
+#include "dummy_mat3.h"
 #include "dummy_mat4.h"
 #include "dummy_quat.h"
 #include "dummy_plane.h"
@@ -63,6 +64,8 @@ struct quat_lerp
 
 struct vec3_lerp
 {
+    u32 ProcessId;
+
     f32 Duration;
     f32 Time;
 
@@ -742,8 +745,8 @@ Slerp(quat A, f32 t, quat B)
 }
 
 /*
-* Computes barycentric coordinates (u, v, w) for
-* point p with respect to triangle (a, b, c)
+    Computes barycentric coordinates (u, v, w) for
+    point p with respect to triangle (a, b, c)
 */
 inline void
 Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
@@ -773,7 +776,7 @@ Barycentric(vec2 p, vec2 a, vec2 b, vec2 c, f32 &u, f32 &v, f32 &w)
         |
         | 
         |
-        +------------ x
+        + ------------ x
        /
       /
      /
@@ -831,7 +834,6 @@ Hash(const char *String)
     return Hash;
 }
 
-// todo: better hash function?
 constexpr u32
 Hash(const u32 Key)
 {

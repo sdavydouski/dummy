@@ -24,9 +24,11 @@
     <ClInclude Include="dummy_animator.h" />
     <ClInclude Include="dummy_assets.h" />
     <ClInclude Include="dummy_audio.h" />
+    <ClInclude Include="dummy_bounds.h" />
     <ClInclude Include="dummy_camera.h" />
     <ClInclude Include="dummy_events.h" />
     <ClInclude Include="dummy_job.h" />
+    <ClInclude Include="dummy_mat3.h" />
     <ClInclude Include="dummy_plane.h" />
     <ClInclude Include="dummy_process.h" />
     <ClInclude Include="dummy_profiler.h" />

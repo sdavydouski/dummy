@@ -1386,8 +1386,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     Win32InitProfiler(&PlatformProfiler);
 
     game_memory GameMemory = {};
-    GameMemory.PermanentStorageSize = Megabytes(1024);
-    GameMemory.TransientStorageSize = Megabytes(256);
+    GameMemory.PermanentStorageSize = Megabytes(256);
+    GameMemory.FrameStorageSize = Megabytes(256);
+    GameMemory.AssetsStorageSize = Megabytes(1024);
     GameMemory.RenderCommandsStorageSize = Megabytes(16);
     GameMemory.AudioCommandsStorageSize = Megabytes(16);
     GameMemory.Platform = &PlatformApi;
@@ -1399,12 +1400,19 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 #else
     void *BaseAddress = (void *)Terabytes(2);
 #endif
-    PlatformState.GameMemoryBlockSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize + GameMemory.RenderCommandsStorageSize + GameMemory.AudioCommandsStorageSize;
+    PlatformState.GameMemoryBlockSize = (
+        GameMemory.PermanentStorageSize + 
+        GameMemory.FrameStorageSize + 
+        GameMemory.AssetsStorageSize + 
+        GameMemory.RenderCommandsStorageSize + 
+        GameMemory.AudioCommandsStorageSize
+    );
     PlatformState.GameMemoryBlock = Win32AllocateMemory(BaseAddress, PlatformState.GameMemoryBlockSize);
 
-    GameMemory.PermanentStorage = PlatformState.GameMemoryBlock;
-    GameMemory.TransientStorage = (u8 *) GameMemory.PermanentStorage + GameMemory.PermanentStorageSize;
-    GameMemory.RenderCommandsStorage = (u8 *) GameMemory.TransientStorage + GameMemory.TransientStorageSize;
+    GameMemory.PermanentStorage = (u8 *) PlatformState.GameMemoryBlock;
+    GameMemory.FrameStorage = (u8 *) GameMemory.PermanentStorage + GameMemory.PermanentStorageSize;
+    GameMemory.AssetsStorage = (u8 *) GameMemory.FrameStorage + GameMemory.FrameStorageSize;
+    GameMemory.RenderCommandsStorage = (u8 *) GameMemory.AssetsStorage + GameMemory.AssetsStorageSize;
     GameMemory.AudioCommandsStorage = (u8 *) GameMemory.RenderCommandsStorage + GameMemory.RenderCommandsStorageSize;
 
     Win32GetFullPathToEXEDirectory(PlatformState.EXEDirectoryFullPath);
@@ -1486,7 +1494,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         EDITOR_INIT(&EditorState, &PlatformState);
 #endif
 
-        game_parameters GameParameters = {};
+        game_params GameParameters = {};
         game_input GameInput = {};
 
         platform_input_keyboard KeyboardInput = {};
@@ -1578,13 +1586,17 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 {
                     PROFILE(&PlatformProfiler, "FixedUpdate");
 
-                    GameParameters.UpdateLag += GameParameters.Delta;
+                    GameParameters.UpdateAccumulator += GameParameters.Delta;
 
-                    while (GameParameters.UpdateLag >= GameParameters.UpdateRate)
+                    while (GameParameters.UpdateAccumulator >= GameParameters.UpdateRate)
                     {
                         GameCode.Update(&GameMemory, &GameParameters, &GameInput);
-                        GameParameters.UpdateLag -= GameParameters.UpdateRate;
+                        GameParameters.UpdateAccumulator -= GameParameters.UpdateRate;
                     }
+
+                    GameParameters.UpdateLag = GameParameters.UpdateAccumulator / GameParameters.UpdateRate;
+
+                    Assert(InRange(GameParameters.UpdateLag, 0.f, 1.f));
                 }
 
                 // Render

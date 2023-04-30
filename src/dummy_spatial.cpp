@@ -1,7 +1,7 @@
 #include "dummy.h"
 
 inline void
-InitSpatialHashGrid(spatial_hash_grid *Grid, bounds Bounds, vec3 CellSize, memory_arena *Arena)
+InitSpatialHashGrid(spatial_hash_grid *Grid, aabb Bounds, vec3 CellSize, memory_arena *Arena)
 {
     Grid->Bounds = Bounds;
     Grid->CellSize = CellSize;
@@ -57,7 +57,7 @@ GetGridCell(spatial_hash_grid *Grid, i32 CellX, i32 CellY, i32 CellZ)
 dummy_internal void
 AddToSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
-    bounds EntityBounds = GetEntityBounds(Entity);
+    aabb EntityBounds = GetEntityBounds(Entity);
 
     ivec3 MinCellCoords = GetCellCoordinates(Grid, EntityBounds.Min);
     ivec3 MaxCellCoords = GetCellCoordinates(Grid, EntityBounds.Max);
@@ -120,7 +120,7 @@ RemoveFromSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 dummy_internal void
 UpdateInSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
-    bounds EntityBounds = GetEntityBounds(Entity);
+    aabb EntityBounds = GetEntityBounds(Entity);
 
     ivec3 MinCellCoords = GetCellCoordinates(Grid, EntityBounds.Min);
     ivec3 MaxCellCoords = GetCellCoordinates(Grid, EntityBounds.Max);
@@ -133,11 +133,11 @@ UpdateInSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 }
 
 dummy_internal u32
-FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, bounds Bounds, game_entity **Entities, u32 MaxEntityCount)
+FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, aabb Bounds, game_entity **Entities, u32 MaxEntityCount)
 {
-    bounds EntityBounds = GetEntityBounds(Entity);
+    aabb EntityBounds = GetEntityBounds(Entity);
 
-    bounds AreaBounds;
+    aabb AreaBounds;
     AreaBounds.Min = EntityBounds.Min + Bounds.Min;
     AreaBounds.Max = EntityBounds.Max + Bounds.Max;
 
@@ -160,7 +160,7 @@ FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, bounds Bounds, 
 
                     if (!CellEntity->Destroyed)
                     {
-                        bounds CellEntityBounds = GetEntityBounds(CellEntity);
+                        aabb CellEntityBounds = GetEntityBounds(CellEntity);
 
                         if (CellEntity->Id != Entity->Id && TestAABBAABB(AreaBounds, CellEntityBounds))
                         {

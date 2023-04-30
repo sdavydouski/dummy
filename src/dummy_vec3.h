@@ -239,6 +239,32 @@ SafeReciprocal(vec3 v)
     return Result;
 }
 
+inline vec3
+Perpendicular(vec3 v)
+{
+    vec3 Result;
+
+    f32 x = Abs(v.x);
+    f32 y = Abs(v.y);
+    f32 z = Abs(v.z);
+
+    if (z < Min(x, y))
+    {
+        Result = vec3(v.y, -v.x, 0.f);
+    }
+    else if (y < x)
+    {
+        Result = vec3(-v.z, 0.f, v.x);
+    }
+    else
+    {
+        Result = vec3(0.f, v.z, -v.y);
+    }
+
+    return Result;
+}
+
+
 // ivec3
 struct ivec3
 {

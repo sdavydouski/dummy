@@ -1,137 +1,11 @@
 #include "dummy.h"
 
-inline bounds
-CreateAABBMinMax(vec3 Min, vec3 Max)
-{
-    bounds Result = {};
+// https://stackoverflow.com/questions/47866571/simple-oriented-bounding-box-obb-collision-detection-explaining
 
-    Result.Min = Min;
-    Result.Max = Max;
-
-    return Result;
-}
-
-inline bounds
-CreateAABBCenterHalfSize(vec3 Center, vec3 HalfSize)
-{
-    bounds Result = {};
-
-    Result.Min = Center - HalfSize;
-    Result.Max = Center + HalfSize;
-
-    return Result;
-}
-
-inline vec3
-GetAABBHalfSize(bounds Box)
-{
-    vec3 Result = (Box.Max - Box.Min) * 0.5f;
-    return Result;
-}
-
-inline vec3
-GetAABBCenter(bounds Box)
-{
-    vec3 Result = Box.Min + GetAABBHalfSize(Box);
-    return Result;
-}
-
-inline bounds
-Union(bounds a, bounds b)
-{
-    bounds Result;
-
-    Result.Min = Min(a.Min, b.Min);
-    Result.Max = Max(a.Max, b.Max);
-
-    return Result;
-}
-
-dummy_internal bounds
-CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
-{
-    vec3 vMin = Vertices[0];
-    vec3 vMax = Vertices[0];
-
-    for (u32 VertexIndex = 1; VertexIndex < VertexCount; ++VertexIndex)
-    {
-        vec3 *Vertex = Vertices + VertexIndex;
-
-        vMin = Min(vMin, *Vertex);
-        vMax = Max(vMax, *Vertex);
-    }
-
-    bounds Result = {};
-
-    Result.Min = vMin;
-    Result.Max = vMax;
-
-    return Result;
-}
-
-inline bounds
-ScaleBounds(bounds Bounds, vec3 Scale)
-{
-    bounds Result = {};
-
-    vec3 ScaledHalfSize = (Bounds.Max - Bounds.Min) * Scale / 2.f;
-    // todo:
-    vec3 Center = vec3(0.f, ScaledHalfSize.y, 0.f);
-
-    Result.Min = Center - ScaledHalfSize;
-    Result.Max = Center + ScaledHalfSize;
-
-    return Result;
-}
-
-inline bounds
-TranslateBounds(bounds Bounds, vec3 Translation)
-{
-    bounds Result = {};
-
-    Result.Min = Bounds.Min + Translation;
-    Result.Max = Bounds.Max + Translation;
-
-    return Result;
-}
-
-inline bounds
-UpdateBounds(bounds Bounds, transform T)
-{
-    bounds Result = {};
-
-    vec3 Translation = T.Translation;
-    mat4 M = Transform(T);
-
-    for (u32 Axis = 0; Axis < 3; ++Axis)
-    {
-        Result.Min[Axis] = Result.Max[Axis] = Translation[Axis];
-
-        for (u32 Element = 0; Element < 3; ++Element)
-        {
-            f32 e = M[Axis][Element] * Bounds.Min[Element];
-            f32 f = M[Axis][Element] * Bounds.Max[Element];
-
-            if (e < f)
-            {
-                Result.Min[Axis] += e;
-                Result.Max[Axis] += f;
-            }
-            else
-            {
-                Result.Min[Axis] += f;
-                Result.Max[Axis] += e;
-            }
-        }
-    }
-
-    return Result;
-}
-
-inline bounds
+inline aabb
 GetColliderBounds(collider *Collider)
 {
-    bounds Result = {};
+    aabb Result = {};
 
     switch (Collider->Type)
     {
@@ -181,10 +55,10 @@ UpdateColliderPosition(collider *Collider, vec3 BasePosition)
     }
 }
 
-dummy_internal bounds
+dummy_internal aabb
 GetEntityBounds(game_entity *Entity)
 {
-    bounds Result = {};
+    aabb Result = {};
 
     if (Entity->Collider)
     {
@@ -196,7 +70,7 @@ GetEntityBounds(game_entity *Entity)
     }
     else if (Entity->PointLight || Entity->ParticleEmitter)
     {
-        bounds Bounds =
+        aabb Bounds =
         {
             .Min = vec3(-0.1f),
             .Max = vec3(0.1f)
@@ -206,7 +80,7 @@ GetEntityBounds(game_entity *Entity)
     }
     else
     {
-        bounds Bounds =
+        aabb Bounds =
         {
             .Min = vec3(-0.5f, 0.f, -0.5f),
             .Max = vec3(0.5f, 1.f, 0.5f)
@@ -270,7 +144,7 @@ TestAxis(vec3 Axis, f32 MinA, f32 MaxA, f32 MinB, f32 MaxB, vec3 *mtvAxis, f32 *
 }
 
 dummy_internal bool32
-TestAABBAABB(bounds a, bounds b, vec3 *mtv)
+TestAABBAABB(aabb a, aabb b, vec3 *mtv)
 {
     // [Minimum Translation Vector]
     f32 mtvDistance = F32_MAX;              // Set current minimum distance (max float value so next value is always less)
@@ -310,7 +184,7 @@ TestAABBAABB(bounds a, bounds b, vec3 *mtv)
 }
 
 inline bool32
-TestAABBAABB(bounds a, bounds b)
+TestAABBAABB(aabb a, aabb b)
 {
     // Exit with no intersection if separated along an axis
     if (a.Max.x < b.Min.x || a.Min.x > b.Max.x) return false;
@@ -322,7 +196,7 @@ TestAABBAABB(bounds a, bounds b)
 }
 
 dummy_internal bool32
-TestAABBPlane(bounds Box, plane Plane)
+TestAABBPlane(aabb Box, plane Plane)
 {
     vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
     vec3 BoxExtents = Box.Max - BoxCenter;
@@ -339,7 +213,7 @@ TestAABBPlane(bounds Box, plane Plane)
 }
 
 dummy_internal bool32
-IntersectMovingAABBAABB(bounds a, bounds b, vec3 VelocityA, vec3 VelocityB, f32 *tFirst, f32 *tLast)
+IntersectMovingAABBAABB(aabb a, aabb b, vec3 VelocityA, vec3 VelocityB, f32 *tFirst, f32 *tLast)
 {
     // Exit early if a and b initially overlapping
     if (TestAABBAABB(a, b))
@@ -350,7 +224,7 @@ IntersectMovingAABBAABB(bounds a, bounds b, vec3 VelocityA, vec3 VelocityB, f32 
     }
 
     // Use relative velocity; effectively treating a as stationary
-    vec3 v = VelocityB - VelocityA;
+    vec3 RelativeVelocity = VelocityB - VelocityA;
 
     // Initialize times of first and last contact
     *tFirst = 0.f;
@@ -359,14 +233,42 @@ IntersectMovingAABBAABB(bounds a, bounds b, vec3 VelocityA, vec3 VelocityB, f32 
     // For each axis, determine times of first and last contact, if any
     for (u32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
     {
-        if (v[AxisIndex] < 0.f)
+        if (RelativeVelocity[AxisIndex] < 0.f)
         {
-            // todo:
+            if (b.Max[AxisIndex] < a.Min[AxisIndex])
+            {
+                // Nonintersecting and moving apart
+                return false;
+            }
+            
+            if (a.Max[AxisIndex] < b.Min[AxisIndex])
+            {
+                *tFirst = Max((a.Max[AxisIndex] - b.Min[AxisIndex]) / RelativeVelocity[AxisIndex], *tFirst);
+            }
+
+            if (b.Max[AxisIndex] > a.Min[AxisIndex])
+            {
+                *tLast = Min((a.Min[AxisIndex] - b.Max[AxisIndex]) / RelativeVelocity[AxisIndex], *tLast);
+            }
         }
 
-        if (v[AxisIndex] > 0.f)
+        if (RelativeVelocity[AxisIndex] > 0.f)
         {
-            // todo:
+            if (b.Min[AxisIndex] > a.Max[AxisIndex])
+            {
+                // Nonintersecting and moving apart
+                return false;
+            }
+
+            if (b.Max[AxisIndex] < a.Min[AxisIndex])
+            {
+                *tFirst = Max((a.Min[AxisIndex] - b.Max[AxisIndex]) / RelativeVelocity[AxisIndex], *tFirst);
+            }
+
+            if (a.Max[AxisIndex] > b.Min[AxisIndex])
+            {
+                *tLast = Min((a.Max[AxisIndex] - b.Min[AxisIndex]) / RelativeVelocity[AxisIndex], *tLast);
+            }
         }
 
         // No overlap possible if time of first contact occurs after time of last contact
@@ -384,7 +286,7 @@ IntersectMovingAABBAABB(bounds a, bounds b, vec3 VelocityA, vec3 VelocityB, f32 
     by Andrew Woo
     from "Graphics Gems", Academic Press, 1990
 */
-bool32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
+bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord)
 {
     vec3 RayOrigin = Ray.Origin;
     vec3 RayDirection = Ray.Direction;
@@ -481,7 +383,7 @@ bool32 IntersectRayAABB(ray Ray, bounds Box, vec3 &Coord)
 }
 
 dummy_internal f32
-GetAABBPlaneMinDistance(bounds Box, plane Plane)
+GetAABBPlaneMinDistance(aabb Box, plane Plane)
 {
     vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
     vec3 BoxExtents = Box.Max - BoxCenter;

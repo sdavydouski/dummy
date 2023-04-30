@@ -1,12 +1,5 @@
 #pragma once
 
-// Axis-Aligned Bounding Box
-struct bounds
-{
-    vec3 Min;
-    vec3 Max;
-};
-
 struct box_collider
 {
     vec3 Center;
@@ -34,4 +27,17 @@ struct collider
         box_collider BoxCollider;
         sphere_collider SphereCollider;
     };
+};
+
+struct contact
+{
+    vec3 Point;
+    vec3 Normal;
+    f32 Penetration;
+};
+
+struct collision
+{
+    u32 ContactCount;
+    contact *Contacts;
 };

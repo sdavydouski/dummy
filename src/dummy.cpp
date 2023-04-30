@@ -17,6 +17,13 @@ NormalizeRGB(vec3 RGB)
     return Result;
 }
 
+inline vec3
+RandomColor(random_sequence *Random)
+{
+    vec3 Result = vec3(Random01(Random), Random01(Random), Random01(Random));
+    return Result;
+}
+
 inline material
 CreateBasicMaterial(vec4 Color, bool32 Wireframe = false, bool32 CastShadow = false)
 {
@@ -143,6 +150,13 @@ inline u32
 GenerateSkinningBufferId(game_state *State)
 {
     u32 Result = State->NextFreeSkinningId++;
+    return Result;
+}
+
+inline u32
+GenerateGameProcessId(game_state *State)
+{
+    u32 Result = State->NextFreeProcessId++;
     return Result;
 }
 
@@ -606,7 +620,7 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     // Pivot point
     //DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
 
-    bounds Bounds = GetEntityBounds(Entity);
+    aabb Bounds = GetEntityBounds(Entity);
 
     vec3 HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
     //vec3 BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
@@ -803,10 +817,10 @@ AddBoxCollider(game_entity *Entity, vec3 Size, memory_arena *Arena)
 }
 
 inline void
-AddRigidBody(game_entity *Entity, bool32 RootMotionEnabled, memory_arena *Arena)
+AddRigidBody(game_entity *Entity, memory_arena *Arena)
 {
     Entity->Body = PushType(Arena, rigid_body);
-    BuildRigidBody(Entity->Body, Entity->Transform.Translation, Entity->Transform.Rotation, RootMotionEnabled);
+    BuildRigidBody(Entity->Body, Entity->Transform.Translation, Entity->Transform.Rotation);
 }
 
 inline void
@@ -851,7 +865,7 @@ CopyGameEntity(game_state *State, render_commands *RenderCommands, game_entity *
 
     if (Source->Body)
     {
-        AddRigidBody(Dest, Source->Body->RootMotionEnabled, &Area->Arena);
+        AddRigidBody(Dest, &Area->Arena);
     }
 
     if (Source->PointLight)
@@ -948,15 +962,23 @@ AnimateEntity(game_state *State, game_input *Input, game_entity *Entity, memory_
         Entity->Animation->AccRootMotion.x += Pose->RootMotion.x;
         Entity->Animation->AccRootMotion.z += Pose->RootMotion.z;
 
+        vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
+        vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
+
         if (Entity->Body)
         {
-            vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
-            vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
+            if (NearlyEqual(Entity->Body->Velocity.x, 0.f))
+            {
+                Entity->Body->Position.x += RotatedScaledRootMotion.x;
+            }
 
-            Entity->Body->Position += RotatedScaledRootMotion;
-
-            Entity->Animation->AccRootMotion = vec3(0.f);
+            if (NearlyEqual(Entity->Body->Velocity.z, 0.f))
+            {
+                Entity->Body->Position.z += RotatedScaledRootMotion.z;
+            }
         }
+
+        Entity->Animation->AccRootMotion = vec3(0.f);
     }
 
     Root->Translation = Entity->Transform.Translation;
@@ -1045,6 +1067,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
     game_state *State = Data->State;
     platform_api *Platform = Data->Platform;
+    f32 dt = Data->UpdateRate;
 
     for (u32 EntityIndex = Data->StartIndex; EntityIndex < Data->EndIndex; ++EntityIndex)
     {
@@ -1056,6 +1079,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
             collider *Collider = Entity->Collider;
 
             if (Body)
+            //if (Body && Body->PositionLerp.ProcessId)
             {
                 // todo: save previous state
                 Body->PrevPosition = Body->Position;
@@ -1066,7 +1090,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                 u32 MaxNearbyEntityCount = 10;
                 game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                bounds Bounds = { vec3(0.f, -MaxStepHeight, 0.f), vec3(0.f, 0.f, 0.f) };
+                aabb Bounds = { vec3(0.f, -MaxStepHeight, 0.f), vec3(0.f, 0.f, 0.f) };
 
                 u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
@@ -1143,26 +1167,19 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
                 }
 
-                if (Body->RootMotionEnabled && Entity->IsGrounded)
+                Integrate(Body, dt);
+
+                Clamp(&Body->Acceleration.y, -120.f, 120.f);
+
+                if (Body->Position.y < 0.f)
                 {
-                    // Partial integration
-                    vec3 BodyPosition = Body->Position;
-
-                    Integrate(Body, Data->UpdateRate);
-
-                    Body->Position = BodyPosition;
+                    Body->Position.y = 0.f;
                 }
-                else
-                {
-                    Integrate(Body, Data->UpdateRate);
 
-                    Clamp(&Body->Acceleration.y, -120.f, 120.f);
+                //vec3 Move = Body->Velocity * dt + Body->Acceleration * Square(dt) * 0.5f;
 
-                    if (Body->Position.y < 0.f)
-                    {
-                        Body->Position.y = 0.f;
-                    }
-                }
+                //f32 tFirst = 1.f;
+                //f32 tLast = 1.f;
 
                 if (Collider)
                 {
@@ -1170,7 +1187,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                     u32 MaxNearbyEntityCount = 100;
                     game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                    bounds Bounds = { vec3(-1.0f), vec3(1.0f) };
+                    aabb Bounds = { vec3(-1.0f), vec3(1.0f) };
 
                     u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
@@ -1187,13 +1204,25 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         }
 #endif
 
+                        //if (NearbyBodyCollider)
                         if (NearbyBodyCollider)
                         {
+#if 0
+                            vec3 VelocityA = Entity->Body->Velocity;
+                            vec3 VelocityB = vec3(0.f);
+
+                            if (IntersectMovingAABBAABB(GetColliderBounds(Entity->Collider), GetColliderBounds(NearbyEntity->Collider), VelocityA, VelocityB, &tFirst, &tLast))
+                            {
+                                NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                            }
+#endif
+
+#if 1
                             // Collision detection and resolution
                             vec3 mtv;
                             if (TestColliders(Entity->Collider, NearbyEntity->Collider, &mtv))
                             {
-                                bounds NearbyEntityBounds = GetColliderBounds(NearbyEntity->Collider);
+                                aabb NearbyEntityBounds = GetColliderBounds(NearbyEntity->Collider);
                                 vec3 NearbyEntityHalfSize = GetAABBHalfSize(NearbyEntityBounds);
                                 vec3 NearbyEntityCenter = GetAABBCenter(NearbyEntityBounds);
 
@@ -1201,27 +1230,10 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                                 if (Dot(Entity->Body->Velocity, mtv) < 0.f && InRange(RelativeHeight, 0.f, MaxStepHeight))
                                 {
-                                    bounds EntityBounds = GetColliderBounds(Entity->Collider);
+                                    aabb EntityBounds = GetColliderBounds(Entity->Collider);
                                     vec3 EntityHalfSize = GetAABBHalfSize(EntityBounds);
 
-#if 0
-                                    vec3 TargetPosition = vec3(
-                                        Entity->Body->Position.x, 
-                                        Entity->Body->Position.y + RelativeHeight, 
-                                        Entity->Body->Position.z
-                                    );
-
-                                    SetVec3Lerp(&Entity->Body->PositionLerp, 0.f, 0.2f, Entity->Body->Position, TargetPosition);
-
-                                    game_process_params Params = {};
-                                    Params.Entity = Entity;
-
-                                    Platform->EnterCriticalSection(Platform->PlatformHandle);
-                                    StartGameProcess(State, RigidBodyPositionLerpProcess, Params);
-                                    Platform->LeaveCriticalSection(Platform->PlatformHandle);
-#else
                                     Entity->Body->Position.y += RelativeHeight;
-#endif
                                 }
                                 else
                                 {
@@ -1230,9 +1242,13 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                                 UpdateColliderPosition(Collider, Entity->Body->Position);
                             }
+#endif
                         }
                     }
                 }
+
+                //Move *= tFirst;
+                //Entity->Body->Position += Move;
             }
 
             if (Entity->ParticleEmitter)
@@ -1308,15 +1324,7 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
 
             if (Entity->Body)
             {
-                if (Entity->Body->RootMotionEnabled && Entity->IsGrounded)
-                {
-                    Entity->Transform.Translation = Entity->Body->Position;
-                }
-                else
-                {
-                    Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Data->Lag, Entity->Body->Position);
-                }
-
+                Entity->Transform.Translation = Lerp(Entity->Body->PrevPosition, Data->Lag, Entity->Body->Position);
                 Entity->Transform.Rotation = Entity->Body->Orientation;
             }
 
@@ -1327,7 +1335,7 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
 
             if (Entity->Model)
             {
-                bounds BoundingBox = GetEntityBounds(Entity);
+                aabb BoundingBox = GetEntityBounds(Entity);
 
                 // Frustrum culling
                 Entity->Visible = AxisAlignedBoxVisible(Data->ShadowPlaneCount, Data->ShadowPlanes, BoundingBox);
@@ -1471,7 +1479,7 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
     if (Spec->RigidBodySpec.Has)
     {
         rigid_body_spec RigidBodySpec = Spec->RigidBodySpec;
-        AddRigidBody(Entity, RigidBodySpec.RootMotionEnabled, Arena);
+        AddRigidBody(Entity, Arena);
     }
 
     if (Spec->PointLightSpec.Has)
@@ -1538,7 +1546,7 @@ LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform,
 
     u32 EntityCount = Header->EntityCount;
 
-    bounds WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
+    aabb WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
     vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&Area->SpatialGrid, WorldBounds, CellSize, &Area->Arena);
 
@@ -1632,19 +1640,19 @@ DLLExport GAME_INIT(GameInit)
     u8 *PermanentArenaBase = (u8 *) Memory->PermanentStorage + sizeof(game_state);
     InitMemoryArena(&State->PermanentArena, PermanentArenaBase, PermanentArenaSize);
 
-    umm TransientArenaSize = Memory->TransientStorageSize;
-    u8 *TransientArenaBase = (u8 *) Memory->TransientStorage;
-    InitMemoryArena(&State->TransientArena, TransientArenaBase, TransientArenaSize);
+    umm FrameArenaSize = Memory->FrameStorageSize;
+    u8 *FrameArenaBase = Memory->FrameStorage;
+    InitMemoryArena(&State->FrameArena, FrameArenaBase, FrameArenaSize);
 
     State->Stream = CreateStream(SubMemoryArena(&State->PermanentArena, Megabytes(4)));
 
     State->WorldArea = {};
-    State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(64));
+    State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(128));
     State->WorldArea.EntityCount = 0;
     State->WorldArea.MaxEntityCount = 10000;
     State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
 
-    bounds WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
+    aabb WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
     vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&State->WorldArea.SpatialGrid, WorldBounds, CellSize, &State->WorldArea.Arena);
 
@@ -1659,10 +1667,10 @@ DLLExport GAME_INIT(GameInit)
     State->SkyboxId = 1234;
 
     game_process *Sentinel = &State->ProcessSentinel;
-    CopyString("Sentinel", Sentinel->Key);
+    Sentinel->Key = GenerateGameProcessId(State);
     Sentinel->Next = Sentinel->Prev = Sentinel;
 
-    InitHashTable(&State->Processes, 31, &State->PermanentArena);
+    InitHashTable(&State->Processes, 251, &State->PermanentArena);
 
     // Event System
     game_event_list *EventList = &State->EventList;
@@ -1683,10 +1691,10 @@ DLLExport GAME_INIT(GameInit)
 
     Platform->SetMouseMode(Platform->PlatformHandle, MouseMode_Navigation);
 
-    f32 AspectRatio = (f32) Parameters->WindowWidth / (f32) Parameters->WindowHeight;
+    f32 AspectRatio = (f32)Params->WindowWidth / (f32)Params->WindowHeight;
     f32 FieldOfView = RADIANS(45.f);
     InitCamera(&State->EditorCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 4.f, 8.f), vec3(0.f, RADIANS(-90.f), RADIANS(-20.f)));
-    InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), vec3(4.f, RADIANS(20.f), RADIANS(0.f)));
+    InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), vec3(4.f, RADIANS(0.f), RADIANS(20.f)));
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
@@ -1713,7 +1721,10 @@ DLLExport GAME_INIT(GameInit)
     InitGameMenu(State);
 
     State->Assets = {};
-    State->Assets.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(512));
+
+    umm AssetsArenaSize = Memory->AssetsStorageSize;
+    u8 *AssetsArenaBase = Memory->AssetsStorage;
+    InitMemoryArena(&State->Assets.Arena, AssetsArenaBase, AssetsArenaSize);
 
     LoadFontAssets(&State->Assets, Platform);
     InitGameFontAssets(State, &State->Assets, RenderCommands);
@@ -1733,10 +1744,13 @@ DLLExport GAME_INIT(GameInit)
     Platform->KickJob(State->JobQueue, Job);
 #endif
 
-    /*State->Player = State->Dummy;
-    State->Player->Controllable = true;*/
-
     State->MasterVolume = 0.f;
+
+    {
+        game_process_params Params = {};
+        Params.InterpolationTime = 0.2f;
+        StartGameProcess(State, SmoothInputMoveProcess, Params);
+    }
 }
 
 DLLExport GAME_RELOAD(GameReload)
@@ -1749,7 +1763,7 @@ DLLExport GAME_RELOAD(GameReload)
 
     while (GameProcess->OnUpdatePerFrame)
     {
-        GameProcess->OnUpdatePerFrame = (game_process_on_update *) Platform->LoadFunction(Platform->PlatformHandle, GameProcess->Key);
+        GameProcess->OnUpdatePerFrame = (game_process_on_update *) Platform->LoadFunction(Platform->PlatformHandle, GameProcess->Name);
         GameProcess = GameProcess->Next;
     }
 
@@ -1762,9 +1776,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
     audio_commands *AudioCommands = GetAudioCommands(Memory);
-
-    f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
-    Assert(0.f <= Lag && Lag <= 1.f);
 
     if (Input->Menu.IsActivated)
     {
@@ -1810,24 +1821,17 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             State->TargetMove = Move;
 
-            if (State->TargetMove != State->CurrentMove)
-            {
-                game_process_params Params = {};
-                Params.InterpolationTime = 0.2f;
-                StartGameProcess(State, SmoothInputMoveProcess, Params);
-            }
-
             game_entity *Player = State->Player;
 
             if (Player)
             {
-                bounds PlayerBounds = GetEntityBounds(Player);
+                aabb PlayerBounds = GetEntityBounds(Player);
                 vec3 PlayerSize = PlayerBounds.Max - PlayerBounds.Min;
 
                 vec3 PlayerPosition = Player->Transform.Translation;
                 vec3 TargetPosition = PlayerPosition + vec3(0.f, 0.8f * PlayerSize.y, 0.f);
 
-                ChaseCameraPerFrameUpdate(&State->PlayerCamera, Input, TargetPosition, Parameters->Delta);
+                ChaseCameraPerFrameUpdate(&State->PlayerCamera, Input, TargetPosition, Params->Delta);
 
                 if (Player->Body)
                 {
@@ -1862,22 +1866,34 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                         Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
                     }
 
-                    quat PlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
+                    quat TargetPlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
 
                     f32 MoveMaginute = Clamp(Magnitude(Move), 0.f, 1.f);
 
-                    if (MoveMaginute > 0.f)
+                    // todo:
+                    if (MoveMaginute > 0.f && Player->Body->Orientation != TargetPlayerOrientation)
                     {
-                        SetQuatLerp(&Player->Body->OrientationLerp, 0.f, 0.2f, Player->Body->Orientation, PlayerOrientation);
+                        SetQuatLerp(&Player->Body->OrientationLerp, 0.f, 0.2f, Player->Body->Orientation, TargetPlayerOrientation);
 
-                        game_process_params Params = {};
-                        Params.Entity = Player;
+                        game_process *Process = GetGameProcess(State, State->PlayerOrientationLerpProcessId);
 
-                        StartGameProcess(State, RigidBodyOrientationLerpProcess, Params);
+                        if (IsSlotEmpty(Process->Key))
+                        {
+                            game_process_params Params = {};
+                            Params.Entity = Player;
+
+                            State->PlayerOrientationLerpProcessId = StartGameProcess(State, RigidBodyOrientationLerpProcess, Params);
+                        }
                     }
                     else
                     {
-                        EndGameProcess(State, RigidBodyOrientationLerpProcess);
+                        game_process *Process = GetGameProcess(State, State->PlayerOrientationLerpProcessId);
+
+                        if (!IsSlotEmpty(Process->Key))
+                        {
+                            EndGameProcess(State, State->PlayerOrientationLerpProcessId);
+                            State->PlayerOrientationLerpProcessId = 0;
+                        }
                     }
                 }
             }
@@ -1897,7 +1913,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
             if (Input->LeftClick.IsActivated)
             {
-                ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32)Parameters->WindowWidth, (f32)Parameters->WindowHeight), &State->EditorCamera);
+                ray Ray = ScreenPointToWorldRay(Input->MouseCoords, vec2((f32)Params->WindowWidth, (f32)Params->WindowHeight), &State->EditorCamera);
 
                 f32 MinDistance = F32_MAX;
 
@@ -1912,7 +1928,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     if (!Entity->Destroyed)
                     {
                         State->SelectedEntity = 0;
-                        bounds Box = GetEntityBounds(Entity);
+                        aabb Box = GetEntityBounds(Entity);
 
                         vec3 IntersectionPoint;
                         if (IntersectRayAABB(Ray, Box, IntersectionPoint))
@@ -1934,7 +1950,10 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 }
             }
 
-            FreeCameraPerFrameUpdate(&State->EditorCamera, Input, Parameters->UnscaledDelta);
+            if (Input->EnableFreeCameraMovement.IsActive)
+            {
+                FreeCameraPerFrameUpdate(&State->EditorCamera, Input, Params->UnscaledDelta);
+            }
 
             break;
         }
@@ -1953,7 +1972,7 @@ DLLExport GAME_UPDATE(GameUpdate)
     platform_api *Platform = Memory->Platform;
     world_area *Area = &State->WorldArea;
 
-    scoped_memory ScopedMemory(&State->TransientArena);
+    scoped_memory ScopedMemory(&State->FrameArena);
 
 #if 1
     for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
@@ -1979,7 +1998,7 @@ DLLExport GAME_UPDATE(GameUpdate)
 
         JobData->StartIndex = EntityBatchIndex * EntityBatchCount;
         JobData->EndIndex = Min((i32) JobData->StartIndex + EntityBatchCount, (i32) Area->EntityCount);
-        JobData->UpdateRate = Parameters->UpdateRate;
+        JobData->UpdateRate = Params->UpdateRate;
         if (State->Player)
         {
             JobData->PlayerId = State->Player->Id;
@@ -2010,22 +2029,19 @@ DLLExport GAME_RENDER(GameRender)
     world_area *Area = &State->WorldArea;
 
     f32 ScreenWidthInUnits = 20.f;
-    f32 PixelsPerUnit = (f32) Parameters->WindowWidth / ScreenWidthInUnits;
-    f32 ScreenHeightInUnits = (f32) Parameters->WindowHeight / PixelsPerUnit;
+    f32 PixelsPerUnit = (f32)Params->WindowWidth / ScreenWidthInUnits;
+    f32 ScreenHeightInUnits = (f32)Params->WindowHeight / PixelsPerUnit;
     f32 Left = -ScreenWidthInUnits / 2.f;
     f32 Right = ScreenWidthInUnits / 2.f;
     f32 Bottom = -ScreenHeightInUnits / 2.f;
     f32 Top = ScreenHeightInUnits / 2.f;
     f32 Near = -10.f;
     f32 Far = 10.f;
-    f32 Lag = Parameters->UpdateLag / Parameters->UpdateRate;
 
-    Assert(Lag >= 0.f && Lag <= 1.f);
-
-    RenderCommands->Settings.WindowWidth = Parameters->WindowWidth;
-    RenderCommands->Settings.WindowHeight = Parameters->WindowHeight;
-    RenderCommands->Settings.Samples = Parameters->Samples;
-    RenderCommands->Settings.Time = Parameters->Time;
+    RenderCommands->Settings.WindowWidth = Params->WindowWidth;
+    RenderCommands->Settings.WindowHeight = Params->WindowHeight;
+    RenderCommands->Settings.Samples = Params->Samples;
+    RenderCommands->Settings.Time = Params->Time;
     RenderCommands->Settings.PixelsPerUnit = PixelsPerUnit;
     RenderCommands->Settings.UnitsPerPixel = 1.f / PixelsPerUnit;
 
@@ -2049,6 +2065,7 @@ DLLExport GAME_RENDER(GameRender)
             scoped_memory ScopedMemory(&State->PermanentArena);
             LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, ScopedMemory.Arena);
             State->Player = (State->WorldArea.Entities + 0);
+            //State->Player->Body->RootMotionEnabled = false;
         }
 #endif
     }
@@ -2067,8 +2084,8 @@ DLLExport GAME_RENDER(GameRender)
         }
     }
 
-    SetTime(RenderCommands, Parameters->Time);
-    SetViewport(RenderCommands, 0, 0, Parameters->WindowWidth, Parameters->WindowHeight);
+    SetTime(RenderCommands, Params->Time);
+    SetViewport(RenderCommands, 0, 0, Params->WindowWidth, Params->WindowHeight);
     SetScreenProjection(RenderCommands, Left, Right, Bottom, Top, Near, Far);
 
     switch (State->Mode)
@@ -2080,7 +2097,7 @@ DLLExport GAME_RENDER(GameRender)
             bool32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
             // todo:
-            Camera->AspectRatio = (f32)Parameters->WindowWidth / (f32)Parameters->WindowHeight;
+            Camera->AspectRatio = (f32)Params->WindowWidth / (f32)Params->WindowHeight;
 
             SetListener(AudioCommands, Camera->Position, -Camera->Direction);
 
@@ -2100,7 +2117,7 @@ DLLExport GAME_RENDER(GameRender)
 
             while (GameProcess->OnUpdatePerFrame)
             {
-                GameProcess->OnUpdatePerFrame(State, GameProcess, Parameters->Delta);
+                GameProcess->OnUpdatePerFrame(State, GameProcess, Params);
                 GameProcess = GameProcess->Next;
             }
 
@@ -2139,7 +2156,7 @@ DLLExport GAME_RENDER(GameRender)
 
                 vec4 LightPosition = vec4(-State->DirectionalLight.Direction * 100.f, 0.f);
 
-                ShadowPlanes = PushArray(&State->TransientArena, MaxPolyhedronFaceCount, plane);
+                ShadowPlanes = PushArray(&State->FrameArena, MaxPolyhedronFaceCount, plane);
                 ShadowPlaneCount = CalculateShadowRegion(&VisibilityRegion, LightPosition, ShadowPlanes);
 
                 if (State->Options.ShowCamera)
@@ -2166,7 +2183,7 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:AnimateEntities");
 
-                scoped_memory ScopedMemory(&State->TransientArena);
+                scoped_memory ScopedMemory(&State->FrameArena);
 
                 u32 AnimationJobCount = 0;
                 u32 MaxAnimationJobCount = Area->EntityCount;
@@ -2188,7 +2205,7 @@ DLLExport GAME_RENDER(GameRender)
                         JobData->Input = Input;
                         JobData->Entity = Entity;
                         JobData->Arena = SubMemoryArena(ScopedMemory.Arena, Kilobytes(512), NoClear());
-                        JobData->Delta = Parameters->Delta;
+                        JobData->Delta = Params->Delta;
 
                         Job->EntryPoint = AnimateEntityJob;
                         Job->Parameters = JobData;
@@ -2204,11 +2221,11 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:ProcessEntities");
 
-                scoped_memory ScopedMemory(&State->TransientArena);
+                scoped_memory ScopedMemory(&State->FrameArena);
 
                 u32 EntityBatchCount = 100;
                 u32 ProcessEntityBatchJobCount = Ceil((f32)Area->EntityCount / (f32)EntityBatchCount);
-                job *ProcessEntityBatchJobs = PushArray(&State->TransientArena, ProcessEntityBatchJobCount, job);
+                job *ProcessEntityBatchJobs = PushArray(&State->FrameArena, ProcessEntityBatchJobCount, job);
                 process_entity_batch_job *ProcessEntityBatchJobParams = PushArray(ScopedMemory.Arena, ProcessEntityBatchJobCount, process_entity_batch_job);
 
                 for (u32 EntityBatchIndex = 0; EntityBatchIndex < ProcessEntityBatchJobCount; ++EntityBatchIndex)
@@ -2218,7 +2235,7 @@ DLLExport GAME_RENDER(GameRender)
 
                     JobData->StartIndex = EntityBatchIndex * EntityBatchCount;
                     JobData->EndIndex = Min((i32)JobData->StartIndex + EntityBatchCount, (i32)Area->EntityCount);
-                    JobData->Lag = Lag;
+                    JobData->Lag = Params->UpdateLag;
                     JobData->Entities = Area->Entities;
                     JobData->SpatialGrid = &Area->SpatialGrid;
                     JobData->ShadowPlaneCount = ShadowPlaneCount;
@@ -2239,9 +2256,9 @@ DLLExport GAME_RENDER(GameRender)
 
                 u32 MaxPointLightCount = 32;
                 u32 PointLightCount = 0;
-                point_light *PointLights = PushArray(&State->TransientArena, MaxPointLightCount, point_light, NoClear());
+                point_light *PointLights = PushArray(&State->FrameArena, MaxPointLightCount, point_light, NoClear());
 
-                InitHashTable(&State->EntityBatches, 521, &State->TransientArena);
+                InitHashTable(&State->EntityBatches, 521, &State->FrameArena);
 
                 State->RenderableEntityCount = 0;
                 State->ActiveEntitiesCount = 0;
@@ -2263,7 +2280,7 @@ DLLExport GAME_RENDER(GameRender)
 
                                 if (IsSlotEmpty(Batch->Key))
                                 {
-                                    InitRenderBatch(Batch, Entity, Area->MaxEntityCount, &State->TransientArena);
+                                    InitRenderBatch(Batch, Entity, Area->MaxEntityCount, &State->FrameArena);
                                 }
 
                                 AddEntityToRenderBatch(Batch, Entity);
@@ -2330,7 +2347,7 @@ DLLExport GAME_RENDER(GameRender)
             {
                 PROFILE(Memory->Profiler, "GameRender:ProcessParticles");
 
-                scoped_memory ScopedMemory(&State->TransientArena);
+                scoped_memory ScopedMemory(&State->FrameArena);
 
                 u32 ParticleJobCount = 0;
                 u32 MaxParticleJobCount = Area->EntityCount;
@@ -2350,7 +2367,7 @@ DLLExport GAME_RENDER(GameRender)
 
                         JobData->ParticleEmitter = Entity->ParticleEmitter;
                         JobData->CameraPosition = Camera->Position;
-                        JobData->Delta = Parameters->Delta;
+                        JobData->Delta = Params->Delta;
 
                         Job->EntryPoint = ProcessParticlesJob;
                         Job->Parameters = JobData;
@@ -2456,7 +2473,7 @@ DLLExport GAME_RENDER(GameRender)
             {
                 game_menu_quad *Quad = State->MenuQuads + QuadIndex;
 
-                Quad->Move += Parameters->Delta * MoveSpeed;
+                Quad->Move += Params->Delta * MoveSpeed;
 
                 if (Quad->Move >= 1.f)
                 {
@@ -2521,5 +2538,5 @@ DLLExport GAME_RENDER(GameRender)
 
     // todo: should probably go to FrameEnd ?
     // todo: maybe move it out to platform layer to be more explicit? (maybe create FrameStart/FrameEnd functions?)
-    ClearMemoryArena(&State->TransientArena);
+    ClearMemoryArena(&State->FrameArena);
 }
