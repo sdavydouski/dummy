@@ -10,6 +10,7 @@ struct editor_add_entity
     rigid_body_spec RigidBody;
     point_light_spec PointLight;
     particle_emitter_spec ParticleEmitter;
+    audio_source_spec AudioSource;
 };
 
 struct editor_state
@@ -26,6 +27,7 @@ struct editor_state
 
     ImGuiTextFilter LogFilter;
     ImGuiTextFilter ModelFilter;
+    ImGuiTextFilter AudioFilter;
 
     platform_api *Platform;
     memory_arena Arena;

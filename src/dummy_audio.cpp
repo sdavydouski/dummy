@@ -68,11 +68,13 @@ Play2D(audio_commands *Commands, audio_clip *AudioClip, audio_play_options Optio
 }
 
 inline void
-Play3D(audio_commands *Commands, audio_clip *AudioClip, vec3 EmitterPosition, audio_play_options Options = DefaultAudioPlayOptions(), u32 Id = 0)
+Play3D(audio_commands *Commands, audio_clip *AudioClip, vec3 EmitterPosition, f32 MinDistance, f32 MaxDistance, audio_play_options Options = DefaultAudioPlayOptions(), u32 Id = 0)
 {
     audio_command_play_3d *Command = PushAudioCommand(Commands, audio_command_play_3d, AudioCommand_Play_3D);
     Command->AudioClip = AudioClip;
     Command->EmitterPosition = EmitterPosition;
+    Command->MinDistance = MinDistance;
+    Command->MaxDistance = MaxDistance;
     Command->Options = Options;
     Command->Id = Id;
 }
@@ -86,11 +88,14 @@ SetListener(audio_commands *Commands, vec3 ListenerPosition, vec3 ListenerDirect
 }
 
 inline void
-SetEmitter(audio_commands *Commands, u32 Id, vec3 EmitterPosition)
+SetEmitter(audio_commands *Commands, u32 Id, vec3 EmitterPosition, f32 Volume, f32 MinDistance, f32 MaxDistance)
 {
     audio_command_set_emitter *Command = PushAudioCommand(Commands, audio_command_set_emitter, AudioCommand_SetEmitter);
     Command->Id = Id;
     Command->EmitterPosition = EmitterPosition;
+    Command->Volume = Volume;
+    Command->MinDistance = MinDistance;
+    Command->MaxDistance = MaxDistance;
 }
 
 inline void

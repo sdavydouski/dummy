@@ -74,7 +74,6 @@ AttachChildGameProcess_(game_state *State, u32 ParentProcessId, const char *Chil
 #define AttachChildGameProcess(State, ParentProcessId, ChildOnUpdatePerFrame, ChildParams) AttachChildGameProcess_(State, ParentProcessId, #ChildOnUpdatePerFrame, ChildOnUpdatePerFrame, ChildParams)
 
 // Reloadable game processes
-
 DLLExport GAME_PROCESS_ON_UPDATE(RigidBodyPositionLerpProcess)
 {
     rigid_body *Body = Process->Params.Entity->Body;

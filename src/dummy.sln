@@ -47,6 +47,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "glsl", "glsl", "{CDE21B5E-2
 		shaders\glsl\particle.frag = shaders\glsl\particle.frag
 		shaders\glsl\particle.geom = shaders\glsl\particle.geom
 		shaders\glsl\particle.vert = shaders\glsl\particle.vert
+		shaders\glsl\pbr.frag = shaders\glsl\pbr.frag
 		shaders\glsl\phong.frag = shaders\glsl\phong.frag
 		shaders\glsl\simple.vert = shaders\glsl\simple.vert
 		shaders\glsl\skinned_mesh.comp = shaders\glsl\skinned_mesh.comp

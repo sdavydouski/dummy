@@ -160,6 +160,13 @@ GenerateGameProcessId(game_state *State)
     return Result;
 }
 
+inline u32
+GenerateAudioSourceId(game_state *State)
+{
+    u32 Result = State->NextFreeAudioSourceId++;
+    return Result;
+}
+
 inline bool32
 HasJoints(skeleton *Skeleton)
 {
@@ -845,7 +852,23 @@ AddParticleEmitter(game_entity *Entity, u32 ParticleCount, u32 ParticlesSpawn, v
 }
 
 inline void
-CopyGameEntity(game_state *State, render_commands *RenderCommands, game_entity *Source, game_entity *Dest)
+AddAudioSource(game_state *State, game_entity *Entity, audio_clip *AudioClip, vec3 Position, f32 Volume, f32 MinDistance, f32 MaxDistance, audio_commands *AudioCommands, memory_arena *Arena)
+{
+    Entity->AudioSource = PushType(Arena, audio_source);
+    Entity->AudioSource->AudioClip = AudioClip;
+    Entity->AudioSource->Volume = Volume;
+    Entity->AudioSource->MinDistance = MinDistance;
+    Entity->AudioSource->MaxDistance = MaxDistance;
+    Entity->AudioSource->IsPlaying = true;
+    Entity->AudioSource->Id = GenerateAudioSourceId(State);
+
+    // todo:
+    bool32 IsLooping = true;
+    Play3D(AudioCommands, AudioClip, Position, MinDistance, MaxDistance, SetAudioPlayOptions(Volume, IsLooping), Entity->AudioSource->Id);
+}
+
+inline void
+CopyGameEntity(game_state *State, render_commands *RenderCommands, audio_commands *AudioCommands, game_entity *Source, game_entity *Dest)
 {
     world_area *Area = &State->WorldArea;
 
@@ -876,6 +899,11 @@ CopyGameEntity(game_state *State, render_commands *RenderCommands, game_entity *
     if (Source->ParticleEmitter)
     {
         AddParticleEmitter(Dest, Source->ParticleEmitter->ParticleCount, Source->ParticleEmitter->ParticlesSpawn, Source->ParticleEmitter->Color, Source->ParticleEmitter->Size, &Area->Arena);
+    }
+
+    if (Source->AudioSource)
+    {
+        AddAudioSource(State, Dest, Source->AudioSource->AudioClip, Source->Transform.Translation, Source->AudioSource->Volume, Source->AudioSource->MinDistance, Source->AudioSource->MaxDistance, AudioCommands, &Area->Arena);
     }
 }
 
@@ -1444,10 +1472,15 @@ Entity2Spec(game_entity *Entity, game_entity_spec *Spec)
     {
         ParticleEmitter2Spec(Entity->ParticleEmitter, &Spec->ParticleEmitterSpec);
     }
+
+    if (Entity->AudioSource)
+    {
+        AudioSource2Spec(Entity->AudioSource, &Spec->AudioSourceSpec);
+    }
 }
 
 dummy_internal void
-Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, render_commands *RenderCommands, memory_arena *Arena)
+Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, render_commands *RenderCommands, audio_commands *AudioCommands, memory_arena *Arena)
 {
     CopyString(Spec->Name, Entity->Name);
     Entity->Transform = Spec->Transform;
@@ -1493,6 +1526,14 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
         particle_emitter_spec ParticleEmitterSpec = Spec->ParticleEmitterSpec;
         AddParticleEmitter(Entity, ParticleEmitterSpec.ParticleCount, ParticleEmitterSpec.ParticlesSpawn, ParticleEmitterSpec.Color, ParticleEmitterSpec.Size, Arena);
     }
+
+    if (Spec->AudioSourceSpec.Has)
+    {
+        audio_source_spec AudioSourceSpec = Spec->AudioSourceSpec;
+
+        audio_clip *AudioClip = GetAudioClipAsset(&State->Assets, Spec->AudioSourceSpec.AudioClipRef);
+        AddAudioSource(State, Entity, AudioClip, Entity->Transform.Translation, AudioSourceSpec.Volume, AudioSourceSpec.MinDistance, AudioSourceSpec.MaxDistance, AudioCommands, Arena);
+    }
 }
 
 dummy_internal void
@@ -1531,7 +1572,7 @@ SaveWorldAreaToFile(game_state *State, char *FileName,  platform_api *Platform, 
 }
 
 dummy_internal void
-LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
+LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform, render_commands *RenderCommands, audio_commands *AudioCommands, memory_arena *TempArena)
 {
     read_file_result Result = Platform->ReadFile(FileName, TempArena, ReadBinary());
 
@@ -1561,14 +1602,14 @@ LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform,
 
         game_entity *Entity = CreateGameEntity(State);
 
-        Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
+        Spec2Entity(Spec, Entity, State, RenderCommands, AudioCommands, &Area->Arena);
     }
 
     Out(&State->Stream, "Loaded %s (Entity Count: %d)", FileName, EntityCount);
 }
 
 dummy_internal void
-LoadEntityFromFile(game_state *State,  game_entity *Entity, char *FileName, platform_api *Platform, render_commands *RenderCommands, memory_arena *TempArena)
+LoadEntityFromFile(game_state *State,  game_entity *Entity, char *FileName, platform_api *Platform, render_commands *RenderCommands, audio_commands *AudioCommands, memory_arena *TempArena)
 {
     read_file_result Result = Platform->ReadFile(FileName, TempArena, ReadBinary());
 
@@ -1585,7 +1626,7 @@ LoadEntityFromFile(game_state *State,  game_entity *Entity, char *FileName, plat
 
     world_area *Area = &State->WorldArea;
 
-    Spec2Entity(Spec, Entity, State, RenderCommands, &Area->Arena);
+    Spec2Entity(Spec, Entity, State, RenderCommands, AudioCommands, &Area->Arena);
 }
 
 dummy_internal void
@@ -1662,6 +1703,8 @@ DLLExport GAME_INIT(GameInit)
     State->NextFreeMeshId = 1;
     State->NextFreeTextureId = 1;
     State->NextFreeSkinningId = 1;
+    State->NextFreeProcessId = 1;
+    State->NextFreeAudioSourceId = 1;
 
     // todo: temp
     State->SkyboxId = 1234;
@@ -2060,12 +2103,11 @@ DLLExport GAME_RENDER(GameRender)
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
-#if 1
+#if 0
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
-            LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, ScopedMemory.Arena);
+            LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
             State->Player = (State->WorldArea.Entities + 0);
-            //State->Player->Body->RootMotionEnabled = false;
         }
 #endif
     }
@@ -2307,6 +2349,18 @@ DLLExport GAME_RENDER(GameRender)
                             if (State->Mode == GameMode_Editor)
                             {
                                 DrawBillboard(RenderCommands, PointLight->Position, vec2(0.2f), GetTextureAsset(&State->Assets, "point_light"));
+                            }
+                        }
+
+                        if (Entity->AudioSource)
+                        {
+                            audio_source *AudioSource = Entity->AudioSource;
+
+                            SetEmitter(AudioCommands, AudioSource->Id, Entity->Transform.Translation, AudioSource->Volume, AudioSource->MinDistance, AudioSource->MaxDistance);
+
+                            if (State->Mode == GameMode_Editor)
+                            {
+                                DrawBillboard(RenderCommands, Entity->Transform.Translation, vec2(0.2f), GetTextureAsset(&State->Assets, "audio_source"));
                             }
                         }
                     }

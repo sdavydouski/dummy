@@ -2,13 +2,9 @@
 #include "win32_dummy_xaudio2.h"
 
 f32 inline
-XAudio2CalculateVoiceVolume(vec3 EmitterPosition, vec3 ListenerPosition)
+XAudio2CalculateVoiceVolume(vec3 EmitterPosition, vec3 ListenerPosition, f32 MinDistance, f32 MaxDistance)
 {
     f32 Distance = Magnitude(EmitterPosition - ListenerPosition);
-
-    // todo: put in settings?
-    f32 MinDistance = 10.f;
-    f32 MaxDistance = 100.f;
 
     f32 Volume = 0.f;
 
@@ -201,6 +197,9 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 vec3 ListenerPosition = State->ListenerPosition;
                 vec3 ListenerDirection = State->ListenerDirection;
 
+                f32 MinDistance = Command->MinDistance;
+                f32 MaxDistance = Command->MaxDistance;
+
                 //
                 audio_clip *AudioClip = Command->AudioClip;
                 audio_play_options Params = Command->Options;
@@ -232,7 +231,7 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 SourceVoice->SubmitSourceBuffer(&AudioBuffer);
                 //
 
-                f32 Volume = XAudio2CalculateVoiceVolume(EmitterPosition, ListenerPosition);
+                f32 Volume = XAudio2CalculateVoiceVolume(EmitterPosition, ListenerPosition, MinDistance, MaxDistance);
 
                 f32 OutputMatrix[8] = {};
                 XAudio2CalculateOutputMatrix(State, EmitterPosition, ListenerPosition, ListenerDirection, OutputMatrix);
@@ -270,19 +269,23 @@ XAudio2ProcessAudioCommands(xaudio2_state *State, audio_commands *Commands)
                 vec3 ListenerPosition = State->ListenerPosition;
                 vec3 ListenerDirection = State->ListenerDirection;
 
+                f32 MinDistance = Command->MinDistance;
+                f32 MaxDistance = Command->MaxDistance;
+
                 Assert(Command->Id != 0);
 
                 xaudio2_source_voice *Voice = HashTableLookup(&State->Voices, Command->Id);
 
-                Assert(Voice->SourceVoice);
+                if (Voice->SourceVoice)
+                {
+                    f32 Volume = XAudio2CalculateVoiceVolume(Command->EmitterPosition, ListenerPosition, MinDistance, MaxDistance);
 
-                f32 Volume = XAudio2CalculateVoiceVolume(Command->EmitterPosition, ListenerPosition);
+                    f32 OutputMatrix[8] = {};
+                    XAudio2CalculateOutputMatrix(State, Command->EmitterPosition, ListenerPosition, ListenerDirection, OutputMatrix);
 
-                f32 OutputMatrix[8] = {};
-                XAudio2CalculateOutputMatrix(State, Command->EmitterPosition, ListenerPosition, ListenerDirection, OutputMatrix);
-
-                Voice->SourceVoice->SetVolume(Volume);
-                Voice->SourceVoice->SetOutputMatrix(0, Voice->VoiceDetails.InputChannels, State->MasterVoiceDetails.InputChannels, OutputMatrix);
+                    Voice->SourceVoice->SetVolume(Volume * Command->Volume);
+                    Voice->SourceVoice->SetOutputMatrix(0, Voice->VoiceDetails.InputChannels, State->MasterVoiceDetails.InputChannels, OutputMatrix);
+                }
 
                 break;
             }

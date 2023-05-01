@@ -808,7 +808,46 @@ EditorRenderParticleEmitterInfo(particle_emitter *ParticleEmitter)
 }
 
 dummy_internal void
-EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platform_api *Platform, renderer_state *RendererState, game_entity *Entity, render_commands *RenderCommands)
+EditorRenderAudioSourceInfo(audio_source *AudioSource, audio_commands *AudioCommands)
+{
+    if (ImGui::CollapsingHeader("AudioSource", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text("Audio clip: %s", AudioSource->AudioClip->Key);
+        ImGui::SliderFloat("Volume##AudioSource", &AudioSource->Volume, 0.f, 1.f);
+        ImGui::InputFloat("MinDistance##AudioSource", &AudioSource->MinDistance);
+        ImGui::InputFloat("MaxDistance##AudioSource", &AudioSource->MaxDistance);
+
+        if (AudioSource->IsPlaying)
+        {
+            if (ImGui::Button("Pause##AudioSource"))
+            {
+                Pause(AudioCommands, AudioSource->Id);
+                AudioSource->IsPlaying = false;
+            }
+        }
+        else
+        {
+            if (ImGui::Button("Play##AudioSource"))
+            {
+                Resume(AudioCommands, AudioSource->Id);
+                AudioSource->IsPlaying = true;
+            }
+        }
+
+        ImGui::NewLine();
+    }
+}
+
+dummy_internal void
+EditorRenderEntityInfo(
+    editor_state *EditorState, 
+    game_state *GameState, 
+    platform_api *Platform, 
+    renderer_state *RendererState, 
+    game_entity *Entity, 
+    render_commands *RenderCommands, 
+    audio_commands *AudioCommands
+)
 {
     ImVec2 WindowSize = ImGui::GetWindowSize();
 
@@ -997,6 +1036,53 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
         }
     }
 
+    if (Entity->AudioSource)
+    {
+        EditorRenderAudioSourceInfo(Entity->AudioSource, AudioCommands);
+    }
+    else
+    {
+        if (ImGui::CollapsingHeader("Add Audio Source"))
+        {
+            audio_source_spec *AudioSource = &EditorState->AddEntity.AudioSource;
+
+            game_assets *Assets = &GameState->Assets;
+
+            EditorState->AudioFilter.Draw("Filter##Audio");
+
+            if (ImGui::BeginListBox("##empty", ImVec2(-FLT_MIN, 10 * ImGui::GetTextLineHeightWithSpacing())))
+            {
+                for (u32 AudioClipIndex = 0; AudioClipIndex < Assets->AudioClips.Count; ++AudioClipIndex)
+                {
+                    audio_clip *AudioClip = Assets->AudioClips.Values + AudioClipIndex;
+
+                    if (!IsSlotEmpty(AudioClip->Key))
+                    {
+                        if (EditorState->AudioFilter.PassFilter(AudioClip->Key))
+                        {
+                            if (ImGui::Selectable(AudioClip->Key, StringEquals(AudioClip->Key, AudioSource->AudioClipRef)))
+                            {
+                                CopyString(AudioClip->Key, AudioSource->AudioClipRef);
+                            }
+                        }
+                    }
+                }
+
+                ImGui::EndListBox();
+            }
+
+            ImGui::SliderFloat("Volume##AudioSource", &AudioSource->Volume, 0.f, 1.f);
+            ImGui::InputFloat("Min Distance##AudioSource", &AudioSource->MinDistance);
+            ImGui::InputFloat("Max Distance##AudioSource", &AudioSource->MaxDistance);
+
+            if (ImGui::Button("Add##AudioSource"))
+            {
+                AddAudioSource(GameState, Entity, GetAudioClipAsset(Assets, AudioSource->AudioClipRef), Entity->Transform.Translation, AudioSource->Volume, AudioSource->MinDistance, AudioSource->MaxDistance, AudioCommands, &GameState->WorldArea.Arena);
+                EditorState->AudioFilter.Clear();
+            }
+        }
+    }
+
     ImGui::NewLine();
 
     if (ImGui::ButtonEx("Remove (X)", ImVec2(WindowSize.x, 0)))
@@ -1017,7 +1103,7 @@ EditorRenderEntityInfo(editor_state *EditorState, game_state *GameState, platfor
             char FilePath[256];
             ConvertToString(WideFilePath, FilePath);
 
-            LoadEntityFromFile(GameState, Entity, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
+            LoadEntityFromFile(GameState, Entity, FilePath, Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
         }
     }
 
@@ -1052,11 +1138,11 @@ EditorAddEntity(editor_state *EditorState, game_state *GameState)
 }
 
 dummy_internal void
-EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_commands *RenderCommands, game_entity *SourceEntity)
+EditorCopyEntity(editor_state *EditorState, game_state *GameState, render_commands *RenderCommands, audio_commands *AudioCommands, game_entity *SourceEntity)
 {
     game_entity *DestEntity = CreateGameEntity(GameState);
 
-    CopyGameEntity(GameState, RenderCommands, SourceEntity, DestEntity);
+    CopyGameEntity(GameState, RenderCommands, AudioCommands, SourceEntity, DestEntity);
 
     GameState->SelectedEntity = DestEntity;
 
@@ -1154,6 +1240,7 @@ Win32RenderEditor(
     game_state *GameState = GetGameState(GameMemory);
     platform_api *Platform = GameMemory->Platform;
     render_commands *RenderCommands = GetRenderCommands(GameMemory);
+    audio_commands *AudioCommands = GetAudioCommands(GameMemory);
 
     renderer_state *RendererState = EditorState->Renderer;
     audio_state *AudioState = EditorState->Audio;
@@ -1211,7 +1298,7 @@ Win32RenderEditor(
                         ConvertToString(WideFilePath, FilePath);
 
                         ClearWorldArea(GameState);
-                        LoadWorldAreaFromFile(GameState, FilePath, Platform, RenderCommands, ScopedMemory.Arena);
+                        LoadWorldAreaFromFile(GameState, FilePath, Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
                     }
                 }
 
@@ -1355,6 +1442,7 @@ Win32RenderEditor(
     ImGui::End();
 #endif
 
+#if 0
     ImGui::Begin("Processes");
 
     game_process *GameProcess = GameState->ProcessSentinel.Next;
@@ -1369,6 +1457,7 @@ Win32RenderEditor(
     }
 
     ImGui::End();
+#endif
 
     ImGui::Begin("Scene");
 
@@ -1536,7 +1625,7 @@ Win32RenderEditor(
 
     if (GameState->SelectedEntity)
     {
-        EditorRenderEntityInfo(EditorState, GameState, Platform, RendererState, GameState->SelectedEntity, RenderCommands);
+        EditorRenderEntityInfo(EditorState, GameState, Platform, RendererState, GameState->SelectedEntity, RenderCommands, AudioCommands);
     }
     else
     {
@@ -1657,7 +1746,7 @@ Win32RenderEditor(
         {
             if (GameState->SelectedEntity)
             {
-                EditorCopyEntity(EditorState, GameState, RenderCommands, GameState->SelectedEntity);
+                EditorCopyEntity(EditorState, GameState, RenderCommands, AudioCommands, GameState->SelectedEntity);
             }
         }
 

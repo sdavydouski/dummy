@@ -79,7 +79,9 @@ struct game_entity
     rigid_body *Body;
     point_light *PointLight;
     particle_emitter *ParticleEmitter;
+    audio_source *AudioSource;
 
+    // ?
     bool32 Visible;
     bool32 Destroyed;
     vec3 TestColor;
@@ -101,6 +103,8 @@ struct model_spec
 {
     bool32 Has;
     char ModelRef[64];
+
+    u32 Buffer[4096];
 };
 
 inline void
@@ -119,6 +123,8 @@ struct collider_spec
         vec3 Size;
         f32 Radius;
     };
+
+    u32 Buffer[4096];
 };
 
 inline void
@@ -151,15 +157,14 @@ Collider2Spec(collider *Collider, collider_spec *Spec)
 struct rigid_body_spec
 {
     bool32 Has;
-    // todo: remove
-    bool32 RootMotionEnabled;
+
+    u32 Buffer[4096];
 };
 
 inline void
 RigidBody2Spec(rigid_body *Body, rigid_body_spec *Spec)
 {
     Spec->Has = true;
-    Spec->RootMotionEnabled = false;
 }
 
 struct point_light_spec
@@ -167,6 +172,8 @@ struct point_light_spec
     bool32 Has;
     vec3 Color;
     light_attenuation Attenuation;
+
+    u32 Buffer[4096];
 };
 
 inline void
@@ -184,6 +191,8 @@ struct particle_emitter_spec
     u32 ParticlesSpawn;
     vec4 Color;
     vec2 Size;
+
+    u32 Buffer[4096];
 };
 
 inline void
@@ -196,6 +205,27 @@ ParticleEmitter2Spec(particle_emitter *ParticleEmitter, particle_emitter_spec *S
     Spec->Size = ParticleEmitter->Size;
 }
 
+struct audio_source_spec
+{
+    bool32 Has;
+    char AudioClipRef[64];
+    f32 Volume;
+    f32 MinDistance;
+    f32 MaxDistance;
+
+    u32 Buffer[4096];
+};
+
+inline void
+AudioSource2Spec(audio_source *AudioSource, audio_source_spec *Spec)
+{
+    Spec->Has = true;
+    CopyString(AudioSource->AudioClip->Key, Spec->AudioClipRef);
+    Spec->Volume = AudioSource->Volume;
+    Spec->MinDistance = AudioSource->MinDistance;
+    Spec->MaxDistance = AudioSource->MaxDistance;
+}
+
 struct game_entity_spec
 {
     char Name[MAX_ENTITY_NAME];
@@ -205,6 +235,9 @@ struct game_entity_spec
     rigid_body_spec RigidBodySpec;
     point_light_spec PointLightSpec;
     particle_emitter_spec ParticleEmitterSpec;
+    audio_source_spec AudioSourceSpec;
+
+    u32 Buffer[8192];
 };
 
 #pragma pack(push, 1)
@@ -355,6 +388,7 @@ struct game_state
     u32 NextFreeTextureId;
     u32 NextFreeSkinningId;
     u32 NextFreeProcessId;
+    u32 NextFreeAudioSourceId;
 
     u32 RenderableEntityCount;
     u32 ActiveEntitiesCount;

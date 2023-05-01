@@ -64,7 +64,7 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
 
                 Assert(AudioClip);
 
-                Play3D(AudioCommands, AudioClip, Position, SetVolume(Weight));
+                Play3D(AudioCommands, AudioClip, Position, 10.f, 20.f, SetVolume(Weight));
             }
         }
     }

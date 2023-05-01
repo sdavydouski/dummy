@@ -68,7 +68,7 @@ GetEntityBounds(game_entity *Entity)
     {
         Result = UpdateBounds(Entity->Model->Bounds, Entity->Transform);
     }
-    else if (Entity->PointLight || Entity->ParticleEmitter)
+    else if (Entity->PointLight || Entity->ParticleEmitter || Entity->AudioSource)
     {
         aabb Bounds =
         {

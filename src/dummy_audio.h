@@ -1,5 +1,16 @@
 #pragma once
 
+struct audio_source
+{
+    audio_clip *AudioClip;
+    f32 Volume;
+    f32 MinDistance;
+    f32 MaxDistance;
+
+    bool32 IsPlaying;
+    u32 Id;
+};
+
 struct audio_play_options
 {
     f32 Volume;
@@ -38,6 +49,8 @@ struct audio_command_play_3d
 
     u32 Id;
     vec3 EmitterPosition;
+    f32 MinDistance;
+    f32 MaxDistance;
     audio_clip *AudioClip;
     audio_play_options Options;
 };
@@ -52,8 +65,11 @@ struct audio_command_set_listener
 struct audio_command_set_emitter
 {
     audio_command_header Header;
-    u32 Id;
     vec3 EmitterPosition;
+    f32 MinDistance;
+    f32 MaxDistance;
+    f32 Volume;
+    u32 Id;
 };
 
 struct audio_command_pause
