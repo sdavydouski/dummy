@@ -109,6 +109,18 @@ struct vec4
     }
 };
 
+inline bool32 operator ==(vec4 a, vec4 b)
+{
+    bool32 Result = a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+    return Result;
+}
+
+inline bool32 operator !=(vec4 a, vec4 b)
+{
+    bool32 Result = !(a == b);
+    return Result;
+}
+
 inline vec4 &operator +=(vec4 &Dest, vec4 Vector)
 {
     Dest = Dest + Vector;

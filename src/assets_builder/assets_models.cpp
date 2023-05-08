@@ -97,14 +97,27 @@ FindAssimpTextureByFileName(const aiScene *AssimpScene, aiString TexturePath)
 {
     aiTexture *Result = 0;
 
-    for (u32 TextureIndex = 0; TextureIndex < AssimpScene->mNumTextures; ++TextureIndex)
+    // If the texture is embedded, TexturePath receives a '*' followed by the id of
+    // the texture (for the textures stored in the corresponding scene)
+    if (TexturePath.data[0] == '*')
     {
-        aiTexture *AssimpTexture = AssimpScene->mTextures[TextureIndex];
+        u32 TextureIndex = std::atoi(TexturePath.C_Str() + 1);
 
-        if (AssimpTexture->mFilename == TexturePath)
+        Assert(TextureIndex < AssimpScene->mNumTextures);
+
+        Result = AssimpScene->mTextures[TextureIndex];
+    }
+    else
+    {
+        for (u32 TextureIndex = 0; TextureIndex < AssimpScene->mNumTextures; ++TextureIndex)
         {
-            Result = AssimpTexture;
-            break;
+            aiTexture *AssimpTexture = AssimpScene->mTextures[TextureIndex];
+
+            if (AssimpTexture->mFilename == TexturePath)
+            {
+                Result = AssimpTexture;
+                break;
+            }
         }
     }
 
@@ -162,100 +175,198 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
     Material->Properties = AllocateMemory<material_property>(MAX_MATERIAL_PROPERTY_COUNT);
     u32 MaterialPropertyIndex = 0;
 
-    f32 SpecularShininess;
-    if (aiGetMaterialFloat(AssimpMaterial, AI_MATKEY_SHININESS, &SpecularShininess) == AI_SUCCESS)
+    i32 ShadingModel;
+    aiGetMaterialInteger(AssimpMaterial, AI_MATKEY_SHADING_MODEL, &ShadingModel);
+
+    switch (ShadingModel)
     {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Float_Shininess;
-        MaterialProperty->Value = SpecularShininess;
+        case aiShadingMode_Phong:
+        case aiShadingMode_Blinn:
+        {
+            Material->ShadingMode = ShadingMode_Phong;
 
-        ++MaterialPropertyIndex;
-    }
+            f32 SpecularShininess;
+            if (aiGetMaterialFloat(AssimpMaterial, AI_MATKEY_SHININESS, &SpecularShininess) == AI_SUCCESS)
+            {
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Float_Shininess;
+                MaterialProperty->Value = SpecularShininess;
 
-    aiColor4D AmbientColor;
-    if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_AMBIENT, &AmbientColor) == AI_SUCCESS)
-    {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Color_Ambient;
-        MaterialProperty->Color = AssimpColor2Vector(AmbientColor);
+                ++MaterialPropertyIndex;
+            }
 
-        ++MaterialPropertyIndex;
-    }
+            aiColor4D AmbientColor;
+            if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_AMBIENT, &AmbientColor) == AI_SUCCESS)
+            {
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Color_Ambient;
+                MaterialProperty->Color = AssimpColor2Vector(AmbientColor);
 
-    aiColor4D DiffuseColor;
-    if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &DiffuseColor) == AI_SUCCESS)
-    {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Color_Diffuse;
-        MaterialProperty->Color = AssimpColor2Vector(DiffuseColor);
+                ++MaterialPropertyIndex;
+            }
 
-        ++MaterialPropertyIndex;
-    }
+            aiColor4D DiffuseColor;
+            if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &DiffuseColor) == AI_SUCCESS)
+            {
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Color_Diffuse;
+                MaterialProperty->Color = AssimpColor2Vector(DiffuseColor);
 
-    aiColor4D SpecularColor;
-    if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_SPECULAR, &SpecularColor) == AI_SUCCESS)
-    {
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Color_Specular;
-        MaterialProperty->Color = AssimpColor2Vector(SpecularColor);
+                ++MaterialPropertyIndex;
+            }
 
-        ++MaterialPropertyIndex;
-    }
+            aiColor4D SpecularColor;
+            if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_SPECULAR, &SpecularColor) == AI_SUCCESS)
+            {
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Color_Specular;
+                MaterialProperty->Color = AssimpColor2Vector(SpecularColor);
 
-    u32 DiffuseMapCount = 0;
-    bitmap *DiffuseMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DIFFUSE, &DiffuseMapCount, &DiffuseMaps);
-    for (u32 DiffuseMapIndex = 0; DiffuseMapIndex < DiffuseMapCount; ++DiffuseMapIndex)
-    {
-        bitmap *DiffuseMap = DiffuseMaps + DiffuseMapIndex;
+                ++MaterialPropertyIndex;
+            }
 
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Diffuse;
-        MaterialProperty->Bitmap = *DiffuseMap;
+            u32 DiffuseMapCount = 0;
+            bitmap *DiffuseMaps = 0;
+            ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DIFFUSE, &DiffuseMapCount, &DiffuseMaps);
+            for (u32 DiffuseMapIndex = 0; DiffuseMapIndex < DiffuseMapCount; ++DiffuseMapIndex)
+            {
+                bitmap *DiffuseMap = DiffuseMaps + DiffuseMapIndex;
 
-        ++MaterialPropertyIndex;
-    }
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Texture_Diffuse;
+                MaterialProperty->Bitmap = *DiffuseMap;
 
-    u32 SpecularMapCount = 0;
-    bitmap *SpecularMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SPECULAR, &SpecularMapCount, &SpecularMaps);
-    for (u32 SpecularMapIndex = 0; SpecularMapIndex < SpecularMapCount; ++SpecularMapIndex)
-    {
-        bitmap *SpecularMap = SpecularMaps + SpecularMapIndex;
+                ++MaterialPropertyIndex;
+            }
 
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Specular;
-        MaterialProperty->Bitmap = *SpecularMap;
+            u32 SpecularMapCount = 0;
+            bitmap *SpecularMaps = 0;
+            ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SPECULAR, &SpecularMapCount, &SpecularMaps);
+            for (u32 SpecularMapIndex = 0; SpecularMapIndex < SpecularMapCount; ++SpecularMapIndex)
+            {
+                bitmap *SpecularMap = SpecularMaps + SpecularMapIndex;
 
-        ++MaterialPropertyIndex;
-    }
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Texture_Specular;
+                MaterialProperty->Bitmap = *SpecularMap;
 
-    u32 ShininessMapCount = 0;
-    bitmap *ShininessMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SHININESS, &ShininessMapCount, &ShininessMaps);
-    for (u32 ShininessMapIndex = 0; ShininessMapIndex < ShininessMapCount; ++ShininessMapIndex)
-    {
-        bitmap *ShininessMap = ShininessMaps + ShininessMapIndex;
+                ++MaterialPropertyIndex;
+            }
 
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Shininess;
-        MaterialProperty->Bitmap = *ShininessMap;
+            u32 ShininessMapCount = 0;
+            bitmap *ShininessMaps = 0;
+            ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_SHININESS, &ShininessMapCount, &ShininessMaps);
+            for (u32 ShininessMapIndex = 0; ShininessMapIndex < ShininessMapCount; ++ShininessMapIndex)
+            {
+                bitmap *ShininessMap = ShininessMaps + ShininessMapIndex;
 
-        ++MaterialPropertyIndex;
-    }
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Texture_Shininess;
+                MaterialProperty->Bitmap = *ShininessMap;
 
-    u32 MetalnessMapCount = 0;
-    bitmap *MetalnessMaps = 0;
-    ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_METALNESS, &MetalnessMapCount, &MetalnessMaps);
-    for (u32 MetalnessMapIndex = 0; MetalnessMapIndex < MetalnessMapCount; ++MetalnessMapIndex)
-    {
-        bitmap *MetalnessMap = MetalnessMaps + MetalnessMapIndex;
+                ++MaterialPropertyIndex;
+            }
 
-        material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
-        MaterialProperty->Type = MaterialProperty_Texture_Metalness;
-        MaterialProperty->Bitmap = *MetalnessMap;
+            break;
+        }
+        case aiShadingMode_PBR_BRDF:
+        {
+            Material->ShadingMode = ShadingMode_PBR;
 
-        ++MaterialPropertyIndex;
+            f32 Metalness;
+            if (aiGetMaterialFloat(AssimpMaterial, AI_MATKEY_METALLIC_FACTOR, &Metalness) == AI_SUCCESS)
+            {
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Float_Metalness;
+                MaterialProperty->Value = Metalness;
+
+                ++MaterialPropertyIndex;
+            }
+
+            f32 Roughness;
+            if (aiGetMaterialFloat(AssimpMaterial, AI_MATKEY_ROUGHNESS_FACTOR, &Roughness) == AI_SUCCESS)
+            {
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Float_Roughness;
+                MaterialProperty->Value = Roughness;
+
+                ++MaterialPropertyIndex;
+            }
+
+            aiColor4D DiffuseColor;
+            if (aiGetMaterialColor(AssimpMaterial, AI_MATKEY_COLOR_DIFFUSE, &DiffuseColor) == AI_SUCCESS)
+            {
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Color_Diffuse;
+                MaterialProperty->Color = AssimpColor2Vector(DiffuseColor);
+
+                ++MaterialPropertyIndex;
+            }
+
+            u32 AlbedoMapCount = 0;
+            bitmap *AlbedoMaps = 0;
+            ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_BASE_COLOR, &AlbedoMapCount, &AlbedoMaps);
+            for (u32 AlbedoMapIndex = 0; AlbedoMapIndex < AlbedoMapCount; ++AlbedoMapIndex)
+            {
+                bitmap *AlbedoMap = AlbedoMaps + AlbedoMapIndex;
+
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Texture_Albedo;
+                MaterialProperty->Bitmap = *AlbedoMap;
+
+                ++MaterialPropertyIndex;
+            }
+
+            u32 MetalnessMapCount = 0;
+            bitmap *MetalnessMaps = 0;
+            ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_METALNESS, &MetalnessMapCount, &MetalnessMaps);
+            for (u32 MetalnessMapIndex = 0; MetalnessMapIndex < MetalnessMapCount; ++MetalnessMapIndex)
+            {
+                bitmap *MetalnessMap = MetalnessMaps + MetalnessMapIndex;
+
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Texture_Metalness;
+                MaterialProperty->Bitmap = *MetalnessMap;
+
+                ++MaterialPropertyIndex;
+            }
+
+            u32 RoughnessMapCount = 0;
+            bitmap *RoughnessMaps = 0;
+            ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DIFFUSE_ROUGHNESS, &RoughnessMapCount, &RoughnessMaps);
+            for (u32 RoughnessMapIndex = 0; RoughnessMapIndex < RoughnessMapCount; ++RoughnessMapIndex)
+            {
+                bitmap *RoughnessMap = RoughnessMaps + RoughnessMapIndex;
+
+                material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                MaterialProperty->Type = MaterialProperty_Texture_Roughness;
+                MaterialProperty->Bitmap = *RoughnessMap;
+
+                ++MaterialPropertyIndex;
+            }
+
+            u32 AmbientOcclusionMapCount = 0;
+            bitmap *AmbientOcclusionMaps = 0;
+            ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_AMBIENT_OCCLUSION, &AmbientOcclusionMapCount, &AmbientOcclusionMaps);
+            for (u32 AmbientOcclusionMapIndex = 0; AmbientOcclusionMapIndex < AmbientOcclusionMapCount; ++AmbientOcclusionMapIndex)
+            {
+                //bitmap *AmbientOcclusionMap = AmbientOcclusionMaps + AmbientOcclusionMapIndex;
+
+                //material_property *MaterialProperty = Material->Properties + MaterialPropertyIndex;
+                //MaterialProperty->Type = MaterialProperty_Texture_AmbientOcclusion;
+                //MaterialProperty->Bitmap = *AmbientOcclusionMap;
+
+                //++MaterialPropertyIndex;
+            }
+
+            break;
+        }
+        default:
+        {
+            Material->ShadingMode = ShadingMode_Flat;
+
+            break;
+        }
     }
 
     u32 NormalsMapCount = 0;
@@ -271,106 +382,6 @@ ProcessAssimpMaterial(const aiScene *AssimpScene, aiMaterial *AssimpMaterial, me
 
         ++MaterialPropertyIndex;
     }
-
-#if 0
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_BASE_COLOR, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_NORMAL_CAMERA, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_EMISSION_COLOR, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DIFFUSE_ROUGHNESS, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_AMBIENT_OCCLUSION, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_DISPLACEMENT, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_EMISSIVE, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_HEIGHT, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-
-    {
-        u32 MapCount = 0;
-        bitmap *Maps = 0;
-        ProcessAssimpTextures(AssimpScene, AssimpMaterial, aiTextureType_UNKNOWN, &MetalnessMapCount, &MetalnessMaps);
-
-        if (MapCount > 0)
-        {
-            Assert(!"Rumble");
-        }
-    }
-#endif
 
     Material->PropertyCount = MaterialPropertyIndex;
 
@@ -1076,6 +1087,7 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
         model_asset_material_header *MaterialHeader = (model_asset_material_header *) (Buffer +
             MaterialsHeader->MaterialsOffset + NextMaterialHeaderOffset);
         mesh_material Material = {};
+        Material.ShadingMode = MaterialHeader->ShadingMode;
         Material.PropertyCount = MaterialHeader->PropertyCount;
         Material.Properties = (material_property *) (Buffer + MaterialHeader->PropertiesOffset);
 
@@ -1091,6 +1103,8 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
             switch (MaterialProperty->Type)
             {
                 case MaterialProperty_Float_Shininess:
+                case MaterialProperty_Float_Metalness:
+                case MaterialProperty_Float_Roughness:
                 {
                     MaterialProperty->Value = MaterialPropertyHeader->Value;
 
@@ -1105,6 +1119,24 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
                     MaterialProperty->Color = MaterialPropertyHeader->Color;
 
                     NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header);
+
+                    break;
+                }
+                case MaterialProperty_Texture_Albedo:
+                {
+                    MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
+                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
+
+#if 0
+                    char FileName[64];
+                    FormatString(FileName, "Albedo - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+
+                    stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
+#endif
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header) + BitmapSize;
 
                     break;
                 }
@@ -1163,6 +1195,24 @@ ReadModelAsset(const char *FilePath, model_asset *Asset, model_asset *OriginalAs
                     break;
                 }
                 case MaterialProperty_Texture_Metalness:
+                {
+                    MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
+                    MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
+
+#if 0
+                    char FileName[64];
+                    FormatString(FileName, "Metalness - %d - %d.bmp", MaterialIndex, MaterialPropertyIndex);
+
+                    stbi_write_bmp(FileName, MaterialProperty->Bitmap.Width, MaterialProperty->Bitmap.Height, MaterialProperty->Bitmap.Channels, MaterialProperty->Bitmap.Pixels);
+#endif
+
+                    u32 BitmapSize = MaterialProperty->Bitmap.Width * MaterialProperty->Bitmap.Height * MaterialProperty->Bitmap.Channels;
+
+                    NextMaterialPropertyHeaderOffset += sizeof(model_asset_material_property_header) + BitmapSize;
+
+                    break;
+                }
+                case MaterialProperty_Texture_Roughness:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;
                     MaterialProperty->Bitmap.Pixels = (void *)(Buffer + MaterialPropertyHeader->BitmapOffset);
@@ -1420,6 +1470,7 @@ WriteMaterials(model_asset *Asset, u64 Offset, FILE *AssetFile)
         mesh_material *Material = Asset->Materials + MaterialIndex;
 
         model_asset_material_header MaterialHeader = {};
+        MaterialHeader.ShadingMode = Material->ShadingMode;
         MaterialHeader.PropertyCount = Material->PropertyCount;
         MaterialHeader.PropertiesOffset = MaterialsHeader.MaterialsOffset + sizeof(model_asset_material_header) +
             MaterialIndex * sizeof(model_asset_material_header) + TotalPrevPropertiesSize;
@@ -1437,6 +1488,8 @@ WriteMaterials(model_asset *Asset, u64 Offset, FILE *AssetFile)
             switch (MaterialProperty->Type)
             {
                 case MaterialProperty_Float_Shininess:
+                case MaterialProperty_Float_Metalness:
+                case MaterialProperty_Float_Roughness:
                 {
                     MaterialPropertyHeader.Value = MaterialProperty->Value;
 

@@ -1,7 +1,7 @@
 //! #include "common/version.glsl"
 //! #include "common/math.glsl"
 //! #include "common/constants.glsl"
-//! #include "common/phong.glsl"
+//! #include "common/lights.glsl"
 //! #include "common/uniform.glsl"
 //! #include "common/shadows.glsl"
 

@@ -2,8 +2,18 @@
 
 enum material_type
 {
+    // A material for drawing geometries in a simple shaded way
     MaterialType_Basic,
-    MaterialType_Phong
+    // A material for shiny surfaces with specular highlights
+    MaterialType_Phong,
+    // A standard physically based material, using Metallic-Roughness workflow
+    MaterialType_Standard
+};
+
+struct material_options
+{
+    bool32 Wireframe;
+    bool32 CastShadow;
 };
 
 struct material
@@ -16,8 +26,7 @@ struct material
         mesh_material *MeshMaterial;
     };
 
-    bool32 Wireframe;
-    bool32 CastShadow;
+    material_options Options;
 };
 
 struct light_attenuation

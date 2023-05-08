@@ -5,6 +5,9 @@
 enum material_property_type
 {
     MaterialProperty_Float_Shininess,
+
+    MaterialProperty_Float_Metalness,
+    MaterialProperty_Float_Roughness,
     
     MaterialProperty_Color_Ambient,
     MaterialProperty_Color_Diffuse,
@@ -14,13 +17,6 @@ enum material_property_type
     MaterialProperty_Texture_Specular,
     MaterialProperty_Texture_Shininess,
 
-    /*
-        todo:
-
-        aiTextureType_DIFFUSE == MaterialProperty_Texture_Albedo
-        aiTextureType_METALNESS == MaterialProperty_Texture_Metalnessss
-        aiTextureType_SHININESS == MaterialProperty_Texture_Roughness ?
-    */
     MaterialProperty_Texture_Albedo,
     MaterialProperty_Texture_Metalness,
     MaterialProperty_Texture_Roughness,
@@ -35,6 +31,13 @@ struct bitmap
     i32 Channels;
     bool32 IsHDR;
     void *Pixels;
+};
+
+enum material_shading_mode
+{
+    ShadingMode_Flat,
+    ShadingMode_Phong,
+    ShadingMode_PBR
 };
 
 struct material_property
@@ -54,6 +57,8 @@ struct material_property
 
 struct mesh_material
 {
+    material_shading_mode ShadingMode;
+
     u32 PropertyCount;
     material_property *Properties;
 };
@@ -419,6 +424,7 @@ struct model_asset_materials_header
 
 struct model_asset_material_header
 {
+    material_shading_mode ShadingMode;
     u32 PropertyCount;
     u64 PropertiesOffset;
 };

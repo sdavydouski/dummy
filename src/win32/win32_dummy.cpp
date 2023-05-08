@@ -225,7 +225,7 @@ Win32HideMouseCursor()
 }
 
 dummy_internal void
-Win32InitRenderer(renderer_state *RendererState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, renderer_backend Backend)
+Win32InitRenderer(win32_renderer_state *RendererState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, win32_renderer_backend Backend)
 {
     umm RendererArenaSize = Megabytes(32);
     InitMemoryArena(&RendererState->Arena, Win32AllocateMemory(0, RendererArenaSize), RendererArenaSize);
@@ -267,7 +267,7 @@ Win32InitRenderer(renderer_state *RendererState, win32_platform_state *PlatformS
 }
 
 dummy_internal void
-ProcessRenderCommands(renderer_state *RendererState, render_commands *RenderCommands)
+ProcessRenderCommands(win32_renderer_state *RendererState, render_commands *RenderCommands)
 {
     switch (RendererState->Backend)
     {
@@ -285,7 +285,7 @@ ProcessRenderCommands(renderer_state *RendererState, render_commands *RenderComm
 }
 
 dummy_internal void
-Win32PresentFrame(renderer_state *RendererState, bool32 VSync)
+Win32PresentFrame(win32_renderer_state *RendererState, bool32 VSync)
 {
     switch (RendererState->Backend)
     {
@@ -303,7 +303,7 @@ Win32PresentFrame(renderer_state *RendererState, bool32 VSync)
 }
 
 dummy_internal void
-Win32ShutdownRenderer(renderer_state *RendererState)
+Win32ShutdownRenderer(win32_renderer_state *RendererState)
 {
     switch (RendererState->Backend)
     {
@@ -321,7 +321,7 @@ Win32ShutdownRenderer(renderer_state *RendererState)
 }
 
 dummy_internal void
-Win32InitXAudio2(audio_state *AudioState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, audio_backend Backend)
+Win32InitXAudio2(win32_audio_state *AudioState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, win32_audio_backend Backend)
 {
     umm AudioArenaSize = Megabytes(32);
     InitMemoryArena(&AudioState->Arena, Win32AllocateMemory(0, AudioArenaSize), AudioArenaSize);
@@ -350,7 +350,7 @@ Win32InitXAudio2(audio_state *AudioState, win32_platform_state *PlatformState, p
 }
 
 dummy_internal void
-ProcessAudioCommands(audio_state *AudioState, audio_commands *AudioCommands)
+ProcessAudioCommands(win32_audio_state *AudioState, audio_commands *AudioCommands)
 {
     switch (AudioState->Backend)
     {
@@ -363,7 +363,7 @@ ProcessAudioCommands(audio_state *AudioState, audio_commands *AudioCommands)
 }
 
 dummy_internal void
-Win32ShutdownAudio(audio_state *AudioState)
+Win32ShutdownAudio(win32_audio_state *AudioState)
 {
     switch (AudioState->Backend)
     {
@@ -1388,7 +1388,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
     GameMemory.FrameStorageSize = Megabytes(256);
-    GameMemory.AssetsStorageSize = Megabytes(1024);
+    GameMemory.AssetsStorageSize = Megabytes(2048);
     GameMemory.RenderCommandsStorageSize = Megabytes(16);
     GameMemory.AudioCommandsStorageSize = Megabytes(16);
     GameMemory.Platform = &PlatformApi;
@@ -1458,10 +1458,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     if (PlatformState.WindowHandle)
     {
-        renderer_state RendererState = {};
+        win32_renderer_state RendererState = {};
         Win32InitRenderer(&RendererState, &PlatformState, &PlatformApi, &PlatformProfiler, Renderer_OpenGL);
 
-        audio_state AudioState = {};
+        win32_audio_state AudioState = {};
         Win32InitXAudio2(&AudioState, &PlatformState, &PlatformApi, &PlatformProfiler, Audio_XAudio2);
 
         // Center window on screen

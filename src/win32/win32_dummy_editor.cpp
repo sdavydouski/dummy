@@ -43,6 +43,39 @@ void Direct3D12ExecuteCommandList(d3d12_state *State);
 void Direct3D12FlushCommandQueue(d3d12_state *State);
 ID3D12Resource *Direct3D12GetCurrentBackBuffer(d3d12_state *State);
 
+struct editor_texture
+{
+    ImTextureID Id;
+    u32 Width;
+    u32 Height;
+};
+
+inline editor_texture
+RendererGetTexture(win32_renderer_state *RendererState, u32 TextureId)
+{
+    editor_texture Result = {};
+
+    switch (RendererState->Backend)
+    {
+        case Renderer_OpenGL:
+        {
+            opengl_texture *Texture = OpenGLGetTexture(RendererState->OpenGL, TextureId);
+
+            Result.Id = (ImTextureID)(umm)Texture->Handle;
+            Result.Width = Texture->Width;
+            Result.Height = Texture->Height;
+
+            break;
+        }
+        case Renderer_Direct3D12:
+        {
+            break;
+        }
+    }
+
+    return Result;
+}
+
 inline animation_node *
 GetTransitionDestinationNode(animation_transition *Transition)
 {
@@ -355,7 +388,7 @@ Win32InitEditor(editor_state *EditorState, win32_platform_state *PlatformState)
     EditorInitRenderer(EditorState);
 
     // Load Fonts
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 
     // Setup Config
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -446,7 +479,7 @@ EditorRenderModelInfo(model *Model)
 }
 
 dummy_internal void
-EditorRenderMaterialsInfo(renderer_state *RendererState, model *Model)
+EditorRenderMaterialsInfo(win32_renderer_state *RendererState, model *Model)
 {
     if (ImGui::CollapsingHeader("Materials", ImGuiTreeNodeFlags_DefaultOpen))
     {
@@ -466,6 +499,24 @@ EditorRenderMaterialsInfo(renderer_state *RendererState, model *Model)
                         FormatString(Label, "%s##%d", "Shininess", MaterialIndex);
 
                         ImGui::InputFloat(Label, &Property->Value);
+
+                        break;
+                    }
+                    case MaterialProperty_Float_Metalness:
+                    {
+                        char Label[64];
+                        FormatString(Label, "%s##%d", "Metalness", MaterialIndex);
+
+                        ImGui::SliderFloat(Label, &Property->Value, 0.f, 1.f);
+
+                        break;
+                    }
+                    case MaterialProperty_Float_Roughness:
+                    {
+                        char Label[64];
+                        FormatString(Label, "%s##%d", "Roughness", MaterialIndex);
+
+                        ImGui::SliderFloat(Label, &Property->Value, 0.f, 1.f);
 
                         break;
                     }
@@ -496,44 +547,69 @@ EditorRenderMaterialsInfo(renderer_state *RendererState, model *Model)
 
                         break;
                     }
-#if 0
+                    case MaterialProperty_Texture_Albedo:
+                    {
+                        editor_texture Texture = RendererGetTexture(RendererState, Property->TextureId);
+
+                        ImGui::Text("Albedo Texture (%dx%d)", Texture.Width, Texture.Height);
+                        ImGui::Image(Texture.Id, ImVec2(256, 256));
+
+                        break;
+                    }
                     case MaterialProperty_Texture_Diffuse:
                     {
-                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        editor_texture Texture = RendererGetTexture(RendererState, Property->TextureId);
 
-                        ImGui::Text("Diffuse Texture (%dx%d)", Texture->Width, Texture->Height);
-                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
+                        ImGui::Text("Diffuse Texture (%dx%d)", Texture.Width, Texture.Height);
+                        ImGui::Image(Texture.Id, ImVec2(256, 256));
 
                         break;
                     }
                     case MaterialProperty_Texture_Specular:
                     {
-                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        editor_texture Texture = RendererGetTexture(RendererState, Property->TextureId);
 
-                        ImGui::Text("Specular Texture (%dx%d)", Texture->Width, Texture->Height);
-                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
+                        ImGui::Text("Specular Texture (%dx%d)", Texture.Width, Texture.Height);
+                        ImGui::Image(Texture.Id, ImVec2(256, 256));
+
+                        break;
+                    }
+                    case MaterialProperty_Texture_Metalness:
+                    {
+                        editor_texture Texture = RendererGetTexture(RendererState, Property->TextureId);
+
+                        ImGui::Text("Metalness Texture (%dx%d)", Texture.Width, Texture.Height);
+                        ImGui::Image(Texture.Id, ImVec2(256, 256));
+
+                        break;
+                    }
+                    case MaterialProperty_Texture_Roughness:
+                    {
+                        editor_texture Texture = RendererGetTexture(RendererState, Property->TextureId);
+
+                        ImGui::Text("Roughness Texture (%dx%d)", Texture.Width, Texture.Height);
+                        ImGui::Image(Texture.Id, ImVec2(256, 256));
 
                         break;
                     }
                     case MaterialProperty_Texture_Shininess:
                     {
-                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        editor_texture Texture = RendererGetTexture(RendererState, Property->TextureId);
 
-                        ImGui::Text("Shininess Texture (%dx%d)", Texture->Width, Texture->Height);
-                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
+                        ImGui::Text("Shininess Texture (%dx%d)", Texture.Width, Texture.Height);
+                        ImGui::Image(Texture.Id, ImVec2(256, 256));
 
                         break;
                     }
                     case MaterialProperty_Texture_Normal:
                     {
-                        opengl_texture *Texture = OpenGLGetTexture(RendererState, Property->TextureId);
+                        editor_texture Texture = RendererGetTexture(RendererState, Property->TextureId);
 
-                        ImGui::Text("Normal Texture (%dx%d)", Texture->Width, Texture->Height);
-                        ImGui::Image((ImTextureID)(umm)Texture->Handle, ImVec2(256, 256));
+                        ImGui::Text("Normal Texture (%dx%d)", Texture.Width, Texture.Height);
+                        ImGui::Image(Texture.Id, ImVec2(256, 256));
 
                         break;
                     }
-#endif
                     default:
                     {
                         break;
@@ -843,7 +919,7 @@ EditorRenderEntityInfo(
     editor_state *EditorState, 
     game_state *GameState, 
     platform_api *Platform, 
-    renderer_state *RendererState, 
+    win32_renderer_state *RendererState, 
     game_entity *Entity, 
     render_commands *RenderCommands, 
     audio_commands *AudioCommands
@@ -1242,8 +1318,8 @@ Win32RenderEditor(
     render_commands *RenderCommands = GetRenderCommands(GameMemory);
     audio_commands *AudioCommands = GetAudioCommands(GameMemory);
 
-    renderer_state *RendererState = EditorState->Renderer;
-    audio_state *AudioState = EditorState->Audio;
+    win32_renderer_state *RendererState = EditorState->Renderer;
+    win32_audio_state *AudioState = EditorState->Audio;
 
     // Start the Dear ImGui frame
     EditorNewFrame(EditorState);

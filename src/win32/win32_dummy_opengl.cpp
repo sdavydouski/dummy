@@ -455,9 +455,19 @@ OpenGLGetTexture(opengl_state *State, u32 Id)
 }
 
 inline opengl_shader *
-OpenGLGetShader(opengl_state *State, u32 Id)
+OpenGLGetShader(opengl_state *State, const char *Key)
 {
-    opengl_shader *Result = HashTableLookup(&State->Shaders, Id);
+    opengl_shader *Result = HashTableLookup(&State->Shaders, (char *) Key);
+
+    Assert(Result);
+
+    return Result;
+}
+
+inline opengl_skybox *
+OpenGLGetSkybox(opengl_state *State, u32 Id)
+{
+    opengl_skybox *Result = HashTableLookup(&State->Skyboxes, Id);
 
     Assert(Result);
 
@@ -516,6 +526,19 @@ GetMeshVerticesSize(
     return Size;
 }
 
+inline u32
+OpenGLGetMipmapLevelCount(u32 Width, u32 Height)
+{
+    u32 Levels = 1;
+
+    while ((Width | Height) >> Levels) 
+    {
+        ++Levels;
+    }
+
+    return Levels;
+}
+
 dummy_internal void
 OpenGLAddSkinningBuffer(opengl_state *State, u32 Id, u32 SkinningMatrixCount)
 {
@@ -529,6 +552,118 @@ OpenGLAddSkinningBuffer(opengl_state *State, u32 Id, u32 SkinningMatrixCount)
         glNamedBufferData(SkinningBuffer->SkinningTBO, SkinningMatrixCount * sizeof(mat4), 0, GL_STREAM_DRAW);
 
         glCreateTextures(GL_TEXTURE_BUFFER, 1, &SkinningBuffer->SkinningTBOTexture);
+    }
+}
+
+dummy_internal void
+OpenGLAddSkybox(opengl_state *State, texture *EquirectEnvMap, u32 EnvMapSize, u32 SkyboxId)
+{
+    bitmap EquirectBitmap = EquirectEnvMap->Bitmap;
+
+    opengl_skybox *Skybox = HashTableLookup(&State->Skyboxes, SkyboxId);
+    Assert(IsSlotEmpty(Skybox->Key));
+
+    u32 EnvTextureLevels = OpenGLGetMipmapLevelCount(EnvMapSize, EnvMapSize);
+
+    // Convert equirectangular environment map to a cubemap texture
+    {
+        GLuint EquirectEnvTexture;
+        glCreateTextures(GL_TEXTURE_2D, 1, &EquirectEnvTexture);
+        glTextureStorage2D(EquirectEnvTexture, 1, GL_RGB16F, EquirectBitmap.Width, EquirectBitmap.Height);
+        glTextureSubImage2D(EquirectEnvTexture, 0, 0, 0, EquirectBitmap.Width, EquirectBitmap.Height, GL_RGB, GL_FLOAT, EquirectBitmap.Pixels);
+        glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        GLuint EnvTexture;
+        glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &EnvTexture);
+        glTextureStorage2D(EnvTexture, EnvTextureLevels, GL_RGBA16F, EnvMapSize, EnvMapSize);
+        glTextureParameteri(EnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTextureParameteri(EnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        opengl_shader *Equirect2CubemapShader = OpenGLGetShader(State, "equirect2cube");
+
+        glUseProgram(Equirect2CubemapShader->Program);
+        glBindTextureUnit(0, EquirectEnvTexture);
+        glBindImageTexture(0, EnvTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute(EnvMapSize / 32, EnvMapSize / 32, 6);
+
+        glDeleteTextures(1, &EquirectEnvTexture);
+
+        Skybox->EnvTexture = EnvTexture;
+    }
+
+    // Compute pre-filtered specular environment map
+    {
+        GLuint SpecularEnvTexture;
+        glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &SpecularEnvTexture);
+        glTextureStorage2D(SpecularEnvTexture, EnvTextureLevels, GL_RGBA16F, EnvMapSize, EnvMapSize);
+        glTextureParameteri(SpecularEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTextureParameteri(SpecularEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glGenerateTextureMipmap(Skybox->EnvTexture);
+
+        // Copy 0th mipmap level into destination environment map
+        glCopyImageSubData(Skybox->EnvTexture, GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0, SpecularEnvTexture, GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0, EnvMapSize, EnvMapSize, 6);
+
+        opengl_shader *SpecularMapShader = OpenGLGetShader(State, "specular_map");
+
+        glUseProgram(SpecularMapShader->Program);
+        glBindTextureUnit(0, Skybox->EnvTexture);
+
+        // Pre-filter rest of the mip chain
+        f32 DeltaRoughness = 1.f / Max(f32(EnvTextureLevels - 1), 1.f);
+
+        for (u32 Level = 1, Size = EnvMapSize / 2; Level <= EnvTextureLevels; ++Level, Size /= 2)
+        {
+            GLuint NumGroups = Max(1, Size / 32);
+
+            glBindImageTexture(0, SpecularEnvTexture, Level, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+            glProgramUniform1f(SpecularMapShader->Program, 0, Level * DeltaRoughness);
+            glDispatchCompute(NumGroups, NumGroups, 6);
+        }
+
+        Skybox->SpecularEnvTexture = SpecularEnvTexture;
+    }   
+
+    // Compute diffuse irradiance cubemap
+    {
+        u32 IrradianceMapSize = 32;
+
+        GLuint IrradianceTexture;
+        glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &IrradianceTexture);
+        glTextureStorage2D(IrradianceTexture, 1, GL_RGBA16F, IrradianceMapSize, IrradianceMapSize);
+        glTextureParameteri(IrradianceTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(IrradianceTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        opengl_shader *IrradianceMapShader = OpenGLGetShader(State, "irradiance_map");
+
+        glUseProgram(IrradianceMapShader->Program);
+        glBindTextureUnit(0, Skybox->EnvTexture);
+        glBindImageTexture(0, IrradianceTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute(IrradianceMapSize / 32, IrradianceMapSize / 32, 6);
+
+        Skybox->IrradianceTexture = IrradianceTexture;
+    }
+
+    // Compute Cook-Torrance BRDF 2D LUT for split-sum approximation
+    {
+        u32 SpecularBRDFSize = 256;
+
+        GLuint SpecularBRDF;
+        glCreateTextures(GL_TEXTURE_2D, 1, &SpecularBRDF);
+        glTextureStorage2D(SpecularBRDF, 1, GL_RGBA16F, SpecularBRDFSize, SpecularBRDFSize);
+        glTextureParameteri(SpecularBRDF, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(SpecularBRDF, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTextureParameteri(SpecularBRDF, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(SpecularBRDF, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        opengl_shader *SpecularBRDFShader = OpenGLGetShader(State, "specular_brdf");
+
+        glUseProgram(SpecularBRDFShader->Program);
+        glBindImageTexture(0, SpecularBRDF, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute(SpecularBRDFSize / 32, SpecularBRDFSize / 32, 1);
+
+        Skybox->SpecularBRDF = SpecularBRDF;
     }
 }
 
@@ -786,6 +921,7 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
     char *Result = PushString(Arena, Size);
     FormatString_(Result, Size, ShaderSource,
         OPENGL_MAX_POINT_LIGHT_COUNT,
+        OPENGL_MAX_ANALYTICAL_LIGHT_COUNT,
         OPENGL_WORLD_SPACE_MODE,
         OPENGL_SCREEN_SPACE_MODE,
         OPENGL_MAX_JOINT_COUNT,
@@ -796,7 +932,7 @@ OpenGLPreprocessShader(char *ShaderSource, u32 InitialSize, memory_arena *Arena)
 }
 
 dummy_internal char **
-OpenGLLoadShaderFile(opengl_state *State, u32 Id, const char *ShaderFileName, u32 Count, memory_arena *Arena)
+OpenGLLoadShaderFile(opengl_state *State, const char *ShaderFileName, u32 Count, memory_arena *Arena)
 {
     char **Sources = PushArray(Arena, Count, char *);
 
@@ -815,7 +951,7 @@ OpenGLLoadShaderFile(opengl_state *State, u32 Id, const char *ShaderFileName, u3
 dummy_internal void
 OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 {
-    opengl_shader *Shader = HashTableLookup(&State->Shaders, Params.ShaderId);
+    opengl_shader *Shader = HashTableLookup(&State->Shaders, Params.ShaderKey);
 
     Assert(IsSlotEmpty(Shader->Key));
 
@@ -829,7 +965,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 
         if (Params.VertexShaderFileName)
         {
-            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Params.VertexShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_VERTEX_SHADER, Count, Source);
 
             CopyString(Params.VertexShaderFileName, Shader->VertexShader.FileName);
@@ -838,7 +974,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 
         if (Params.GeometryShaderFileName)
         {
-            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Params.GeometryShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, Source);
 
             CopyString(Params.GeometryShaderFileName, Shader->GeometryShader.FileName);
@@ -847,7 +983,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 
         if (Params.FragmentShaderFileName)
         {
-            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Params.FragmentShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, Source);
 
             CopyString(Params.FragmentShaderFileName, Shader->FragmentShader.FileName);
@@ -856,7 +992,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 
         if (Params.ComputeShaderFileName)
         {
-            char **Source = OpenGLLoadShaderFile(State, Params.ShaderId, Params.ComputeShaderFileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Params.ComputeShaderFileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_COMPUTE_SHADER, Count, Source);
 
             CopyString(Params.ComputeShaderFileName, Shader->ComputeShader.FileName);
@@ -865,7 +1001,7 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 
         GLuint Program = OpenGLCreateProgram(ShaderCount, Shaders);
 
-        Shader->Key = Params.ShaderId;
+        CopyString(Params.ShaderKey, Shader->Key);
         Shader->Program = Program;
     }
 
@@ -881,9 +1017,9 @@ OpenGLLoadShader(opengl_state *State, opengl_load_shader_params Params)
 }
 
 dummy_internal void
-OpenGLReloadShader(opengl_state *State, u32 ShaderId)
+OpenGLReloadShader(opengl_state *State, char *ShaderKey)
 {
-    opengl_shader *Shader = HashTableLookup(&State->Shaders, ShaderId);
+    opengl_shader *Shader = HashTableLookup(&State->Shaders, ShaderKey);
 
     Assert(!IsSlotEmpty(Shader->Key));
 
@@ -899,25 +1035,25 @@ OpenGLReloadShader(opengl_state *State, u32 ShaderId)
 
         if (!StringEquals(Shader->VertexShader.FileName, ""))
         {
-            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_VERTEX_SHADER, Count, Source);
         }
 
         if (!StringEquals(Shader->GeometryShader.FileName, ""))
         {
-            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, Source);
         }
 
         if (!StringEquals(Shader->FragmentShader.FileName, ""))
         {
-            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, Source);
         }
 
         if (!StringEquals(Shader->ComputeShader.FileName, ""))
         {
-            char **Source = OpenGLLoadShaderFile(State, ShaderId, Shader->ComputeShader.FileName, Count, ScopedMemory.Arena);
+            char **Source = OpenGLLoadShaderFile(State, Shader->ComputeShader.FileName, Count, ScopedMemory.Arena);
             Shaders[ShaderCount++] = OpenGLCreateShader(GL_COMPUTE_SHADER, Count, Source);
         }
 
@@ -1010,7 +1146,7 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                 }
                 case MaterialProperty_Color_Ambient:
                 {
-                    if (MaterialProperty->Color.x == 0.f && MaterialProperty->Color.y == 0.f && MaterialProperty->Color.z == 0.f)
+                    if (MaterialProperty->Color == vec4(0.f, 0.f, 0.f, 1.f))
                     {
                         MaterialProperty->Color.rgb = DefaultAmbient;
                     }
@@ -1073,16 +1209,6 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.ShininessMap"), MaterialPropertyIndex);
                     break;
                 }
-                case MaterialProperty_Texture_Metalness:
-                {
-                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
-
-                    //glBindTextureUnit(MaterialPropertyIndex, Texture->Handle);
-
-                    //glUniform1i(Shader->MaterialHasShininessMapUniform, true);
-                    //glUniform1i(Shader->MaterialShininessMapUniform, MaterialPropertyIndex);
-                    break;
-                }
                 case MaterialProperty_Texture_Normal:
                 {
                     opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
@@ -1093,9 +1219,131 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
                     glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.NormalMap"), MaterialPropertyIndex);
                     break;
                 }
-                default:
+            }
+        }
+    }
+}
+
+dummy_internal void
+OpenGLPBRShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, mesh_material *MeshMaterial)
+{
+    // todo: magic numbers
+    opengl_texture *Texture = OpenGLGetTexture(State, 0);
+    glBindTextureUnit(0, Texture->Handle);
+
+    // todo(continue): get current skybox
+    opengl_skybox *Skybox = OpenGLGetSkybox(State, 1234);
+    glBindTextureUnit(1, Skybox->IrradianceTexture);
+    glBindTextureUnit(2, Skybox->SpecularEnvTexture);
+    glBindTextureUnit(3, Skybox->SpecularBRDF);
+
+#if 1
+    // todo: move out?
+    for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
+    {
+        // todo: magic 16?
+        u32 TextureIndex = CascadeIndex + 16;
+
+        // Cascasde Shadow Map
+        glBindTextureUnit(TextureIndex, State->CascadeShadowMaps[CascadeIndex]);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_CascadeShadowMaps[0]") + CascadeIndex, TextureIndex);
+
+        // Cascade Bounds
+        vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
+        glUniform2f(OpengLGetUniformLocation(Shader, "u_CascadeBounds[0]") + CascadeIndex, CascadeBounds.x, CascadeBounds.y);
+
+        // Cascade View Projection
+        mat4 CascadeViewProjection = State->CascadeViewProjection[CascadeIndex];
+        glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_CascadeViewProjection[0]") + CascadeIndex, 1, GL_TRUE, (f32 *)CascadeViewProjection.Elements);
+    }
+
+    glUniform1i(OpengLGetUniformLocation(Shader, "u_EnableShadows"), Options->EnableShadows);
+    //glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
+#endif
+
+    if (MeshMaterial)
+    {
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasAlbedoMap"), false);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasMetalnessMap"), false);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasRoughnessMap"), false);
+        glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasNormalMap"), false);
+
+        // default values
+        f32 DefaultMetalness = 0.f;
+        f32 DefaultRoughness = 0.f;
+        f32 DefaultAmbientOcclusion = 0.2f;
+        glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.Metalness"), DefaultMetalness);
+        glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.Roughness"), DefaultRoughness);
+        //glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.AmbientOcclusion"), DefaultAmbientOcclusion);
+
+        for (u32 MaterialPropertyIndex = 0; MaterialPropertyIndex < MeshMaterial->PropertyCount; ++MaterialPropertyIndex)
+        {
+            // todo:
+            u32 TextureIndex = MaterialPropertyIndex + 24;
+
+            material_property *MaterialProperty = MeshMaterial->Properties + MaterialPropertyIndex;
+
+            switch (MaterialProperty->Type)
+            {
+                case MaterialProperty_Float_Metalness:
                 {
-                    Assert(!"Invalid material property");
+                    glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.Metalness"), MaterialProperty->Value);
+                    break;
+                }
+                case MaterialProperty_Float_Roughness:
+                {
+                    glUniform1f(OpengLGetUniformLocation(Shader, "u_Material.Roughness"), MaterialProperty->Value);
+                    break;
+                }
+                case MaterialProperty_Color_Diffuse:
+                {
+                    glUniform3f(
+                        OpengLGetUniformLocation(Shader, "u_Material.AlbedoColor"),
+                        MaterialProperty->Color.r,
+                        MaterialProperty->Color.g,
+                        MaterialProperty->Color.b
+                    );
+                    break;
+                }
+                case MaterialProperty_Texture_Albedo:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
+
+                    glBindTextureUnit(TextureIndex, Texture->Handle);
+
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasAlbedoMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.AlbedoMap"), TextureIndex);
+                    break;
+                }
+                case MaterialProperty_Texture_Metalness:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
+
+                    glBindTextureUnit(TextureIndex, Texture->Handle);
+
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasMetalnessMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.MetalnessMap"), TextureIndex);
+                    break;
+                }
+                case MaterialProperty_Texture_Roughness:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
+
+                    glBindTextureUnit(TextureIndex, Texture->Handle);
+
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasRoughnessMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.RoughnessMap"), TextureIndex);
+                    break;
+                }
+                case MaterialProperty_Texture_Normal:
+                {
+                    opengl_texture *Texture = OpenGLGetTexture(State, MaterialProperty->TextureId);
+
+                    glBindTextureUnit(TextureIndex, Texture->Handle);
+
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.HasNormalMap"), true);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_Material.NormalMap"), TextureIndex);
+                    break;
                 }
             }
         }
@@ -1305,6 +1553,7 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
     InitHashTable(&State->SkinningBuffers, 509, State->Arena);
     InitHashTable(&State->Textures, 127, State->Arena);
     InitHashTable(&State->Shaders, 61, State->Arena);
+    InitHashTable(&State->Skyboxes, 31, State->Arena);
 
     State->CascadeShadowMapSize = 4096;
     // todo: set by the game
@@ -1438,35 +1687,7 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
             {
                 render_command_add_skybox *Command = (render_command_add_skybox *)Entry;
 
-                bitmap EquirectBitmap = Command->EquirectEnvMap->Bitmap;
-
-                GLuint EquirectEnvTexture;
-                glCreateTextures(GL_TEXTURE_2D, 1, &EquirectEnvTexture);
-                glTextureStorage2D(EquirectEnvTexture, 1, GL_RGB16F, EquirectBitmap.Width, EquirectBitmap.Height);
-                glTextureSubImage2D(EquirectEnvTexture, 0, 0, 0, EquirectBitmap.Width, EquirectBitmap.Height, GL_RGB, GL_FLOAT, EquirectBitmap.Pixels);
-                glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-                GLuint EnvTexture;
-                glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &EnvTexture);
-                glTextureStorage2D(EnvTexture, 1, GL_RGBA16F, Command->EnvMapSize, Command->EnvMapSize);
-                glTextureParameteri(EnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTextureParameteri(EnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-                opengl_shader *Equirect2CubemapShader = OpenGLGetShader(State, OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID);
-
-                glUseProgram(Equirect2CubemapShader->Program);
-                glBindTextureUnit(0, EquirectEnvTexture);
-                glBindImageTexture(0, EnvTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-                glDispatchCompute(Command->EnvMapSize / 32, Command->EnvMapSize / 32, 6);
-
-                glDeleteTextures(1, &EquirectEnvTexture);
-
-                opengl_texture *Texture = HashTableLookup(&State->Textures, Command->SkyboxId);
-                Assert(IsSlotEmpty(Texture->Key));
-
-                Texture->Key = Command->SkyboxId;
-                Texture->Handle = EnvTexture;
+                OpenGLAddSkybox(State, Command->EquirectEnvMap, Command->EnvMapSize, Command->SkyboxId);
 
                 break;
             }
@@ -1477,7 +1698,7 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
                 opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
                 opengl_skinning_buffer *SkinningBuffer = OpenGLGetSkinningBuffer(State, Command->SkinningBufferId);
 
-                opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKINNED_SHADER_ID);
+                opengl_shader *Shader = OpenGLGetShader(State, "skinned_mesh");
 
                 glUseProgram(Shader->Program);
 
@@ -1536,7 +1757,7 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
                     glNamedBufferData(MeshBuffer->SkinningMatricesBuffer, MeshBuffer->InstanceCount * MeshBuffer->VertexCount * sizeof(mat4), 0, GL_STREAM_DRAW);
                 }
 
-                opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKINNED_INSTANCED_SHADER_ID);
+                opengl_shader *Shader = OpenGLGetShader(State, "skinned_mesh_instanced");
 
                 glUseProgram(Shader->Program);
 
@@ -1659,6 +1880,16 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     DirectinalLight.LightColor = Command->Light.Color;
 
                     glNamedBufferSubData(State->ShadingUBO, StructOffset(opengl_uniform_buffer_shading, DirectinalLight), sizeof(opengl_directional_light), &DirectinalLight);
+
+                    // todo:
+                    u32 AnalyticalLightCount = 1;
+
+                    opengl_analytical_light AnalyticalLights[1] = {};
+                    AnalyticalLights[0].Direction = Command->Light.Direction;
+                    AnalyticalLights[0].Radiance = Command->Light.Color;
+
+                    glNamedBufferSubData(State->ShadingUBO, StructOffset(opengl_uniform_buffer_shading, AnalyticalLightCount), sizeof(u32), &AnalyticalLightCount);
+                    glNamedBufferSubData(State->ShadingUBO, StructOffset(opengl_uniform_buffer_shading, AnalyticalLights), AnalyticalLightCount * sizeof(opengl_analytical_light), AnalyticalLights);
                 }
 
                 break;
@@ -1713,7 +1944,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_point *Command = (render_command_draw_point *)Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "simple.color");
 
                     glPointSize(Command->Size);
 
@@ -1742,7 +1973,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_line *Command = (render_command_draw_line *)Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "simple.color");
 
                     glLineWidth(Command->Thickness);
 
@@ -1772,7 +2003,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_rectangle *Command = (render_command_draw_rectangle *)Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "simple.color");
 
                     glBindVertexArray(State->Rectangle.VAO);
                     glUseProgram(Shader->Program);
@@ -1794,7 +2025,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_box *Command = (render_command_draw_box *)Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "simple.color");
 
                     glBindVertexArray(State->Box.VAO);
                     glUseProgram(Shader->Program);
@@ -1826,7 +2057,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 if (!Options->RenderShadowMap)
                 {
                     render_command_draw_text *Command = (render_command_draw_text *)Entry;
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_TEXT_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "text");
                     scoped_memory ScopedMemory(State->Arena);
 
                     glBindVertexArray(State->Text.VAO);
@@ -1920,7 +2151,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 if (!Options->RenderShadowMap)
                 {
                     render_command_draw_particles *Command = (render_command_draw_particles *)Entry;
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PARTICLE_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "particle");
                     scoped_memory ScopedMemory(State->Arena);
 
                     glBindVertexArray(State->Particle.VAO);
@@ -1963,7 +2194,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             case RenderCommand_DrawTexturedQuad:
             {
                 render_command_draw_textured_quad *Command = (render_command_draw_textured_quad *)Entry;
-                opengl_shader *Shader = OpenGLGetShader(State, OPENGL_TEXTURED_QUAD_SHADER_ID);
+                opengl_shader *Shader = OpenGLGetShader(State, "textured_quad");
 
                 glBindVertexArray(State->Rectangle.VAO);
                 glUseProgram(Shader->Program);
@@ -1988,7 +2219,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 if (!Options->RenderShadowMap)
                 {
                     render_command_draw_billboard *Command = (render_command_draw_billboard *)Entry;
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_BILLBOARD_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "billboard");
 
                     glBindVertexArray(State->Rectangle.VAO);
                     glUseProgram(Shader->Program);
@@ -2026,7 +2257,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     // https://github.com/martin-pr/possumwood/wiki/Infinite-ground-plane-using-GLSL-shaders
                     render_command_draw_grid *Command = (render_command_draw_grid *)Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_GRID_SHADER_ID);
+                    opengl_shader *Shader = OpenGLGetShader(State, "grid");
 
                     glBindVertexArray(State->Rectangle.VAO);
                     glUseProgram(Shader->Program);
@@ -2042,7 +2273,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             {
                 render_command_draw_mesh *Command = (render_command_draw_mesh *)Entry;
 
-                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
+                if ((Options->RenderShadowMap && Command->Material.Options.CastShadow) || !Options->RenderShadowMap)
                 {
                     opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
 
@@ -2054,7 +2285,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         {
                             material Material = Command->Material;
 
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_COLOR_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, "simple.color");
 
                             mat4 Model = Transform(Command->Transform);
 
@@ -2070,11 +2301,25 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             mat4 Model = Transform(Command->Transform);
 
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, "mesh.phong");
 
                             glUseProgram(Shader->Program);
                             glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+
+                            break;
+                        }
+                        case MaterialType_Standard:
+                        {
+                            mesh_material *MeshMaterial = Command->Material.MeshMaterial;
+
+                            mat4 Model = Transform(Command->Transform);
+
+                            opengl_shader *Shader = OpenGLGetShader(State, "mesh.pbr");
+
+                            glUseProgram(Shader->Program);
+                            glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
+                            OpenGLPBRShading(State, Options, Shader, Command->Material.MeshMaterial);
 
                             break;
                         }
@@ -2094,7 +2339,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             {
                 render_command_draw_mesh_instanced *Command = (render_command_draw_mesh_instanced *)Entry;
 
-                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
+                if ((Options->RenderShadowMap && Command->Material.Options.CastShadow) || !Options->RenderShadowMap)
                 {
                     opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
                     mesh_material *MeshMaterial = Command->Material.MeshMaterial;
@@ -2114,17 +2359,25 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     {
                         case MaterialType_Phong:
                         {
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_INSTANCED_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, "mesh_instanced.phong");
 
                             glUseProgram(Shader->Program);
                             OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
 
                             break;
                         }
+                        case MaterialType_Standard:
+                        {
+                            opengl_shader *Shader = OpenGLGetShader(State, "mesh_instanced.pbr");
+
+                            glUseProgram(Shader->Program);
+                            OpenGLPBRShading(State, Options, Shader, Command->Material.MeshMaterial);
+
+                            break;
+                        }
                         default:
                         {
-                            Assert(!"Not Implemented");
-                            break;
+                            Assert(!"Not implemented");
                         }
                     }
 
@@ -2137,7 +2390,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             {
                 render_command_draw_skinned_mesh *Command = (render_command_draw_skinned_mesh *)Entry;
 
-                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
+                if ((Options->RenderShadowMap && Command->Material.Options.CastShadow) || !Options->RenderShadowMap)
                 {
                     opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
                     mesh_material *MeshMaterial = Command->Material.MeshMaterial;
@@ -2148,7 +2401,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     {
                         case MaterialType_Phong:
                         {
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SKINNED_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, "skinned_mesh.phong");
 
                             glUseProgram(Shader->Program);
                             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
@@ -2172,7 +2425,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             {
                 render_command_draw_skinned_mesh_instanced *Command = (render_command_draw_skinned_mesh_instanced *)Entry;
 
-                if ((Options->RenderShadowMap && Command->Material.CastShadow) || !Options->RenderShadowMap)
+                if ((Options->RenderShadowMap && Command->Material.Options.CastShadow) || !Options->RenderShadowMap)
                 {
                     opengl_mesh_buffer *MeshBuffer = OpenGLGetMeshBuffer(State, Command->MeshId);
                     mesh_material *MeshMaterial = Command->Material.MeshMaterial;
@@ -2183,7 +2436,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     {
                         case MaterialType_Phong:
                         {
-                            opengl_shader *Shader = OpenGLGetShader(State, OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID);
+                            opengl_shader *Shader = OpenGLGetShader(State, "skinned_mesh_instanced.phong");
 
                             glUseProgram(Shader->Program);
                             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
@@ -2210,19 +2463,22 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                 {
                     render_command_draw_skybox *Command = (render_command_draw_skybox *)Entry;
 
-                    opengl_shader *Shader = OpenGLGetShader(State, OPENGL_SKYBOX_SHADER_ID);
-                    opengl_texture *Texture = OpenGLGetTexture(State, Command->SkyboxId);
+                    opengl_shader *Shader = OpenGLGetShader(State, "skybox");
+                    opengl_skybox *Skybox = OpenGLGetSkybox(State, Command->SkyboxId);
 
-                    glDisable(GL_CULL_FACE);
+                    //glDisable(GL_CULL_FACE);
                     glDisable(GL_DEPTH_TEST);
 
                     glUseProgram(Shader->Program);
-                    glBindTextureUnit(0, Texture->Handle);
+                    //glBindTextureUnit(0, Skybox->EnvTexture);
+                    glBindTextureUnit(0, Skybox->SpecularEnvTexture);
+                    //glBindTextureUnit(0, Skybox->SpecularBRDF);
+                    //glBindTextureUnit(0, Skybox->IrradianceTexture);
 
                     glBindVertexArray(State->Box.VAO);
                     glDrawArrays(GL_TRIANGLES, 0, 36);
 
-                    glEnable(GL_CULL_FACE);
+                    //glEnable(GL_CULL_FACE);
                     glEnable(GL_DEPTH_TEST);
                 }
 
@@ -2418,7 +2674,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 #if EDITOR
         glBindFramebuffer(GL_FRAMEBUFFER, State->EditorFramebuffer.Handle);
 
-        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
+        opengl_shader *Shader = OpenGLGetShader(State, "framebuffer");
 
         glUseProgram(Shader->Program);
         glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);

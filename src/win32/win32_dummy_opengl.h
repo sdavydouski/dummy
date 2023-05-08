@@ -4,8 +4,11 @@
 #include <wglext.h>
 
 #define OPENGL_RELOADABLE_SHADERS 0
+#define OPENGL_MAX_SHADER_FILE_PATH 256
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 8
+#define OPENGL_MAX_ANALYTICAL_LIGHT_COUNT 8
+
 #define OPENGL_WORLD_SPACE_MODE 0x1
 #define OPENGL_SCREEN_SPACE_MODE 0x2
 #define OPENGL_MAX_JOINT_COUNT 256
@@ -13,31 +16,12 @@
 #define OPENGL_UNIFORM_MAX_LENGTH 64
 #define OPENGL_UNIFORM_MAX_COUNT 257
 
-#define MAX_SHADER_FILE_PATH 256
-
-// todo: could do better
-#define OPENGL_COLOR_SHADER_ID 0x1
-#define OPENGL_PHONG_SHADER_ID 0x2
-#define OPENGL_PHONG_INSTANCED_SHADER_ID 0x3
-#define OPENGL_PHONG_SKINNED_SHADER_ID 0x4
-#define OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID 0x5
-#define OPENGL_FRAMEBUFFER_SHADER_ID 0x6
-#define OPENGL_GRID_SHADER_ID 0x7
-#define OPENGL_TEXT_SHADER_ID 0x8
-#define OPENGL_PARTICLE_SHADER_ID 0x9
-#define OPENGL_TEXTURED_QUAD_SHADER_ID 0x10
-#define OPENGL_BILLBOARD_SHADER_ID 0x11
-#define OPENGL_SKYBOX_SHADER_ID 0x12
-#define OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID 0x13
-#define OPENGL_SKINNED_SHADER_ID 0x14
-#define OPENGL_SKINNED_INSTANCED_SHADER_ID 0x15
-
 const char *OpenGLCommonShaders[] =
 {
     "shaders\\glsl\\common\\version.glsl",
     "shaders\\glsl\\common\\constants.glsl",
     "shaders\\glsl\\common\\math.glsl",
-    "shaders\\glsl\\common\\phong.glsl",
+    "shaders\\glsl\\common\\lights.glsl",
     "shaders\\glsl\\common\\uniform.glsl",
     "shaders\\glsl\\common\\shadows.glsl"
 };
@@ -46,7 +30,7 @@ const char *OpenGLCommonShaders[] =
 
 struct opengl_load_shader_params
 {
-    u32 ShaderId;
+    char ShaderKey[256];
 
     const char *VertexShaderFileName;
     const char *GeometryShaderFileName;
@@ -57,78 +41,110 @@ struct opengl_load_shader_params
 opengl_load_shader_params OpenGLShaders[] =
 {
     {
-        .ShaderId = OPENGL_COLOR_SHADER_ID,
+        .ShaderKey = "simple.color",
         .VertexShaderFileName = "shaders\\glsl\\simple.vert",
         .FragmentShaderFileName = "shaders\\glsl\\color.frag"
     },
     {
-        .ShaderId = OPENGL_PHONG_SHADER_ID,
+        .ShaderKey = "mesh.phong",
         .VertexShaderFileName = "shaders\\glsl\\mesh.vert",
         .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
-        .ShaderId = OPENGL_PHONG_INSTANCED_SHADER_ID,
+        .ShaderKey = "mesh.pbr",
+        .VertexShaderFileName = "shaders\\glsl\\mesh.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\pbr.frag"
+    },
+    {
+        .ShaderKey = "mesh_instanced.phong",
         .VertexShaderFileName = "shaders\\glsl\\mesh_instanced.vert",
         .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
-        .ShaderId = OPENGL_PHONG_SKINNED_SHADER_ID,
+        .ShaderKey = "mesh_instanced.pbr",
+        .VertexShaderFileName = "shaders\\glsl\\mesh_instanced.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\pbr.frag"
+    },
+    {
+        .ShaderKey = "skinned_mesh.phong",
         .VertexShaderFileName = "shaders\\glsl\\skinned_mesh.vert",
         .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
     {
-        .ShaderId = OPENGL_PHONG_SKINNED_INSTANCED_SHADER_ID,
+        .ShaderKey = "skinned_mesh.pbr",
+        .VertexShaderFileName = "shaders\\glsl\\skinned_mesh.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\pbr.frag"
+    },
+    {
+        .ShaderKey = "skinned_mesh_instanced.phong",
         .VertexShaderFileName = "shaders\\glsl\\skinned_mesh_instanced.vert",
         .FragmentShaderFileName = "shaders\\glsl\\phong.frag"
     },
+     {
+        .ShaderKey = "skinned_mesh_instanced.pbr",
+        .VertexShaderFileName = "shaders\\glsl\\skinned_mesh_instanced.vert",
+        .FragmentShaderFileName = "shaders\\glsl\\pbr.frag"
+    },
     {
-        .ShaderId = OPENGL_GRID_SHADER_ID,
+        .ShaderKey = "grid",
         .VertexShaderFileName = "shaders\\glsl\\grid.vert",
         .FragmentShaderFileName = "shaders\\glsl\\grid.frag"
     },
     {
-        .ShaderId = OPENGL_FRAMEBUFFER_SHADER_ID,
+        .ShaderKey = "framebuffer",
         .VertexShaderFileName = "shaders\\glsl\\framebuffer.vert",
         .FragmentShaderFileName = "shaders\\glsl\\framebuffer.frag"
     },
     {
-        .ShaderId = OPENGL_TEXT_SHADER_ID,
+        .ShaderKey = "text",
         .VertexShaderFileName = "shaders\\glsl\\text.vert",
         .GeometryShaderFileName = "shaders\\glsl\\text.geom",
         .FragmentShaderFileName = "shaders\\glsl\\text.frag"
     },
     {
-        .ShaderId = OPENGL_PARTICLE_SHADER_ID,
+        .ShaderKey = "particle",
         .VertexShaderFileName = "shaders\\glsl\\particle.vert",
         .GeometryShaderFileName = "shaders\\glsl\\particle.geom",
         .FragmentShaderFileName = "shaders\\glsl\\particle.frag"
     },
     {
-        .ShaderId = OPENGL_TEXTURED_QUAD_SHADER_ID,
+        .ShaderKey = "textured_quad",
         .VertexShaderFileName = "shaders\\glsl\\textured_quad.vert",
         .FragmentShaderFileName = "shaders\\glsl\\textured_quad.frag"
     },
     {
-        .ShaderId = OPENGL_BILLBOARD_SHADER_ID,
+        .ShaderKey = "billboard",
         .VertexShaderFileName = "shaders\\glsl\\billboard.vert",
         .GeometryShaderFileName = "shaders\\glsl\\billboard.geom",
         .FragmentShaderFileName = "shaders\\glsl\\billboard.frag"
     },
     {
-        .ShaderId = OPENGL_EQUIRECT_TO_CUBEMAP_SHADER_ID,
+        .ShaderKey = "equirect2cube",
         .ComputeShaderFileName = "shaders\\glsl\\equirect2cube.comp"
     },
     {
-        .ShaderId = OPENGL_SKYBOX_SHADER_ID,
+        .ShaderKey = "specular_map",
+        .ComputeShaderFileName = "shaders\\glsl\\specular_map.comp"
+    },
+    {
+        .ShaderKey = "irradiance_map",
+        .ComputeShaderFileName = "shaders\\glsl\\irradiance_map.comp"
+    },
+    {
+        .ShaderKey = "specular_brdf",
+        .ComputeShaderFileName = "shaders\\glsl\\specular_brdf.comp"
+    },
+    {
+        .ShaderKey = "skybox",
         .VertexShaderFileName = "shaders\\glsl\\skybox.vert",
         .FragmentShaderFileName = "shaders\\glsl\\skybox.frag"
     },
     {
-        .ShaderId = OPENGL_SKINNED_SHADER_ID,
+        .ShaderKey = "skinned_mesh",
         .ComputeShaderFileName = "shaders\\glsl\\skinned_mesh.comp"
     },
     {
-        .ShaderId = OPENGL_SKINNED_INSTANCED_SHADER_ID,
+        .ShaderKey = "skinned_mesh_instanced",
         .ComputeShaderFileName = "shaders\\glsl\\skinned_mesh_instanced.comp"
     }
 };
@@ -142,13 +158,13 @@ struct opengl_uniform
 
 struct win32_shader_file
 {
-    char FileName[MAX_SHADER_FILE_PATH];
+    char FileName[OPENGL_MAX_SHADER_FILE_PATH];
     FILETIME LastWriteTime;
 };
 
 struct opengl_shader
 {
-    u32 Key;
+    char Key[256];
     GLuint Program;
 
     win32_shader_file CommonShaders[OPENGL_COMMON_SHADER_COUNT];
@@ -206,6 +222,16 @@ struct opengl_texture
     GLuint Handle;
 };
 
+struct opengl_skybox
+{
+    u32 Key;
+
+    GLuint EnvTexture;
+    GLuint SpecularEnvTexture;
+    GLuint IrradianceTexture;
+    GLuint SpecularBRDF;
+};
+
 struct opengl_framebuffer
 {
     GLuint Handle;
@@ -244,6 +270,12 @@ struct opengl_uniform_buffer_transform
     f32 Time;
 };
 
+struct opengl_analytical_light
+{
+    alignas(16) vec3 Direction;
+    alignas(16) vec3 Radiance;
+};
+
 struct opengl_directional_light
 {
     alignas(16) vec3 LightDirection;
@@ -263,6 +295,9 @@ struct opengl_uniform_buffer_shading
 
     u32 PointLightCount;
     opengl_point_light PointLights[OPENGL_MAX_POINT_LIGHT_COUNT];
+
+    u32 AnalyticalLightCount;
+    opengl_analytical_light AnalyticalLights[OPENGL_MAX_ANALYTICAL_LIGHT_COUNT];
 };
 
 struct opengl_render_options
@@ -313,6 +348,7 @@ struct opengl_state
     hash_table<opengl_skinning_buffer> SkinningBuffers;
     hash_table<opengl_texture> Textures;
     hash_table<opengl_shader> Shaders;
+    hash_table<opengl_skybox> Skyboxes;
 
     u32 CascadeShadowMapSize;
     GLuint CascadeShadowMapFBO;

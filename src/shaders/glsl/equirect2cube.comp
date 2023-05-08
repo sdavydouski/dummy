@@ -3,15 +3,19 @@
 
 // Converts equirectangular projection texture into a proper cubemap
 
-layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+float MaxChannelValue = 1000.f;
 
-layout(binding = 0) uniform sampler2D u_InputTexture;
-layout(binding = 0, rgba16f) restrict writeonly uniform imageCube u_OutputTexture;
+layout(local_size_x=32, local_size_y=32, local_size_z=1) in;
 
-// Calculate normalized sampling direction vector based on current fragment coordinates (gl_GlobalInvocationID.xyz)
+layout(binding=0) uniform sampler2D inputTexture;
+layout(binding=0, rgba16f) restrict writeonly uniform imageCube outputTexture;
+
+// Calculate normalized sampling direction vector based on current fragment coordinates (gl_GlobalInvocationID.xyz).
+// This is essentially "inverse-sampling": we reconstruct what the sampling vector would be if we wanted it to "hit"
+// this particular fragment in a cubemap.
 vec3 GetSamplingVector()
 {
-    vec2 st = gl_GlobalInvocationID.xy / vec2(imageSize(u_OutputTexture));
+    vec2 st = gl_GlobalInvocationID.xy / vec2(imageSize(outputTexture));
     vec2 uv = 2.f * vec2(st.x, 1.f - st.y) - vec2(1.f);
 
     vec3 v;
@@ -19,26 +23,32 @@ vec3 GetSamplingVector()
 	// Select vector based on cubemap face index
     switch (gl_GlobalInvocationID.z)
     {
-        case 0: return vec3(1.f,  uv.y, -uv.x);
-        case 1: return vec3(-1.f, uv.y, uv.x);
-        case 2: return vec3(uv.x, 1.f, -uv.y);
-        case 3: return vec3(uv.x, -1.f, uv.y);
-        case 4: return vec3(uv.x, uv.y, 1.f);
-        case 5: return vec3(-uv.x, uv.y, -1.f);
+        case 0: v = vec3(1.f,  uv.y, -uv.x); break;
+        case 1: v = vec3(-1.f, uv.y, uv.x); break;
+        case 2: v = vec3(uv.x, 1.f, -uv.y); break;
+        case 3: v = vec3(uv.x, -1.f, uv.y); break;
+        case 4: v = vec3(uv.x, uv.y, 1.f); break;
+        case 5: v = vec3(-uv.x, uv.y, -1.f); break;
     }
+
+	return normalize(v);
 }
 
 void main()
 {
-	vec3 v = normalize(GetSamplingVector());
+	vec3 v = GetSamplingVector();
 
-	// Convert Cartesian direction vector to spherical coordinates
-	float Phi = atan(v.z, v.x);
-	float Theta = acos(v.y);
+	// Convert Cartesian direction vector to spherical coordinates.
+	float phi   = atan(v.z, v.x);
+	float theta = acos(v.y);
 
-	// Sample equirectangular texture
-	vec4 Color = texture(u_InputTexture, vec2(Phi / TWO_PI, Theta / PI));
+	// Sample equirectangular texture.
+	vec4 color = texture(inputTexture, vec2(phi / TWO_PI, theta / PI));
 
-	// Write out color to output cubemap
-	imageStore(u_OutputTexture, ivec3(gl_GlobalInvocationID), Color);
+    color.x = clamp(color.x, 0.f, MaxChannelValue);
+    color.y = clamp(color.y, 0.f, MaxChannelValue);
+    color.z = clamp(color.z, 0.f, MaxChannelValue);
+
+	// Write out color to output cubemap.
+	imageStore(outputTexture, ivec3(gl_GlobalInvocationID), color);
 }

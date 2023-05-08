@@ -195,13 +195,14 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     model_asset_materials_header *MaterialsHeader = GET_DATA_AT(Buffer, ModelHeader->MaterialsHeaderOffset, model_asset_materials_header);
 
     Result->MaterialCount = MaterialsHeader->MaterialCount;
-    Result->Materials = PushArray(Arena, Result->MaterialCount, mesh_material);
+    Result->Materials = PushArray(Arena, Result->MaterialCount, mesh_material, Align(16));
 
     u64 NextMaterialHeaderOffset = 0;
     for (u32 MaterialIndex = 0; MaterialIndex < MaterialsHeader->MaterialCount; ++MaterialIndex)
     {
         model_asset_material_header *MaterialHeader = GET_DATA_AT(Buffer, MaterialsHeader->MaterialsOffset + NextMaterialHeaderOffset, model_asset_material_header);
         mesh_material *Material = Result->Materials + MaterialIndex;
+        Material->ShadingMode = MaterialHeader->ShadingMode;
         Material->PropertyCount = MaterialHeader->PropertyCount;
         Material->Properties = PushArray(Arena, Material->PropertyCount, material_property);
 
@@ -216,6 +217,8 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
             switch (MaterialProperty->Type)
             {
                 case MaterialProperty_Float_Shininess:
+                case MaterialProperty_Float_Metalness:
+                case MaterialProperty_Float_Roughness:
                 {
                     MaterialProperty->Value = MaterialPropertyHeader->Value;
 
@@ -236,7 +239,9 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
                 case MaterialProperty_Texture_Diffuse:
                 case MaterialProperty_Texture_Specular:
                 case MaterialProperty_Texture_Shininess:
+                case MaterialProperty_Texture_Albedo:
                 case MaterialProperty_Texture_Metalness:
+                case MaterialProperty_Texture_Roughness:
                 case MaterialProperty_Texture_Normal:
                 {
                     MaterialProperty->Bitmap = MaterialPropertyHeader->Bitmap;

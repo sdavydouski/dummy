@@ -1,9 +1,28 @@
 //! #include "common/version.glsl"
 //! #include "common/math.glsl"
 //! #include "common/constants.glsl"
-//! #include "common/phong.glsl"
+//! #include "common/lights.glsl"
 //! #include "common/uniform.glsl"
 //! #include "common/shadows.glsl"
+
+struct phong_material
+{
+    float SpecularShininess;
+
+    vec3 AmbientColor;
+    vec3 DiffuseColor;
+    vec3 SpecularColor;
+
+    sampler2D DiffuseMap;
+    sampler2D SpecularMap;
+    sampler2D ShininessMap;
+    sampler2D NormalMap;
+    
+    bool HasDiffuseMap;
+    bool HasSpecularMap;
+    bool HasShininessMap;
+    bool HasNormalMap;
+};
 
 in VS_OUT 
 {
@@ -11,14 +30,13 @@ in VS_OUT
     vec3 Normal;
     vec3 CascadeBlend;
     vec2 TextureCoords;
-    mat3 TBN;
+    mat3 TangentBasis;
     vec3 Color;
 } fs_in; 
 
 out vec4 out_Color;
 
 uniform mat4 u_LightSpaceMatrix;
-
 uniform phong_material u_Material;
 
 vec3 GetMaterial(bool HasMap, sampler2D Map, vec3 Fallback)
@@ -41,7 +59,6 @@ float GetMaterial(bool HasMap, sampler2D Map, float Fallback)
 
 void main()
 {
-
     vec3 AmbientColor = u_Material.AmbientColor;
     vec3 DiffuseColor = GetMaterial(u_Material.HasDiffuseMap, u_Material.DiffuseMap, u_Material.DiffuseColor);
     vec3 SpecularColor = GetMaterial(u_Material.HasSpecularMap, u_Material.SpecularMap, u_Material.SpecularColor);
@@ -58,12 +75,11 @@ void main()
     if (u_Material.HasNormalMap)
     {
         Normal = Normal * 2.f - 1.f; 
-        Normal = fs_in.TBN * Normal;
+        Normal = fs_in.TangentBasis * Normal;
     }
     
     Normal = normalize(Normal);
 
-#if 1
     vec3 EyeDirection = normalize(u_CameraPosition - fs_in.WorldPosition);
     
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
@@ -120,7 +136,4 @@ void main()
     Result *= fs_in.Color;
 
     out_Color = vec4(Result, 1.f);
-#else
-    out_Color = vec4(DiffuseColor, 1.f);
-#endif
 }

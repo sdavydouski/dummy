@@ -97,6 +97,6 @@ i32 main(i32 ArgCount, char **Args)
     BuildAudioAssets("assets/audio", "game/assets");
     BuildTextureAssets("assets/textures", "game/assets");
 #else
-    ProcessModelAsset("assets\\models\\ninja\\ninja.fbx", "assets\\models\\ninja\\animation_graph.json", "assets\\models\\ninja\\clips", "game\\assets\\ninja.model.asset");
+    ProcessModelAsset("assets\\models\\sphere_rust.gltf", "game\\assets\\sphere_rust.model.asset");
 #endif
 }

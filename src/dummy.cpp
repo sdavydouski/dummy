@@ -24,28 +24,70 @@ RandomColor(random_sequence *Random)
     return Result;
 }
 
-inline material
-CreateBasicMaterial(vec4 Color, bool32 Wireframe = false, bool32 CastShadow = false)
+inline material_options
+DefaultMaterialOptions()
 {
-    material Result = {};
-
-    Result.Type = MaterialType_Basic;
-    Result.Color = Color;
-    Result.Wireframe = Wireframe;
-    Result.CastShadow = CastShadow;
+    material_options Result = {};
+    Result.Wireframe = false;
+    Result.CastShadow = true;
 
     return Result;
 }
 
 inline material
-CreatePhongMaterial(mesh_material *MeshMaterial, bool32 Wireframe = false, bool32 CastShadow = true)
+CreateBasicMaterial(vec4 Color, material_options Options = DefaultMaterialOptions())
+{
+    material Result = {};
+
+    Result.Type = MaterialType_Basic;
+    Result.Color = Color;
+    Result.Options = Options;
+
+    return Result;
+}
+
+inline material
+CreatePhongMaterial(mesh_material *MeshMaterial, material_options Options = DefaultMaterialOptions())
 {
     material Result = {};
 
     Result.Type = MaterialType_Phong;
     Result.MeshMaterial = MeshMaterial;
-    Result.Wireframe = Wireframe;
-    Result.CastShadow = CastShadow;
+    Result.Options = Options;
+
+    return Result;
+}
+
+inline material
+CreateStandardMaterial(mesh_material *MeshMaterial, material_options Options = DefaultMaterialOptions())
+{
+    material Result = {};
+
+    Result.Type = MaterialType_Standard;
+    Result.MeshMaterial = MeshMaterial;
+    Result.Options = Options;
+
+    return Result;
+}
+
+inline material
+CreateMaterial(mesh_material *MeshMaterial, material_options Options = DefaultMaterialOptions())
+{
+    material Result = {};
+
+    switch (MeshMaterial->ShadingMode)
+    {
+        case ShadingMode_Phong:
+        {
+            Result = CreatePhongMaterial(MeshMaterial, Options);
+            break;
+        }
+        case ShadingMode_PBR:
+        {
+            Result = CreateStandardMaterial(MeshMaterial, Options);
+            break;
+        }
+    }
 
     return Result;
 }
@@ -60,7 +102,7 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
         if (Mesh->Visible)
         {
             mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-            material Material = CreatePhongMaterial(MeshMaterial);
+            material Material = CreateMaterial(MeshMaterial);
 
             DrawMesh(RenderCommands, Mesh->MeshId, Transform, Material);
         }
@@ -77,7 +119,7 @@ DrawModelInstanced(render_commands *RenderCommands, model *Model, u32 InstanceCo
         if (Mesh->Visible)
         {
             mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-            material Material = CreatePhongMaterial(MeshMaterial);
+            material Material = CreateMaterial(MeshMaterial);
 
             DrawMeshInstanced(RenderCommands, Mesh->MeshId, InstanceCount, Instances, Material);
         }
@@ -96,7 +138,7 @@ DrawSkinnedModel(render_commands *RenderCommands, model *Model, skeleton_pose *P
         if (Mesh->Visible)
         {
             mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-            material Material = CreatePhongMaterial(MeshMaterial);
+            material Material = CreateMaterial(MeshMaterial);
 
             DrawSkinnedMesh(
                 RenderCommands, Mesh->MeshId, Material,
@@ -118,7 +160,7 @@ DrawSkinnedModelInstanced(render_commands *RenderCommands, model *Model, skinnin
         if (Mesh->Visible)
         {
             mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
-            material Material = CreatePhongMaterial(MeshMaterial);
+            material Material = CreateMaterial(MeshMaterial);
 
             DrawSkinnedMeshInstanced(RenderCommands, Mesh->MeshId, Material, Model->SkinningBufferId, InstanceCount, Instances);
         }
@@ -219,6 +261,9 @@ InitModel(game_state *State, model_asset *Asset, model *Model, const char *Name,
                 MaterialProperty->Type == MaterialProperty_Texture_Diffuse ||
                 MaterialProperty->Type == MaterialProperty_Texture_Specular ||
                 MaterialProperty->Type == MaterialProperty_Texture_Shininess ||
+                MaterialProperty->Type == MaterialProperty_Texture_Albedo ||
+                MaterialProperty->Type == MaterialProperty_Texture_Metalness ||
+                MaterialProperty->Type == MaterialProperty_Texture_Roughness ||
                 MaterialProperty->Type == MaterialProperty_Texture_Normal
                 )
             {
@@ -2099,7 +2144,8 @@ DLLExport GAME_RENDER(GameRender)
 
         State->Assets.State = GameAssetsState_Ready;
 
-        AddSkybox(RenderCommands, State->SkyboxId, 4096, GetTextureAsset(&State->Assets, "environment"));
+        // todo(continue): multiple skyboxes
+        AddSkybox(RenderCommands, State->SkyboxId, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 

@@ -15,8 +15,8 @@ struct editor_add_entity
 
 struct editor_state
 {
-    renderer_state *Renderer;
-    audio_state *Audio;
+    win32_renderer_state *Renderer;
+    win32_audio_state *Audio;
 
     bool32 GameWindowHovered;
     bool32 LogAutoScroll;

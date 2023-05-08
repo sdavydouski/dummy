@@ -1,6 +1,6 @@
 //? #include "version.glsl"
 //? #include "constants.glsl"
-//? #include "phong.glsl"
+//? #include "lights.glsl"
 
 layout(std140, binding = 0) uniform Transform
 {
@@ -21,6 +21,9 @@ layout(std140, binding = 1) uniform Shading
 
     int u_PointLightCount;
     point_light u_PointLights[MAX_POINT_LIGHT_COUNT];
+
+    int u_AnalyticalLightCount;
+    analytical_light u_AnalyticalLights[MAX_ANALYTICAL_LIGHT_COUNT];
 };
 
 // todo: ?

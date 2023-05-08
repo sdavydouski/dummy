@@ -1,7 +1,8 @@
-//? #include "common/version.glsl"
-//? #include "common/constants.glsl"
-//! #include "common/phong.glsl"
-//? #include "common/uniform.glsl"
+//! #include "common/version.glsl"
+//! #include "common/constants.glsl"
+//! #include "common/math.glsl"
+//! #include "common/lights.glsl"
+//! #include "common/uniform.glsl"
 
 in VS_OUT
 {

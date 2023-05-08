@@ -82,20 +82,20 @@ struct win32_worker_thread
     job_queue *JobQueue;
 };
 
-enum renderer_backend
+enum win32_renderer_backend
 {
     Renderer_OpenGL,
     Renderer_Direct3D12
 };
 
-struct renderer_state
+struct win32_renderer_state
 {
     stream Stream;
     memory_arena Arena;
     platform_api *Platform;
     platform_profiler *Profiler;
 
-    renderer_backend Backend;
+    win32_renderer_backend Backend;
     union
     {
         opengl_state *OpenGL;
@@ -103,19 +103,19 @@ struct renderer_state
     };
 };
 
-enum audio_backend
+enum win32_audio_backend
 {
     Audio_XAudio2
 };
 
-struct audio_state
+struct win32_audio_state
 {
     stream Stream;
     memory_arena Arena;
     platform_api *Platform;
     platform_profiler *Profiler;
 
-    audio_backend Backend;
+    win32_audio_backend Backend;
     union
     {
         xaudio2_state *XAudio2;

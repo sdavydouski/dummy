@@ -1,6 +1,5 @@
 //! #include "common/version.glsl"
 //! #include "common/math.glsl"
-//! #include "common/phong.glsl"
 //! #include "common/uniform.glsl"
 
 layout(location = 0) in vec3 in_Position;

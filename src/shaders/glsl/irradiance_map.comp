@@ -1,0 +1,64 @@
+//! #include "common/version.glsl"
+//! #include "common/math.glsl"
+
+// Computes diffuse irradiance cubemap convolution for image-based lighting.
+// Uses quasi Monte Carlo sampling with Hammersley sequence.
+
+layout(local_size_x=32, local_size_y=32, local_size_z=1) in;
+
+const uint NumSamples = 64 * 1024;
+const float InvNumSamples = 1.0 / float(NumSamples);
+
+layout(binding=0) uniform samplerCube inputTexture;
+layout(binding=0, rgba16f) restrict writeonly uniform imageCube outputTexture;
+
+// Calculate normalized sampling direction vector based on current fragment coordinates (gl_GlobalInvocationID.xyz).
+// This is essentially "inverse-sampling": we reconstruct what the sampling vector would be if we wanted it to "hit"
+// this particular fragment in a cubemap.
+vec3 GetSamplingVector()
+{
+    vec2 st = gl_GlobalInvocationID.xy / vec2(imageSize(outputTexture));
+    vec2 uv = 2.f * vec2(st.x, 1.f - st.y) - vec2(1.f);
+
+    vec3 v;
+
+	// Select vector based on cubemap face index
+    switch (gl_GlobalInvocationID.z)
+    {
+        case 0: v = vec3(1.f,  uv.y, -uv.x); break;
+        case 1: v = vec3(-1.f, uv.y, uv.x); break;
+        case 2: v = vec3(uv.x, 1.f, -uv.y); break;
+        case 3: v = vec3(uv.x, -1.f, uv.y); break;
+        case 4: v = vec3(uv.x, uv.y, 1.f); break;
+        case 5: v = vec3(-uv.x, uv.y, -1.f); break;
+    }
+
+	return normalize(v);
+}
+
+void main()
+{
+	vec3 N = GetSamplingVector();
+	
+	vec3 S, T;
+	ComputeBasisVectors(N, S, T);
+
+	// Monte Carlo integration of hemispherical irradiance.
+	// As a small optimization this also includes Lambertian BRDF assuming perfectly white surface (albedo of 1.0)
+	// so we don't need to normalize in PBR fragment shader (so technically it encodes exitant radiance rather than irradiance).
+	vec3 irradiance = vec3(0);
+
+	for(uint SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
+	{
+		vec2 u  = SampleHammersley(SampleIndex, InvNumSamples);
+		vec3 Li = TangentToWorld(SampleHemisphere(u.x, u.y), N, S, T);
+		float cosTheta = max(0.f, dot(Li, N));
+
+		// PIs here cancel out because of division by pdf.
+		irradiance += 2.f * textureLod(inputTexture, Li, 0).rgb * cosTheta;
+	}
+
+	irradiance /= vec3(NumSamples);
+
+	imageStore(outputTexture, ivec3(gl_GlobalInvocationID), vec4(irradiance, 1.0));
+}
