@@ -350,6 +350,8 @@ struct opengl_state
     hash_table<opengl_shader> Shaders;
     hash_table<opengl_skybox> Skyboxes;
 
+    u32 CurrentSkyboxId;
+
     u32 CascadeShadowMapSize;
     GLuint CascadeShadowMapFBO;
     GLuint CascadeShadowMaps[4];

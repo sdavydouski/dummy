@@ -1152,18 +1152,18 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
             collider *Collider = Entity->Collider;
 
             if (Body)
-            //if (Body && Body->PositionLerp.ProcessId)
             {
                 // todo: save previous state
                 Body->PrevPosition = Body->Position;
                 Body->PrevVelocity = Body->Velocity;
                 Body->PrevAcceleration = Body->Acceleration;
 
-                f32 MaxStepHeight = 0.5f;
+                f32 MaxStepHeight = 0.2f;
 
                 u32 MaxNearbyEntityCount = 10;
                 game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                aabb Bounds = { vec3(0.f, -MaxStepHeight, 0.f), vec3(0.f, 0.f, 0.f) };
+                //aabb Bounds = { vec3(0.f, -MaxStepHeight, 0.f), vec3(0.f, 0.f, 0.f) };
+                aabb Bounds = { vec3(0.f, -0.01f, 0.f), vec3(0.f, 0.f, 0.f) };
 
                 u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
@@ -1195,6 +1195,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     }
                 }
 
+#if 0
                 bool32 OnTheGround = Body->Position.y == 0.f;
                 bool32 OnTheSurface = false;
 
@@ -1219,6 +1220,10 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         OnTheGround = true;
                     }
                 }
+#else
+                bool32 OnTheGround = (Body->Position.y == 0.f);
+                bool32 OnTheSurface = (MinDistance <= 0.01f);
+#endif
 
                 Entity->IsGrounded = (OnTheGround || OnTheSurface);
 
@@ -1301,7 +1306,8 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                                 f32 RelativeHeight = NearbyEntityCenter.y + NearbyEntityHalfSize.y - Entity->Body->Position.y;
 
-                                if (Dot(Entity->Body->Velocity, mtv) < 0.f && InRange(RelativeHeight, 0.f, MaxStepHeight))
+                                //if (Dot(Entity->Body->Velocity, mtv) < 0.f && InRange(RelativeHeight, 0.f, MaxStepHeight))
+                                if (false)
                                 {
                                     aabb EntityBounds = GetColliderBounds(Entity->Collider);
                                     vec3 EntityHalfSize = GetAABBHalfSize(EntityBounds);
@@ -1752,7 +1758,7 @@ DLLExport GAME_INIT(GameInit)
     State->NextFreeAudioSourceId = 1;
 
     // todo: temp
-    State->SkyboxId = 1234;
+    State->SkyboxId = 1;
 
     game_process *Sentinel = &State->ProcessSentinel;
     Sentinel->Key = GenerateGameProcessId(State);
@@ -2145,14 +2151,16 @@ DLLExport GAME_RENDER(GameRender)
         State->Assets.State = GameAssetsState_Ready;
 
         // todo(continue): multiple skyboxes
-        AddSkybox(RenderCommands, State->SkyboxId, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
+        AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
+        AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
-#if 0
+#if 1
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
-            LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
+            LoadWorldAreaFromFile(State, (char *)"data\\scene_1.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
             State->Player = (State->WorldArea.Entities + 0);
         }
 #endif
@@ -2212,6 +2220,8 @@ DLLExport GAME_RENDER(GameRender)
             SetViewProjection(RenderCommands, Camera);
 
             SetDirectionalLight(RenderCommands, State->DirectionalLight);
+
+            SetSkybox(RenderCommands, State->SkyboxId);
 
             if (State->Assets.State == GameAssetsState_Ready && State->Options.ShowSkybox)
             {

@@ -340,6 +340,13 @@ AddSkybox(render_commands *Commands, u32 SkyboxId, u32 EnvMapSize, texture *Equi
 }
 
 inline void
+SetSkybox(render_commands *Commands, u32 SkyboxId)
+{
+    render_command_set_skybox *Command = PushRenderCommand(Commands, render_command_set_skybox, RenderCommand_SetSkybox);
+    Command->SkyboxId = SkyboxId;
+}
+
+inline void
 DrawSkybox(render_commands *Commands, u32 SkyboxId)
 {
     render_command_draw_skybox *Command = PushRenderCommand(Commands, render_command_draw_skybox, RenderCommand_DrawSkybox);

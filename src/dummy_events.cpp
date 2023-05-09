@@ -39,6 +39,7 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
 
                 audio_clip *AudioClip = 0;
 
+                // todo:
                 switch (SID(Entity->Model->Key))
                 {
                     case SID("xbot"):
@@ -62,9 +63,10 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
                     }
                 }
 
-                Assert(AudioClip);
-
-                Play3D(AudioCommands, AudioClip, Position, 10.f, 20.f, SetVolume(Weight));
+                if (AudioClip)
+                {
+                    Play3D(AudioCommands, AudioClip, Position, 10.f, 20.f, SetVolume(Weight));
+                }
             }
         }
     }

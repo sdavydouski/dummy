@@ -1388,7 +1388,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     game_memory GameMemory = {};
     GameMemory.PermanentStorageSize = Megabytes(256);
     GameMemory.FrameStorageSize = Megabytes(256);
-    GameMemory.AssetsStorageSize = Megabytes(2048);
+    GameMemory.AssetsStorageSize = Megabytes(1024);
     GameMemory.RenderCommandsStorageSize = Megabytes(16);
     GameMemory.AudioCommandsStorageSize = Megabytes(16);
     GameMemory.Platform = &PlatformApi;

@@ -19,13 +19,9 @@ struct material_options
 struct material
 {
     material_type Type;
+    mesh_material *MeshMaterial;
 
-    union
-    {
-        vec4 Color;
-        mesh_material *MeshMaterial;
-    };
-
+    vec4 Color;
     material_options Options;
 };
 
@@ -106,6 +102,7 @@ enum render_command_type
     RenderCommand_SetTime,
     RenderCommand_SetDirectionalLight,
     RenderCommand_SetPointLights,
+    RenderCommand_SetSkybox,
 
     RenderCommand_Clear,
     RenderCommand_DrawPoint,
@@ -139,6 +136,7 @@ const char *RenderCommandNames[] =
     "SetTime",
     "SetDirectionalLight",
     "SetPointLights",
+    "SetSkybox",
 
     "Clear",
     "DrawPoint",
@@ -407,6 +405,12 @@ struct render_command_add_skybox
     u32 SkyboxId;
     u32 EnvMapSize;
     texture *EquirectEnvMap;
+};
+
+struct render_command_set_skybox
+{
+    render_command_header Header;
+    u32 SkyboxId;
 };
 
 struct render_command_draw_skybox

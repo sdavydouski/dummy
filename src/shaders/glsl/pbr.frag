@@ -121,7 +121,7 @@ void main()
 		float cosLi = max(0.0, dot(Normal, Li));
 		float cosLh = max(0.0, dot(Normal, Lh));
 
-        // Calculate Fresnel term for direct lighting.
+        // Calculate Fresnel term for direct lighting
 		vec3 F  = FresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
 		// Calculate normal distribution for specular BRDF
 		float D = DistributionGGX(cosLh, Roughness);

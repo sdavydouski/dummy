@@ -91,12 +91,34 @@ BuildTextureAssets(const char *InputPath, const char *OutputPath)
 
 i32 main(i32 ArgCount, char **Args)
 {
-#if 1
+#if 0
     BuildModelAssets("assets/models", "game/assets");
     BuildFontAssets("assets/fonts", "game/assets");
     BuildAudioAssets("assets/audio", "game/assets");
     BuildTextureAssets("assets/textures", "game/assets");
 #else
-    ProcessModelAsset("assets\\models\\sphere_rust.gltf", "game\\assets\\sphere_rust.model.asset");
+    /*ProcessModelAsset("assets\\models\\cube_pbr.gltf", "game\\assets\\cube_pbr.model.asset");
+    ProcessModelAsset("assets\\models\\sphere_pbr.gltf", "game\\assets\\sphere_pbr.model.asset");
+    
+    ProcessModelAsset(
+        "assets\\models\\ybot_pbr\\ybot.gltf",
+        "assets\\models\\ybot_pbr\\animation_graph.json",
+        "assets\\models\\ybot_pbr\\clips",
+        "game\\assets\\ybot_pbr.model.asset"
+    );
+
+    ProcessModelAsset(
+        "assets\\models\\xbot_pbr\\xbot.gltf", 
+        "assets\\models\\xbot_pbr\\animation_graph.json", 
+        "assets\\models\\xbot_pbr\\clips",
+        "game\\assets\\xbot_pbr.model.asset"
+    );*/
+
+    ProcessModelAsset(
+        "assets\\models\\pelegrini_pbr\\pelegrini.gltf",
+        "assets\\models\\pelegrini_pbr\\animation_graph.json",
+        "assets\\models\\pelegrini_pbr\\clips",
+        "game\\assets\\pelegrini_pbr.model.asset"
+    );
 #endif
 }

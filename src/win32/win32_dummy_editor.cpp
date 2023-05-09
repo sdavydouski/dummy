@@ -1427,6 +1427,33 @@ Win32RenderEditor(
                     ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
                     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
+                    const char *Skyboxes[] = { "environment_sky", "environment_desert", "environment_hill" };
+                    static u32 CurrentSkyboxIndex = 0;
+                    const char *PreviewValue = Skyboxes[CurrentSkyboxIndex];
+                    
+                    if (ImGui::BeginCombo("Skybox", PreviewValue))
+                    {
+                        for (u32 SkyboxIndex = 0; SkyboxIndex < ArrayCount(Skyboxes); SkyboxIndex++)
+                        {
+                            bool32 IsSelected = (CurrentSkyboxIndex == SkyboxIndex);
+
+                            if (ImGui::Selectable(Skyboxes[SkyboxIndex], IsSelected))
+                            {
+                                CurrentSkyboxIndex = SkyboxIndex;
+
+                                GameState->SkyboxId = SkyboxIndex + 1;
+                            }
+
+                            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                            if (IsSelected)
+                            {
+                                ImGui::SetItemDefaultFocus();
+                            }
+                        }
+
+                        ImGui::EndCombo();
+                    }
+
                     if (ImGui::BeginTable("Graphics toggles", 2))
                     {
                         ImGui::TableNextColumn();

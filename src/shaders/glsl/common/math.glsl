@@ -31,6 +31,23 @@ vec3 UnprojectPoint(vec3 p, mat4 ViewProjection)
     return Result;
 }
 
+// Compute orthonormal basis for converting from tanget/shading space to world space
+void ComputeBasisVectors(const vec3 N, out vec3 S, out vec3 T)
+{
+	// Branchless select non-degenerate T
+	T = cross(N, vec3(0.0, 1.0, 0.0));
+	T = mix(cross(N, vec3(1.0, 0.0, 0.0)), T, step(EPSILON, dot(T, T)));
+
+	T = normalize(T);
+	S = normalize(cross(N, T));
+}
+
+// Convert point from tangent/shading space to world space
+vec3 TangentToWorld(const vec3 v, const vec3 N, const vec3 S, const vec3 T)
+{
+	return S * v.x + T * v.y + N * v.z;
+}
+
 // Compute Van der Corput radical inverse
 // See: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
 float RadicalInverse_VdC(uint bits)
@@ -40,10 +57,11 @@ float RadicalInverse_VdC(uint bits)
 	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
 	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
 	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+
 	return float(bits) * 2.3283064365386963e-10; // / 0x100000000
 }
 
-// Sample i-th point from Hammersley point set of NumSamples points total.
+// Sample i-th point from Hammersley point set of NumSamples points total
 vec2 SampleHammersley(uint i, float InvNumSamples)
 {
 	return vec2(i * InvNumSamples, RadicalInverse_VdC(i));
@@ -74,7 +92,7 @@ vec3 SampleGGX(float u1, float u2, float roughness)
 	return vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
 }
 
-// Single term for separable Schlick-GGX below.
+// Single term for separable Schlick-GGX below
 float SchlickG1(float cosTheta, float k)
 {
 	return cosTheta / (cosTheta * (1.0 - k) + k);
@@ -91,18 +109,18 @@ float SchlickGGX(float cosLi, float cosLo, float roughness)
 	return SchlickG1(cosLi, k) * SchlickG1(cosLo, k);
 }
 
+// Schlick-GGX approximation of geometric attenuation function using Smith's method (IBL version)
+float SchlickGGX_IBL(float cosLi, float cosLo, float roughness)
+{
+	float r = roughness;
+	float k = (r * r) / 2.0; // Epic suggests using this roughness remapping for IBL lighting
+	return SchlickG1(cosLi, k) * SchlickG1(cosLo, k);
+}
+
 // Shlick's approximation of the Fresnel factor
 vec3 FresnelSchlick(vec3 F0, float cosTheta)
 {
 	return F0 + (vec3(1.f) - F0) * pow(1.f - cosTheta, 5.f);
-}
-
-// Schlick-GGX approximation of geometric attenuation function using Smith's method (IBL version).
-float SchlickGGX_IBL(float cosLi, float cosLo, float roughness)
-{
-	float r = roughness;
-	float k = (r * r) / 2.0; // Epic suggests using this roughness remapping for IBL lighting.
-	return SchlickG1(cosLi, k) * SchlickG1(cosLo, k);
 }
 
 // GGX/Towbridge-Reitz normal distribution function.
@@ -114,21 +132,4 @@ float DistributionGGX(float cosLh, float roughness)
 
 	float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
 	return alphaSq / (PI * denom * denom);
-}
-
-// Compute orthonormal basis for converting from tanget/shading space to world space.
-void ComputeBasisVectors(const vec3 N, out vec3 S, out vec3 T)
-{
-	// Branchless select non-degenerate T.
-	T = cross(N, vec3(0.0, 1.0, 0.0));
-	T = mix(cross(N, vec3(1.0, 0.0, 0.0)), T, step(EPSILON, dot(T, T)));
-
-	T = normalize(T);
-	S = normalize(cross(N, T));
-}
-
-// Convert point from tangent/shading space to world space.
-vec3 TangentToWorld(const vec3 v, const vec3 N, const vec3 S, const vec3 T)
-{
-	return S * v.x + T * v.y + N * v.z;
 }

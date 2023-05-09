@@ -561,109 +561,113 @@ OpenGLAddSkybox(opengl_state *State, texture *EquirectEnvMap, u32 EnvMapSize, u3
     bitmap EquirectBitmap = EquirectEnvMap->Bitmap;
 
     opengl_skybox *Skybox = HashTableLookup(&State->Skyboxes, SkyboxId);
-    Assert(IsSlotEmpty(Skybox->Key));
 
-    u32 EnvTextureLevels = OpenGLGetMipmapLevelCount(EnvMapSize, EnvMapSize);
-
-    // Convert equirectangular environment map to a cubemap texture
+    if (IsSlotEmpty(Skybox->Key))
     {
-        GLuint EquirectEnvTexture;
-        glCreateTextures(GL_TEXTURE_2D, 1, &EquirectEnvTexture);
-        glTextureStorage2D(EquirectEnvTexture, 1, GL_RGB16F, EquirectBitmap.Width, EquirectBitmap.Height);
-        glTextureSubImage2D(EquirectEnvTexture, 0, 0, 0, EquirectBitmap.Width, EquirectBitmap.Height, GL_RGB, GL_FLOAT, EquirectBitmap.Pixels);
-        glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        Skybox->Key = SkyboxId;
 
-        GLuint EnvTexture;
-        glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &EnvTexture);
-        glTextureStorage2D(EnvTexture, EnvTextureLevels, GL_RGBA16F, EnvMapSize, EnvMapSize);
-        glTextureParameteri(EnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTextureParameteri(EnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        u32 EnvTextureLevels = OpenGLGetMipmapLevelCount(EnvMapSize, EnvMapSize);
 
-        opengl_shader *Equirect2CubemapShader = OpenGLGetShader(State, "equirect2cube");
-
-        glUseProgram(Equirect2CubemapShader->Program);
-        glBindTextureUnit(0, EquirectEnvTexture);
-        glBindImageTexture(0, EnvTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute(EnvMapSize / 32, EnvMapSize / 32, 6);
-
-        glDeleteTextures(1, &EquirectEnvTexture);
-
-        Skybox->EnvTexture = EnvTexture;
-    }
-
-    // Compute pre-filtered specular environment map
-    {
-        GLuint SpecularEnvTexture;
-        glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &SpecularEnvTexture);
-        glTextureStorage2D(SpecularEnvTexture, EnvTextureLevels, GL_RGBA16F, EnvMapSize, EnvMapSize);
-        glTextureParameteri(SpecularEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTextureParameteri(SpecularEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        glGenerateTextureMipmap(Skybox->EnvTexture);
-
-        // Copy 0th mipmap level into destination environment map
-        glCopyImageSubData(Skybox->EnvTexture, GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0, SpecularEnvTexture, GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0, EnvMapSize, EnvMapSize, 6);
-
-        opengl_shader *SpecularMapShader = OpenGLGetShader(State, "specular_map");
-
-        glUseProgram(SpecularMapShader->Program);
-        glBindTextureUnit(0, Skybox->EnvTexture);
-
-        // Pre-filter rest of the mip chain
-        f32 DeltaRoughness = 1.f / Max(f32(EnvTextureLevels - 1), 1.f);
-
-        for (u32 Level = 1, Size = EnvMapSize / 2; Level <= EnvTextureLevels; ++Level, Size /= 2)
+        // Convert equirectangular environment map to a cubemap texture
         {
-            GLuint NumGroups = Max(1, Size / 32);
+            GLuint EquirectEnvTexture;
+            glCreateTextures(GL_TEXTURE_2D, 1, &EquirectEnvTexture);
+            glTextureStorage2D(EquirectEnvTexture, 1, GL_RGB16F, EquirectBitmap.Width, EquirectBitmap.Height);
+            glTextureSubImage2D(EquirectEnvTexture, 0, 0, 0, EquirectBitmap.Width, EquirectBitmap.Height, GL_RGB, GL_FLOAT, EquirectBitmap.Pixels);
+            glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTextureParameteri(EquirectEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-            glBindImageTexture(0, SpecularEnvTexture, Level, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-            glProgramUniform1f(SpecularMapShader->Program, 0, Level * DeltaRoughness);
-            glDispatchCompute(NumGroups, NumGroups, 6);
+            GLuint EnvTexture;
+            glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &EnvTexture);
+            glTextureStorage2D(EnvTexture, EnvTextureLevels, GL_RGBA16F, EnvMapSize, EnvMapSize);
+            glTextureParameteri(EnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTextureParameteri(EnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            opengl_shader *Equirect2CubemapShader = OpenGLGetShader(State, "equirect2cube");
+
+            glUseProgram(Equirect2CubemapShader->Program);
+            glBindTextureUnit(0, EquirectEnvTexture);
+            glBindImageTexture(0, EnvTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+            glDispatchCompute(EnvMapSize / 32, EnvMapSize / 32, 6);
+
+            glDeleteTextures(1, &EquirectEnvTexture);
+
+            Skybox->EnvTexture = EnvTexture;
         }
 
-        Skybox->SpecularEnvTexture = SpecularEnvTexture;
-    }   
+        // Compute pre-filtered specular environment map
+        {
+            GLuint SpecularEnvTexture;
+            glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &SpecularEnvTexture);
+            glTextureStorage2D(SpecularEnvTexture, EnvTextureLevels, GL_RGBA16F, EnvMapSize, EnvMapSize);
+            glTextureParameteri(SpecularEnvTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTextureParameteri(SpecularEnvTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // Compute diffuse irradiance cubemap
-    {
-        u32 IrradianceMapSize = 32;
+            glGenerateTextureMipmap(Skybox->EnvTexture);
 
-        GLuint IrradianceTexture;
-        glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &IrradianceTexture);
-        glTextureStorage2D(IrradianceTexture, 1, GL_RGBA16F, IrradianceMapSize, IrradianceMapSize);
-        glTextureParameteri(IrradianceTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTextureParameteri(IrradianceTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            // Copy 0th mipmap level into destination environment map
+            glCopyImageSubData(Skybox->EnvTexture, GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0, SpecularEnvTexture, GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0, EnvMapSize, EnvMapSize, 6);
 
-        opengl_shader *IrradianceMapShader = OpenGLGetShader(State, "irradiance_map");
+            opengl_shader *SpecularMapShader = OpenGLGetShader(State, "specular_map");
 
-        glUseProgram(IrradianceMapShader->Program);
-        glBindTextureUnit(0, Skybox->EnvTexture);
-        glBindImageTexture(0, IrradianceTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute(IrradianceMapSize / 32, IrradianceMapSize / 32, 6);
+            glUseProgram(SpecularMapShader->Program);
+            glBindTextureUnit(0, Skybox->EnvTexture);
 
-        Skybox->IrradianceTexture = IrradianceTexture;
-    }
+            // Pre-filter rest of the mip chain
+            f32 DeltaRoughness = 1.f / Max(f32(EnvTextureLevels - 1), 1.f);
 
-    // Compute Cook-Torrance BRDF 2D LUT for split-sum approximation
-    {
-        u32 SpecularBRDFSize = 256;
+            for (u32 Level = 1, Size = EnvMapSize / 2; Level <= EnvTextureLevels; ++Level, Size /= 2)
+            {
+                GLuint NumGroups = Max(1, Size / 32);
 
-        GLuint SpecularBRDF;
-        glCreateTextures(GL_TEXTURE_2D, 1, &SpecularBRDF);
-        glTextureStorage2D(SpecularBRDF, 1, GL_RGBA16F, SpecularBRDFSize, SpecularBRDFSize);
-        glTextureParameteri(SpecularBRDF, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTextureParameteri(SpecularBRDF, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTextureParameteri(SpecularBRDF, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTextureParameteri(SpecularBRDF, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                glBindImageTexture(0, SpecularEnvTexture, Level, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+                glProgramUniform1f(SpecularMapShader->Program, 0, Level * DeltaRoughness);
+                glDispatchCompute(NumGroups, NumGroups, 6);
+            }
 
-        opengl_shader *SpecularBRDFShader = OpenGLGetShader(State, "specular_brdf");
+            Skybox->SpecularEnvTexture = SpecularEnvTexture;
+        }
 
-        glUseProgram(SpecularBRDFShader->Program);
-        glBindImageTexture(0, SpecularBRDF, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute(SpecularBRDFSize / 32, SpecularBRDFSize / 32, 1);
+        // Compute diffuse irradiance cubemap
+        {
+            u32 IrradianceMapSize = 32;
 
-        Skybox->SpecularBRDF = SpecularBRDF;
+            GLuint IrradianceTexture;
+            glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &IrradianceTexture);
+            glTextureStorage2D(IrradianceTexture, 1, GL_RGBA16F, IrradianceMapSize, IrradianceMapSize);
+            glTextureParameteri(IrradianceTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTextureParameteri(IrradianceTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            opengl_shader *IrradianceMapShader = OpenGLGetShader(State, "irradiance_map");
+
+            glUseProgram(IrradianceMapShader->Program);
+            glBindTextureUnit(0, Skybox->EnvTexture);
+            glBindImageTexture(0, IrradianceTexture, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+            glDispatchCompute(IrradianceMapSize / 32, IrradianceMapSize / 32, 6);
+
+            Skybox->IrradianceTexture = IrradianceTexture;
+        }
+
+        // Compute Cook-Torrance BRDF 2D LUT for split-sum approximation
+        {
+            u32 SpecularBRDFSize = 256;
+
+            GLuint SpecularBRDF;
+            glCreateTextures(GL_TEXTURE_2D, 1, &SpecularBRDF);
+            glTextureStorage2D(SpecularBRDF, 1, GL_RGBA16F, SpecularBRDFSize, SpecularBRDFSize);
+            glTextureParameteri(SpecularBRDF, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTextureParameteri(SpecularBRDF, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTextureParameteri(SpecularBRDF, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTextureParameteri(SpecularBRDF, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            opengl_shader *SpecularBRDFShader = OpenGLGetShader(State, "specular_brdf");
+
+            glUseProgram(SpecularBRDFShader->Program);
+            glBindImageTexture(0, SpecularBRDF, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+            glDispatchCompute(SpecularBRDFSize / 32, SpecularBRDFSize / 32, 1);
+
+            Skybox->SpecularBRDF = SpecularBRDF;
+        }
     }
 }
 
@@ -1093,7 +1097,7 @@ OpenGLInitShaders(opengl_state *State)
 }
 
 dummy_internal void
-OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, mesh_material *MeshMaterial)
+OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, material *Material)
 {
     // todo: magic numbers
     opengl_texture *Texture = OpenGLGetTexture(State, 0);
@@ -1119,6 +1123,8 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 
     glUniform1i(OpengLGetUniformLocation(Shader, "u_EnableShadows"), Options->EnableShadows);
     glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
+
+    mesh_material *MeshMaterial = Material->MeshMaterial;
 
     if (MeshMaterial)
     {
@@ -1225,14 +1231,13 @@ OpenGLBlinnPhongShading(opengl_state *State, opengl_render_options *Options, ope
 }
 
 dummy_internal void
-OpenGLPBRShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, mesh_material *MeshMaterial)
+OpenGLPBRShading(opengl_state *State, opengl_render_options *Options, opengl_shader *Shader, material *Material)
 {
     // todo: magic numbers
     opengl_texture *Texture = OpenGLGetTexture(State, 0);
     glBindTextureUnit(0, Texture->Handle);
 
-    // todo(continue): get current skybox
-    opengl_skybox *Skybox = OpenGLGetSkybox(State, 1234);
+    opengl_skybox *Skybox = OpenGLGetSkybox(State, State->CurrentSkyboxId);
     glBindTextureUnit(1, Skybox->IrradianceTexture);
     glBindTextureUnit(2, Skybox->SpecularEnvTexture);
     glBindTextureUnit(3, Skybox->SpecularBRDF);
@@ -1260,6 +1265,8 @@ OpenGLPBRShading(opengl_state *State, opengl_render_options *Options, opengl_sha
     glUniform1i(OpengLGetUniformLocation(Shader, "u_EnableShadows"), Options->EnableShadows);
     //glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
 #endif
+
+    mesh_material *MeshMaterial = Material->MeshMaterial;
 
     if (MeshMaterial)
     {
@@ -1781,7 +1788,7 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
         BaseAddress += Entry->Size;
     }
 
-    glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
 dummy_internal void
@@ -1881,7 +1888,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     glNamedBufferSubData(State->ShadingUBO, StructOffset(opengl_uniform_buffer_shading, DirectinalLight), sizeof(opengl_directional_light), &DirectinalLight);
 
-                    // todo:
+                    // todo(continue):
                     u32 AnalyticalLightCount = 1;
 
                     opengl_analytical_light AnalyticalLights[1] = {};
@@ -2262,7 +2269,27 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glBindVertexArray(State->Rectangle.VAO);
                     glUseProgram(Shader->Program);
 
-                    OpenGLBlinnPhongShading(State, Options, Shader, 0);
+                    // todo:
+                    for (u32 CascadeIndex = 0; CascadeIndex < 4; ++CascadeIndex)
+                    {
+                        // todo: magic 16?
+                        u32 TextureIndex = CascadeIndex + 16;
+
+                        // Cascasde Shadow Map
+                        glBindTextureUnit(TextureIndex, State->CascadeShadowMaps[CascadeIndex]);
+                        glUniform1i(OpengLGetUniformLocation(Shader, "u_CascadeShadowMaps[0]") + CascadeIndex, TextureIndex);
+
+                        // Cascade Bounds
+                        vec2 CascadeBounds = State->CascadeBounds[CascadeIndex];
+                        glUniform2f(OpengLGetUniformLocation(Shader, "u_CascadeBounds[0]") + CascadeIndex, CascadeBounds.x, CascadeBounds.y);
+
+                        // Cascade View Projection
+                        mat4 CascadeViewProjection = State->CascadeViewProjection[CascadeIndex];
+                        glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_CascadeViewProjection[0]") + CascadeIndex, 1, GL_TRUE, (f32 *)CascadeViewProjection.Elements);
+                    }
+
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_EnableShadows"), Options->EnableShadows);
+                    glUniform1i(OpengLGetUniformLocation(Shader, "u_ShowCascades"), Options->ShowCascades);
 
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 }
@@ -2281,45 +2308,27 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     switch (Command->Material.Type)
                     {
-                        case MaterialType_Basic:
-                        {
-                            material Material = Command->Material;
-
-                            opengl_shader *Shader = OpenGLGetShader(State, "simple.color");
-
-                            mat4 Model = Transform(Command->Transform);
-
-                            glUseProgram(Shader->Program);
-                            glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
-                            glUniform4f(OpengLGetUniformLocation(Shader, "u_Color"), Material.Color.r, Material.Color.g, Material.Color.b, Material.Color.a);
-
-                            break;
-                        }
                         case MaterialType_Phong:
                         {
-                            mesh_material *MeshMaterial = Command->Material.MeshMaterial;
-
                             mat4 Model = Transform(Command->Transform);
 
                             opengl_shader *Shader = OpenGLGetShader(State, "mesh.phong");
 
                             glUseProgram(Shader->Program);
                             glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
-                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLBlinnPhongShading(State, Options, Shader, &Command->Material);
 
                             break;
                         }
                         case MaterialType_Standard:
                         {
-                            mesh_material *MeshMaterial = Command->Material.MeshMaterial;
-
                             mat4 Model = Transform(Command->Transform);
 
                             opengl_shader *Shader = OpenGLGetShader(State, "mesh.pbr");
 
                             glUseProgram(Shader->Program);
                             glUniformMatrix4fv(OpengLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
-                            OpenGLPBRShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLPBRShading(State, Options, Shader, &Command->Material);
 
                             break;
                         }
@@ -2362,7 +2371,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             opengl_shader *Shader = OpenGLGetShader(State, "mesh_instanced.phong");
 
                             glUseProgram(Shader->Program);
-                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLBlinnPhongShading(State, Options, Shader, &Command->Material);
 
                             break;
                         }
@@ -2371,7 +2380,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             opengl_shader *Shader = OpenGLGetShader(State, "mesh_instanced.pbr");
 
                             glUseProgram(Shader->Program);
-                            OpenGLPBRShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLPBRShading(State, Options, Shader, &Command->Material);
 
                             break;
                         }
@@ -2405,7 +2414,17 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             glUseProgram(Shader->Program);
                             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
-                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLBlinnPhongShading(State, Options, Shader, &Command->Material);
+
+                            break;
+                        }
+                        case MaterialType_Standard:
+                        {
+                            opengl_shader *Shader = OpenGLGetShader(State, "skinned_mesh.pbr");
+
+                            glUseProgram(Shader->Program);
+                            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
+                            OpenGLPBRShading(State, Options, Shader, &Command->Material);
 
                             break;
                         }
@@ -2441,7 +2460,18 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                             glUseProgram(Shader->Program);
                             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
                             glUniform1i(OpengLGetUniformLocation(Shader, "u_VertexCount"), MeshBuffer->VertexCount);
-                            OpenGLBlinnPhongShading(State, Options, Shader, Command->Material.MeshMaterial);
+                            OpenGLBlinnPhongShading(State, Options, Shader, &Command->Material);
+
+                            break;
+                        }
+                        case MaterialType_Standard:
+                        {
+                            opengl_shader *Shader = OpenGLGetShader(State, "skinned_mesh_instanced.pbr");
+
+                            glUseProgram(Shader->Program);
+                            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, MeshBuffer->SkinningMatricesBuffer);
+                            glUniform1i(OpengLGetUniformLocation(Shader, "u_VertexCount"), MeshBuffer->VertexCount);
+                            OpenGLPBRShading(State, Options, Shader, &Command->Material);
 
                             break;
                         }
@@ -2454,6 +2484,14 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                     glDrawElementsInstanced(GL_TRIANGLES, MeshBuffer->IndexCount, GL_UNSIGNED_INT, 0, Command->InstanceCount);
                 }
+
+                break;
+            }
+            case RenderCommand_SetSkybox:
+            {
+                render_command_set_skybox *Command = (render_command_set_skybox *)Entry;
+
+                State->CurrentSkyboxId = Command->SkyboxId;
 
                 break;
             }
@@ -2689,7 +2727,7 @@ OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
         glViewport(0, 0, RenderSettings->WindowWidth, RenderSettings->WindowHeight);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        opengl_shader *Shader = OpenGLGetShader(State, OPENGL_FRAMEBUFFER_SHADER_ID);
+        opengl_shader *Shader = OpenGLGetShader(State, "framebuffer");
 
         glUseProgram(Shader->Program);
         glBindTextureUnit(0, State->DestFramebuffer.ColorTarget);

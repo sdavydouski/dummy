@@ -2003,7 +2003,7 @@ LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
                     animation_clip *Animation = Asset->Animations + AnimationIndex++;
                     CopyString(AnimationClipName.generic_string().c_str(), Animation->Name);
 
-                    char AnimationClipFilePath[64];
+                    char AnimationClipFilePath[256];
                     FormatString(AnimationClipFilePath, "%s/%s", DirectoryPath, FileName.generic_string().c_str());
 
                     LoadAnimationClipAsset(AnimationClipFilePath, Flags, Asset, Animation);
@@ -2011,7 +2011,7 @@ LoadAnimationClips(const char *DirectoryPath, u32 Flags, model_asset *Asset)
                     fs::path AnimationMetaFileName = FileName;
                     AnimationMetaFileName.replace_extension(".json");
 
-                    char AnimationMetaFilePath[64];
+                    char AnimationMetaFilePath[256];
                     FormatString(AnimationMetaFilePath, "%s/%s", DirectoryPath, AnimationMetaFileName.generic_string().c_str());
 
                     if (fs::exists(AnimationMetaFilePath))
