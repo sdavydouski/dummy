@@ -97,7 +97,7 @@ i32 main(i32 ArgCount, char **Args)
     BuildAudioAssets("assets/audio", "game/assets");
     BuildTextureAssets("assets/textures", "game/assets");
 #else
-    /*ProcessModelAsset("assets\\models\\cube_pbr.gltf", "game\\assets\\cube_pbr.model.asset");
+    ProcessModelAsset("assets\\models\\cube_pbr.gltf", "game\\assets\\cube_pbr.model.asset");
     ProcessModelAsset("assets\\models\\sphere_pbr.gltf", "game\\assets\\sphere_pbr.model.asset");
     
     ProcessModelAsset(
@@ -112,7 +112,7 @@ i32 main(i32 ArgCount, char **Args)
         "assets\\models\\xbot_pbr\\animation_graph.json", 
         "assets\\models\\xbot_pbr\\clips",
         "game\\assets\\xbot_pbr.model.asset"
-    );*/
+    );
 
     ProcessModelAsset(
         "assets\\models\\pelegrini_pbr\\pelegrini.gltf",

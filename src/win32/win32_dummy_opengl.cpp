@@ -138,7 +138,7 @@ Win32InitOpenGL(opengl_state *State, win32_platform_state *PlatformState)
                     i32 ContextAttribs[] = {
                         WGL_CONTEXT_MAJOR_VERSION_ARB, OpenGLVersionMajor,
                         WGL_CONTEXT_MINOR_VERSION_ARB, OpenGLVersionMinor,
-                        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
                         0
                     };
 
@@ -1558,7 +1558,7 @@ OpenGLInitRenderer(opengl_state *State, i32 WindowWidth, i32 WindowHeight, u32 S
 
     InitHashTable(&State->MeshBuffers, 1021, State->Arena);
     InitHashTable(&State->SkinningBuffers, 509, State->Arena);
-    InitHashTable(&State->Textures, 127, State->Arena);
+    InitHashTable(&State->Textures, 509, State->Arena);
     InitHashTable(&State->Shaders, 61, State->Arena);
     InitHashTable(&State->Skyboxes, 31, State->Arena);
 
