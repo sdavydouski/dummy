@@ -47,6 +47,7 @@
     <None Include="dummy_audio.cpp" />
     <None Include="dummy_events.cpp" />
     <None Include="dummy_assets.cpp" />
+    <None Include="dummy_camera.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

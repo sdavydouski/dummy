@@ -388,7 +388,7 @@ Win32InitEditor(editor_state *EditorState, win32_platform_state *PlatformState)
     EditorInitRenderer(EditorState);
 
     // Load Fonts
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
     // Setup Config
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -951,6 +951,7 @@ EditorRenderEntityInfo(
     ImGui::Text("Id: %d", Entity->Id);
     ImGui::Text("Min Grid Coords: %d, %d, %d", Entity->GridCellCoords[0].x, Entity->GridCellCoords[0].y, Entity->GridCellCoords[0].z);
     ImGui::Text("Max Grid Coords: %d, %d, %d", Entity->GridCellCoords[1].x, Entity->GridCellCoords[1].y, Entity->GridCellCoords[1].z);
+    ImGui::ColorEdit3("Debug Color", Entity->DebugColor.Elements);
     ImGui::NewLine();
 
     if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))

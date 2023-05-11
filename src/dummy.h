@@ -37,6 +37,8 @@ u32 GenerateGameProcessId(game_state *State);
 
 game_entity *GetGameEntity(game_state *State, u32 EntityId);
 
+u32 FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, aabb Bounds, game_entity **Entities, u32 MaxEntityCount);
+
 void PublishEvent(game_event_list *EventList, const char *EventName, void *Params);
 
 void TransitionToNode(animation_graph *Graph, const char *NodeName);
@@ -51,6 +53,7 @@ aabb GetEntityBounds(game_entity *Entity);
 vec3 GetAABBHalfSize(aabb Box);
 vec3 GetAABBCenter(aabb Box);
 bool32 TestAABBAABB(aabb a, aabb b);
+bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord);
 
 audio_play_options SetVolume(f32 Volume);
 //
@@ -84,7 +87,6 @@ struct game_entity
     // ?
     bool32 Visible;
     bool32 Destroyed;
-    vec3 TestColor;
     vec3 DebugColor;
     bool32 IsGrounded;
 };
@@ -237,7 +239,9 @@ struct game_entity_spec
     particle_emitter_spec ParticleEmitterSpec;
     audio_source_spec AudioSourceSpec;
 
-    u32 Buffer[8192];
+    vec3 DebugColor;
+
+    u32 Buffer[8192 - 3];
 };
 
 #pragma pack(push, 1)
@@ -420,5 +424,4 @@ struct game_state
 
     // todo: temp
     u32 SkyboxId;
-    u32 PlayerOrientationLerpProcessId;
 };

@@ -201,7 +201,7 @@ EndProcessXboxControllerInput(platform_input_xbox_controller *XboxControllerInpu
 }
 
 inline void
-XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInput, game_input *GameInput)
+XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInput, game_input *GameInput, f32 Delta)
 {
     if (Magnitude(GameInput->Move.Range) == 0.f)
     {
@@ -215,7 +215,7 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
 
     if (Magnitude(GameInput->Camera.Range) == 0.f)
     {
-        f32 StickSensitivity = 0.01f;
+        f32 StickSensitivity = 2.f * Delta;
         GameInput->Camera.Range = XboxControllerInput->RightStick * StickSensitivity;
     }
 
@@ -231,7 +231,7 @@ XboxControllerInput2GameInput(platform_input_xbox_controller *XboxControllerInpu
 
     if (GameInput->ZoomDelta == 0.f)
     {
-        f32 TriggerSensitivity = 0.1f;
+        f32 TriggerSensitivity = 20.f * Delta;
 
         if (XboxControllerInput->LeftTrigger > 0.f)
         {

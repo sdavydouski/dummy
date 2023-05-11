@@ -74,45 +74,6 @@ AttachChildGameProcess_(game_state *State, u32 ParentProcessId, const char *Chil
 #define AttachChildGameProcess(State, ParentProcessId, ChildOnUpdatePerFrame, ChildParams) AttachChildGameProcess_(State, ParentProcessId, #ChildOnUpdatePerFrame, ChildOnUpdatePerFrame, ChildParams)
 
 // Reloadable game processes
-DLLExport GAME_PROCESS_ON_UPDATE(RigidBodyPositionLerpProcess)
-{
-    rigid_body *Body = Process->Params.Entity->Body;
-
-    Body->PositionLerp.Time += Params->Delta;
-
-    f32 t = Body->PositionLerp.Time / Body->PositionLerp.Duration;
-
-    if (t <= 1.f)
-    {
-        Body->Position = Lerp(Body->PositionLerp.From, t, Body->PositionLerp.To);
-    }
-    else
-    {
-        Body->PositionLerp = {};
-        EndGameProcess(State, Process->Key);
-    }
-}
-
-DLLExport GAME_PROCESS_ON_UPDATE(RigidBodyOrientationLerpProcess)
-{
-    rigid_body *Body = Process->Params.Entity->Body;
-
-    Body->OrientationLerp.Time += Params->Delta;
-
-    f32 t = Body->OrientationLerp.Time / Body->OrientationLerp.Duration;
-
-    if (t <= 1.f)
-    {
-        Body->Orientation = Slerp(Body->OrientationLerp.From, t, Body->OrientationLerp.To);
-    }
-    else
-    {
-        Body->OrientationLerp = {};
-        State->PlayerOrientationLerpProcessId = 0;
-        EndGameProcess(State, Process->Key);
-    }
-}
-
 DLLExport GAME_PROCESS_ON_UPDATE(SmoothInputMoveProcess)
 {
     f32 InterpolationTime = Process->Params.InterpolationTime;
@@ -122,13 +83,4 @@ DLLExport GAME_PROCESS_ON_UPDATE(SmoothInputMoveProcess)
         vec2 dMove = (State->TargetMove - State->CurrentMove) / InterpolationTime;
         State->CurrentMove += dMove * Params->Delta;
     }
-}
-
-DLLExport GAME_PROCESS_ON_UPDATE(ChangeEntityColorProcess)
-{
-    game_entity *Entity = Process->Params.Entity;
-
-    Entity->DebugColor.r = Entity->TestColor.r * (Sin(Params->Time * 4.f) + 1.5f) * 0.5f;
-    Entity->DebugColor.g = Entity->TestColor.g * (Cos(Params->Time * 4.f) + 1.5f) * 0.5f;
-    Entity->DebugColor.b = Entity->TestColor.b * (Sin(Params->Time * 4.f) + 1.5f) * 0.5f;
 }

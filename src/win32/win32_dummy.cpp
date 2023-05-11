@@ -1567,7 +1567,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 {
                     PROFILE(&PlatformProfiler, "ProcessInput");
 
-                    XboxControllerInput2GameInput(&XboxControllerInput, &GameInput);
+                    XboxControllerInput2GameInput(&XboxControllerInput, &GameInput, GameParameters.Delta);
 
                     if (!EDITOR_CAPTURE_KEYBOARD_INPUT(&EditorState))
                     {

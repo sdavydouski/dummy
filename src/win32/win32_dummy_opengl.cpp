@@ -844,7 +844,9 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
     glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTextureParameteri(TextureHandle, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTextureStorage2D(TextureHandle, 1, InternalFormat, Bitmap->Width, Bitmap->Height);
+    u32 Levels = OpenGLGetMipmapLevelCount(Bitmap->Width, Bitmap->Height);
+
+    glTextureStorage2D(TextureHandle, Levels, InternalFormat, Bitmap->Width, Bitmap->Height);
 
     if (Bitmap->IsHDR)
     {
@@ -855,7 +857,7 @@ OpenGLAddTexture(opengl_state *State, u32 Id, bitmap *Bitmap)
         glTextureSubImage2D(TextureHandle, 0, 0, 0, Bitmap->Width, Bitmap->Height, Format, GL_UNSIGNED_BYTE, Bitmap->Pixels);
     }
 
-    //glGenerateTextureMipmap(TextureHandle);
+    glGenerateTextureMipmap(TextureHandle);
 
     opengl_texture *Texture = HashTableLookup(&State->Textures, Id);
 

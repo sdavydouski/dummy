@@ -224,6 +224,8 @@ void main()
 
     Result = AmbientLighting + DirectLighting * Shadow;
 
+    Result *= fs_in.Color;
+
     // Final fragment color
 	out_Color = vec4(Result, 1.f);
 }

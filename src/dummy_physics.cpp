@@ -45,10 +45,10 @@ Integrate(rigid_body *Body, f32 dt)
 {
     Assert(dt > 0.f);
 
-    Body->Position += Body->Velocity * dt + Body->Acceleration * Square(dt) * 0.5f;
     Body->Acceleration += Body->ForceAccumulator * Body->InverseMass;
     Body->Velocity += Body->Acceleration * dt;
     Body->Velocity *= Power(Body->Damping, dt);
+    Body->Position += Body->Velocity * dt + Body->Acceleration * Square(dt) * 0.5f;
     Body->ForceAccumulator = vec3(0.f);
 }
 

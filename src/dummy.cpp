@@ -5,6 +5,7 @@
 #include "dummy_collision.cpp"
 #include "dummy_physics.cpp"
 #include "dummy_spatial.cpp"
+#include "dummy_camera.cpp"
 #include "dummy_animation.cpp"
 #include "dummy_animator.cpp"
 #include "dummy_process.cpp"
@@ -819,7 +820,6 @@ CreateGameEntity(game_state *State)
     Entity->Id = GenerateEntityId(State);
     CopyString("Unnamed", Entity->Name);
     // todo:
-    Entity->TestColor = vec3(1.f);
     Entity->DebugColor = vec3(1.f);
 
     return Entity;
@@ -1788,7 +1788,7 @@ DLLExport GAME_INIT(GameInit)
     f32 AspectRatio = (f32)Params->WindowWidth / (f32)Params->WindowHeight;
     f32 FieldOfView = RADIANS(45.f);
     InitCamera(&State->EditorCamera, FieldOfView, AspectRatio, 0.1f, 1000.f, vec3(0.f, 4.f, 8.f), vec3(0.f, RADIANS(-90.f), RADIANS(-20.f)));
-    InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 0.f, 0.f), vec3(4.f, RADIANS(0.f), RADIANS(20.f)));
+    InitCamera(&State->PlayerCamera, FieldOfView, AspectRatio, 0.1f, 320.f, vec3(0.f, 5.f, 0.f), vec3(4.f, RADIANS(0.f), RADIANS(20.f)));
 
     State->Ground = ComputePlane(vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.f, 1.f), vec3(1.f, 0.f, 0.f));
     State->BackgroundColor = vec3(0.f, 0.f, 0.f);
@@ -1810,6 +1810,7 @@ DLLExport GAME_INIT(GameInit)
     State->Options.ShowGrid = true;
     State->Options.ShowSkybox = true;
     State->Options.ShowSkeletons = false;
+    State->Options.ShowCamera = false;
     State->Options.WireframeMode = false;
 
     InitGameMenu(State);
@@ -1925,7 +1926,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 vec3 PlayerPosition = Player->Transform.Translation;
                 vec3 TargetPosition = PlayerPosition + vec3(0.f, 0.8f * PlayerSize.y, 0.f);
 
-                ChaseCameraPerFrameUpdate(&State->PlayerCamera, Input, TargetPosition, Params->Delta);
+                ChaseCameraPerFrameUpdate(&State->PlayerCamera, Input, State, TargetPosition, Params->Delta);
+                ChaseCameraSceneCollisions(&State->PlayerCamera, &State->WorldArea, State->Player, &State->FrameArena);
 
                 if (Player->Body)
                 {
@@ -1952,7 +1954,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     f32 xMoveX = Dot(xMoveAxis, xAxis) * Move.x;
                     f32 zMoveX = Dot(xMoveAxis, zAxis) * Move.x;
 
-                    vec3 PlayerDirection = vec3(Dot(vec3(Move.x, 0.f, Move.y), xMoveAxis), 0.f, Dot(vec3(Move.x, 0.f, Move.y), yMoveAxis));
+                    vec3 NewPlayerDirection = vec3(Dot(vec3(Move.x, 0.f, Move.y), xMoveAxis), 0.f, Dot(vec3(Move.x, 0.f, Move.y), yMoveAxis));
 
                     if (Player->IsGrounded)
                     {
@@ -1960,34 +1962,16 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                         Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
                     }
 
-                    quat TargetPlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(PlayerDirection.x, PlayerDirection.z)));
+                    quat NewPlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(NewPlayerDirection.x, NewPlayerDirection.z)));
 
-                    f32 MoveMaginute = Clamp(Magnitude(Move), 0.f, 1.f);
+                    f32 MoveMagnitude = Clamp(Magnitude(Move), 0.f, 1.f);
 
-                    // todo:
-                    if (MoveMaginute > 0.f && Player->Body->Orientation != TargetPlayerOrientation)
+                    if (MoveMagnitude > 0.f)
                     {
-                        SetQuatLerp(&Player->Body->OrientationLerp, 0.f, 0.2f, Player->Body->Orientation, TargetPlayerOrientation);
+                        f32 t = 5.f * Params->Delta;
+                        quat OldPlayerOrientation = Player->Body->Orientation;
 
-                        game_process *Process = GetGameProcess(State, State->PlayerOrientationLerpProcessId);
-
-                        if (IsSlotEmpty(Process->Key))
-                        {
-                            game_process_params Params = {};
-                            Params.Entity = Player;
-
-                            State->PlayerOrientationLerpProcessId = StartGameProcess(State, RigidBodyOrientationLerpProcess, Params);
-                        }
-                    }
-                    else
-                    {
-                        game_process *Process = GetGameProcess(State, State->PlayerOrientationLerpProcessId);
-
-                        if (!IsSlotEmpty(Process->Key))
-                        {
-                            EndGameProcess(State, State->PlayerOrientationLerpProcessId);
-                            State->PlayerOrientationLerpProcessId = 0;
-                        }
+                        Player->Body->Orientation = Slerp(OldPlayerOrientation, t, NewPlayerOrientation);
                     }
                 }
             }
@@ -2068,7 +2052,7 @@ DLLExport GAME_UPDATE(GameUpdate)
 
     scoped_memory ScopedMemory(&State->FrameArena);
 
-#if 1
+#if 0
     for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
     {
         game_entity *Entity = Area->Entities + EntityIndex;
@@ -2160,8 +2144,8 @@ DLLExport GAME_RENDER(GameRender)
 #if 1
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
-            LoadWorldAreaFromFile(State, (char *)"data\\scene_1.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
-            State->Player = (State->WorldArea.Entities + 0);
+            LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
+            State->Player = (State->WorldArea.Entities + 4);
         }
 #endif
     }
@@ -2272,9 +2256,16 @@ DLLExport GAME_RENDER(GameRender)
                     vec3 Origin = Camera->Position;
                     f32 AxisLength = 3.f;
 
+#if 1
                     DrawLine(RenderCommands, Origin, Origin + xAxis * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
                     DrawLine(RenderCommands, Origin, Origin + yAxis * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
                     DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
+#endif
+
+                    if (State->Assets.State == GameAssetsState_Ready)
+                    {
+                        DrawBillboard(RenderCommands, Camera->Position, vec2(0.2f), GetTextureAsset(&State->Assets, "camera"));
+                    }
                 }
             }
 
