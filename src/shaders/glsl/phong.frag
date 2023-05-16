@@ -85,43 +85,43 @@ void main()
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
 
     vec3 Ambient = AmbientColor * DiffuseColor;
+
+    // Shadows
     float Shadow = 1.f;
+    int CascadeIndex1;
+    int CascadeIndex2;
 
     if (u_EnableShadows)
     {
-        // Shadows
         vec3 CascadeBlend = fs_in.CascadeBlend;
 
         vec3 LightDirection = normalize(-u_DirectionalLight.Direction);
         float CosTheta = clamp(dot(Normal, LightDirection), 0.f, 1.f);
-        float Bias = clamp(0.005 * tan(acos(CosTheta)), 0.f, 0.01f);
+        float Bias = clamp(0.005f * tan(acos(CosTheta)), 0.f, 0.01f);
+        
+        Shadow = CalculateInfiniteShadow(CascadeBlend, fs_in.WorldPosition, Bias, CascadeIndex1, CascadeIndex2);
+    }
 
-        vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, fs_in.WorldPosition, Bias);
+    // Visualising cascades
+    vec3 CascadeColor = vec3(0.f);
 
-        Shadow = ShadowResult.x;
-
-        int CascadeIndex1 = int(ShadowResult.y);
-        int CascadeIndex2 = int(ShadowResult.z);
-
-        if (u_ShowCascades)
+    if (u_ShowCascades)
+    {
+        if (CascadeIndex1 == 0 && CascadeIndex2 == 1)
         {
-            // Visualising cascades
-            if (CascadeIndex1 == 0 && CascadeIndex2 == 1)
-            {
-                Result += vec3(0.5f, 0.f, 0.f);
-            }
-            else if (CascadeIndex2 == 1 && CascadeIndex1 == 2)
-            {
-                Result += vec3(0.f, 0.5f, 0.f);
-            }
-            else if (CascadeIndex1 == 2 && CascadeIndex2 == 3)
-            {
-                Result += vec3(0.f, 0.f, 0.5f);
-            }
-            else 
-            {
-                Result += vec3(0.5f, 0.5f, 0.f);
-            }
+            CascadeColor = vec3(0.5f, 0.f, 0.f);
+        }
+        else if (CascadeIndex2 == 1 && CascadeIndex1 == 2)
+        {
+            CascadeColor = vec3(0.f, 0.5f, 0.f);
+        }
+        else if (CascadeIndex1 == 2 && CascadeIndex2 == 3)
+        {
+            CascadeColor = vec3(0.f, 0.f, 0.5f);
+        }
+        else 
+        {
+            CascadeColor = vec3(0.5f, 0.5f, 0.f);
         }
     }
 
@@ -133,6 +133,7 @@ void main()
         Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, fs_in.WorldPosition);
     }
 
+    Result += CascadeColor;
     Result *= fs_in.Color;
 
     out_Color = vec4(Result, 1.f);

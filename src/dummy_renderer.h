@@ -430,9 +430,10 @@ struct render_commands_settings
     u32 Samples;
 
     f32 Time;
-    f32 PixelsPerUnit;
-    f32 UnitsPerPixel;
-    
+
+    f32 ScreenWidthInUnits;
+    f32 ScreenHeightInUnits;
+
     bool32 ShowCascades;
     bool32 EnableShadows;
     bool32 WireframeMode;
@@ -443,6 +444,8 @@ struct render_commands_settings
     mat4 CameraToWorld;
 
     directional_light *DirectionalLight;
+
+    vec2 CascadeBounds[4];
 };
 
 struct render_commands

@@ -95,6 +95,14 @@ inline quat operator *(f32 Value, quat q)
     return Result;
 }
 
+inline quat &operator +=(quat &Dest, vec3 v)
+{
+    quat q = quat(v.x, v.y, v.z, 0.f) * Dest;
+    Dest += q * 0.5f;
+
+    return Dest;
+}
+
 inline f32
 Dot(quat a, quat b)
 {

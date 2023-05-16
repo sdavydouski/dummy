@@ -6,15 +6,14 @@
 #define OPENGL_RELOADABLE_SHADERS 0
 #define OPENGL_MAX_SHADER_FILE_PATH 256
 
-#define OPENGL_MAX_POINT_LIGHT_COUNT 8
-#define OPENGL_MAX_ANALYTICAL_LIGHT_COUNT 8
+#define OPENGL_MAX_POINT_LIGHT_COUNT 16
 
 #define OPENGL_WORLD_SPACE_MODE 0x1
 #define OPENGL_SCREEN_SPACE_MODE 0x2
 #define OPENGL_MAX_JOINT_COUNT 256
 #define OPENGL_MAX_WEIGHT_COUNT 4
 #define OPENGL_UNIFORM_MAX_LENGTH 64
-#define OPENGL_UNIFORM_MAX_COUNT 257
+#define OPENGL_UNIFORM_MAX_COUNT 509
 
 const char *OpenGLCommonShaders[] =
 {
@@ -270,12 +269,6 @@ struct opengl_uniform_buffer_transform
     f32 Time;
 };
 
-struct opengl_analytical_light
-{
-    alignas(16) vec3 Direction;
-    alignas(16) vec3 Radiance;
-};
-
 struct opengl_directional_light
 {
     alignas(16) vec3 LightDirection;
@@ -295,9 +288,6 @@ struct opengl_uniform_buffer_shading
 
     u32 PointLightCount;
     opengl_point_light PointLights[OPENGL_MAX_POINT_LIGHT_COUNT];
-
-    u32 AnalyticalLightCount;
-    opengl_analytical_light AnalyticalLights[OPENGL_MAX_ANALYTICAL_LIGHT_COUNT];
 };
 
 struct opengl_render_options

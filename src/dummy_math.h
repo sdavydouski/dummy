@@ -863,3 +863,15 @@ Project(vec3 a, vec3 b)
     vec3 Result = b * (Dot(a, b) / Dot(b, b));
     return Result;
 }
+
+inline mat3
+GetCuboidInertiaTensor(f32 Mass, vec3 Size)
+{
+    mat3 Result = mat3(
+        Mass * (Square(Size.y) + Square(Size.z)) / 12.f, 0.f, 0.f,
+        0.f, Mass * (Square(Size.x) + Square(Size.z)) / 12.f, 0.f,
+        0.f, 0.f, Mass * (Square(Size.x) + Square(Size.y)) / 12.f
+    );
+
+    return Result;
+}

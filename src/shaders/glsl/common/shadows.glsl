@@ -9,7 +9,7 @@ uniform sampler2DShadow u_CascadeShadowMaps[4];
 
 vec3 CalculateCascadeBlend(vec3 WorldPosition, vec3 CameraDirection, vec3 CameraPosition)
 {
-	vec4 p = vec4(WorldPosition, 1.f);
+    vec4 p = vec4(WorldPosition, 1.f);
     vec3 n = CameraDirection;
     vec3 c = CameraPosition;
 
@@ -38,55 +38,55 @@ vec3 CalculateCascadeBlend(vec3 WorldPosition, vec3 CameraDirection, vec3 Camera
 
 float SampleShadowMap(sampler2DShadow ShadowMap, vec2 Coords, float Compare)
 {
-	return max(texture(ShadowMap, vec3(Coords, Compare)).r, 0.4f);
+    return max(texture(ShadowMap, vec3(Coords, Compare)).r, 0.4f);
 }
 
 #if 0
 float SampleShadowMapLinear(sampler2D ShadowMap, vec2 Coords, float Compare, vec2 TexelSize)
 {
-	vec2 PixelPosition = Coords / TexelSize + vec2(0.5);
-	vec2 FracPart = fract(PixelPosition);
-	vec2 StartTexel = (PixelPosition - FracPart) * TexelSize;
-	
-	float blTexel = SampleShadowMap(ShadowMap, StartTexel, Compare);
-	float brTexel = SampleShadowMap(ShadowMap, StartTexel + vec2(TexelSize.x, 0.f), Compare);
-	float tlTexel = SampleShadowMap(ShadowMap, StartTexel + vec2(0.f, TexelSize.y), Compare);
-	float trTexel = SampleShadowMap(ShadowMap, StartTexel + TexelSize, Compare);
-	
-	float mixA = Lerp(blTexel, tlTexel, FracPart.y);
-	float mixB = Lerp(brTexel, trTexel, FracPart.y);
-	
-	return Lerp(mixA, mixB, FracPart.x);
+    vec2 PixelPosition = Coords / TexelSize + vec2(0.5);
+    vec2 FracPart = fract(PixelPosition);
+    vec2 StartTexel = (PixelPosition - FracPart) * TexelSize;
+    
+    float blTexel = SampleShadowMap(ShadowMap, StartTexel, Compare);
+    float brTexel = SampleShadowMap(ShadowMap, StartTexel + vec2(TexelSize.x, 0.f), Compare);
+    float tlTexel = SampleShadowMap(ShadowMap, StartTexel + vec2(0.f, TexelSize.y), Compare);
+    float trTexel = SampleShadowMap(ShadowMap, StartTexel + TexelSize, Compare);
+    
+    float mixA = Lerp(blTexel, tlTexel, FracPart.y);
+    float mixB = Lerp(brTexel, trTexel, FracPart.y);
+    
+    return Lerp(mixA, mixB, FracPart.x);
 }
 #endif
 
 float SampleShadowMapPCF(sampler2DShadow ShadowMap, vec2 Coords, float Compare, vec2 TexelSize)
 {
-	float SamplesCount = 3.f;
-	float SamplesStart = (SamplesCount - 1.f) / 2.f;
+    float SamplesCount = 3.f;
+    float SamplesStart = (SamplesCount - 1.f) / 2.f;
 
-	float Result = 0.f;
+    float Result = 0.f;
 
-	for(float y = -SamplesStart; y <= SamplesStart; y += 1.f)
-	{
-		for(float x = -SamplesStart; x <= SamplesStart; x += 1.f)
-		{
-			vec2 CoordsOffset = vec2(x,y) * TexelSize;
-			Result += SampleShadowMap(ShadowMap, Coords + CoordsOffset, Compare);
-		}
-	}
+    for(float y = -SamplesStart; y <= SamplesStart; y += 1.f)
+    {
+        for(float x = -SamplesStart; x <= SamplesStart; x += 1.f)
+        {
+            vec2 CoordsOffset = vec2(x,y) * TexelSize;
+            Result += SampleShadowMap(ShadowMap, Coords + CoordsOffset, Compare);
+        }
+    }
 
-	return Result / Square(SamplesCount);
+    return Result / Square(SamplesCount);
 }
 
-vec3 CalculateInfiniteShadow(vec3 CascadeBlend, vec3 WorldPosition, float Bias = 0.005f)
+float CalculateInfiniteShadow(vec3 CascadeBlend, vec3 WorldPosition, float Bias, out int CascadeIndex1, out int CascadeIndex2)
 {
     // Calculate layer indices
     bool BeyondCascade2 = (CascadeBlend.y >= 0.f);
     bool BeyondCascade3 = (CascadeBlend.z >= 0.f);
 
-    int CascadeIndex1 = int(BeyondCascade2) * 2;
-    int CascadeIndex2 = int(BeyondCascade3) * 2 + 1;
+    CascadeIndex1 = int(BeyondCascade2) * 2;
+    CascadeIndex2 = int(BeyondCascade3) * 2 + 1;
 
     // Calculate blend weight
     vec3 Blend = Saturate(CascadeBlend);
@@ -111,5 +111,5 @@ vec3 CalculateInfiniteShadow(vec3 CascadeBlend, vec3 WorldPosition, float Bias =
     // Return blended average value
     float Shadow = Lerp(Light2, Light1, Weight);
 
-    return vec3(Shadow, CascadeIndex1, CascadeIndex2);
+    return Shadow;
 }

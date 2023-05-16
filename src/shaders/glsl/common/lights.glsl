@@ -1,10 +1,10 @@
 //? #include "version.glsl"
 //? #include "math.glsl"
 
-struct analytical_light
+struct directional_light
 {
-	vec3 Direction;
-	vec3 Radiance;
+    vec3 Direction;
+    vec3 Color;
 };
 
 struct light_attenuation
@@ -12,12 +12,6 @@ struct light_attenuation
     float Constant;
     float Linear;
     float Quadratic;
-};
-
-struct directional_light
-{
-    vec3 Direction;
-    vec3 Color;
 };
 
 struct point_light
@@ -28,17 +22,16 @@ struct point_light
     light_attenuation Attenuation;
 };
 
-struct spot_light
+float CalculateInverseSquareAttenuation(vec3 LightPosition, vec3 VertexPosition, light_attenuation LightAttenuation)
 {
-    vec3 Position;
-    vec3 Color;
-    vec3 Direction;
+    float LightDistance = length(LightPosition - VertexPosition);
 
-    float InnerCutOffAngle;
-    float OuterCutOffAngle;
-
-    light_attenuation Attenuation;
-};
+    return 1.f / (
+        LightAttenuation.Constant + 
+        LightAttenuation.Linear * LightDistance + 
+        LightAttenuation.Quadratic * Square(LightDistance)
+    );
+}
 
 vec3 CalculateDiffuseReflection(
     vec3 Normal, 
@@ -66,17 +59,6 @@ vec3 CalculateSpecularReflection(
     float Highlight = pow(Saturate(dot(Normal, HalfwayDirection)), SpecularShininess);// * float(dot(Normal, LightDirection) > 0.f);
 
     return (LightColor * SpecularColor * Highlight);
-}
-
-float CalculateInverseSquareAttenuation(vec3 LightPosition, vec3 VertexPosition, light_attenuation LightAttenuation)
-{
-    float LightDistance = length(LightPosition - VertexPosition);
-
-    return 1.f / (
-        LightAttenuation.Constant + 
-        LightAttenuation.Linear * LightDistance + 
-        LightAttenuation.Quadratic * Square(LightDistance)
-    );
 }
 
 vec3 CalculateDirectionalLight(

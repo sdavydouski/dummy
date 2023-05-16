@@ -73,11 +73,11 @@ GetTextBounds(wchar *Text, font *Font)
 }
 
 inline vec2
-GetTextStartPosition(wchar *Text, font *Font, draw_text_alignment Alignment, vec2 Position, f32 TextScale, f32 UnitsPerPixel)
+GetTextStartPosition(wchar *Text, font *Font, draw_text_alignment Alignment, vec2 Position, f32 TextScale)
 {
     vec2 Result = vec2(0.f);
 
-    vec2 TextBounds = GetTextBounds(Text, Font) * TextScale * UnitsPerPixel;
+    vec2 TextBounds = GetTextBounds(Text, Font) * TextScale;
 
     switch (Alignment)
     {

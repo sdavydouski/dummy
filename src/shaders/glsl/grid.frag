@@ -15,20 +15,20 @@ out vec4 out_Color;
 
 // computes Z-buffer depth value, and converts the range.
 float ComputeDepth(vec3 p, mat4 ViewProjection) {
-	// get the clip-space coordinates
-	vec4 ClipSpacePosition = ViewProjection * vec4(p, 1.f);
+    // get the clip-space coordinates
+    vec4 ClipSpacePosition = ViewProjection * vec4(p, 1.f);
 
-	// get the depth value in normalized device coordinates
-	float ClipSpaceDepth = ClipSpacePosition.z / ClipSpacePosition.w;
+    // get the depth value in normalized device coordinates
+    float ClipSpaceDepth = ClipSpacePosition.z / ClipSpacePosition.w;
 
-	// and compute the range based on gl_DepthRange settings (not necessary with default settings, but left for completeness)
-	float Far = gl_DepthRange.far;
-	float Near = gl_DepthRange.near;
+    // and compute the range based on gl_DepthRange settings (not necessary with default settings, but left for completeness)
+    float Far = gl_DepthRange.far;
+    float Near = gl_DepthRange.near;
 
-	float Depth = (((Far - Near) * ClipSpaceDepth) + Near + Far) / 2.f;
+    float Depth = (((Far - Near) * ClipSpaceDepth) + Near + Far) / 2.f;
 
-	// and return the result
-	return Depth;
+    // and return the result
+    return Depth;
 }
 
 // https://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
@@ -48,53 +48,53 @@ void main()
     vec2 Coord = GroundPoint.xz / GridScale;
 
     float LineWidth = 1.f;
-	vec2 Grid = abs(fract(Coord - 0.5) - 0.5) / (LineWidth * fwidth(Coord));
-	float Line = min(Grid.x, Grid.y);
-	vec3 GridColor = vec3(min(Line, 0.75f));
+    vec2 Grid = abs(fract(Coord - 0.5) - 0.5) / (LineWidth * fwidth(Coord));
+    float Line = min(Grid.x, Grid.y);
+    vec3 GridColor = vec3(min(Line, 0.75f));
 
-	// Lighting
-	vec3 EyeDirection = normalize(u_CameraPosition - GroundPoint);
-	vec3 AmbientColor = vec3(0.f);
-	vec3 DiffuseColor = GridColor;
-	vec3 SpecularColor = vec3(0.f);
-	float SpecularShininess = 1.f;
-	vec3 Normal = vec3(0.f, 1.f, 0.f);
+    // Lighting
+    vec3 EyeDirection = normalize(u_CameraPosition - GroundPoint);
+    vec3 AmbientColor = vec3(0.f);
+    vec3 DiffuseColor = GridColor;
+    vec3 SpecularColor = vec3(0.f);
+    float SpecularShininess = 1.f;
+    vec3 Normal = vec3(0.f, 1.f, 0.f);
 
     vec3 Result = CalculateDirectionalLight(u_DirectionalLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection);
 
     vec3 Ambient = AmbientColor * DiffuseColor;
+
+     // Shadows
     float Shadow = 1.f;
+    int CascadeIndex1;
+    int CascadeIndex2;
 
     if (u_EnableShadows)
     {
-		// Shadows
         vec3 CascadeBlend = CalculateCascadeBlend(GroundPoint, u_CameraDirection, u_CameraPosition);
-        vec3 ShadowResult = CalculateInfiniteShadow(CascadeBlend, GroundPoint);
+        Shadow = CalculateInfiniteShadow(CascadeBlend, GroundPoint, 0.005f, CascadeIndex1, CascadeIndex2);
+    }
 
-        Shadow = ShadowResult.x;
+    // Visualising cascades
+    vec3 CascadeColor = vec3(0.f);
 
-        int CascadeIndex1 = int(ShadowResult.y);
-        int CascadeIndex2 = int(ShadowResult.z);
-
-        if (u_ShowCascades)
+    if (u_ShowCascades)
+    {
+        if (CascadeIndex1 == 0 && CascadeIndex2 == 1)
         {
-            // Visualising cascades
-            if (CascadeIndex1 == 0 && CascadeIndex2 == 1)
-            {
-                Result += vec3(1.f, 0.f, 0.f);
-            }
-            else if (CascadeIndex2 == 1 && CascadeIndex1 == 2)
-            {
-                Result += vec3(0.f, 1.f, 0.f);
-            }
-            else if (CascadeIndex1 == 2 && CascadeIndex2 == 3)
-            {
-                Result += vec3(0.f, 0.f, 1.f);
-            }
-            else 
-            {
-                Result += vec3(1.f, 1.f, 0.f);
-            }
+            CascadeColor = vec3(1.f, 0.f, 0.f);
+        }
+        else if (CascadeIndex2 == 1 && CascadeIndex1 == 2)
+        {
+            CascadeColor = vec3(0.f, 1.f, 0.f);
+        }
+        else if (CascadeIndex1 == 2 && CascadeIndex2 == 3)
+        {
+            CascadeColor = vec3(0.f, 0.f, 1.f);
+        }
+        else 
+        {
+            CascadeColor = vec3(1.f, 1.f, 0.f);
         }
     }
 
@@ -106,6 +106,8 @@ void main()
         Result += CalculatePointLight(PointLight, AmbientColor, DiffuseColor, SpecularColor, SpecularShininess, Normal, EyeDirection, GroundPoint);
     }
 
-	out_Color = vec4(Result, 1.f - Opacity);
-	gl_FragDepth = ComputeDepth(GroundPoint, u_ViewProjection);
+    Result += CascadeColor;
+
+    out_Color = vec4(Result, 1.f - Opacity);
+    gl_FragDepth = ComputeDepth(GroundPoint, u_ViewProjection);
 }

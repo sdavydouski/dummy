@@ -94,7 +94,7 @@ CreateMaterial(mesh_material *MeshMaterial, material_options Options = DefaultMa
 }
 
 inline void
-DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
+DrawModel(render_commands *RenderCommands, model *Model, transform Transform, vec3 Color)
 {
     for (u32 MeshIndex = 0; MeshIndex < Model->MeshCount; ++MeshIndex)
     {
@@ -104,6 +104,7 @@ DrawModel(render_commands *RenderCommands, model *Model, transform Transform)
         {
             mesh_material *MeshMaterial = Model->Materials + Mesh->MaterialIndex;
             material Material = CreateMaterial(MeshMaterial);
+            Material.Color = vec4(Color, 1.f);
 
             DrawMesh(RenderCommands, Mesh->MeshId, Transform, Material);
         }
@@ -717,7 +718,7 @@ RenderEntity(render_commands *RenderCommands, game_state *State, game_entity *En
     }
     else
     {
-        DrawModel(RenderCommands, Entity->Model, Entity->Transform);
+        DrawModel(RenderCommands, Entity->Model, Entity->Transform, Entity->DebugColor);
     }
 }
 
@@ -1158,6 +1159,15 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 Body->PrevVelocity = Body->Velocity;
                 Body->PrevAcceleration = Body->Acceleration;
 
+#if 0
+                // todo: test
+                if (Entity->Id == 34)
+                {
+                    AddForceAtBodyPoint(Entity->Body, vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.5f, 0.f));
+            }
+                //
+#endif
+
                 f32 MaxStepHeight = 0.2f;
 
                 u32 MaxNearbyEntityCount = 10;
@@ -1242,7 +1252,8 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                 if (!Entity->IsGrounded)
                 {
-                    AddGravityForce(Body, vec3(0.f, -10.f, 0.f));
+                    vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetRigidBodyMass(Body);
+;                   AddForce(Body, Gravity);
                 }
 
                 Integrate(Body, dt);
@@ -1317,6 +1328,15 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                                 else
                                 {
                                     Entity->Body->Position += mtv;
+
+#if 0
+                                    // todo: test
+                                    if (NearbyEntity->Id == 34)
+                                    {
+                                        AddForceAtBodyPoint(NearbyEntity->Body, Entity->Body->Acceleration, vec3(0.f, 1.f, 1.f));
+                                    }
+                                    //
+#endif
                                 }
 
                                 UpdateColliderPosition(Collider, Entity->Body->Position);
@@ -1498,6 +1518,7 @@ Entity2Spec(game_entity *Entity, game_entity_spec *Spec)
 {
     CopyString(Entity->Name, Spec->Name);
     Spec->Transform = Entity->Transform;
+    Spec->DebugColor = Entity->DebugColor;
 
     if (Entity->Model)
     {
@@ -1535,6 +1556,11 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
 {
     CopyString(Spec->Name, Entity->Name);
     Entity->Transform = Spec->Transform;
+
+    if (Spec->DebugColor != vec3(0.f))
+    {
+        Entity->DebugColor = Spec->DebugColor;
+    }
 
     if (Spec->ModelSpec.Has)
     {
@@ -1935,7 +1961,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     {
                         if (Player->IsGrounded)
                         {
+#if 1
                             Player->Body->Acceleration.y = 180.f;
+#else
+                            AddForce(Player->Body, vec3(0.f, 400.f, 0.f));
+#endif
                             // todo:
                             Player->Body->Position.y += 0.01f;
                         }
@@ -1958,8 +1988,12 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
                     if (Player->IsGrounded)
                     {
+#if 1
                         Player->Body->Acceleration.x = (xMoveX + xMoveY) * 40.f;
                         Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
+#else
+                        AddForce(Player->Body, vec3((xMoveX + xMoveY), 0.f, (zMoveX + zMoveY)) * 400.f);
+#endif
                     }
 
                     quat NewPlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(NewPlayerDirection.x, NewPlayerDirection.z)));
@@ -2120,8 +2154,8 @@ DLLExport GAME_RENDER(GameRender)
     RenderCommands->Settings.WindowHeight = Params->WindowHeight;
     RenderCommands->Settings.Samples = Params->Samples;
     RenderCommands->Settings.Time = Params->Time;
-    RenderCommands->Settings.PixelsPerUnit = PixelsPerUnit;
-    RenderCommands->Settings.UnitsPerPixel = 1.f / PixelsPerUnit;
+    RenderCommands->Settings.ScreenWidthInUnits = ScreenWidthInUnits;
+    RenderCommands->Settings.ScreenHeightInUnits = ScreenHeightInUnits;
 
     AudioCommands->Settings.Volume = State->MasterVolume;
 
@@ -2129,12 +2163,12 @@ DLLExport GAME_RENDER(GameRender)
     {
         // todo: render commands buffer is not multithread-safe!
         InitGameModelAssets(State, &State->Assets, RenderCommands);
-        InitGameAudioClipAssets(&State->Assets);
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
+        InitGameAudioClipAssets(&State->Assets);
 
         State->Assets.State = GameAssetsState_Ready;
 
-        // todo(continue): multiple skyboxes
+        // todo: multiple skyboxes
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
         AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
         AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
@@ -2190,6 +2224,10 @@ DLLExport GAME_RENDER(GameRender)
             RenderCommands->Settings.WorldToCamera = GetCameraTransform(Camera);
             RenderCommands->Settings.CameraToWorld = Inverse(WorldToCamera);
             RenderCommands->Settings.DirectionalLight = &State->DirectionalLight;
+            RenderCommands->Settings.CascadeBounds[0] = vec2(-0.1f, -5.f);
+            RenderCommands->Settings.CascadeBounds[1] = vec2(-3.f, -15.f);
+            RenderCommands->Settings.CascadeBounds[2] = vec2(-10.f, -40.f);
+            RenderCommands->Settings.CascadeBounds[3] = vec2(-30.f, -120.f);
 
             Clear(RenderCommands, vec4(State->BackgroundColor, 1.f));
 
@@ -2518,7 +2556,7 @@ DLLExport GAME_RENDER(GameRender)
 
             if (State->Assets.State != GameAssetsState_Ready)
             {
-                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 1.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 0.75f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
             }
 
 #if 0
@@ -2551,7 +2589,7 @@ DLLExport GAME_RENDER(GameRender)
             {
                 char Text[256];
                 FormatString(Text, "Active entity: %s", State->Player->Name);
-                DrawText(RenderCommands, Text, Font, vec3(-9.8f, -5.4f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
+                DrawText(RenderCommands, Text, Font, vec3(Left, Bottom, 0.f) + vec3(0.2f, 0.2f, 0.f), 0.4f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
             }
 #endif
 
@@ -2626,7 +2664,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             font *Font = GetFontAsset(&State->Assets, "Where My Keys");
-            DrawText(RenderCommands, "Dummy", Font, vec3(0.f, 0.f, 0.f), 2.f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
+            DrawText(RenderCommands, "Dummy", Font, vec3(0.f, 0.f, 0.f), 1.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
 
             break;
         }

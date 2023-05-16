@@ -96,9 +96,28 @@ inline mat3 operator *(mat3 a, mat3 b)
 inline mat3
 Inverse(mat3 M)
 {
-    mat3 Result = mat3(1.f);
+    vec3 a = M.Column(0);
+    vec3 b = M.Column(1);
+    vec3 c = M.Column(2);
 
-    Assert(!"Not implemented");
+    vec3 r0 = Cross(b, c);
+    vec3 r1 = Cross(c, a);
+    vec3 r2 = Cross(a, b);
+
+    f32 Determinant = Dot(r2, c);
+
+    if (Abs(Determinant) < EPSILON)
+    {
+        Assert(!"Inverse matrix doesn't exist");
+    }
+
+    f32 InverseDeterminant = 1.f / Determinant;
+
+    mat3 Result = mat3(
+        r0 * InverseDeterminant,
+        r1 * InverseDeterminant,
+        r2 * InverseDeterminant
+    );
 
     return Result;
 }
