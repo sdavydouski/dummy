@@ -1,6 +1,6 @@
 #pragma once
 
-#define EDITOR 1
+#define EDITOR 0
 #define PROFILER 1
 #define ASSERT 1
 

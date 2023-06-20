@@ -144,16 +144,16 @@ PushSize(memory_arena *Arena, umm Size, memory_arena_push_options Options = Defa
     umm AlignedAddress = AlignAddress(RawAddress, Alignment);
     umm AlignmentOffset = AlignedAddress - RawAddress;
 
-    umm ActualSize = Size + AlignmentOffset;
+    umm AlignedSize = Size + AlignmentOffset;
 
-    Assert(Arena->Used + ActualSize < Arena->Size);
+    Assert(Arena->Used + AlignedSize < Arena->Size);
 
     void *Result = (void *)AlignedAddress;
-    Arena->Used += ActualSize;
+    Arena->Used += AlignedSize;
 
     if (Clear)
     {
-        ClearMemory(Result, ActualSize);
+        ClearMemory(Result, AlignedSize);
     }
 
     return Result;

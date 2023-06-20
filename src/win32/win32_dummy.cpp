@@ -1354,7 +1354,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
     PlatformState.hInstance = hInstance;
     PlatformState.VSync = true;
-    InitValueState(&PlatformState.IsFullScreen, (bool32) true);
+    InitValueState(&PlatformState.IsFullScreen, (bool32) false);
 
     Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
     Out(&PlatformState.Stream, "Platform::Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
@@ -1459,7 +1459,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     if (PlatformState.WindowHandle)
     {
         win32_renderer_state RendererState = {};
-        Win32InitRenderer(&RendererState, &PlatformState, &PlatformApi, &PlatformProfiler, Renderer_OpenGL);
+        Win32InitRenderer(&RendererState, &PlatformState, &PlatformApi, &PlatformProfiler, Renderer_Direct3D12);
 
         win32_audio_state AudioState = {};
         Win32InitXAudio2(&AudioState, &PlatformState, &PlatformApi, &PlatformProfiler, Audio_XAudio2);

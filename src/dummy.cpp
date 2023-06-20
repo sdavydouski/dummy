@@ -1329,7 +1329,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                                 {
                                     Entity->Body->Position += mtv;
 
-#if 0
+#if 1
                                     // todo: test
                                     if (NearbyEntity->Id == 34)
                                     {
@@ -1953,7 +1953,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                 vec3 TargetPosition = PlayerPosition + vec3(0.f, 0.8f * PlayerSize.y, 0.f);
 
                 ChaseCameraPerFrameUpdate(&State->PlayerCamera, Input, State, TargetPosition, Params->Delta);
-                ChaseCameraSceneCollisions(&State->PlayerCamera, &State->WorldArea, State->Player, &State->FrameArena);
+                ChaseCameraSceneCollisions(&State->PlayerCamera, &State->WorldArea.SpatialGrid, State->Player, &State->FrameArena);
 
                 if (Player->Body)
                 {

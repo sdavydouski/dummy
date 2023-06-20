@@ -1788,9 +1788,10 @@ Win32RenderEditor(
 
             Entity->Transform = EntityTransform;
 
-            // todo: probably should update colliders or smth
             if (Entity->Body)
             {
+                Entity->Body->Acceleration = vec3(0.f);
+                Entity->Body->Velocity = vec3(0.f);
                 Entity->Body->Position = Translation;
                 Entity->Body->Orientation = EulerToQuat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
             }

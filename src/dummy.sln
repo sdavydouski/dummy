@@ -93,6 +93,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Direct3D12", "Direct3D12", 
 		renderers\Direct3D12\d3dx12_state_object.h = renderers\Direct3D12\d3dx12_state_object.h
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "hlsl", "hlsl", "{AC0E6377-F9BF-40B4-9827-09F7BFC2D43B}"
+	ProjectSection(SolutionItems) = preProject
+		shaders\hlsl\simple.hlsl = shaders\hlsl\simple.hlsl
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -120,6 +125,7 @@ Global
 		{CDE21B5E-2772-4FB8-8715-4FF426E86A72} = {61A35A49-1A01-4708-9D0B-DBEC88DA6F49}
 		{C7E19F44-70AB-4088-BCCB-76E7375129B2} = {CDE21B5E-2772-4FB8-8715-4FF426E86A72}
 		{E924E79E-1C47-4549-B41D-E1195A5DA964} = {3E191EB3-512A-46B4-A48B-DE0918E1FF94}
+		{AC0E6377-F9BF-40B4-9827-09F7BFC2D43B} = {61A35A49-1A01-4708-9D0B-DBEC88DA6F49}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3FF4CA08-A1FC-4054-A392-813D6849B305}

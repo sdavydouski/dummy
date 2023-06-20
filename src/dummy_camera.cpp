@@ -56,7 +56,7 @@ ChaseCameraPerFrameUpdate(game_camera *Camera, game_input *Input, game_state *St
 }
 
 dummy_internal void
-ChaseCameraSceneCollisions(game_camera *Camera, world_area *Area, game_entity *Player, memory_arena *Arena)
+ChaseCameraSceneCollisions(game_camera *Camera, spatial_hash_grid *Grid, game_entity *Player, memory_arena *Arena)
 {
     if (Player)
     {
@@ -70,7 +70,7 @@ ChaseCameraSceneCollisions(game_camera *Camera, world_area *Area, game_entity *P
         game_entity **NearbyEntities = PushArray(ScopedMemory.Arena, MaxNearbyEntityCount, game_entity *);
         aabb Bounds = { vec3(-Camera->RadialDistance), vec3(Camera->RadialDistance) };
 
-        u32 NearbyEntityCount = FindNearbyEntities(&Area->SpatialGrid, Player, Bounds, NearbyEntities, MaxNearbyEntityCount);
+        u32 NearbyEntityCount = FindNearbyEntities(Grid, Player, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
         f32 MinDistance = F32_MAX;
         vec3 MinIntersectionPoint = vec3(0.f);
