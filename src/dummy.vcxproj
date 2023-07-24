@@ -29,6 +29,7 @@
     <ClInclude Include="dummy_events.h" />
     <ClInclude Include="dummy_job.h" />
     <ClInclude Include="dummy_mat3.h" />
+    <ClInclude Include="dummy_particles.h" />
     <ClInclude Include="dummy_plane.h" />
     <ClInclude Include="dummy_process.h" />
     <ClInclude Include="dummy_profiler.h" />
@@ -56,6 +57,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_particles.cpp" />
     <None Include="dummy_camera.cpp" />
     <None Include="dummy_events.cpp" />
     <None Include="dummy_audio.cpp" />

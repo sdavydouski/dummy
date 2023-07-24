@@ -34,6 +34,7 @@
     <ClInclude Include="dummy_camera.h" />
     <ClInclude Include="dummy_mat3.h" />
     <ClInclude Include="dummy_bounds.h" />
+    <ClInclude Include="dummy_particles.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_renderer.cpp" />
@@ -48,6 +49,7 @@
     <None Include="dummy_events.cpp" />
     <None Include="dummy_assets.cpp" />
     <None Include="dummy_camera.cpp" />
+    <None Include="dummy_particles.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

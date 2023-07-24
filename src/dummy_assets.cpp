@@ -388,7 +388,6 @@ LoadTextureAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     {
         Result->Bitmap.Pixels = GET_DATA_AT(Buffer, TextureHeader->PixelsOffset, u8);
     }
-    
 
     return Result;
 }

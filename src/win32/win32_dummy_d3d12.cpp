@@ -170,21 +170,28 @@ Direct3D12CreateUploadBuffer(d3d12_state *State, u32 Size)
     return Result;
 }
 
-dummy_internal d3d12_upload_buffer_region
-Direct3D12AllocateFromUploadBuffer(d3d12_state *State, d3d12_upload_buffer *Buffer, umm Size, umm Alignment)
+// Constant buffers must be a multiple of the minimum hardware allocation size (usually 256 bytes)
+inline umm
+Direct3D12CalculateConstantBufferByteSize(umm Size)
 {
-    umm AlignedSize = RoundToPowerOfTwo(Size, (i32) Alignment);
-    umm AlignedAddress = (umm)Buffer->CPUAddress + Buffer->Used;
+    umm Result = (Size + 255) & ~255;
+    return Result;
+}
 
-    Assert(Buffer->Used + AlignedSize < Buffer->Size);
+dummy_internal d3d12_upload_buffer_region
+Direct3D12AllocateFromUploadBuffer(d3d12_state *State, d3d12_upload_buffer *Buffer, umm Size)
+{
+    umm Address = (umm) Buffer->CPUAddress + Buffer->Used;
+
+    Assert(Buffer->Used + Size < Buffer->Size);
 
     d3d12_upload_buffer_region Result;
 
-    Result.CPUAddress = (u8 *) AlignedAddress;
+    Result.CPUAddress = (u8 *)Address;
     Result.GPUAddress = Buffer->GPUAddress + Buffer->Used;
-    Result.Size = AlignedSize;
+    Result.Size = Size;
 
-    Buffer->Used += AlignedSize;
+    Buffer->Used += Size;
 
     return Result;
 }
@@ -209,7 +216,9 @@ Direct3D12CreateConstantBufferView(d3d12_state *State, void *Data, umm Size)
 {
     d3d12_constant_buffer_view Result;
 
-    Result.Data = Direct3D12AllocateFromUploadBuffer(State, &State->ConstantBuffer, Size, 256);
+    umm AlignedSize = Direct3D12CalculateConstantBufferByteSize(Size);
+
+    Result.Data = Direct3D12AllocateFromUploadBuffer(State, &State->ConstantBuffer, AlignedSize);
     Result.Descriptor = Direct3D12AllocateFromDescriptorHeap(&State->DescriptorHeapCBV_SRV_UAV);
 
     if (Data)
@@ -222,6 +231,85 @@ Direct3D12CreateConstantBufferView(d3d12_state *State, void *Data, umm Size)
     Desc.SizeInBytes = (u32) Result.Data.Size;
 
     State->Device->CreateConstantBufferView(&Desc, Result.Descriptor.CPUHandle);
+
+    return Result;
+}
+
+dummy_internal d3d12_framebuffer
+Direct3D12CreateFramebuffer(d3d12_state *State, u32 Width, u32 Height, u32 Samples, DXGI_FORMAT ColorFormat, DXGI_FORMAT DepthStencilFormat)
+{
+    Assert(ColorFormat != DXGI_FORMAT_UNKNOWN);
+    Assert(DepthStencilFormat != DXGI_FORMAT_UNKNOWN);
+
+    d3d12_framebuffer Result = {};
+
+    Result.Width = Width;
+    Result.Height = Height;
+    Result.Samples = Samples;
+
+    // Color
+    D3D12_RESOURCE_DESC Desc = {};
+    Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    Desc.Width = Width;
+    Desc.Height = Height;
+    Desc.DepthOrArraySize = 1;
+    Desc.MipLevels = 1;
+    Desc.SampleDesc.Count = Samples;
+    Desc.Format = ColorFormat;
+    Desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+    float ClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+    CD3DX12_HEAP_PROPERTIES HeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_CLEAR_VALUE ColorClearValue = CD3DX12_CLEAR_VALUE(ColorFormat, ClearColor);
+
+    State->Device->CreateCommittedResource(
+        &HeapProperties,
+        D3D12_HEAP_FLAG_NONE,
+        &Desc,
+        D3D12_RESOURCE_STATE_RENDER_TARGET,
+        &ColorClearValue,
+        IID_PPV_ARGS(&Result.ColorTexture)
+    );
+    
+    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+    rtvDesc.Format = Desc.Format;
+    rtvDesc.ViewDimension = (Samples > 1) ? D3D12_RTV_DIMENSION_TEXTURE2DMS : D3D12_RTV_DIMENSION_TEXTURE2D;
+
+    Result.rtv = Direct3D12AllocateFromDescriptorHeap(&State->DescriptorHeapRTV);
+    State->Device->CreateRenderTargetView(Result.ColorTexture.Get(), &rtvDesc, Result.rtv.CPUHandle);
+
+    // Depth/Stencil
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = Desc.Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = 1;
+
+    Result.srv = Direct3D12AllocateFromDescriptorHeap(&State->DescriptorHeapCBV_SRV_UAV);
+    State->Device->CreateShaderResourceView(Result.ColorTexture.Get(), &srvDesc, Result.srv.CPUHandle);
+
+    Desc.Format = DepthStencilFormat;
+    Desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+
+    CD3DX12_CLEAR_VALUE DepthStencilClearValue = CD3DX12_CLEAR_VALUE(DepthStencilFormat, 1.f, 0);
+
+    State->Device->CreateCommittedResource(
+        &HeapProperties,
+        D3D12_HEAP_FLAG_NONE,
+        &Desc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        &DepthStencilClearValue,
+        IID_PPV_ARGS(&Result.DepthStencilTexture)
+    );
+
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format = Desc.Format;
+    dsvDesc.ViewDimension = (Samples > 1) ? D3D12_DSV_DIMENSION_TEXTURE2DMS : D3D12_DSV_DIMENSION_TEXTURE2D;
+
+    Result.dsv = Direct3D12AllocateFromDescriptorHeap(&State->DescriptorHeapDSV);
+    State->Device->CreateDepthStencilView(Result.DepthStencilTexture.Get(), &dsvDesc, Result.dsv.CPUHandle);
 
     return Result;
 }
@@ -475,6 +563,8 @@ Win32InitDirect3D12(d3d12_state *State, win32_platform_state *PlatformState)
     {
         State->RectanglesCBV[RectangleIndex] = Direct3D12CreateConstantBufferView(State, 0, sizeof(d3d12_constant_buffer_rectangle));
     }
+
+    //State->Framebuffer = Direct3D12CreateFramebuffer(State, PlatformState->WindowWidth, PlatformState->WindowHeight, 1, DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_D24_UNORM_S8_UINT);
 
     Direct3D12ExecuteCommandList(State, true);
     Direct3D12FlushCommandQueue(State);

@@ -321,7 +321,7 @@ Win32ShutdownRenderer(win32_renderer_state *RendererState)
 }
 
 dummy_internal void
-Win32InitXAudio2(win32_audio_state *AudioState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, win32_audio_backend Backend)
+Win32InitAudio(win32_audio_state *AudioState, win32_platform_state *PlatformState, platform_api *Platform, platform_profiler *Profiler, win32_audio_backend Backend)
 {
     umm AudioArenaSize = Megabytes(32);
     InitMemoryArena(&AudioState->Arena, Win32AllocateMemory(0, AudioArenaSize), AudioArenaSize);
@@ -870,7 +870,6 @@ Win32ProcessWindowMessages(win32_platform_state *PlatformState, platform_input_k
             {
                 if (PlatformState->IsWindowActive)
                 {
-                    // todo: mouse input as well
                     bool32 IsLeftMouseDown = WindowMessage.wParam == MK_LBUTTON;
                     bool32 IsRightMouseDown = WindowMessage.wParam == MK_RBUTTON;
 
@@ -1354,7 +1353,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
     PlatformState.hInstance = hInstance;
     PlatformState.VSync = true;
-    InitValueState(&PlatformState.IsFullScreen, (bool32) false);
+    InitValueState(&PlatformState.IsFullScreen, (bool32) true);
 
     Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
     Out(&PlatformState.Stream, "Platform::Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
@@ -1459,10 +1458,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     if (PlatformState.WindowHandle)
     {
         win32_renderer_state RendererState = {};
-        Win32InitRenderer(&RendererState, &PlatformState, &PlatformApi, &PlatformProfiler, Renderer_Direct3D12);
+        Win32InitRenderer(&RendererState, &PlatformState, &PlatformApi, &PlatformProfiler, Renderer_OpenGL);
 
         win32_audio_state AudioState = {};
-        Win32InitXAudio2(&AudioState, &PlatformState, &PlatformApi, &PlatformProfiler, Audio_XAudio2);
+        Win32InitAudio(&AudioState, &PlatformState, &PlatformApi, &PlatformProfiler, Audio_XAudio2);
 
         // Center window on screen
         PlatformState.WindowPositionX = PlatformState.ScreenWidth / 2 - PlatformState.WindowWidth / 2;

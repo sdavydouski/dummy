@@ -73,6 +73,20 @@ struct d3d12_constant_buffer_rectangle
     vec4 Color;
 };
 
+struct d3d12_framebuffer
+{
+    ComPtr<ID3D12Resource> ColorTexture;
+    ComPtr<ID3D12Resource> DepthStencilTexture;
+
+    d3d12_descriptor rtv;
+    d3d12_descriptor dsv;
+    d3d12_descriptor srv;
+    
+    u32 Width;
+    u32 Height;
+    u32 Samples;
+};
+
 struct d3d12_state
 {
     stream *Stream;
@@ -104,6 +118,8 @@ struct d3d12_state
     d3d12_descriptor_heap DescriptorHeapCBV_SRV_UAV;
 
     ComPtr<ID3D12Resource> DepthStencilTexture;
+
+    d3d12_framebuffer Framebuffer;
 
     d3d12_upload_buffer ConstantBuffer;
 

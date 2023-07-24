@@ -670,6 +670,8 @@ OpenGLAddSkybox(opengl_state *State, texture *EquirectEnvMap, u32 EnvMapSize, u3
             Skybox->SpecularBRDF = SpecularBRDF;
         }
     }
+
+    glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
 }
 
 dummy_internal void
@@ -1697,6 +1699,8 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 
                 glDispatchCompute(MeshBuffer->VertexCount, 1, 1);
 
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
                 break;
             }
             case RenderCommand_DrawSkinnedMeshInstanced:
@@ -1756,14 +1760,14 @@ OpenGLPrepareScene(opengl_state *State, render_commands *Commands)
 
                 glDispatchCompute(MeshBuffer->VertexCount, Command->InstanceCount, 1);
 
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
                 break;
             }
         }
 
         BaseAddress += Entry->Size;
     }
-
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 }
 
 dummy_internal void

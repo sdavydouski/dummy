@@ -6,6 +6,7 @@
 #include "dummy_physics.cpp"
 #include "dummy_spatial.cpp"
 #include "dummy_camera.cpp"
+#include "dummy_particles.cpp"
 #include "dummy_animation.cpp"
 #include "dummy_animator.cpp"
 #include "dummy_process.cpp"
@@ -408,6 +409,70 @@ GetGameAssets(platform_api *Platform, const wchar *Wildcard, memory_arena *Arena
 }
 
 dummy_internal void
+InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
+{
+    InitHashTable(&Assets->Models, 1021, &Assets->Arena);
+
+    Assert(Assets->Models.Count > Assets->ModelAssetCount);
+
+    for (u32 GameAssetModelIndex = 0; GameAssetModelIndex < Assets->ModelAssetCount; ++GameAssetModelIndex)
+    {
+        game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetModelIndex;
+
+        model *Model = GetModelAsset(Assets, GameAssetModel->GameAsset.Name);
+        InitModel(State, GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, &Assets->Arena, RenderCommands);
+    }
+}
+
+dummy_internal void
+InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
+{
+    InitHashTable(&Assets->Fonts, 31, &Assets->Arena);
+
+    Assert(Assets->Fonts.Count > Assets->FontAssetCount);
+
+    for (u32 GameAssetFontIndex = 0; GameAssetFontIndex < Assets->FontAssetCount; ++GameAssetFontIndex)
+    {
+        game_asset_font *GameAssetFont = Assets->FontAssets + GameAssetFontIndex;
+
+        font *Font = GetFontAsset(Assets, GameAssetFont->GameAsset.Name);
+        InitFont(State, GameAssetFont->FontAsset, Font, GameAssetFont->GameAsset.Name, RenderCommands);
+    }
+}
+
+dummy_internal void
+InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
+{
+    InitHashTable(&Assets->Textures, 127, &Assets->Arena);
+
+    Assert(Assets->Textures.Count > Assets->TextureAssetCount);
+
+    for (u32 GameAssetTextureIndex = 0; GameAssetTextureIndex < Assets->TextureAssetCount; ++GameAssetTextureIndex)
+    {
+        game_asset_texture *GameAssetTexture = Assets->TextureAssets + GameAssetTextureIndex;
+
+        texture *Texture = GetTextureAsset(Assets, GameAssetTexture->GameAsset.Name);
+        InitTexture(State, GameAssetTexture->TextureAsset, Texture, GameAssetTexture->GameAsset.Name, RenderCommands);
+    }
+}
+
+dummy_internal void
+InitGameAudioClipAssets(game_assets *Assets)
+{
+    InitHashTable(&Assets->AudioClips, 251, &Assets->Arena);
+
+    Assert(Assets->AudioClips.Count > Assets->AudioClipAssetCount);
+
+    for (u32 GameAssetAudioClipIndex = 0; GameAssetAudioClipIndex < Assets->AudioClipAssetCount; ++GameAssetAudioClipIndex)
+    {
+        game_asset_audio_clip *GameAssetAudioClip = Assets->AudioClipAssets + GameAssetAudioClipIndex;
+
+        audio_clip *AudioClip = GetAudioClipAsset(Assets, GameAssetAudioClip->GameAsset.Name);
+        InitAudioClip(GameAssetAudioClip->AudioAsset, AudioClip, GameAssetAudioClip->GameAsset.Name);
+    }
+}
+
+dummy_internal void
 LoadModelAssets(game_assets *Assets, platform_api *Platform)
 {
     u32 ModelAssetCount;
@@ -501,7 +566,10 @@ LoadGameAssets(game_assets *Assets, platform_api *Platform)
     Assets->State = GameAssetsState_Unloaded;
 
     LoadModelAssets(Assets, Platform);
+
     LoadAudioClipAssets(Assets, Platform);
+    InitGameAudioClipAssets(Assets);
+
     LoadTextureAssets(Assets, Platform);
 
     Assets->State = GameAssetsState_Loaded;
@@ -517,70 +585,6 @@ JOB_ENTRY_POINT(LoadGameAssetsJob)
 {
     load_game_assets_job *Data = (load_game_assets_job *) Parameters;
     LoadGameAssets(Data->Assets, Data->Platform);
-}
-
-dummy_internal void
-InitGameModelAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
-{
-    InitHashTable(&Assets->Models, 1021, &Assets->Arena);
-
-    Assert(Assets->Models.Count > Assets->ModelAssetCount);
-
-    for (u32 GameAssetModelIndex = 0; GameAssetModelIndex < Assets->ModelAssetCount; ++GameAssetModelIndex)
-    {
-        game_asset_model *GameAssetModel = Assets->ModelAssets + GameAssetModelIndex;
-
-        model *Model = GetModelAsset(Assets, GameAssetModel->GameAsset.Name);
-        InitModel(State, GameAssetModel->ModelAsset, Model, GameAssetModel->GameAsset.Name, &Assets->Arena, RenderCommands);
-    }
-}
-
-dummy_internal void
-InitGameFontAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
-{
-    InitHashTable(&Assets->Fonts, 31, &Assets->Arena);
-
-    Assert(Assets->Fonts.Count > Assets->FontAssetCount);
-
-    for (u32 GameAssetFontIndex = 0; GameAssetFontIndex < Assets->FontAssetCount; ++GameAssetFontIndex)
-    {
-        game_asset_font *GameAssetFont = Assets->FontAssets + GameAssetFontIndex;
-
-        font *Font = GetFontAsset(Assets, GameAssetFont->GameAsset.Name);
-        InitFont(State, GameAssetFont->FontAsset, Font, GameAssetFont->GameAsset.Name, RenderCommands);
-    }
-}
-
-dummy_internal void
-InitGameTextureAssets(game_state *State, game_assets *Assets, render_commands *RenderCommands)
-{
-    InitHashTable(&Assets->Textures, 127, &Assets->Arena);
-
-    Assert(Assets->Textures.Count > Assets->TextureAssetCount);
-
-    for (u32 GameAssetTextureIndex = 0; GameAssetTextureIndex < Assets->TextureAssetCount; ++GameAssetTextureIndex)
-    {
-        game_asset_texture *GameAssetTexture = Assets->TextureAssets + GameAssetTextureIndex;
-
-        texture *Texture = GetTextureAsset(Assets, GameAssetTexture->GameAsset.Name);
-        InitTexture(State, GameAssetTexture->TextureAsset, Texture, GameAssetTexture->GameAsset.Name, RenderCommands);
-    }
-}
-
-dummy_internal void
-InitGameAudioClipAssets(game_assets *Assets)
-{
-    InitHashTable(&Assets->AudioClips, 251, &Assets->Arena);
-
-    Assert(Assets->AudioClips.Count > Assets->AudioClipAssetCount);
-
-    for (u32 GameAssetAudioClipIndex = 0; GameAssetAudioClipIndex < Assets->AudioClipAssetCount; ++GameAssetAudioClipIndex)
-    {
-        game_asset_audio_clip *GameAssetAudioClip = Assets->AudioClipAssets + GameAssetAudioClipIndex;
-
-        audio_clip *AudioClip = GetAudioClipAsset(Assets, GameAssetAudioClip->GameAsset.Name);
-        InitAudioClip(GameAssetAudioClip->AudioAsset, AudioClip, GameAssetAudioClip->GameAsset.Name);
-    }
 }
 
 dummy_internal void
@@ -1063,64 +1067,6 @@ AnimateEntity(game_state *State, game_input *Input, game_entity *Entity, memory_
     UpdateSkinningMatrices(Entity->Skinning);
 }
 
-dummy_internal void
-SwapParticles(particle *A, particle *B)
-{
-    particle Temp = *A;
-    *A = *B;
-    *B = Temp;
-}
-
-dummy_internal i32
-PartitionParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
-{
-    i32 MiddleIndex = (HighIndex + LowIndex) / 2;
-    particle Pivot = Particles[MiddleIndex];
-
-    i32 LeftIndex = LowIndex - 1;
-    i32 RightIndex = HighIndex + 1;
-
-    while (true)
-    {
-        do
-        {
-            LeftIndex += 1;
-        } 
-        while (Particles[LeftIndex].CameraDistanceSquared > Pivot.CameraDistanceSquared);
-
-        do
-        {
-            RightIndex -= 1;
-        } 
-        while (Particles[RightIndex].CameraDistanceSquared < Pivot.CameraDistanceSquared);
-
-        if (LeftIndex >= RightIndex)
-        {
-            return RightIndex;
-        }
-
-        SwapParticles(Particles + LeftIndex, Particles + RightIndex);
-    }
-}
-
-dummy_internal void
-QuickSortParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
-{
-    if (LowIndex >= 0 && HighIndex >= 0 && LowIndex < HighIndex)
-    {
-        i32 PivotIndex = PartitionParticles(Particles, LowIndex, HighIndex);
-
-        QuickSortParticles(Particles, LowIndex, PivotIndex);
-        QuickSortParticles(Particles, PivotIndex + 1, HighIndex);
-    }
-}
-
-dummy_internal void
-SortParticles(u32 ParticleCount, particle *Particles)
-{
-    QuickSortParticles(Particles, 0, ParticleCount - 1);
-}
-
 struct update_entity_batch_job
 {
     u32 StartIndex;
@@ -1158,15 +1104,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 Body->PrevPosition = Body->Position;
                 Body->PrevVelocity = Body->Velocity;
                 Body->PrevAcceleration = Body->Acceleration;
-
-#if 0
-                // todo: test
-                if (Entity->Id == 34)
-                {
-                    AddForceAtBodyPoint(Entity->Body, vec3(-1.f, 0.f, 0.f), vec3(0.f, 0.5f, 0.f));
-            }
-                //
-#endif
 
                 f32 MaxStepHeight = 0.2f;
 
@@ -1328,15 +1265,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                                 else
                                 {
                                     Entity->Body->Position += mtv;
-
-#if 1
-                                    // todo: test
-                                    if (NearbyEntity->Id == 34)
-                                    {
-                                        AddForceAtBodyPoint(NearbyEntity->Body, Entity->Body->Acceleration, vec3(0.f, 1.f, 1.f));
-                                    }
-                                    //
-#endif
                                 }
 
                                 UpdateColliderPosition(Collider, Entity->Body->Position);
@@ -2161,21 +2089,21 @@ DLLExport GAME_RENDER(GameRender)
 
     if (State->Assets.State == GameAssetsState_Loaded)
     {
+#if 1
         // todo: render commands buffer is not multithread-safe!
         InitGameModelAssets(State, &State->Assets, RenderCommands);
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
-        InitGameAudioClipAssets(&State->Assets);
+
+        AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
+        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
-
-        // todo: multiple skyboxes
-        AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
-        AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
+#endif
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
-#if 1
+#if 0
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
             LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
@@ -2547,8 +2475,7 @@ DLLExport GAME_RENDER(GameRender)
 
             if (State->Assets.State == GameAssetsState_Ready)
             {
-                texture *GrassTexture = GetTextureAsset(&State->Assets, "Grass");
-
+                //texture *GrassTexture = GetTextureAsset(&State->Assets, "Grass");
                 //DrawTexturedQuad(RenderCommands, CreateTransform(vec3(0.f, 0.5f, 0.f), vec3(0.5f), quat(0.f, 0.f, 0.f, 1.f)), GrassTexture);
             }
 

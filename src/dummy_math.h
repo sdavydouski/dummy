@@ -393,13 +393,6 @@ IsPrime(u32 n)
     return true;
 }
 
-inline umm
-RoundToPowerOfTwo(umm Value, i32 PowerOfTwo)
-{
-    umm Result = (umm)(Value + PowerOfTwo - 1) & -PowerOfTwo;
-    return Result;
-}
-
 inline mat4
 Scale(f32 Value)
 {
@@ -545,7 +538,7 @@ EulerToDirection(f32 Yaw, f32 Pitch)
     return Result;
 }
 
-// todo: change ther order!
+// todo: change order!
 // Yaw (Z), Pitch (Y), Roll (X)
 inline quat
 EulerToQuat(f32 Yaw, f32 Pitch, f32 Roll)

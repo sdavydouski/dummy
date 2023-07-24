@@ -1,6 +1,6 @@
 #pragma once
 
-#define EDITOR 0
+#define EDITOR 1
 #define PROFILER 1
 #define ASSERT 1
 
@@ -20,6 +20,7 @@
 #include "dummy_spatial.h"
 #include "dummy_camera.h"
 #include "dummy_process.h"
+#include "dummy_particles.h"
 #include "dummy_animation.h"
 #include "dummy_animator.h"
 #include "dummy_assets.h"

@@ -39,7 +39,7 @@
 
 opengl_texture *OpenGLGetTexture(opengl_state *State, u32 Id);
 
-void Direct3D12ExecuteCommandList(d3d12_state *State);
+void Direct3D12ExecuteCommandList(d3d12_state *State, bool32 Reset);
 void Direct3D12FlushCommandQueue(d3d12_state *State);
 ID3D12Resource *Direct3D12GetCurrentBackBuffer(d3d12_state *State);
 
@@ -1428,6 +1428,7 @@ Win32RenderEditor(
                     ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
                     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
+#if 0
                     const char *Skyboxes[] = { "environment_sky", "environment_desert", "environment_hill" };
                     static u32 CurrentSkyboxIndex = 0;
                     const char *PreviewValue = Skyboxes[CurrentSkyboxIndex];
@@ -1454,6 +1455,7 @@ Win32RenderEditor(
 
                         ImGui::EndCombo();
                     }
+#endif
 
                     if (ImGui::BeginTable("Graphics toggles", 2))
                     {

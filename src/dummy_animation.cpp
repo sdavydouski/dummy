@@ -176,7 +176,6 @@ AdditiveAnimationsFinished(animation_node *Node)
     return Result;
 }
 
-// todo: optimize
 inline animation_sample *
 GetAnimationSampleByJointIndex(animation_clip *Animation, u32 JointIndex)
 {
