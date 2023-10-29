@@ -853,12 +853,12 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
 
     if (HasJoints(Entity->Model->Skeleton))
     {
-        Entity->Skinning = PushType(Arena, skinning_data);
+        Entity->Skinning = PushType(Arena, skinning_data, Align(16));
         InitSkinningBuffer(State, Entity->Skinning, Entity->Model, Arena, RenderCommands);
 
         if (Entity->Model->AnimationCount > 0)
         {
-            Entity->Animation = PushType(Arena, animation_graph);
+            Entity->Animation = PushType(Arena, animation_graph, Align(16));
             BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Arena);
         }
     }
@@ -867,7 +867,7 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
 inline void
 AddBoxCollider(game_entity *Entity, vec3 Size, memory_arena *Arena)
 {
-    Entity->Collider = PushType(Arena, collider);
+    Entity->Collider = PushType(Arena, collider, Align(16));
     Entity->Collider->Type = Collider_Box;
     Entity->Collider->BoxCollider.Size = Size;
     UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
@@ -876,14 +876,14 @@ AddBoxCollider(game_entity *Entity, vec3 Size, memory_arena *Arena)
 inline void
 AddRigidBody(game_entity *Entity, memory_arena *Arena)
 {
-    Entity->Body = PushType(Arena, rigid_body);
+    Entity->Body = PushType(Arena, rigid_body, Align(16));
     BuildRigidBody(Entity->Body, Entity->Transform.Translation, Entity->Transform.Rotation);
 }
 
 inline void
 AddPointLight(game_entity *Entity, vec3 Color, light_attenuation Attenuation, memory_arena *Arena)
 {
-    Entity->PointLight = PushType(Arena, point_light);
+    Entity->PointLight = PushType(Arena, point_light, Align(16));
     Entity->PointLight->Position = Entity->Transform.Translation;
     Entity->PointLight->Color = Color;
     Entity->PointLight->Attenuation = Attenuation;
@@ -892,7 +892,7 @@ AddPointLight(game_entity *Entity, vec3 Color, light_attenuation Attenuation, me
 inline void
 AddParticleEmitter(game_entity *Entity, u32 ParticleCount, u32 ParticlesSpawn, vec4 Color, vec2 Size, memory_arena *Arena)
 {
-    Entity->ParticleEmitter = PushType(Arena, particle_emitter);
+    Entity->ParticleEmitter = PushType(Arena, particle_emitter, Align(16));
     Entity->ParticleEmitter->ParticleCount = ParticleCount;
     Entity->ParticleEmitter->Particles = PushArray(Arena, ParticleCount, particle, Align(16));
     Entity->ParticleEmitter->ParticlesSpawn = ParticlesSpawn;
@@ -904,7 +904,7 @@ AddParticleEmitter(game_entity *Entity, u32 ParticleCount, u32 ParticlesSpawn, v
 inline void
 AddAudioSource(game_state *State, game_entity *Entity, audio_clip *AudioClip, vec3 Position, f32 Volume, f32 MinDistance, f32 MaxDistance, audio_commands *AudioCommands, memory_arena *Arena)
 {
-    Entity->AudioSource = PushType(Arena, audio_source);
+    Entity->AudioSource = PushType(Arena, audio_source, Align(16));
     Entity->AudioSource->AudioClip = AudioClip;
     Entity->AudioSource->Volume = Volume;
     Entity->AudioSource->MinDistance = MinDistance;
@@ -2095,8 +2095,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
-        AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
+        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
 #endif

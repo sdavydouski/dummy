@@ -109,17 +109,8 @@ BuildTextureAssets(const char *InputPath, const char *OutputPath)
 
 i32 main(i32 ArgCount, char **Args)
 {
-#if 1
     BuildModelAssets("assets/models", "game/assets");
     BuildFontAssets("assets/fonts", "game/assets");
     BuildAudioAssets("assets/audio", "game/assets");
     BuildTextureAssets("assets/textures", "game/assets");
-#else
-    ProcessModelAsset(
-        "assets\\models\\ybot\\ybot.gltf",
-        "assets\\models\\ybot\\animation_graph.json",
-        "assets\\models\\ybot\\clips",
-        "game\\assets\\ybot.model.asset"
-    );
-#endif
 }
