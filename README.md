@@ -1,1 +1,1 @@
-![dummy](https://github.com/phychx/dummy/assets/10433437/030e4164-e957-471d-b92e-46bf34b0045f)
+![dummy](https://github.com/phychx/dummy/assets/10433437/1a961aee-00b0-435a-b4fe-3dd8ad61c228)
