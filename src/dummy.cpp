@@ -859,7 +859,7 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
         if (Entity->Model->AnimationCount > 0)
         {
             Entity->Animation = PushType(Arena, animation_graph);
-            BuildAnimationGraph(Entity->Animation, Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Entity->Id, &State->EventList, Arena);
+            BuildAnimationGraph(Entity->Animation, Entity->Model->AnimationGraph, Entity->Model, Arena);
         }
     }
 }
@@ -1034,7 +1034,7 @@ AnimateEntity(game_state *State, game_input *Input, game_entity *Entity, memory_
 
         AnimatorPerFrameUpdate(&State->Animator, Entity->Animation, Params, Delta);
         AnimationGraphPerFrameUpdate(Entity->Animation, Delta);
-        CalculateSkeletonPose(Entity->Animation, BindPose, Pose, Arena);
+        CalculateSkeletonPose(Entity->Animation, BindPose, Pose, Entity->Id, &State->EventList, Arena);
 
         // Root Motion
         Entity->Animation->AccRootMotion.x += Pose->RootMotion.x;
@@ -2095,8 +2095,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
-        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
+        AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
 #endif

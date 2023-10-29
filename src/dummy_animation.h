@@ -203,9 +203,6 @@ struct animation_graph
 
     char Animator[256];
     animator_state AnimatorState;
-
-    u32 EntityId;
-    game_event_list *EventList;
 };
 
 #define ANIMATOR_CONTROLLER(name) void name(animation_graph *Graph, void *Params, f32 Delta)

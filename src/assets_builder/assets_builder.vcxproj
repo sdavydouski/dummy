@@ -160,7 +160,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)\..\;$(SolutionDir)\external\stb;$(SolutionDir)\external\assimp\include;$(SolutionDir)\..\build\external\assimp\include;$(SolutionDir)\external\rapidjson\include;$(SolutionDir)\external\meshoptimizer\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\..\;$(SolutionDir)\external\stb;$(SolutionDir)\external\assimp\contrib\rapidjson\include;$(SolutionDir)\external\assimp\include;$(SolutionDir)\..\build\external\assimp\include;$(SolutionDir)\external\rapidjson\include;$(SolutionDir)\external\meshoptimizer\src</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>

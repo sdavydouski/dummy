@@ -29,6 +29,7 @@ struct collider
     };
 };
 
+// todo(continue): contact generation
 struct contact
 {
     vec3 Point;

@@ -31,7 +31,6 @@ float ComputeDepth(vec3 p, mat4 ViewProjection) {
     return Depth;
 }
 
-// https://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
 void main()
 {
     float t = -fs_in.NearPlanePosition.y / (fs_in.FarPlanePosition.y - fs_in.NearPlanePosition.y);
@@ -43,14 +42,15 @@ void main()
     float DistanceFromCamera = length(u_CameraPosition.xz - GroundPoint.xz);
     float Opacity = clamp(DistanceFromCamera * 0.02f, 0.f, 1.f);
 
-    // todo: grid is 1x1 meters?
-    float GridScale = 1.f;
+    // grid is 2x2 meters
+    float GridScale = 2.f;
     vec2 Coord = GroundPoint.xz / GridScale;
 
     float LineWidth = 1.f;
     vec2 Grid = abs(fract(Coord - 0.5) - 0.5) / (LineWidth * fwidth(Coord));
     float Line = min(Grid.x, Grid.y);
-    vec3 GridColor = vec3(min(Line, 0.75f));
+    //vec3 GridColor = vec3(1.f - min(Line, 1.f));
+    vec3 GridColor = vec3(min(Line, 1.f));
 
     // Lighting
     vec3 EyeDirection = normalize(u_CameraPosition - GroundPoint);

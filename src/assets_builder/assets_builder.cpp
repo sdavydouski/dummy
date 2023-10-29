@@ -15,8 +15,26 @@ BuildModelAssets(const char *InputPath, const char *OutputPath)
 
         if (Entry.is_directory())
         {
+            char FbxFilePath[256];
+            FormatString(FbxFilePath, "%s/%s.fbx", EntryPath.generic_string().c_str(), EntryName.generic_string().c_str());
+
+            char GltfFilePath[256];
+            FormatString(GltfFilePath, "%s/%s.gltf", EntryPath.generic_string().c_str(), EntryName.generic_string().c_str());
+
             char FilePath[256];
-            FormatString(FilePath, "%s/%s.fbx", EntryPath.generic_string().c_str(), EntryName.generic_string().c_str());
+
+            if (fs::exists(FbxFilePath))
+            {
+                CopyString(FbxFilePath, FilePath);
+            }
+            else if (fs::exists(GltfFilePath))
+            {
+                CopyString(GltfFilePath, FilePath);
+            }
+            else
+            {
+                Assert(!"Invalid model extension");
+            }
 
             char AnimationConfigPath[256];
             FormatString(AnimationConfigPath, "%s/animation_graph.json", EntryPath.generic_string().c_str());
@@ -92,31 +110,16 @@ BuildTextureAssets(const char *InputPath, const char *OutputPath)
 i32 main(i32 ArgCount, char **Args)
 {
 #if 1
-    //BuildModelAssets("assets/models", "game/assets");
-    //BuildFontAssets("assets/fonts", "game/assets");
-    //BuildAudioAssets("assets/audio", "game/assets");
+    BuildModelAssets("assets/models", "game/assets");
+    BuildFontAssets("assets/fonts", "game/assets");
+    BuildAudioAssets("assets/audio", "game/assets");
     BuildTextureAssets("assets/textures", "game/assets");
 #else
-    ProcessModelAsset("assets\\models\\cube_pbr.gltf", "game\\assets\\cube_pbr.model.asset");
-    ProcessModelAsset("assets\\models\\sphere_pbr.gltf", "game\\assets\\sphere_pbr.model.asset");
-
-    ProcessModelAsset("assets\\models\\cube_unreal.gltf", "game\\assets\\cube_unreal.model.asset");
-    ProcessModelAsset("assets\\models\\cylinder_unreal.gltf", "game\\assets\\cylinder_unreal.model.asset");
-    ProcessModelAsset("assets\\models\\quarter_cylinder_unreal.gltf", "game\\assets\\quarter_cylinder_unreal.model.asset");
-    ProcessModelAsset("assets\\models\\ramp_unreal.gltf", "game\\assets\\ramp_unreal.model.asset");
-    
-   /*ProcessModelAsset(
-        "assets\\models\\ybot_pbr\\ybot.gltf",
-        "assets\\models\\ybot_pbr\\animation_graph.json",
-        "assets\\models\\ybot_pbr\\clips",
-        "game\\assets\\ybot_pbr.model.asset"
-    );*/
-
-    /*ProcessModelAsset(
-        "assets\\models\\xbot_pbr\\xbot.gltf", 
-        "assets\\models\\xbot_pbr\\animation_graph.json", 
-        "assets\\models\\xbot_pbr\\clips",
-        "game\\assets\\xbot_pbr.model.asset"
-    );*/
+    ProcessModelAsset(
+        "assets\\models\\ybot\\ybot.gltf",
+        "assets\\models\\ybot\\animation_graph.json",
+        "assets\\models\\ybot\\clips",
+        "game\\assets\\ybot.model.asset"
+    );
 #endif
 }

@@ -79,15 +79,18 @@ ChaseCameraSceneCollisions(game_camera *Camera, spatial_hash_grid *Grid, game_en
         {
             game_entity *Entity = NearbyEntities[EntityIndex];
 
-            vec3 IntersectionPoint;
-            if (IntersectRayAABB(Ray, GetEntityBounds(Entity), IntersectionPoint))
+            if (Entity->Collider)
             {
-                f32 Distance = Magnitude(IntersectionPoint - Camera->TargetPosition);
-
-                if (Distance < MinDistance)
+                vec3 IntersectionPoint;
+                if (IntersectRayAABB(Ray, GetEntityBounds(Entity), IntersectionPoint))
                 {
-                    MinDistance = Distance;
-                    MinIntersectionPoint = IntersectionPoint;
+                    f32 Distance = Magnitude(IntersectionPoint - Camera->TargetPosition);
+
+                    if (Distance < MinDistance)
+                    {
+                        MinDistance = Distance;
+                        MinIntersectionPoint = IntersectionPoint;
+                    }
                 }
             }
         }

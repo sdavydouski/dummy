@@ -1428,7 +1428,7 @@ Win32RenderEditor(
                     ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
                     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
-#if 0
+#if 1
                     const char *Skyboxes[] = { "environment_sky", "environment_desert", "environment_hill" };
                     static u32 CurrentSkyboxIndex = 0;
                     const char *PreviewValue = Skyboxes[CurrentSkyboxIndex];
