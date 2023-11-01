@@ -57,6 +57,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_bounds.cpp" />
     <None Include="dummy_particles.cpp" />
     <None Include="dummy_camera.cpp" />
     <None Include="dummy_events.cpp" />

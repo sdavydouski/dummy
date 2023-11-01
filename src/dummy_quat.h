@@ -194,7 +194,7 @@ LookRotation(mat4 M)
 
     if (sum > 0.f)
     {
-        f32 w = Sqrt(sum + 1.f) + 0.5f;
+        f32 w = Sqrt(sum + 1.f) * 0.5f;
         f32 f = 0.25f / w;
 
         Result.x = (M[2][1] - M[1][2]) * f;

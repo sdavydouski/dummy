@@ -90,6 +90,7 @@ struct model
     u32 SkinningBufferId;
 
     aabb Bounds;
+    obb BoundsOBB;
 
     skeleton *Skeleton;
     skeleton_pose *BindPose;
@@ -190,6 +191,7 @@ struct animation_graph_asset
 struct model_asset
 {
     aabb Bounds;
+    obb BoundsOBB;
 
     skeleton Skeleton;
     skeleton_pose BindPose;
@@ -321,6 +323,7 @@ struct asset_header
 struct model_asset_header
 {
     aabb Bounds;
+    obb BoundsOBB;
 
     u64 SkeletonHeaderOffset;
     u64 SkeletonPoseHeaderOffset;

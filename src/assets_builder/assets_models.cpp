@@ -14,6 +14,8 @@
 #include "dummy.h"
 #include "assets.h"
 
+#include "dummy_bounds.cpp"
+
 namespace json = rapidjson;
 
 #define INVALID_FLOAT -1.f
@@ -801,6 +803,32 @@ CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
         Result.Min = vMin;
         Result.Max = vMax;
     }
+
+    return Result;
+}
+
+dummy_internal obb
+CalculateOrientedBoundingBox(u32 MeshCount, mesh *Meshes)
+{
+    // 1. Calculate obb for each mesh
+    // 2. Extract vertices from each obb
+    // 3. Calculate final obb from these vertices
+
+    obb *Boxes = AllocateMemory<obb>(MeshCount);
+
+    u32 VertexCount = MeshCount * 8;
+    vec3 *Vertices = AllocateMemory<vec3>(VertexCount);
+
+    for (u32 MeshIndex = 0; MeshIndex < MeshCount; ++MeshIndex)
+    {
+        mesh *Mesh = Meshes + MeshIndex;
+        obb *Box = Boxes + MeshIndex;
+
+        *Box = CalculateOrientedBoundingBox(Mesh->VertexCount, Mesh->Positions);
+        CalculateVertices(*Box, Vertices + MeshIndex * 8);
+    }
+    
+    obb Result = CalculateOrientedBoundingBox(VertexCount, Vertices);
 
     return Result;
 }
@@ -1633,6 +1661,7 @@ WriteModelAsset(const char *FilePath, model_asset *Asset)
 
     model_asset_header ModelAssetHeader = {};
     ModelAssetHeader.Bounds = Asset->Bounds;
+    ModelAssetHeader.BoundsOBB = Asset->BoundsOBB;
 
     fwrite(&ModelAssetHeader, sizeof(model_asset_header), 1, AssetFile);
 
@@ -1700,6 +1729,7 @@ LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
         ProcessAssimpScene(AssimpScene, Asset);
 
         Asset->Bounds = CalculateAxisAlignedBoundingBox(Asset->MeshCount, Asset->Meshes);
+        Asset->BoundsOBB = CalculateOrientedBoundingBox(Asset->MeshCount, Asset->Meshes);
 
         aiReleaseImport(AssimpScene);
     }

@@ -50,6 +50,7 @@
     <None Include="dummy_assets.cpp" />
     <None Include="dummy_camera.cpp" />
     <None Include="dummy_particles.cpp" />
+    <None Include="dummy_bounds.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

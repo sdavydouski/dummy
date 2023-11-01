@@ -2503,12 +2503,12 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 dummy_internal void
 OpenGLProcessRenderCommands(opengl_state *State, render_commands *Commands)
 {
-    //PROFILE(State->Profiler, "OpenGLProcessRenderCommands");
+    ClearStream(State->Stream);
 
     for (u32 BaseAddress = 0; BaseAddress < Commands->RenderCommandsBufferSize;)
     {
         render_command_header *Entry = (render_command_header *)((u8 *)Commands->RenderCommandsBuffer + BaseAddress);
-        //Out(&State->Stream, "RenderCommand::%s", RenderCommandNames[Entry->Type]);
+        Out(State->Stream, "RenderCommand::%s", RenderCommandNames[Entry->Type]);
 
         BaseAddress += Entry->Size;
     }

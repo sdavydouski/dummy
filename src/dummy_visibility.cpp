@@ -401,3 +401,24 @@ AxisAlignedBoxVisible(u32 PlaneCount, plane *Planes, aabb Box)
 
     return true;
 }
+
+dummy_internal bool32
+OrientedBoxVisible(u32 PlaneCount, plane *Planes, obb Box)
+{
+    for (u32 PlaneIndex = 0; PlaneIndex < PlaneCount; ++PlaneIndex)
+    {
+        plane Plane = Planes[PlaneIndex];
+
+        f32 EffectiveRadius = 
+            Abs(DotVector(Plane, Box.AxisX) * Box.HalfExtent.x) + 
+            Abs(DotVector(Plane, Box.AxisY) * Box.HalfExtent.y) + 
+            Abs(DotVector(Plane, Box.AxisZ) * Box.HalfExtent.z);
+
+        if (DotPoint(Plane, Box.Center) <= -EffectiveRadius)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}

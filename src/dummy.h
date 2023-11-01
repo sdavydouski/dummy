@@ -35,27 +35,21 @@ struct game_assets;
 
 //
 u32 GenerateGameProcessId(game_state *State);
-
 game_entity *GetGameEntity(game_state *State, u32 EntityId);
-
 u32 FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, aabb Bounds, game_entity **Entities, u32 MaxEntityCount);
-
 void PublishEvent(game_event_list *EventList, const char *EventName, void *Params);
-
 void TransitionToNode(animation_graph *Graph, const char *NodeName);
 animation_node *GetAnimationNode(animation_graph *Graph, const char *NodeName);
 additive_animation *GetAdditiveAnimation(animation_node *Node, const char *AnimationClipName);
 bool32 AnimationClipFinished(animation_state Animation);
 bool32 AdditiveAnimationsFinished(animation_node *Node);
-
 audio_clip *GetAudioClipAsset(game_assets *Assets, const char *Name);
-
 aabb GetEntityBounds(game_entity *Entity);
+aabb UpdateBounds(aabb Bounds, transform T);
 vec3 GetAABBHalfSize(aabb Box);
 vec3 GetAABBCenter(aabb Box);
 bool32 TestAABBAABB(aabb a, aabb b);
 bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord);
-
 audio_play_options SetVolume(f32 Volume);
 //
 

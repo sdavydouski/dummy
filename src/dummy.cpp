@@ -2,6 +2,7 @@
 #include "dummy_audio.cpp"
 #include "dummy_renderer.cpp"
 #include "dummy_events.cpp"
+#include "dummy_bounds.cpp"
 #include "dummy_collision.cpp"
 #include "dummy_physics.cpp"
 #include "dummy_spatial.cpp"
@@ -226,6 +227,7 @@ InitModel(game_state *State, model_asset *Asset, model *Model, const char *Name,
 
     CopyString(Name, Model->Key);
     Model->Bounds = Asset->Bounds;
+    Model->BoundsOBB = Asset->BoundsOBB;
     Model->Skeleton = &Asset->Skeleton;
     Model->BindPose = &Asset->BindPose;
     Model->AnimationGraph = &Asset->AnimationGraph;
@@ -676,7 +678,7 @@ dummy_internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
     // Pivot point
-    //DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
+    DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
 
     aabb Bounds = GetEntityBounds(Entity);
 
@@ -691,6 +693,33 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     if (Entity->Model)
     {
         Color = vec4(0.f, 1.f, 1.f, 1.f);
+
+#if 0
+        // todo: test code
+        obb Box = Entity->Model->BoundsOBB;
+
+        vec3 HalfSize = Box.HalfExtent;
+        vec3 Position = Box.Center;
+        mat4 RotationM = Transpose(mat4(
+            vec4(Box.AxisX, 0.f),
+            vec4(Box.AxisY, 0.f),
+            vec4(Box.AxisZ, 0.f),
+            vec4(0.f, 0.f, 0.f, 1.f)
+        ));
+        quat Rotation = LookRotation(RotationM);
+
+        transform Transform = CreateTransform(Position, HalfSize, Rotation);
+        DrawBox(RenderCommands, Transform, Color);
+
+        f32 AxisLength = 4.f;
+
+        DrawLine(RenderCommands, Position, Position + Box.AxisX * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
+        DrawLine(RenderCommands, Position, Position + Box.AxisY * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
+        DrawLine(RenderCommands, Position, Position + Box.AxisZ * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
+
+        return;
+        //
+#endif
     }
 
     if (Entity->Collider)

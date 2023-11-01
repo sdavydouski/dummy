@@ -93,6 +93,7 @@ LoadModelAsset(platform_api *Platform, char *FileName, memory_arena *Arena)
     model_asset_header *ModelHeader = GET_DATA_AT(Buffer, Header->DataOffset, model_asset_header);
 
     Result->Bounds = ModelHeader->Bounds;
+    Result->BoundsOBB = ModelHeader->BoundsOBB;
 
     // Skeleton
     model_asset_skeleton_header *SkeletonHeader = GET_DATA_AT(Buffer, ModelHeader->SkeletonHeaderOffset, model_asset_skeleton_header);

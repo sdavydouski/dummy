@@ -87,9 +87,6 @@ GetEntityBounds(game_entity *Entity)
         };
 
         Result = UpdateBounds(Bounds, Entity->Transform);
-
-        //Result.Min = Entity->Transform.Translation;
-        //Result.Max = Entity->Transform.Translation;
     }
 
     return Result;

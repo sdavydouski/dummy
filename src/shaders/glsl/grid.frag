@@ -49,8 +49,12 @@ void main()
     float LineWidth = 1.f;
     vec2 Grid = abs(fract(Coord - 0.5) - 0.5) / (LineWidth * fwidth(Coord));
     float Line = min(Grid.x, Grid.y);
-    //vec3 GridColor = vec3(1.f - min(Line, 1.f));
+
+#if 0
     vec3 GridColor = vec3(min(Line, 1.f));
+#else
+    vec3 GridColor = vec3(1.f - min(Line, 1.f));
+#endif
 
     // Lighting
     vec3 EyeDirection = normalize(u_CameraPosition - GroundPoint);

@@ -1777,31 +1777,20 @@ Win32RenderEditor(
 
         if (ImGuizmo::IsUsing())
         {
-            vec3 Translation;
-            vec3 Rotation;
-            vec3 Scale;
-            ImGuizmo::DecomposeMatrixToComponents((f32 *)EntityTransform.Elements, Translation.Elements, Rotation.Elements, Scale.Elements);
-
-            transform EntityTransform = {};
-
-            EntityTransform.Translation = Translation;
-            EntityTransform.Rotation = EulerToQuat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
-            EntityTransform.Scale = Scale;
-
-            Entity->Transform = EntityTransform;
+            Entity->Transform = Decompose(Transpose(EntityTransform));
 
             if (Entity->Body)
             {
                 Entity->Body->Acceleration = vec3(0.f);
                 Entity->Body->Velocity = vec3(0.f);
-                Entity->Body->Position = Translation;
-                Entity->Body->Orientation = EulerToQuat(RADIANS(Rotation.z), RADIANS(Rotation.y), RADIANS(Rotation.x));
+                Entity->Body->Position = Entity->Transform.Translation;
+                Entity->Body->Orientation = Entity->Transform.Rotation;
             }
 
             if (Entity->Collider)
             {
                 // todo: rotate collider?
-                UpdateColliderPosition(Entity->Collider, Translation);
+                UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
             }
         }
     }

@@ -864,6 +864,15 @@ Project(vec3 a, vec3 b)
     return Result;
 }
 
+inline f32
+DistPointLine(vec3 Point, vec3 Origin, vec3 Direction)
+{
+    vec3 a = Cross(Point - Origin, Direction);
+    f32 Result = Sqrt(Dot(a, a) / Dot(Direction, Direction));
+
+    return Result;
+}
+
 inline mat3
 GetCuboidInertiaTensor(f32 Mass, vec3 Size)
 {
