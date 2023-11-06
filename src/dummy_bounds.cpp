@@ -5,44 +5,44 @@ CreateAABBMinMax(vec3 Min, vec3 Max)
 {
     aabb Result = {};
 
-    Result.Min = Min;
-    Result.Max = Max;
+    vec3 HalfSize = (Max - Min) / 2.f;
+
+    Result.Center = Min + HalfSize;
+    Result.HalfExtent = HalfSize;
 
     return Result;
 }
 
 inline aabb
-CreateAABBCenterHalfSize(vec3 Center, vec3 HalfSize)
+CreateAABBCenterHalfExtent(vec3 Center, vec3 HalfExtent)
 {
     aabb Result = {};
 
-    Result.Min = Center - HalfSize;
-    Result.Max = Center + HalfSize;
+    Result.Center = Center;
+    Result.HalfExtent = HalfExtent;
 
     return Result;
 }
 
-inline vec3
-GetAABBHalfSize(aabb Box)
+dummy_internal aabb
+UpdateBounds(aabb Bounds, transform T)
 {
-    vec3 Result = (Box.Max - Box.Min) * 0.5f;
-    return Result;
-}
+    aabb Result = {};
 
-inline vec3
-GetAABBCenter(aabb Box)
-{
-    vec3 Result = Box.Min + GetAABBHalfSize(Box);
-    return Result;
-}
+    mat4 M = Transform(T);
+    vec3 Translation = GetTranslation(M);
 
-inline aabb
-Union(aabb a, aabb b)
-{
-    aabb Result;
+    for (u32 Axis = 0; Axis < 3; ++Axis)
+    {
+        Result.Center[Axis] = Translation[Axis];
+        Result.HalfExtent[Axis] = 0.f;
 
-    Result.Min = Min(a.Min, b.Min);
-    Result.Max = Max(a.Max, b.Max);
+        for (u32 Element = 0; Element < 3; ++Element)
+        {
+            Result.Center[Axis] += M[Axis][Element] * Bounds.Center[Element];
+            Result.HalfExtent[Axis] += Abs(M[Axis][Element]) * Bounds.HalfExtent[Element];
+        }
+    }
 
     return Result;
 }
@@ -61,69 +61,46 @@ CalculateAxisAlignedBoundingBox(u32 VertexCount, vec3 *Vertices)
         vMax = Max(vMax, *Vertex);
     }
 
-    aabb Result = {};
-
-    Result.Min = vMin;
-    Result.Max = vMax;
+    aabb Result = CreateAABBMinMax(vMin, vMax);
 
     return Result;
 }
 
 dummy_internal aabb
-ScaleBounds(aabb Bounds, vec3 Scale)
+CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
 {
     aabb Result = {};
 
-    vec3 ScaledHalfSize = (Bounds.Max - Bounds.Min) * Scale / 2.f;
-    // todo:
-    vec3 Center = vec3(0.f, ScaledHalfSize.y, 0.f);
-
-    Result.Min = Center - ScaledHalfSize;
-    Result.Max = Center + ScaledHalfSize;
-
-    return Result;
-}
-
-dummy_internal aabb
-TranslateBounds(aabb Bounds, vec3 Translation)
-{
-    aabb Result = {};
-
-    Result.Min = Bounds.Min + Translation;
-    Result.Max = Bounds.Max + Translation;
-
-    return Result;
-}
-
-dummy_internal aabb
-UpdateBounds(aabb Bounds, transform T)
-{
-    aabb Result = {};
-
-    vec3 Translation = T.Translation;
-    mat4 M = Transform(T);
-
-    for (u32 Axis = 0; Axis < 3; ++Axis)
+    if (MeshCount > 0)
     {
-        Result.Min[Axis] = Result.Max[Axis] = Translation[Axis];
+        mesh *FirstMesh = First(Meshes);
+        aabb Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
 
-        for (u32 Element = 0; Element < 3; ++Element)
+        vec3 vMin = Box.Min();
+        vec3 vMax = Box.Max();
+
+        for (u32 MeshIndex = 1; MeshIndex < MeshCount; ++MeshIndex)
         {
-            f32 e = M[Axis][Element] * Bounds.Min[Element];
-            f32 f = M[Axis][Element] * Bounds.Max[Element];
+            mesh *Mesh = Meshes + MeshIndex;
+            aabb Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
 
-            if (e < f)
-            {
-                Result.Min[Axis] += e;
-                Result.Max[Axis] += f;
-            }
-            else
-            {
-                Result.Min[Axis] += f;
-                Result.Max[Axis] += e;
-            }
+            vMin = Min(vMin, Box.Min());
+            vMax = Max(vMax, Box.Max());
         }
+
+        Result = CreateAABBMinMax(vMin, vMax);
     }
+
+    return Result;
+}
+
+dummy_internal aabb
+CalculateAxisAlignedBoundingBox(obb Box)
+{
+    vec3 Min = Box.Center - Box.HalfExtent.x * Box.AxisX - Box.HalfExtent.y * Box.AxisY - Box.HalfExtent.z * Box.AxisZ;
+    vec3 Max = Box.Center + Box.HalfExtent.x * Box.AxisX + Box.HalfExtent.y * Box.AxisY + Box.HalfExtent.z * Box.AxisZ;
+
+    aabb Result = CreateAABBMinMax(Min, Max);
 
     return Result;
 }

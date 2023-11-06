@@ -604,18 +604,6 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
-
-#if 0
-        quat Rotation = LocalJointPose.Rotation;
-        vec3 Scale = LocalJointPose.Scale;
-
-        char RotationLabel[256];
-        FormatString(RotationLabel, "index: %d; rot: %.2f, %.2f, %.2f, %.2f", JointIndex, Rotation.x, Rotation.y, Rotation.z, Rotation.w);
-
-        char ScaleLabel[256];
-        FormatString(ScaleLabel, "index: %d; scale: %.2f, %.2f, %.2f", JointIndex, Scale.x, Scale.y, Scale.z);
-#endif
-
         DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.05f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
@@ -682,12 +670,6 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
 
     aabb Bounds = GetEntityBounds(Entity);
 
-    vec3 HalfSize = (Bounds.Max - Bounds.Min) / 2.f;
-    //vec3 BottomCenterPosition = Bounds.Min + vec3(HalfSize.x, 0.f, HalfSize.z);
-    vec3 Position = Bounds.Min + vec3(HalfSize);
-    quat Rotation = quat(0.f, 0.f, 0.f, 1.f);
-
-    transform Transform = CreateTransform(Position, HalfSize, Rotation);
     vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
 
     if (Entity->Model)
@@ -730,7 +712,11 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     if (Entity->Body)
     {
         Color = vec4(1.f, 0.f, 0.f, 1.f);
+
+        Bounds.Center += Entity->Transform.Translation - Entity->Body->Position;
     }
+
+    transform Transform = CreateTransform(Bounds.Center, Bounds.HalfExtent);
 
     DrawBox(RenderCommands, Transform, Color);
 }
@@ -894,12 +880,27 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
 }
 
 inline void
-AddBoxCollider(game_entity *Entity, vec3 Size, memory_arena *Arena)
+AddBoxCollider(game_entity *Entity, vec3 HalfSize, vec3 Center, memory_arena *Arena)
 {
     Entity->Collider = PushType(Arena, collider, Align(16));
     Entity->Collider->Type = Collider_Box;
-    Entity->Collider->BoxCollider.Size = Size;
-    UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
+    Entity->Collider->BoxLocal.Center = Center;
+    Entity->Collider->BoxLocal.HalfExtent = HalfSize;
+
+    UpdateColliderBounds(Entity);
+}
+
+inline void
+AddBoxCollider(game_entity *Entity, memory_arena *Arena)
+{
+    Assert(Entity->Model);
+
+    aabb Bounds = UpdateBounds(Entity->Model->Bounds, Entity->Transform);
+
+    vec3 HalfSize = Bounds.HalfExtent;
+    vec3 Center = Bounds.Center - Entity->Transform.Translation;
+
+    AddBoxCollider(Entity, HalfSize, Center, Arena);
 }
 
 inline void
@@ -962,7 +963,20 @@ CopyGameEntity(game_state *State, render_commands *RenderCommands, audio_command
     {
         Assert(Source->Collider->Type == Collider_Box);
 
-        AddBoxCollider(Dest, Source->Collider->BoxCollider.Size, &Area->Arena);
+        switch (Source->Collider->Type)
+        {
+            case Collider_Box:
+            {
+                AddBoxCollider(Dest, Source->Collider->BoxLocal.HalfExtent, Source->Collider->BoxLocal.Center, &Area->Arena);
+                break;
+            }
+            default:
+            {
+                Assert(!"Invalid collider type");
+            }
+        }
+
+        
     }
 
     if (Source->Body)
@@ -1129,21 +1143,85 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
             if (Body)
             {
-                // todo: save previous state
+                // Save previous state
                 Body->PrevPosition = Body->Position;
                 Body->PrevVelocity = Body->Velocity;
                 Body->PrevAcceleration = Body->Acceleration;
 
-                f32 MaxStepHeight = 0.2f;
+                bool32 OnTheGround = false;//NearlyEqual(Entity->Body->Position.y, 0.f);
+
+                if (Collider)
+                {
+                    // Collision with the ground
+                    {
+                        //
+                        vec3 Acceleration = Body->Acceleration + Body->ForceAccumulator * Body->InverseMass;
+                        vec3 Velocity = Body->Velocity + Body->Acceleration * dt;
+                        Velocity *= Power(Body->Damping, dt);
+                        Velocity *= dt;
+                        //
+
+                        f32 CollisionTime;
+                        vec3 ContactPoint;
+                        if (IntersectMovingAABBPlane(GetColliderBounds(Entity), State->Ground, Velocity, &CollisionTime, &ContactPoint) && InRange(CollisionTime, 0.f, 1.f))
+                        {
+                            Body->Position.y = ContactPoint.y;
+                            OnTheGround = true;
+                        }
+                    }
+
+                    // Collisions with nearby entities
+                    {
+                        u32 MaxNearbyEntityCount = 100;
+                        game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
+                        aabb Bounds = CreateAABBMinMax(vec3(-1.0f), vec3(1.0f));
+
+                        u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
+
+                        for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
+                        {
+                            game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
+                            rigid_body *NearbyBody = NearbyEntity->Body;
+                            collider *NearbyBodyCollider = NearbyEntity->Collider;
+
+#if 1
+                            if (Entity->Id == Data->PlayerId)
+                            {
+                                NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                            }
+#endif
+
+                            if (NearbyBodyCollider)
+                            {
+                                //
+                                vec3 AccelerationA = Body->Acceleration + Body->ForceAccumulator * Body->InverseMass;
+                                vec3 VelocityA = Body->Velocity + Body->Acceleration * dt;
+                                VelocityA *= Power(Body->Damping, dt);
+                                VelocityA *= dt;
+
+                                vec3 AccelerationB = NearbyBody->Acceleration + NearbyBody->ForceAccumulator * NearbyBody->InverseMass;
+                                vec3 VelocityB = NearbyBody->Velocity + NearbyBody->Acceleration * dt;
+                                VelocityB *= Power(NearbyBody->Damping, dt);
+                                VelocityB *= dt;
+                                //
+
+                                f32 tFirst;
+                                f32 tLast;
+                                if (IntersectMovingAABBAABB(GetColliderBounds(Entity), GetColliderBounds(NearbyEntity), VelocityA, VelocityB, &tFirst, &tLast))
+                                {
+                                    // todo:
+                                }
+                            }
+                        }
+                    }
+                }
 
                 u32 MaxNearbyEntityCount = 10;
                 game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                //aabb Bounds = { vec3(0.f, -MaxStepHeight, 0.f), vec3(0.f, 0.f, 0.f) };
-                aabb Bounds = { vec3(0.f, -0.01f, 0.f), vec3(0.f, 0.f, 0.f) };
+                aabb Bounds = CreateAABBMinMax(vec3(0.f, -0.01f, 0.f), vec3(0.f, 0.f, 0.f));
 
                 u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
-                vec3 MinIntersectionPoint = Body->Position;
                 f32 MinDistance = F32_MAX;
 
                 for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
@@ -1158,48 +1236,19 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         Ray.Direction = vec3(0.f, -1.f, 0.f);
 
                         vec3 IntersectionPoint;
-                        if (IntersectRayAABB(Ray, GetColliderBounds(NearbyBodyCollider), IntersectionPoint))
+                        if (IntersectRayAABB(Ray, GetColliderBounds(NearbyEntity), IntersectionPoint))
                         {
                             f32 Distance = Magnitude(Body->Position - IntersectionPoint);
 
                             if (Distance < MinDistance)
                             {
                                 MinDistance = Distance;
-                                MinIntersectionPoint = IntersectionPoint;
                             }
                         }
                     }
                 }
 
-#if 0
-                bool32 OnTheGround = Body->Position.y == 0.f;
-                bool32 OnTheSurface = false;
-
-                if (MinDistance <= MaxStepHeight)
-                {
-                    if (Body->Acceleration.y == 0.f)
-                    {
-                        Body->Position.y = MinIntersectionPoint.y;
-                        OnTheSurface = true;
-                    }
-                    else
-                    {
-                        OnTheSurface = NearlyEqual(MinDistance, 0.f);
-                    }
-
-                }
-                else if (Body->Position.y <= MaxStepHeight)
-                {
-                    if (Body->Acceleration.y == 0.f)
-                    {
-                        Body->Position.y = 0.f;
-                        OnTheGround = true;
-                    }
-                }
-#else
-                bool32 OnTheGround = (Body->Position.y == 0.f);
                 bool32 OnTheSurface = (MinDistance <= 0.01f);
-#endif
 
                 Entity->IsGrounded = (OnTheGround || OnTheSurface);
 
@@ -1216,7 +1265,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     }
                 }
 
-                if (!Entity->IsGrounded)
+                if (!Entity->IsGrounded && !Entity->IsManipulated)
                 {
                     vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetRigidBodyMass(Body);
 ;                   AddForce(Body, Gravity);
@@ -1226,23 +1275,13 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                 Clamp(&Body->Acceleration.y, -120.f, 120.f);
 
-                if (Body->Position.y < 0.f)
-                {
-                    Body->Position.y = 0.f;
-                }
-
-                //vec3 Move = Body->Velocity * dt + Body->Acceleration * Square(dt) * 0.5f;
-
-                //f32 tFirst = 1.f;
-                //f32 tLast = 1.f;
-
+#if 0
                 if (Collider)
                 {
-                    UpdateColliderPosition(Collider, Entity->Body->Position);
-
+                    // Collisions with nearby entities
                     u32 MaxNearbyEntityCount = 100;
                     game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                    aabb Bounds = { vec3(-1.0f), vec3(1.0f) };
+                    aabb Bounds = CreateAABBMinMax(vec3(-1.0f), vec3(1.0f));
 
                     u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
 
@@ -1252,59 +1291,24 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         rigid_body *NearbyBody = NearbyEntity->Body;
                         collider *NearbyBodyCollider = NearbyEntity->Collider;
 
-#if 0
+#if 1
                         if (Entity->Id == Data->PlayerId)
                         {
                             NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
                         }
 #endif
 
-                        //if (NearbyBodyCollider)
                         if (NearbyBodyCollider)
                         {
-#if 0
-                            vec3 VelocityA = Entity->Body->Velocity;
-                            vec3 VelocityB = vec3(0.f);
-
-                            if (IntersectMovingAABBAABB(GetColliderBounds(Entity->Collider), GetColliderBounds(NearbyEntity->Collider), VelocityA, VelocityB, &tFirst, &tLast))
-                            {
-                                NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
-                            }
-#endif
-
-#if 1
-                            // Collision detection and resolution
                             vec3 mtv;
-                            if (TestColliders(Entity->Collider, NearbyEntity->Collider, &mtv))
+                            if (TestColliders(Entity, NearbyEntity, &mtv))
                             {
-                                aabb NearbyEntityBounds = GetColliderBounds(NearbyEntity->Collider);
-                                vec3 NearbyEntityHalfSize = GetAABBHalfSize(NearbyEntityBounds);
-                                vec3 NearbyEntityCenter = GetAABBCenter(NearbyEntityBounds);
-
-                                f32 RelativeHeight = NearbyEntityCenter.y + NearbyEntityHalfSize.y - Entity->Body->Position.y;
-
-                                //if (Dot(Entity->Body->Velocity, mtv) < 0.f && InRange(RelativeHeight, 0.f, MaxStepHeight))
-                                if (false)
-                                {
-                                    aabb EntityBounds = GetColliderBounds(Entity->Collider);
-                                    vec3 EntityHalfSize = GetAABBHalfSize(EntityBounds);
-
-                                    Entity->Body->Position.y += RelativeHeight;
-                                }
-                                else
-                                {
-                                    Entity->Body->Position += mtv;
-                                }
-
-                                UpdateColliderPosition(Collider, Entity->Body->Position);
+                                Entity->Body->Position += mtv;
                             }
-#endif
                         }
                     }
                 }
-
-                //Move *= tFirst;
-                //Entity->Body->Position += Move;
+#endif
             }
 
             if (Entity->ParticleEmitter)
@@ -1386,7 +1390,7 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
 
             if (Entity->Collider)
             {
-                UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
+                UpdateColliderBounds(Entity);
             }
 
             if (Entity->Model)
@@ -1533,7 +1537,7 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
         {
             case Collider_Box:
             {
-                AddBoxCollider(Entity, ColliderSpec.Size, Arena);
+                AddBoxCollider(Entity, ColliderSpec.BoxLocal.HalfExtent, ColliderSpec.BoxLocal.Center, Arena);
                 break;
             }
             default:
@@ -1689,16 +1693,16 @@ SaveEntityToFile(game_entity *Entity, char *FileName, platform_api *Platform, me
 dummy_internal void
 ClearWorldArea(game_state *State)
 {
-    State->NextFreeEntityId = 0;
-
     for (u32 EntityIndex = 0; EntityIndex < State->WorldArea.EntityCount; ++EntityIndex)
     {
         game_entity *Entity = State->WorldArea.Entities + EntityIndex;
         RemoveFromSpacialGrid(&State->WorldArea.SpatialGrid, Entity);
     }
 
-    State->WorldArea.EntityCount = 0;
     ClearMemoryArena(&State->WorldArea.Arena);
+
+    State->WorldArea.EntityCount = 0;
+    State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
 
     State->SelectedEntity = 0;
     State->Player = 0;
@@ -1733,7 +1737,7 @@ DLLExport GAME_INIT(GameInit)
 
     State->JobQueue = Memory->JobQueue;
 
-    State->NextFreeEntityId = 0;
+    State->NextFreeEntityId = 1;
     State->NextFreeMeshId = 1;
     State->NextFreeTextureId = 1;
     State->NextFreeSkinningId = 1;
@@ -1849,10 +1853,26 @@ DLLExport GAME_RELOAD(GameReload)
     LoadAnimators(&State->Animator);
 }
 
+dummy_internal void
+SpawnBox(game_state *State, render_commands *RenderCommands)
+{
+    game_entity *Entity = CreateGameEntity(State);
+
+    Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)), vec3(1.f));
+    //Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f), vec3(1.f));
+
+    AddModel(State, Entity, &State->Assets, "cube", RenderCommands, &State->WorldArea.Arena);
+    AddBoxCollider(Entity, &State->WorldArea.Arena);
+    AddRigidBody(Entity, &State->WorldArea.Arena);
+
+    State->SelectedEntity = Entity;
+}
+
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 {
     game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
+    render_commands *RenderCommands = GetRenderCommands(Memory);
     audio_commands *AudioCommands = GetAudioCommands(Memory);
 
     if (Input->Menu.IsActivated)
@@ -1882,6 +1902,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
         }
     }
 
+    if (Input->SpawnBox.IsActivated)
+    {
+        SpawnBox(State, RenderCommands);
+    }
+
     switch (State->Mode)
     {
         case GameMode_World:
@@ -1904,7 +1929,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             if (Player)
             {
                 aabb PlayerBounds = GetEntityBounds(Player);
-                vec3 PlayerSize = PlayerBounds.Max - PlayerBounds.Min;
+                vec3 PlayerSize = PlayerBounds.HalfExtent * 2.f;
 
                 vec3 PlayerPosition = Player->Transform.Translation;
                 vec3 TargetPosition = PlayerPosition + vec3(0.f, 0.8f * PlayerSize.y, 0.f);
@@ -2043,14 +2068,14 @@ DLLExport GAME_UPDATE(GameUpdate)
 
     scoped_memory ScopedMemory(&State->FrameArena);
 
-#if 0
+#if 1
     for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
     {
         game_entity *Entity = Area->Entities + EntityIndex;
 
         if (!Entity->Destroyed)
         {
-            Entity->DebugColor = Entity->TestColor;
+            Entity->DebugColor = vec3(1.f); //Entity->TestColor;
         }
     }
 #endif
@@ -2501,12 +2526,6 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             SavePrevValueState(&State->DanceMode);
-
-            if (State->Assets.State == GameAssetsState_Ready)
-            {
-                //texture *GrassTexture = GetTextureAsset(&State->Assets, "Grass");
-                //DrawTexturedQuad(RenderCommands, CreateTransform(vec3(0.f, 0.5f, 0.f), vec3(0.5f), quat(0.f, 0.f, 0.f, 1.f)), GrassTexture);
-            }
 
             font *Font = GetFontAsset(&State->Assets, "Consolas");
 

@@ -778,35 +778,6 @@ GetMeshVerticesSize(mesh *Mesh)
     return Size;
 }
 
-dummy_internal aabb
-CalculateAxisAlignedBoundingBox(u32 MeshCount, mesh *Meshes)
-{
-    aabb Result = {};
-
-    if (MeshCount > 0)
-    {
-        mesh *FirstMesh = First(Meshes);
-        aabb Box = CalculateAxisAlignedBoundingBox(FirstMesh->VertexCount, FirstMesh->Positions);
-
-        vec3 vMin = Box.Min;
-        vec3 vMax = Box.Max;
-
-        for (u32 MeshIndex = 1; MeshIndex < MeshCount; ++MeshIndex)
-        {
-            mesh *Mesh = Meshes + MeshIndex;
-            aabb Box = CalculateAxisAlignedBoundingBox(Mesh->VertexCount, Mesh->Positions);
-
-            vMin = Min(vMin, Box.Min);
-            vMax = Max(vMax, Box.Max);
-        }
-
-        Result.Min = vMin;
-        Result.Max = vMax;
-    }
-
-    return Result;
-}
-
 dummy_internal obb
 CalculateOrientedBoundingBox(u32 MeshCount, mesh *Meshes)
 {

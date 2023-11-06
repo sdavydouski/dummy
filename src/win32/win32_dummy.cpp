@@ -718,6 +718,11 @@ Win32ProcessKeyboardInput(platform_input_keyboard *KeyboardInput, win32_platform
                 KeyboardInput->R.IsPressed = IsKeyPressed;
                 break;
             }
+            case 'B':
+            {
+                KeyboardInput->B.IsPressed = IsKeyPressed;
+                break;
+            }
             case VK_TAB:
             {
                 KeyboardInput->Tab.IsPressed = IsKeyPressed;

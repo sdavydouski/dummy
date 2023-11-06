@@ -6,9 +6,12 @@ InitSpatialHashGrid(spatial_hash_grid *Grid, aabb Bounds, vec3 CellSize, memory_
     Grid->Bounds = Bounds;
     Grid->CellSize = CellSize;
 
-    Grid->CellCount.x = Ceil((Bounds.Max.x - Bounds.Min.x) / CellSize.x);
-    Grid->CellCount.y = Ceil((Bounds.Max.y - Bounds.Min.y) / CellSize.y);
-    Grid->CellCount.z = Ceil((Bounds.Max.z - Bounds.Min.z) / CellSize.z);
+    vec3 BoundsMin = Bounds.Min();
+    vec3 BoundsMax = Bounds.Max();
+
+    Grid->CellCount.x = Ceil((BoundsMax.x - BoundsMin.x) / CellSize.x);
+    Grid->CellCount.y = Ceil((BoundsMax.y - BoundsMin.y) / CellSize.y);
+    Grid->CellCount.z = Ceil((BoundsMax.z - BoundsMin.z) / CellSize.z);
 
     Grid->TotalCellCount = Grid->CellCount.x * Grid->CellCount.y * Grid->CellCount.z;
     Grid->Cells = PushArray(Arena, Grid->TotalCellCount, spatial_hash_grid_cell);
@@ -32,9 +35,12 @@ GetCellCoordinates(spatial_hash_grid *Grid, vec3 Position)
 {
     ivec3 Result;
 
-    f32 NormalizedPositionX = Clamp((Position.x - Grid->Bounds.Min.x) / (Grid->Bounds.Max.x - Grid->Bounds.Min.x), 0.f, 1.f);
-    f32 NormalizedPositionY = Clamp((Position.y - Grid->Bounds.Min.y) / (Grid->Bounds.Max.y - Grid->Bounds.Min.y), 0.f, 1.f);
-    f32 NormalizedPositionZ = Clamp((Position.z - Grid->Bounds.Min.z) / (Grid->Bounds.Max.z - Grid->Bounds.Min.z), 0.f, 1.f);
+    vec3 GridBoundsMin = Grid->Bounds.Min();
+    vec3 GridBoundsMax = Grid->Bounds.Max();
+
+    f32 NormalizedPositionX = Clamp((Position.x - GridBoundsMin.x) / (GridBoundsMax.x - GridBoundsMin.x), 0.f, 1.f);
+    f32 NormalizedPositionY = Clamp((Position.y - GridBoundsMin.y) / (GridBoundsMax.y - GridBoundsMin.y), 0.f, 1.f);
+    f32 NormalizedPositionZ = Clamp((Position.z - GridBoundsMin.z) / (GridBoundsMax.z - GridBoundsMin.z), 0.f, 1.f);
 
     Result.x = Floor(NormalizedPositionX * (Grid->CellCount.x - 1));
     Result.y = Floor(NormalizedPositionY * (Grid->CellCount.y - 1));
@@ -59,8 +65,8 @@ AddToSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
     aabb EntityBounds = GetEntityBounds(Entity);
 
-    ivec3 MinCellCoords = GetCellCoordinates(Grid, EntityBounds.Min);
-    ivec3 MaxCellCoords = GetCellCoordinates(Grid, EntityBounds.Max);
+    ivec3 MinCellCoords = GetCellCoordinates(Grid, EntityBounds.Min());
+    ivec3 MaxCellCoords = GetCellCoordinates(Grid, EntityBounds.Max());
 
     Entity->GridCellCoords[0] = MinCellCoords;
     Entity->GridCellCoords[1] = MaxCellCoords;
@@ -122,8 +128,8 @@ UpdateInSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
     aabb EntityBounds = GetEntityBounds(Entity);
 
-    ivec3 MinCellCoords = GetCellCoordinates(Grid, EntityBounds.Min);
-    ivec3 MaxCellCoords = GetCellCoordinates(Grid, EntityBounds.Max);
+    ivec3 MinCellCoords = GetCellCoordinates(Grid, EntityBounds.Min());
+    ivec3 MaxCellCoords = GetCellCoordinates(Grid, EntityBounds.Max());
 
     if (Entity->GridCellCoords[0] != MinCellCoords || Entity->GridCellCoords[1] != MaxCellCoords)
     {
@@ -137,12 +143,10 @@ FindNearbyEntities(spatial_hash_grid *Grid, game_entity *Entity, aabb Bounds, ga
 {
     aabb EntityBounds = GetEntityBounds(Entity);
 
-    aabb AreaBounds;
-    AreaBounds.Min = EntityBounds.Min + Bounds.Min;
-    AreaBounds.Max = EntityBounds.Max + Bounds.Max;
+    aabb AreaBounds = CreateAABBCenterHalfExtent(EntityBounds.Center, EntityBounds.HalfExtent + Bounds.HalfExtent);
 
-    ivec3 MinCellCoords = GetCellCoordinates(Grid, AreaBounds.Min);
-    ivec3 MaxCellCoords = GetCellCoordinates(Grid, AreaBounds.Max);
+    ivec3 MinCellCoords = GetCellCoordinates(Grid, AreaBounds.Min());
+    ivec3 MaxCellCoords = GetCellCoordinates(Grid, AreaBounds.Max());
 
     u32 EntityCount = 0;
 

@@ -1215,7 +1215,7 @@ CalculateSkeletonPose(animation_graph *Graph, skeleton_pose *BindPose, skeleton_
                     }
                     case BlendMode_Additive:
                     {
-                        LocalJointPose->Rotation = quat(0.f, 0.f, 0.f, 1.f);
+                        LocalJointPose->Rotation = quat::identity();
                         LocalJointPose->Translation = vec3(0.f);
                         LocalJointPose->Scale = vec3(0.f);
 

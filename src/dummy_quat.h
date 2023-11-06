@@ -23,6 +23,12 @@ struct quat
     explicit quat(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
     explicit quat(vec3 v, f32 s) : x(v.x), y(v.y), z(v.z), w(s) {}
 
+    static inline quat identity()
+    {
+        quat Result = quat(0.f, 0.f, 0.f, 1.f);
+        return Result;
+    }
+
     inline quat operator *(f32 Scalar)
     {
         quat Result = quat(Scalar * x, Scalar * y, Scalar * z, Scalar * w);

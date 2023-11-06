@@ -384,16 +384,13 @@ CalculateShadowRegion(polyhedron *Polyhedron, vec4 LightPosition, plane *ShadowP
 dummy_internal bool32
 AxisAlignedBoxVisible(u32 PlaneCount, plane *Planes, aabb Box)
 {
-    vec3 BoxCenter = GetAABBCenter(Box);
-    vec3 BoxHalfSize = GetAABBHalfSize(Box);
-
     for (u32 PlaneIndex = 0; PlaneIndex < PlaneCount; ++PlaneIndex)
     {
         plane Plane = Planes[PlaneIndex];
 
-        f32 EffectiveRadius = Abs(Plane.Normal.x * BoxHalfSize.x) + Abs(Plane.Normal.y * BoxHalfSize.y) + Abs(Plane.Normal.z * BoxHalfSize.z);
+        f32 EffectiveRadius = Abs(Plane.Normal.x * Box.HalfExtent.x) + Abs(Plane.Normal.y * Box.HalfExtent.y) + Abs(Plane.Normal.z * Box.HalfExtent.z);
 
-        if (DotPoint(Plane, BoxCenter) <= -EffectiveRadius)
+        if (DotPoint(Plane, Box.Center) <= -EffectiveRadius)
         {
             return false;
         }

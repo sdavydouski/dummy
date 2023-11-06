@@ -92,7 +92,7 @@ SetVec3Lerp(vec3_lerp *Lerp, f32 Time, f32 Duration, vec3 From, vec3 To)
 }
 
 inline transform
-CreateTransform(vec3 Translation, vec3 Scale, quat Rotation)
+CreateTransform(vec3 Translation = vec3(0.f), vec3 Scale = vec3(1.f), quat Rotation = quat::identity())
 {
     transform Result;
 

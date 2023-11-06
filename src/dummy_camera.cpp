@@ -68,7 +68,7 @@ ChaseCameraSceneCollisions(game_camera *Camera, spatial_hash_grid *Grid, game_en
 
         u32 MaxNearbyEntityCount = 100;
         game_entity **NearbyEntities = PushArray(ScopedMemory.Arena, MaxNearbyEntityCount, game_entity *);
-        aabb Bounds = { vec3(-Camera->RadialDistance), vec3(Camera->RadialDistance) };
+        aabb Bounds = CreateAABBMinMax(vec3(-Camera->RadialDistance), vec3(Camera->RadialDistance));
 
         u32 NearbyEntityCount = FindNearbyEntities(Grid, Player, Bounds, NearbyEntities, MaxNearbyEntityCount);
 

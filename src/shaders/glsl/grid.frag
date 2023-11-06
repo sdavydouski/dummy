@@ -50,7 +50,7 @@ void main()
     vec2 Grid = abs(fract(Coord - 0.5) - 0.5) / (LineWidth * fwidth(Coord));
     float Line = min(Grid.x, Grid.y);
 
-#if 0
+#if 1
     vec3 GridColor = vec3(min(Line, 1.f));
 #else
     vec3 GridColor = vec3(1.f - min(Line, 1.f));

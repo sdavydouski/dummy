@@ -617,6 +617,8 @@ EditorRenderMaterialsInfo(win32_renderer_state *RendererState, model *Model)
                 }
             }
         }
+
+        ImGui::NewLine();
     }
 }
 
@@ -625,11 +627,20 @@ EditorRenderColliderInfo(collider *Collider)
 {
     if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        // todo:
-        Assert(Collider->Type == Collider_Box);
-
-        ImGui::InputFloat3("Center", Collider->BoxCollider.Center.Elements);
-        ImGui::InputFloat3("Size", Collider->BoxCollider.Size.Elements);
+        switch (Collider->Type)
+        {
+            case Collider_Box:
+            {
+                ImGui::InputFloat3("Center", Collider->BoxLocal.Center.Elements);
+                ImGui::InputFloat3("HalfSize", Collider->BoxLocal.HalfExtent.Elements);
+                break;
+            }
+            default:
+            {
+                Assert(!"Not implemented");
+            }
+        }
+        
         ImGui::NewLine();
     }
 }
@@ -1006,16 +1017,28 @@ EditorRenderEntityInfo(
     }
     else
     {
-        if (ImGui::CollapsingHeader("Add Collider"))
+        if (ImGui::CollapsingHeader("Add Box Collider"))
         {
             collider_spec *Collider = &EditorState->AddEntity.Collider;
 
-            ImGui::InputFloat3("Size##Collider", Collider->Size.Elements);
-
-            if (ImGui::Button("Add##Collider"))
+            if (Entity->Model)
             {
-                AddBoxCollider(Entity, Collider->Size, &GameState->WorldArea.Arena);
-                EditorState->AddEntity.Collider = {};
+                if (ImGui::Button("Add##Collider"))
+                {
+                    AddBoxCollider(Entity, &GameState->WorldArea.Arena);
+                    EditorState->AddEntity.Collider = {};
+                }
+            }
+            else
+            {
+                ImGui::InputFloat3("HalfSize##Collider", Collider->BoxLocal.HalfExtent.Elements);
+                ImGui::InputFloat3("Offset##Collider", Collider->BoxLocal.Center.Elements);
+
+                if (ImGui::Button("Add##Collider"))
+                {
+                    AddBoxCollider(Entity, Collider->BoxLocal.HalfExtent, Collider->BoxLocal.Center, &GameState->WorldArea.Arena);
+                    EditorState->AddEntity.Collider = {};
+                }
             }
         }
     }
@@ -1207,7 +1230,7 @@ dummy_internal void
 EditorAddEntity(editor_state *EditorState, game_state *GameState)
 {
     game_entity *Entity = CreateGameEntity(GameState);
-    Entity->Transform = CreateTransform(vec3(0.f), vec3(1.f), quat(0.f, 0.f, 0.f, 1.f));
+    Entity->Transform = CreateTransform();
 
     GameState->SelectedEntity = Entity;
 
@@ -1396,7 +1419,7 @@ Win32RenderEditor(
 
                 }
 
-                if (ImGui::MenuItem("Clear Area"))
+                if (ImGui::MenuItem("Clear Area (L)"))
                 {
                     ClearWorldArea(GameState);
                 }
@@ -1748,6 +1771,8 @@ Win32RenderEditor(
 
         game_entity *Entity = GameState->SelectedEntity;
 
+        Entity->IsManipulated = false;
+
         // Gizmos
         ImGuizmo::Enable(!GameInput->EnableFreeCameraMovement.IsActive);
         ImGuizmo::SetRect(GameWindowPosition.x, GameWindowPosition.y, GameWindowSize.x, GameWindowSize.y);
@@ -1778,6 +1803,7 @@ Win32RenderEditor(
         if (ImGuizmo::IsUsing())
         {
             Entity->Transform = Decompose(Transpose(EntityTransform));
+            Entity->IsManipulated = true;
 
             if (Entity->Body)
             {
@@ -1785,12 +1811,6 @@ Win32RenderEditor(
                 Entity->Body->Velocity = vec3(0.f);
                 Entity->Body->Position = Entity->Transform.Translation;
                 Entity->Body->Orientation = Entity->Transform.Rotation;
-            }
-
-            if (Entity->Collider)
-            {
-                // todo: rotate collider?
-                UpdateColliderPosition(Entity->Collider, Entity->Transform.Translation);
             }
         }
     }
@@ -1844,6 +1864,11 @@ Win32RenderEditor(
             {
                 EditorCopyEntity(EditorState, GameState, RenderCommands, AudioCommands, GameState->SelectedEntity);
             }
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_L))
+        {
+            ClearWorldArea(GameState);
         }
 
         if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd))

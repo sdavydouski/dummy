@@ -1,21 +1,9 @@
 #pragma once
 
-struct box_collider
-{
-    vec3 Center;
-    vec3 Size;
-};
-
-struct sphere_collider
-{
-    vec3 Center;
-    f32 Radius;
-};
-
 enum collider_type
 {
-    Collider_Box,
-    Collider_Sphere
+    Collider_Box
+    // Sphere, Capsule, etc.
 };
 
 struct collider
@@ -24,8 +12,11 @@ struct collider
 
     union
     {
-        box_collider BoxCollider;
-        sphere_collider SphereCollider;
+        struct
+        {
+            aabb BoxLocal;
+            aabb BoxWorld;
+        };
     };
 };
 

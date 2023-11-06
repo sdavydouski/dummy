@@ -22,6 +22,7 @@ struct platform_input_keyboard
             platform_button_state C;
             platform_button_state E;
             platform_button_state R;
+            platform_button_state B;
 
             platform_button_state Tab;
             platform_button_state Ctrl;
@@ -123,6 +124,7 @@ struct game_input
     game_input_action Activate;
     game_input_action LightAttack;
     game_input_action StrongAttack;
+    game_input_action SpawnBox;
 
     game_input_action ChoosePrevHero;
     game_input_action ChooseNextHero;
@@ -340,6 +342,7 @@ KeyboardInput2GameInput(platform_input_keyboard *KeyboardInput, game_input *Game
     ProcessInputAction(&GameInput->EditMode, &KeyboardInput->Tab);
     ProcessInputAction(&GameInput->ChoosePrevHero, &KeyboardInput->One);
     ProcessInputAction(&GameInput->ChooseNextHero, &KeyboardInput->Two);
+    ProcessInputAction(&GameInput->SpawnBox, &KeyboardInput->B);
 
     ProcessInputState(&GameInput->HighlightBackground, &KeyboardInput->Ctrl);
 }

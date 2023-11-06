@@ -65,6 +65,12 @@ struct mat4
         Elements[3][3] = e33;
     }
 
+    static inline mat4 identity()
+    {
+        mat4 Result = mat4(1.f);
+        return Result;
+    }
+
     inline vec4 &operator [](u32 RowIndex)
     {
         vec4 &Result = Rows[RowIndex];

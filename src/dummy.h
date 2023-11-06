@@ -45,9 +45,11 @@ bool32 AnimationClipFinished(animation_state Animation);
 bool32 AdditiveAnimationsFinished(animation_node *Node);
 audio_clip *GetAudioClipAsset(game_assets *Assets, const char *Name);
 aabb GetEntityBounds(game_entity *Entity);
+aabb CreateAABBMinMax(vec3 Min, vec3 Max);
+aabb CreateAABBCenterHalfExtent(vec3 Center, vec3 HalfExtent);
+aabb CalculateAxisAlignedBoundingBox(obb Box);
+aabb UpdateBounds(aabb Bounds, mat4 M);
 aabb UpdateBounds(aabb Bounds, transform T);
-vec3 GetAABBHalfSize(aabb Box);
-vec3 GetAABBCenter(aabb Box);
 bool32 TestAABBAABB(aabb a, aabb b);
 bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord);
 audio_play_options SetVolume(f32 Volume);
@@ -84,6 +86,7 @@ struct game_entity
     bool32 Destroyed;
     vec3 DebugColor;
     bool32 IsGrounded;
+    bool32 IsManipulated;
 };
 
 struct world_area
@@ -100,8 +103,6 @@ struct model_spec
 {
     bool32 Has;
     char ModelRef[64];
-
-    u32 Buffer[4096];
 };
 
 inline void
@@ -114,14 +115,12 @@ Model2Spec(model *Model, model_spec *Spec)
 struct collider_spec
 {
     bool32 Has;
+
     collider_type Type;
     union
     {
-        vec3 Size;
-        f32 Radius;
+        aabb BoxLocal;
     };
-
-    u32 Buffer[4096];
 };
 
 inline void
@@ -134,13 +133,7 @@ Collider2Spec(collider *Collider, collider_spec *Spec)
     {
         case Collider_Box:
         {
-            Spec->Size = Collider->BoxCollider.Size;
-
-            break;
-        }
-        case Collider_Sphere:
-        {
-            Spec->Radius = Collider->SphereCollider.Radius;
+            Spec->BoxLocal = Collider->BoxLocal;
 
             break;
         }
@@ -154,8 +147,6 @@ Collider2Spec(collider *Collider, collider_spec *Spec)
 struct rigid_body_spec
 {
     bool32 Has;
-
-    u32 Buffer[4096];
 };
 
 inline void
@@ -169,8 +160,6 @@ struct point_light_spec
     bool32 Has;
     vec3 Color;
     light_attenuation Attenuation;
-
-    u32 Buffer[4096];
 };
 
 inline void
@@ -188,8 +177,6 @@ struct particle_emitter_spec
     u32 ParticlesSpawn;
     vec4 Color;
     vec2 Size;
-
-    u32 Buffer[4096];
 };
 
 inline void
@@ -209,8 +196,6 @@ struct audio_source_spec
     f32 Volume;
     f32 MinDistance;
     f32 MaxDistance;
-
-    u32 Buffer[4096];
 };
 
 inline void
@@ -235,8 +220,6 @@ struct game_entity_spec
     audio_source_spec AudioSourceSpec;
 
     vec3 DebugColor;
-
-    u32 Buffer[8192 - 3];
 };
 
 #pragma pack(push, 1)

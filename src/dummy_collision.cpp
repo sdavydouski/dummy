@@ -2,30 +2,18 @@
 
 // https://stackoverflow.com/questions/47866571/simple-oriented-bounding-box-obb-collision-detection-explaining
 
-inline aabb
-GetColliderBounds(collider *Collider)
+dummy_internal aabb
+GetColliderBounds(game_entity *Entity)
 {
+    Assert(Entity->Collider);
+
     aabb Result = {};
 
-    switch (Collider->Type)
+    switch (Entity->Collider->Type)
     {
         case Collider_Box:
         {
-            box_collider Box = Collider->BoxCollider;
-            vec3 HalfSize = Box.Size / 2;
-
-            Result.Min = Box.Center - HalfSize;
-            Result.Max = Box.Center + HalfSize;
-
-            break;
-        }
-        case Collider_Sphere:
-        {
-            sphere_collider Sphere = Collider->SphereCollider;
-
-            Result.Min = Sphere.Center - vec3(Sphere.Radius);
-            Result.Max = Sphere.Center + vec3(Sphere.Radius);
-
+            Result = Entity->Collider->BoxWorld;
             break;
         }
     }
@@ -33,23 +21,22 @@ GetColliderBounds(collider *Collider)
     return Result;
 }
 
-inline void
-UpdateColliderPosition(collider *Collider, vec3 BasePosition)
+dummy_internal void
+UpdateColliderBounds(game_entity *Entity)
 {
-    switch (Collider->Type)
+    Assert(Entity->Collider);
+
+    vec3 Position = Entity->Body
+        ? Entity->Body->Position
+        : Entity->Transform.Translation;
+
+    transform T = CreateTransform(Position, Entity->Transform.Scale, Entity->Transform.Rotation);
+
+    switch (Entity->Collider->Type)
     {
         case Collider_Box:
         {
-            box_collider *BoxCollider = &Collider->BoxCollider;
-            BoxCollider->Center = BasePosition + vec3(0.f, BoxCollider->Size.y / 2.f, 0.f);
-
-            break;
-        }
-        case Collider_Sphere:
-        {
-            sphere_collider *SphereCollider = &Collider->SphereCollider;
-            SphereCollider->Center = BasePosition + vec3(0.f, SphereCollider->Radius, 0.f);
-
+            Entity->Collider->BoxWorld = UpdateBounds(Entity->Collider->BoxLocal, T);
             break;
         }
     }
@@ -62,7 +49,7 @@ GetEntityBounds(game_entity *Entity)
 
     if (Entity->Collider)
     {
-        Result = GetColliderBounds(Entity->Collider);
+        Result = GetColliderBounds(Entity);
     }
     else if (Entity->Model)
     {
@@ -72,8 +59,8 @@ GetEntityBounds(game_entity *Entity)
     {
         aabb Bounds =
         {
-            .Min = vec3(-0.1f),
-            .Max = vec3(0.1f)
+            .Center = vec3(0.f),
+            .HalfExtent = vec3(0.1f)
         };
 
         Result = UpdateBounds(Bounds, Entity->Transform);
@@ -82,8 +69,8 @@ GetEntityBounds(game_entity *Entity)
     {
         aabb Bounds =
         {
-            .Min = vec3(-0.5f, 0.f, -0.5f),
-            .Max = vec3(0.5f, 1.f, 0.5f)
+            .Center = vec3(0.f, 0.5f, 0.f),
+            .HalfExtent = vec3(0.5f)
         };
 
         Result = UpdateBounds(Bounds, Entity->Transform);
@@ -153,19 +140,19 @@ TestAABBAABB(aabb a, aabb b, vec3 *mtv)
     vec3 zAxis = vec3(0.f, 0.f, 1.f);
 
     // [X Axis]
-    if (!TestAxis(xAxis, a.Min.x, a.Max.x, b.Min.x, b.Max.x, &mtvAxis, &mtvDistance))
+    if (!TestAxis(xAxis, a.Min().x, a.Max().x, b.Min().x, b.Max().x, &mtvAxis, &mtvDistance))
     {
         return false;
     }
 
     // [Y Axis]
-    if (!TestAxis(yAxis, a.Min.y, a.Max.y, b.Min.y, b.Max.y, &mtvAxis, &mtvDistance))
+    if (!TestAxis(yAxis, a.Min().y, a.Max().y, b.Min().y, b.Max().y, &mtvAxis, &mtvDistance))
     {
         return false;
     }
 
     // [Z Axis]
-    if (!TestAxis(zAxis, a.Min.z, a.Max.z, b.Min.z, b.Max.z, &mtvAxis, &mtvDistance))
+    if (!TestAxis(zAxis, a.Min().z, a.Max().z, b.Min().z, b.Max().z, &mtvAxis, &mtvDistance))
     {
         return false;
     }
@@ -184,9 +171,9 @@ inline bool32
 TestAABBAABB(aabb a, aabb b)
 {
     // Exit with no intersection if separated along an axis
-    if (a.Max.x < b.Min.x || a.Min.x > b.Max.x) return false;
-    if (a.Max.y < b.Min.y || a.Min.y > b.Max.y) return false;
-    if (a.Max.z < b.Min.z || a.Min.z > b.Max.z) return false;
+    if (Abs(a.Center[0] - b.Center[0]) > (a.HalfExtent[0] + b.HalfExtent[0])) return false;
+    if (Abs(a.Center[1] - b.Center[1]) > (a.HalfExtent[1] + b.HalfExtent[1])) return false;
+    if (Abs(a.Center[2] - b.Center[2]) > (a.HalfExtent[2] + b.HalfExtent[2])) return false;
 
     // Overlapping on all axes means AABBs are intersecting
     return true;
@@ -195,13 +182,10 @@ TestAABBAABB(aabb a, aabb b)
 dummy_internal bool32
 TestAABBPlane(aabb Box, plane Plane)
 {
-    vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
-    vec3 BoxExtents = Box.Max - BoxCenter;
-
     // Compute the projection interval radius of AABB onto L(t) = BoxCenter + t * Plane.Normal
-    f32 Radius = Dot(BoxExtents, Abs(Plane.Normal));
+    f32 Radius = Dot(Box.HalfExtent, Abs(Plane.Normal));
     // Compute distance of AABB center from plane
-    f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.Distance;
+    f32 Distance = Dot(Plane.Normal, Box.Center) - Plane.Distance;
     
     // Intersection occurs when distance falls within [-Radius, +Radius] interval
     bool32 Result = Abs(Distance) <= Radius;
@@ -210,67 +194,108 @@ TestAABBPlane(aabb Box, plane Plane)
 }
 
 dummy_internal bool32
-IntersectMovingAABBAABB(aabb a, aabb b, vec3 VelocityA, vec3 VelocityB, f32 *tFirst, f32 *tLast)
+IntersectMovingAABBPlane(aabb Box, plane Plane, vec3 Velocity, f32 *CollisionTime, vec3 *ContactPoint)
 {
-    // Exit early if a and b initially overlapping
-    if (TestAABBAABB(a, b))
+    // Compute the projection interval radius of AABB onto L(t) = BoxCenter + t * Plane.Normal
+    f32 Radius = Dot(Box.HalfExtent, Abs(Plane.Normal));
+    // Compute distance of AABB center from plane
+    f32 Distance = Dot(Plane.Normal, Box.Center) - Plane.Distance;
+
+    if (Abs(Distance) <= Radius)
+    {
+        // AABB is already overlapping the plane
+        *CollisionTime = 0.f;
+        *ContactPoint = Box.Center - Radius * Plane.Normal;
+
+        return true;
+    }
+    else
+    {
+        f32 Denom = Dot(Plane.Normal, Velocity);
+
+        if (Denom >= 0.f)
+        {
+            // No intersection as AABB moving parallel to or away from plane
+            return false;
+        }
+        else
+        {
+            // AABB is moving towards the plane
+            *CollisionTime = (Radius - Distance) / Denom;
+            *ContactPoint = Box.Center + Velocity * (*CollisionTime) - Radius * Plane.Normal;
+
+            return true;
+        }
+    }
+}
+
+dummy_internal bool32
+IntersectMovingAABBAABB(aabb BoxA, aabb BoxB, vec3 VelocityA, vec3 VelocityB, f32 *tFirst, f32 *tLast)
+{
+    // Exit early if BoxA and BoxB initially overlapping
+    if (TestAABBAABB(BoxA, BoxB))
     {
         *tFirst = 0.f;
         *tLast = 0.f;
+
         return true;
     }
 
-    // Use relative velocity; effectively treating a as stationary
+    // Use relative velocity; effectively treating BoxA as stationary
     vec3 RelativeVelocity = VelocityB - VelocityA;
 
     // Initialize times of first and last contact
     *tFirst = 0.f;
     *tLast = 1.f;
 
+    vec3 MinA = BoxA.Min();
+    vec3 MaxA = BoxA.Max();
+    vec3 MinB = BoxB.Min();
+    vec3 MaxB = BoxB.Max();
+
     // For each axis, determine times of first and last contact, if any
-    for (u32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+    for (u32 Axis = 0; Axis < 3; ++Axis)
     {
-        if (RelativeVelocity[AxisIndex] < 0.f)
+        if (RelativeVelocity[Axis] < 0.f)
         {
-            if (b.Max[AxisIndex] < a.Min[AxisIndex])
-            {
-                // Nonintersecting and moving apart
-                return false;
-            }
-            
-            if (a.Max[AxisIndex] < b.Min[AxisIndex])
-            {
-                *tFirst = Max((a.Max[AxisIndex] - b.Min[AxisIndex]) / RelativeVelocity[AxisIndex], *tFirst);
-            }
-
-            if (b.Max[AxisIndex] > a.Min[AxisIndex])
-            {
-                *tLast = Min((a.Min[AxisIndex] - b.Max[AxisIndex]) / RelativeVelocity[AxisIndex], *tLast);
-            }
-        }
-
-        if (RelativeVelocity[AxisIndex] > 0.f)
-        {
-            if (b.Min[AxisIndex] > a.Max[AxisIndex])
+            if (MaxB[Axis] < MinA[Axis])
             {
                 // Nonintersecting and moving apart
                 return false;
             }
 
-            if (b.Max[AxisIndex] < a.Min[AxisIndex])
+            if (MaxA[Axis] < MinB[Axis])
             {
-                *tFirst = Max((a.Min[AxisIndex] - b.Max[AxisIndex]) / RelativeVelocity[AxisIndex], *tFirst);
+                *tFirst = Max((MaxA[Axis] - MinB[Axis]) / RelativeVelocity[Axis], *tFirst);
             }
 
-            if (a.Max[AxisIndex] > b.Min[AxisIndex])
+            if (MaxB[Axis] > MinA[Axis])
             {
-                *tLast = Min((a.Max[AxisIndex] - b.Min[AxisIndex]) / RelativeVelocity[AxisIndex], *tLast);
+                *tLast = Min((MinA[Axis] - MaxB[Axis]) / RelativeVelocity[Axis], *tLast);
+            }
+        }
+        else if (RelativeVelocity[Axis] > 0.f)
+        {
+            if (MinB[Axis] > MaxA[Axis])
+            {
+                // Nonintersecting and moving apart
+                return false;
+            }
+
+            if (MaxB[Axis] < MinA[Axis])
+            {
+                *tFirst = Max((MinA[Axis] - MaxB[Axis]) / RelativeVelocity[Axis], *tFirst);
+            }
+
+            if (MaxA[Axis] > MinB[Axis])
+            {
+                *tLast = Min((MaxA[Axis] - MinB[Axis]) / RelativeVelocity[Axis], *tLast);
             }
         }
 
-        // No overlap possible if time of first contact occurs after time of last contact
         if (*tFirst > *tLast)
         {
+            // No overlap possible if time of first contact occurs after time of last contact
             return false;
         }
     }
@@ -287,8 +312,8 @@ bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord)
 {
     vec3 RayOrigin = Ray.Origin;
     vec3 RayDirection = Ray.Direction;
-    vec3 BoxMin = Box.Min;
-    vec3 BoxMax = Box.Max;
+    vec3 BoxMin = Box.Min();
+    vec3 BoxMax = Box.Max();
 
     i32 Right = 0;
     i32 Left = 1;
@@ -382,11 +407,8 @@ bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord)
 dummy_internal f32
 GetAABBPlaneMinDistance(aabb Box, plane Plane)
 {
-    vec3 BoxCenter = (Box.Min + Box.Max) * 0.5f;
-    vec3 BoxExtents = Box.Max - BoxCenter;
-
-    f32 Radius = Dot(BoxExtents, Abs(Plane.Normal));
-    f32 Distance = Dot(Plane.Normal, BoxCenter) - Plane.Distance;
+    f32 Radius = Dot(Box.HalfExtent, Abs(Plane.Normal));
+    f32 Distance = Dot(Plane.Normal, Box.Center) - Plane.Distance;
 
     f32 Result = Distance - Radius;
 
@@ -394,11 +416,17 @@ GetAABBPlaneMinDistance(aabb Box, plane Plane)
 }
 
 dummy_internal bool32
-TestColliders(collider *a, collider *b, vec3 *mtv)
+TestColliders(game_entity *a, game_entity *b, vec3 *mtv)
 {
-    if (a->Type == Collider_Box && b->Type == Collider_Box)
+    Assert(a->Collider);
+    Assert(b->Collider);
+
+    if (a->Collider->Type == Collider_Box && b->Collider->Type == Collider_Box)
     {
-        return TestAABBAABB(GetColliderBounds(a), GetColliderBounds(b), mtv);
+        aabb BoxA = GetColliderBounds(a);
+        aabb BoxB = GetColliderBounds(b);
+
+        return TestAABBAABB(BoxA, BoxB, mtv);
     }
     else
     {
