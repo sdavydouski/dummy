@@ -48,6 +48,7 @@ aabb GetEntityBounds(game_entity *Entity);
 aabb CreateAABBMinMax(vec3 Min, vec3 Max);
 aabb CreateAABBCenterHalfExtent(vec3 Center, vec3 HalfExtent);
 aabb CalculateAxisAlignedBoundingBox(obb Box);
+void CalculateVertices(aabb Box, vec3 *Vertices);
 aabb UpdateBounds(aabb Bounds, mat4 M);
 aabb UpdateBounds(aabb Bounds, transform T);
 bool32 TestAABBAABB(aabb a, aabb b);
@@ -119,7 +120,7 @@ struct collider_spec
     collider_type Type;
     union
     {
-        aabb BoxLocal;
+        collider_box Box;
     };
 };
 
@@ -133,7 +134,7 @@ Collider2Spec(collider *Collider, collider_spec *Spec)
     {
         case Collider_Box:
         {
-            Spec->BoxLocal = Collider->BoxLocal;
+            Spec->Box = Collider->Box;
 
             break;
         }
@@ -399,6 +400,8 @@ struct game_state
     game_menu_quad MenuQuads[4];
 
     value_state<bool32> DanceMode;
+
+    collision CollisionData;
 
     // todo: temp
     u32 SkyboxId;

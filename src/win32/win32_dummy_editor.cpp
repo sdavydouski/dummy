@@ -631,8 +631,8 @@ EditorRenderColliderInfo(collider *Collider)
         {
             case Collider_Box:
             {
-                ImGui::InputFloat3("Center", Collider->BoxLocal.Center.Elements);
-                ImGui::InputFloat3("HalfSize", Collider->BoxLocal.HalfExtent.Elements);
+                ImGui::InputFloat3("Center", Collider->Box.Offset.Elements);
+                ImGui::InputFloat3("HalfSize", Collider->Box.HalfSize.Elements);
                 break;
             }
             default:
@@ -1031,12 +1031,12 @@ EditorRenderEntityInfo(
             }
             else
             {
-                ImGui::InputFloat3("HalfSize##Collider", Collider->BoxLocal.HalfExtent.Elements);
-                ImGui::InputFloat3("Offset##Collider", Collider->BoxLocal.Center.Elements);
+                ImGui::InputFloat3("HalfSize##Collider", Collider->Box.HalfSize.Elements);
+                ImGui::InputFloat3("Offset##Collider", Collider->Box.Offset.Elements);
 
                 if (ImGui::Button("Add##Collider"))
                 {
-                    AddBoxCollider(Entity, Collider->BoxLocal.HalfExtent, Collider->BoxLocal.Center, &GameState->WorldArea.Arena);
+                    AddBoxCollider(Entity, Collider->Box.HalfSize, Collider->Box.Offset, &GameState->WorldArea.Arena);
                     EditorState->AddEntity.Collider = {};
                 }
             }

@@ -25,11 +25,10 @@ CreateAABBCenterHalfExtent(vec3 Center, vec3 HalfExtent)
 }
 
 dummy_internal aabb
-UpdateBounds(aabb Bounds, transform T)
+UpdateBounds(aabb Bounds, mat4 M)
 {
     aabb Result = {};
 
-    mat4 M = Transform(T);
     vec3 Translation = GetTranslation(M);
 
     for (u32 Axis = 0; Axis < 3; ++Axis)
@@ -43,6 +42,16 @@ UpdateBounds(aabb Bounds, transform T)
             Result.HalfExtent[Axis] += Abs(M[Axis][Element]) * Bounds.HalfExtent[Element];
         }
     }
+
+    return Result;
+}
+
+dummy_internal aabb
+UpdateBounds(aabb Bounds, transform T)
+{
+    mat4 M = Transform(T);
+
+    aabb Result = UpdateBounds(Bounds, M);
 
     return Result;
 }
@@ -409,6 +418,27 @@ CalculateOrientedBoundingBox(u32 VertexCount, vec3 *Vertices)
     }
 
     return Result;
+}
+
+inline void
+CalculateVertices(aabb Box, vec3 *Vertices)
+{
+    f32 Signs[] = { -1.f, 1.f };
+
+    for (u32 x = 0; x < 2; ++x)
+    {
+        for (u32 y = 0; y < 2; ++y)
+        {
+            for (u32 z = 0; z < 2; ++z)
+            {
+                *Vertices++ =
+                    Box.Center +
+                    Signs[x] * vec3(1.f, 0.f, 0.f) * Box.HalfExtent.x +
+                    Signs[y] * vec3(0.f, 1.f, 0.f) * Box.HalfExtent.y +
+                    Signs[z] * vec3(0.f, 0.f, 1.f) * Box.HalfExtent.z;
+            }
+        }
+    }
 }
 
 inline void

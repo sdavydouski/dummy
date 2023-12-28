@@ -1,42 +1,37 @@
 #include "dummy.h"
 
-// https://stackoverflow.com/questions/47866571/simple-oriented-bounding-box-obb-collision-detection-explaining
-
-dummy_internal aabb
-GetColliderBounds(game_entity *Entity)
-{
-    Assert(Entity->Collider);
-
-    aabb Result = {};
-
-    switch (Entity->Collider->Type)
-    {
-        case Collider_Box:
-        {
-            Result = Entity->Collider->BoxWorld;
-            break;
-        }
-    }
-
-    return Result;
-}
-
 dummy_internal void
-UpdateColliderBounds(game_entity *Entity)
+CalculateColliderInternalState(game_entity *Entity)
 {
     Assert(Entity->Collider);
+
+    collider *Collider = Entity->Collider;
 
     vec3 Position = Entity->Body
         ? Entity->Body->Position
         : Entity->Transform.Translation;
 
-    transform T = CreateTransform(Position, Entity->Transform.Scale, Entity->Transform.Rotation);
+    quat Rotation = Entity->Body
+        ? Entity->Body->Orientation
+        : Entity->Transform.Rotation;
 
-    switch (Entity->Collider->Type)
+    vec3 Scale = Entity->Transform.Scale;
+
+    switch (Collider->Type)
     {
         case Collider_Box:
         {
-            Entity->Collider->BoxWorld = UpdateBounds(Entity->Collider->BoxLocal, T);
+            // todo: include scale or not?
+#if 0
+            Collider->Box.Transform = TranslateRotate(Position, Rotation) * Translate(Collider->Box.Offset);
+#else
+            transform T = CreateTransform(Position, Scale, Rotation);
+            Collider->Box.Transform = Transform(T) * Translate(Collider->Box.Offset);
+#endif
+
+            Collider->BoundsLocal = CreateAABBCenterHalfExtent(vec3(0.f), Collider->Box.HalfSize);
+            Collider->BoundsWorld = UpdateBounds(Collider->BoundsLocal, Collider->Box.Transform);
+
             break;
         }
     }
@@ -49,7 +44,7 @@ GetEntityBounds(game_entity *Entity)
 
     if (Entity->Collider)
     {
-        Result = GetColliderBounds(Entity);
+        Result = Entity->Collider->BoundsWorld;
     }
     else if (Entity->Model)
     {
@@ -423,8 +418,8 @@ TestColliders(game_entity *a, game_entity *b, vec3 *mtv)
 
     if (a->Collider->Type == Collider_Box && b->Collider->Type == Collider_Box)
     {
-        aabb BoxA = GetColliderBounds(a);
-        aabb BoxB = GetColliderBounds(b);
+        aabb BoxA = a->Collider->BoundsWorld;
+        aabb BoxB = b->Collider->BoundsWorld;
 
         return TestAABBAABB(BoxA, BoxB, mtv);
     }
@@ -434,4 +429,198 @@ TestColliders(game_entity *a, game_entity *b, vec3 *mtv)
     }
 
     return false;
+}
+
+// Test if Box intersects Plane
+dummy_internal bool32 
+TestBoxPlane(collider_box Box, plane Plane)
+{
+    // Compute the projected radius of the box onto the plane direction
+    f32 Radius =
+        Box.HalfSize.x * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 0))) +
+        Box.HalfSize.y * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 1))) +
+        Box.HalfSize.z * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 2)));
+
+    // Compute how far the box is from the origin
+    f32 Distance = Dot(Plane.Normal, GetTranslation(Box.Transform)) - Radius;
+
+    // Check for the intersection
+    return Distance <= Plane.Distance;
+}
+
+inline void
+CalculateVertices(collider_box Box, vec3 *Vertices)
+{
+    f32 Signs[] = { -1.f, 1.f };
+
+    for (u32 x = 0; x < 2; ++x)
+    {
+        for (u32 y = 0; y < 2; ++y)
+        {
+            for (u32 z = 0; z < 2; ++z)
+            {
+                *Vertices++ =
+                    GetTranslation(Box.Transform) +
+                    Signs[x] * GetAxis(Box.Transform, 0) * Box.HalfSize.x +
+                    Signs[y] * GetAxis(Box.Transform, 1) * Box.HalfSize.y +
+                    Signs[z] * GetAxis(Box.Transform, 2) * Box.HalfSize.z;
+            }
+        }
+    }
+}
+
+dummy_internal u32
+CalculateBoxPlaneContacts(collider_box Box, plane Plane, contact *Contacts)
+{
+    // Check for intersection
+    if (!TestBoxPlane(Box, Plane))
+    {
+        return 0;
+    }
+
+    vec3 Vertices[8];
+    CalculateVertices(Box, Vertices);
+
+    u32 ContactCount = 0;
+
+    for (u32 VertexIndex = 0; VertexIndex < ArrayCount(Vertices); ++VertexIndex)
+    {
+        vec3 VertexPosition = Vertices[VertexIndex];
+
+        // Calculate the distance from the plane
+        f32 VertexDistance = Dot(VertexPosition, Plane.Normal);
+
+        // Compare this to the plane's distance
+        if (VertexDistance <= Plane.Distance)
+        {
+            contact *Contact = Contacts + ContactCount++;
+
+            // The contact point is halfway between the vertex and the plane
+            Contact->Point = VertexPosition + Plane.Normal * (VertexDistance - Plane.Distance);
+            Contact->Normal = Plane.Normal;
+            Contact->Penetration = Plane.Distance - VertexDistance;
+        }
+    }
+
+    return ContactCount;
+}
+
+// Constructs an arbitrary orthonormal basis for the contact
+dummy_internal mat3
+ContactToWorldTransform(contact *Contact)
+{
+    vec3 xAxis = Contact->Normal;
+    vec3 yAxis;
+    vec3 zAxis;
+
+    // Check whether the Z-axis is nearer to the X or Y axis
+    if (Abs(Contact->Normal.x) > Abs(Contact->Normal.y))
+    {
+        // Scaling factor to ensure the results are normalised
+        f32 s = 1.f / Sqrt(Square(Contact->Normal.z) + Square(Contact->Normal.x));
+
+        // The new Y-axis is at right angles to the world Y-axis
+        yAxis.x = Contact->Normal.z * s;
+        yAxis.y = 0.f;
+        yAxis.z = -Contact->Normal.x * s;
+
+        // The new Z-axis is at right angles to the new X and Y axes
+        zAxis.x = Contact->Normal.y * yAxis.x;
+        zAxis.y = Contact->Normal.z * yAxis.x - Contact->Normal.x * yAxis.z;
+        zAxis.z = -Contact->Normal.y * yAxis.x;
+    }
+    else
+    {
+        // Scaling factor to ensure the results are normalised
+        f32 s = 1.f / Sqrt(Square(Contact->Normal.z) + Square(Contact->Normal.y));
+
+        // The new Y-axis is at right angles to the world X-axis
+        yAxis.x = 0.f;
+        yAxis.y = -Contact->Normal.z * s;
+        yAxis.z = Contact->Normal.y * s;
+
+        // The new Z-axis is at right angles to the new X and Y axes
+        zAxis.x = Contact->Normal.y * yAxis.z - Contact->Normal.z * yAxis.y;
+        zAxis.y = -Contact->Normal.x * yAxis.z;
+        zAxis.z = Contact->Normal.x * yAxis.y;
+    }
+
+    mat3 Result = mat3(
+        vec3(xAxis.x, yAxis.x, zAxis.x),
+        vec3(xAxis.y, yAxis.y, zAxis.y),
+        vec3(xAxis.z, yAxis.z, zAxis.z)
+    );
+
+    return Result;
+}
+
+struct contact_resolver
+{
+    contact *Contact;
+    rigid_body *Body;
+
+    mat3 ContactToWorld;
+    mat3 WorldToContact;
+
+    vec3 ContactVelocity;
+};
+
+dummy_internal vec3
+CalculateLocalVelocity(contact_resolver *Resolver, f32 dt)
+{
+    contact *Contact = Resolver->Contact;
+    rigid_body *Body = Resolver->Body;
+
+    vec3 RelativeContactPosition = Contact->Point - Body->Position;
+
+    // Calculate the velocity of the contact point
+    vec3 VelocityWorld = Cross(Body->AngularVelocity, RelativeContactPosition);
+    VelocityWorld += Body->Velocity;
+
+    // Turn the velocity into contact-coordinates
+    vec3 VelocityContact = Resolver->WorldToContact * VelocityWorld;
+
+    // Calculate the ammount of velocity that is due to forces without reactions
+    vec3 AccelerationVelocityWorld = Body->PrevAcceleration * dt;
+
+    // Calculate the velocity in contact-coordinates
+    vec3 AccelerationVelocityContact = Resolver->WorldToContact * AccelerationVelocityWorld;
+
+    // We ignore any component of acceleration in the contact normal direction, we are only interested in planar acceleration
+    AccelerationVelocityContact.x = 0.f;
+
+    // Add the planar velocities - if there's enough friction they will be removed during velocity resolution
+    VelocityContact += AccelerationVelocityContact;
+
+    return VelocityContact;
+}
+
+dummy_internal void
+ResolveContactsOrSomething()
+{
+    //
+    contact Contact = 
+    {
+        .Point = vec3(0.f),
+        .Normal = vec3(0.f, 1.f, 0.f),
+        .Penetration = 0.1f
+    };
+    rigid_body Body = {};
+    f32 dt = 0.01f;
+
+    contact_resolver Resolver = {};
+    Resolver.Contact = &Contact;
+    Resolver.Body = &Body;
+    //
+
+    //
+    Resolver.ContactToWorld = ContactToWorldTransform(Resolver.Contact);
+    Resolver.WorldToContact = Transpose(Resolver.ContactToWorld);
+
+    Resolver.ContactVelocity = CalculateLocalVelocity(&Resolver, dt);
+
+
+
+    // todo(continue): contact resolution!!!
+    //
 }

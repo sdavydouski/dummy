@@ -65,6 +65,14 @@ struct mat4
         Elements[3][3] = e33;
     }
 
+    explicit mat4(mat3 M)
+    {
+        Rows[0] = vec4(M.Rows[0], 0.f);
+        Rows[1] = vec4(M.Rows[1], 0.f);
+        Rows[2] = vec4(M.Rows[2], 0.f);
+        Rows[3] = vec4(M.Rows[3], 1.f);
+    }
+
     static inline mat4 identity()
     {
         mat4 Result = mat4(1.f);

@@ -707,6 +707,12 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     if (Entity->Collider)
     {
         Color = vec4(0.f, 0.f, 1.f, 1.f);
+
+        transform T = Decompose(Entity->Collider->Box.Transform);
+        T.Scale *= Entity->Collider->Box.HalfSize;
+
+        DrawBox(RenderCommands, T, vec4(1.f, 0.f, 1.f, 1.f));
+        return;
     }
 
     if (Entity->Body)
@@ -857,7 +863,7 @@ GetGameEntity(game_state *State, u32 EntityId)
 {
     // todo:
     world_area *Area = &State->WorldArea;
-    game_entity *Entity = Area->Entities + EntityId;
+    game_entity *Entity = Area->Entities + (EntityId - 1);
     return Entity;
 }
 
@@ -880,14 +886,14 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
 }
 
 inline void
-AddBoxCollider(game_entity *Entity, vec3 HalfSize, vec3 Center, memory_arena *Arena)
+AddBoxCollider(game_entity *Entity, vec3 HalfSize, vec3 Offset, memory_arena *Arena)
 {
     Entity->Collider = PushType(Arena, collider, Align(16));
     Entity->Collider->Type = Collider_Box;
-    Entity->Collider->BoxLocal.Center = Center;
-    Entity->Collider->BoxLocal.HalfExtent = HalfSize;
+    Entity->Collider->Box.HalfSize = HalfSize;
+    Entity->Collider->Box.Offset = Offset;
 
-    UpdateColliderBounds(Entity);
+    CalculateColliderInternalState(Entity);
 }
 
 inline void
@@ -895,19 +901,30 @@ AddBoxCollider(game_entity *Entity, memory_arena *Arena)
 {
     Assert(Entity->Model);
 
-    aabb Bounds = UpdateBounds(Entity->Model->Bounds, Entity->Transform);
+    aabb Bounds = Entity->Model->Bounds;
 
     vec3 HalfSize = Bounds.HalfExtent;
-    vec3 Center = Bounds.Center - Entity->Transform.Translation;
+    vec3 Offset = Bounds.Center;
 
-    AddBoxCollider(Entity, HalfSize, Center, Arena);
+    AddBoxCollider(Entity, HalfSize, Offset, Arena);
 }
 
 inline void
 AddRigidBody(game_entity *Entity, memory_arena *Arena)
 {
     Entity->Body = PushType(Arena, rigid_body, Align(16));
-    BuildRigidBody(Entity->Body, Entity->Transform.Translation, Entity->Transform.Rotation);
+
+    f32 Mass = 10.f;
+    vec3 Size = vec3(1.f);
+
+    SetPosition(Entity->Body, Entity->Transform.Translation);
+    SetOrientation(Entity->Body, Entity->Transform.Rotation);
+    SetMass(Entity->Body, Mass);
+    SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
+    SetLinearDamping(Entity->Body, 0.95f);
+    SetAngularDamping(Entity->Body, 0.8f);
+
+    UpdateRigidBodyDerivedState(Entity->Body);
 }
 
 inline void
@@ -967,7 +984,7 @@ CopyGameEntity(game_state *State, render_commands *RenderCommands, audio_command
         {
             case Collider_Box:
             {
-                AddBoxCollider(Dest, Source->Collider->BoxLocal.HalfExtent, Source->Collider->BoxLocal.Center, &Area->Arena);
+                AddBoxCollider(Dest, Source->Collider->Box.HalfSize, Source->Collider->Box.Offset, &Area->Arena);
                 break;
             }
             default:
@@ -1130,7 +1147,11 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
     game_state *State = Data->State;
     platform_api *Platform = Data->Platform;
+    collision *CollisionData = &State->CollisionData;
+
     f32 dt = Data->UpdateRate;
+
+    CollisionData->ContactCount = 0;
 
     for (u32 EntityIndex = Data->StartIndex; EntityIndex < Data->EndIndex; ++EntityIndex)
     {
@@ -1140,6 +1161,14 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
         {
             rigid_body *Body = Entity->Body;
             collider *Collider = Entity->Collider;
+
+#if 1
+            if (Collider)
+            {
+                u32 ContactCount = CalculateBoxPlaneContacts(Entity->Collider->Box, State->Ground, CollisionData->Contacts + CollisionData->ContactCount);
+                CollisionData->ContactCount += ContactCount;
+            }
+#endif
 
             if (Body)
             {
@@ -1154,22 +1183,25 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 {
                     // Collision with the ground
                     {
+                        aabb EntityBounds = Entity->Collider->BoundsWorld;
+
                         //
                         vec3 Acceleration = Body->Acceleration + Body->ForceAccumulator * Body->InverseMass;
                         vec3 Velocity = Body->Velocity + Body->Acceleration * dt;
-                        Velocity *= Power(Body->Damping, dt);
+                        Velocity *= Power(Body->LinearDamping, dt);
                         Velocity *= dt;
                         //
 
                         f32 CollisionTime;
                         vec3 ContactPoint;
-                        if (IntersectMovingAABBPlane(GetColliderBounds(Entity), State->Ground, Velocity, &CollisionTime, &ContactPoint) && InRange(CollisionTime, 0.f, 1.f))
+                        if (IntersectMovingAABBPlane(EntityBounds, State->Ground, Velocity, &CollisionTime, &ContactPoint) && InRange(CollisionTime, 0.f, 1.f))
                         {
                             Body->Position.y = ContactPoint.y;
                             OnTheGround = true;
                         }
                     }
 
+#if 0
                     // Collisions with nearby entities
                     {
                         u32 MaxNearbyEntityCount = 100;
@@ -1183,13 +1215,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                             game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
                             rigid_body *NearbyBody = NearbyEntity->Body;
                             collider *NearbyBodyCollider = NearbyEntity->Collider;
-
-#if 1
-                            if (Entity->Id == Data->PlayerId)
-                            {
-                                NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
-                            }
-#endif
 
                             if (NearbyBodyCollider)
                             {
@@ -1214,6 +1239,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                             }
                         }
                     }
+#endif
                 }
 
                 u32 MaxNearbyEntityCount = 10;
@@ -1236,7 +1262,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         Ray.Direction = vec3(0.f, -1.f, 0.f);
 
                         vec3 IntersectionPoint;
-                        if (IntersectRayAABB(Ray, GetColliderBounds(NearbyEntity), IntersectionPoint))
+                        if (IntersectRayAABB(Ray, NearbyEntity->Collider->BoundsWorld, IntersectionPoint))
                         {
                             f32 Distance = Magnitude(Body->Position - IntersectionPoint);
 
@@ -1267,15 +1293,17 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                 if (!Entity->IsGrounded && !Entity->IsManipulated)
                 {
-                    vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetRigidBodyMass(Body);
+                    vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
+
 ;                   AddForce(Body, Gravity);
+                    //AddForceAtBodyPoint(Body, vec3(0.f, 1.f, -10.f), vec3(0.2f, -0.2f, 0.f));
                 }
 
                 Integrate(Body, dt);
 
-                Clamp(&Body->Acceleration.y, -120.f, 120.f);
+                CalculateColliderInternalState(Entity);
 
-#if 0
+#if 1
                 if (Collider)
                 {
                     // Collisions with nearby entities
@@ -1291,7 +1319,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         rigid_body *NearbyBody = NearbyEntity->Body;
                         collider *NearbyBodyCollider = NearbyEntity->Collider;
 
-#if 1
+#if 0
                         if (Entity->Id == Data->PlayerId)
                         {
                             NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
@@ -1390,7 +1418,7 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
 
             if (Entity->Collider)
             {
-                UpdateColliderBounds(Entity);
+                CalculateColliderInternalState(Entity);
             }
 
             if (Entity->Model)
@@ -1531,13 +1559,13 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
 
     if (Spec->ColliderSpec.Has)
     {
-        collider_spec ColliderSpec = Spec->ColliderSpec;
+        collider_spec *ColliderSpec = &Spec->ColliderSpec;
 
-        switch (ColliderSpec.Type)
+        switch (ColliderSpec->Type)
         {
             case Collider_Box:
             {
-                AddBoxCollider(Entity, ColliderSpec.BoxLocal.HalfExtent, ColliderSpec.BoxLocal.Center, Arena);
+                AddBoxCollider(Entity, ColliderSpec->Box.HalfSize, ColliderSpec->Box.Offset, Arena);
                 break;
             }
             default:
@@ -1704,6 +1732,7 @@ ClearWorldArea(game_state *State)
     State->WorldArea.EntityCount = 0;
     State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
 
+    State->NextFreeEntityId = 1;
     State->SelectedEntity = 0;
     State->Player = 0;
 }
@@ -1746,6 +1775,10 @@ DLLExport GAME_INIT(GameInit)
 
     // todo: temp
     State->SkyboxId = 1;
+
+    State->CollisionData.ContactCount = 0;
+    State->CollisionData.MaxContactCount = 100;
+    State->CollisionData.Contacts = PushArray(&State->PermanentArena, State->CollisionData.MaxContactCount, contact);
 
     game_process *Sentinel = &State->ProcessSentinel;
     Sentinel->Key = GenerateGameProcessId(State);
@@ -1858,8 +1891,8 @@ SpawnBox(game_state *State, render_commands *RenderCommands)
 {
     game_entity *Entity = CreateGameEntity(State);
 
-    Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)), vec3(1.f));
-    //Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f), vec3(1.f));
+    //Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)));
+    Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f));
 
     AddModel(State, Entity, &State->Assets, "cube", RenderCommands, &State->WorldArea.Arena);
     AddBoxCollider(Entity, &State->WorldArea.Arena);
@@ -1974,7 +2007,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                         Player->Body->Acceleration.x = (xMoveX + xMoveY) * 40.f;
                         Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
 #else
-                        AddForce(Player->Body, vec3((xMoveX + xMoveY), 0.f, (zMoveX + zMoveY)) * 400.f);
+                        AddForce(Player->Body, vec3((xMoveX + xMoveY), 0.f, (zMoveX + zMoveY)) * 100.f);
 #endif
                     }
 
@@ -2556,6 +2589,15 @@ DLLExport GAME_RENDER(GameRender)
                         DrawText(RenderCommands, PlayableEntity->Model->Key, Font, TextPosition, 0.25f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
                     }
                 }
+            }
+#endif
+
+#if 1
+            for (u32 ContactIndex = 0; ContactIndex < State->CollisionData.ContactCount; ++ContactIndex)
+            {
+                contact *Contact = State->CollisionData.Contacts + ContactIndex;
+                DrawBox(RenderCommands, CreateTransform(Contact->Point, vec3(0.05f)), vec4(1.f, 1.f, 0.f, 1.f));
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->Normal * 0.1f, vec4(0.f, 1.f, 0.f, 1.f), 12.f);
             }
 #endif
 

@@ -44,8 +44,6 @@ ProcessEvents(game_state *State, audio_commands *AudioCommands, render_commands 
                 {
                     case SID("xbot"):
                     case SID("ybot"):
-                    case SID("xbot_pbr"):
-                    case SID("ybot_pbr"):
                     case SID("pelegrini"):
                     case SID("ninja"):
                     {

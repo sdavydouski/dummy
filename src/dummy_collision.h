@@ -6,21 +6,28 @@ enum collider_type
     // Sphere, Capsule, etc.
 };
 
+struct collider_box
+{
+    vec3 HalfSize;
+    vec3 Offset;
+
+    mat4 Transform;
+};
+
 struct collider
 {
     collider_type Type;
 
     union
     {
-        struct
-        {
-            aabb BoxLocal;
-            aabb BoxWorld;
-        };
+        collider_box Box;
     };
+
+    // todo: deprecated (or calculate on the fly instead of storing it?)
+    aabb BoundsLocal;
+    aabb BoundsWorld;
 };
 
-// todo(continue): contact generation
 struct contact
 {
     vec3 Point;
@@ -31,5 +38,6 @@ struct contact
 struct collision
 {
     u32 ContactCount;
+    u32 MaxContactCount;
     contact *Contacts;
 };

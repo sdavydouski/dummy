@@ -949,7 +949,7 @@ OpenGLLoadShaderFile(opengl_state *State, const char *ShaderFileName, u32 Count,
     }
 
     read_file_result ShaderFile = State->Platform->ReadFile((char *)ShaderFileName, Arena, ReadText());
-    Sources[OPENGL_COMMON_SHADER_COUNT] = (char *)ShaderFile.Contents;
+    Sources[OPENGL_COMMON_SHADER_COUNT] = OpenGLPreprocessShader((char *)ShaderFile.Contents, ShaderFile.Size, Arena);
 
     return Sources;
 }

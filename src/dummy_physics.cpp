@@ -1,100 +1,101 @@
 #include "dummy.h"
 
 inline void
-SetRigidBodyMass(rigid_body *Body, f32 Mass)
+SetPosition(rigid_body *Body, vec3 Position)
 {
-    Assert(Mass > 0.f);
-
-    Body->InverseMass = 1.f / Mass;
+    Body->Position = Position;
+    Body->PrevPosition = Position;
 }
 
 inline void
-SetInfiniteRigidBodyMass(rigid_body *Body)
+SetOrientation(rigid_body *Body, quat Orientation)
 {
-    Body->InverseMass = 0.f;
+    Body->Orientation = Orientation;
+    Body->PrevOrientation = Orientation;
+}
+
+inline void
+SetVelocity(rigid_body *Body, vec3 Velocity)
+{
+    Body->Velocity = Velocity;
+    Body->PrevVelocity = Velocity;
+}
+
+inline void
+SetAngularVelocity(rigid_body *Body, vec3 AngularVelocity)
+{
+    Body->AngularVelocity = AngularVelocity;
+    Body->PrevAngularVelocity = AngularVelocity;
 }
 
 inline f32
-GetRigidBodyMass(rigid_body *Body)
+GetMass(rigid_body *Body)
 {
-    f32 Result = 1.f / Body->InverseMass;
-    return Result;
-}
-
-inline bool32
-HasFiniteMass(rigid_body *Body)
-{
-    bool32 Result = Body->InverseMass != 0.f;
-    return Result;
+    f32 Mass = 1.f / Body->InverseMass;
+    return Mass;
 }
 
 inline void
-SetInertiaTensor(rigid_body *Body, mat3 InertiaTensor)
+SetMass(rigid_body *Body, f32 Mass)
 {
-    Body->InverseInertiaTensorLocal = Inverse(InertiaTensor);
+    Assert(Mass != 0.f);
+
+    Body->InverseMass = 1.f / Mass;
 }
 
-inline mat4
-LocalToWorldTransform(rigid_body *Body)
+inline void
+SetInertiaTensor(rigid_body *Body, mat3 Tensor)
 {
-    transform T = CreateTransform(Body->Position, vec3(1.f), Body->Orientation);
-    mat4 Result = Transform(T);
+    Body->InverseInertiaTensorLocal = Inverse(Tensor);
+}
 
-    return Result;
+inline void
+SetLinearDamping(rigid_body *Body, f32 LinearDamping)
+{
+    Body->LinearDamping = LinearDamping;
+}
+
+inline void
+SetAngularDamping(rigid_body *Body, f32 AngularDamping)
+{
+    Body->AngularDamping = AngularDamping;
 }
 
 inline mat3
-GetInertiaWorld(rigid_body *Body)
+CalculateInverseInertiaWorld(rigid_body *Body)
 {
-    mat4 LocalToWorld = LocalToWorldTransform(Body);
-    mat4 WorldToLocal = Inverse(LocalToWorld);
-
-    mat4 Foo = mat4(
-        vec4(Body->InverseInertiaTensorLocal[0], 0.f),
-        vec4(Body->InverseInertiaTensorLocal[1], 0.f),
-        vec4(Body->InverseInertiaTensorLocal[2], 0.f),
-        vec4(0.f, 0.f, 0.f, 1.f)
-    );
-
-    mat4 Bar = WorldToLocal * Inverse(Foo) * Transpose(WorldToLocal);
+    mat4 InverseInertiaTensorLocalM4 = mat4(Body->InverseInertiaTensorLocal);
+    mat4 InertiaTensorLocalM4 = Inverse(InverseInertiaTensorLocalM4);
+    mat4 WorldToLocalTransform = Inverse(Body->LocalToWorldTransform);
+    // todo: recheck
+    //mat4 InertiaTensorWorldM4 = WorldToLocalTransform * InertiaTensorLocalM4 * Transpose(WorldToLocalTransform);
+    mat4 InertiaTensorWorldM4 = Transpose(WorldToLocalTransform) * InertiaTensorLocalM4 * WorldToLocalTransform;
 
     mat3 Result = mat3(
-        Bar[0].xyz,
-        Bar[1].xyz,
-        Bar[2].xyz
+        InertiaTensorWorldM4[0].xyz,
+        InertiaTensorWorldM4[1].xyz,
+        InertiaTensorWorldM4[2].xyz
     );
 
-    return Result;
+    return Inverse(Result);
 }
 
 inline void
-BuildRigidBody(rigid_body *Body, vec3 Position, quat Orientation)
+UpdateRigidBodyDerivedState(rigid_body *Body)
 {
-    Body->PrevPosition = Position;
-    Body->Position = Position;
-    Body->Orientation = Orientation;
-
-    // todo:
-    f32 Mass = 50.f;
-    vec3 Size = vec3(1.f);
-    mat3 InertiaTensorLocal = GetCuboidInertiaTensor(Mass, Size);
-
-    Body->Damping = 0.0001f;
-    Body->AngularDamping = 0.00001f;
-    Body->InverseMass = 1.f / Mass;
-    Body->InverseInertiaTensorLocal = Inverse(InertiaTensorLocal);
-    Body->InverseInertiaTensorWorld = Inverse(GetInertiaWorld(Body));
+    Body->LocalToWorldTransform = TranslateRotate(Body->Position, Body->Orientation);
+    Body->InverseInertiaTensorWorld = CalculateInverseInertiaWorld(Body);
 }
 
-inline void
+dummy_internal void
 Integrate(rigid_body *Body, f32 dt)
 {
     Assert(dt > 0.f);
 
-    Body->Acceleration += Body->ForceAccumulator * Body->InverseMass;
+    Body->Acceleration = Body->ForceAccumulator * Body->InverseMass;
     Body->Velocity += Body->Acceleration * dt;
-    Body->Velocity *= Power(Body->Damping, dt);
-    Body->Position += Body->Velocity * dt; // + Body->Acceleration * Square(dt) * 0.5f;
+    Body->Velocity *= Power(Body->LinearDamping, dt);
+    Body->Position += Body->Velocity * dt;
 
     Body->AngularAcceleration = Body->InverseInertiaTensorWorld * Body->TorqueAccumulator;
     Body->AngularVelocity += Body->AngularAcceleration * dt;
@@ -104,7 +105,7 @@ Integrate(rigid_body *Body, f32 dt)
     Body->ForceAccumulator = vec3(0.f);
     Body->TorqueAccumulator = vec3(0.f);
 
-    Body->InverseInertiaTensorWorld = Inverse(GetInertiaWorld(Body));
+    UpdateRigidBodyDerivedState(Body);
 }
 
 inline void
@@ -133,8 +134,6 @@ AddForceAtPoint(rigid_body *Body, vec3 Force, vec3 PointWorld)
 inline void
 AddForceAtBodyPoint(rigid_body *Body, vec3 Force, vec3 PointLocal)
 {
-    mat4 LocalToWorld = LocalToWorldTransform(Body);
-    vec4 PointWorld = LocalToWorld * vec4(PointLocal, 1.f);
-
+    vec4 PointWorld = Body->LocalToWorldTransform * vec4(PointLocal, 1.f);
     AddForceAtPoint(Body, Force, PointWorld.xyz);
 }

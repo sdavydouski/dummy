@@ -2,14 +2,13 @@
 
 struct rigid_body
 {
+    // todo: should be the position of body's center of mass
     vec3 Position;
     vec3 Velocity;
-    vec3 Acceleration;
-    f32 Damping;
+    f32 LinearDamping;
 
     quat Orientation;
     vec3 AngularVelocity;
-    vec3 AngularAcceleration;
     f32 AngularDamping;
 
     f32 InverseMass;
@@ -19,12 +18,19 @@ struct rigid_body
 
     vec3 ForceAccumulator;
     vec3 TorqueAccumulator;
-    
-    // ?
-    vec3_lerp PositionLerp;
-    quat_lerp OrientationLerp;
 
+    vec3 Acceleration;
+    vec3 AngularAcceleration;
+    
+    mat4 LocalToWorldTransform;
+
+    // ?
     vec3 PrevPosition;
     vec3 PrevVelocity;
     vec3 PrevAcceleration;
+
+    quat PrevOrientation;
+    vec3 PrevAngularVelocity;
+    vec3 PrevAngularAcceleration;
+    //
 };

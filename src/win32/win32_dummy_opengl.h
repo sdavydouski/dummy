@@ -165,15 +165,13 @@ struct opengl_shader
 {
     char Key[256];
     GLuint Program;
+    hash_table<opengl_uniform> Uniforms;
 
     win32_shader_file CommonShaders[OPENGL_COMMON_SHADER_COUNT];
     win32_shader_file VertexShader;
     win32_shader_file GeometryShader;
     win32_shader_file ComputeShader;
     win32_shader_file FragmentShader;
-
-    u32 UniformCount;
-    hash_table<opengl_uniform> Uniforms;
 };
 
 struct opengl_buffer

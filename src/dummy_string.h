@@ -28,6 +28,27 @@ StringLength(const wchar *String) {
     return Result;
 }
 
+inline char *
+SearchString(char *String, const char *Search)
+{
+    char *Result = strstr(String, Search);
+    return Result;
+}
+
+inline void
+ReplaceString(char *String, const char *Search, char Character)
+{
+    char *Found = SearchString(String, Search);
+
+    if (Found)
+    {
+        for (u32 Index = 0; Index < StringLength(Search); ++Index)
+        {
+            String[Index] = Character;
+        }
+    }
+}
+
 inline void
 ConcatenateString_(char *Dest, const char *Source, u32 DestLength)
 {

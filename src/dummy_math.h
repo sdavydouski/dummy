@@ -53,44 +53,6 @@ struct transform
     vec3 Scale;
 };
 
-struct quat_lerp
-{
-    f32 Duration;
-    f32 Time;
-
-    quat From;
-    quat To;
-};
-
-struct vec3_lerp
-{
-    u32 ProcessId;
-
-    f32 Duration;
-    f32 Time;
-
-    vec3 From;
-    vec3 To;
-};
-
-inline void
-SetQuatLerp(quat_lerp *Lerp, f32 Time, f32 Duration, quat From, quat To)
-{
-    Lerp->Time = Time;
-    Lerp->Duration = Duration;
-    Lerp->From = From;
-    Lerp->To = To;
-}
-
-inline void
-SetVec3Lerp(vec3_lerp *Lerp, f32 Time, f32 Duration, vec3 From, vec3 To)
-{
-    Lerp->Time = Time;
-    Lerp->Duration = Duration;
-    Lerp->From = From;
-    Lerp->To = To;
-}
-
 inline transform
 CreateTransform(vec3 Translation = vec3(0.f), vec3 Scale = vec3(1.f), quat Rotation = quat::identity())
 {
@@ -562,11 +524,40 @@ EulerToQuat(f32 Yaw, f32 Pitch, f32 Roll)
 inline mat4
 Transform(transform Transform)
 {
+#if 0
     mat4 T = Translate(Transform.Translation);
     mat4 R = GetRotationMatrix(Transform.Rotation);
     mat4 S = Scale(Transform.Scale);
 
     mat4 Result = T * R * S;
+#else
+    vec3 Translation = Transform.Translation;
+    vec3 Scale = Transform.Scale;
+
+    mat4 R = GetRotationMatrix(Transform.Rotation);
+
+    mat4 Result = mat4(
+        R[0][0] * Scale.x, R[0][1] * Scale.y, R[0][2] * Scale.z, Translation.x,
+        R[1][0] * Scale.x, R[1][1] * Scale.y, R[1][2] * Scale.z, Translation.y,
+        R[2][0] * Scale.x, R[2][1] * Scale.y, R[2][2] * Scale.z, Translation.z,
+        0.f, 0.f, 0.f, 1.f
+    );
+#endif
+
+    return Result;
+}
+
+inline mat4
+TranslateRotate(vec3 Translation, quat Rotation)
+{
+    mat4 R = GetRotationMatrix(Rotation);
+
+    mat4 Result = mat4(
+        R[0][0], R[0][1], R[0][2], Translation.x,
+        R[1][0], R[1][1], R[1][2], Translation.y,
+        R[2][0], R[2][1], R[2][2], Translation.z,
+        0.f, 0.f, 0.f, 1.f
+    );
 
     return Result;
 }
@@ -635,6 +626,15 @@ RemoveTranslation(mat4 M)
     return Result;
 }
 
+inline vec3
+GetAxis(mat4 M, u32 Index)
+{
+    vec3 Column = M.Column(Index).xyz;
+    vec3 Result = Normalize(Column);
+
+    return Result;
+}
+
 inline quat
 AxisAngle2Quat(vec4 AxisAngle)
 {
@@ -659,45 +659,45 @@ AxisAngle2Quat(vec3 Axis, f32 Angle)
 }
 
 inline f32
-Lerp(f32 A, f32 t, f32 B)
+Lerp(f32 a, f32 t, f32 b)
 {
-    f32 Result = A * (1 - t) + B * t;
+    f32 Result = a * (1 - t) + b * t;
 
     return Result;
 }
 
 inline vec2
-Lerp(vec2 A, f32 t, vec2 B)
+Lerp(vec2 a, f32 t, vec2 b)
 {
     vec2 Result;
 
-    Result.x = Lerp(A.x, t, B.x);
-    Result.y = Lerp(A.y, t, B.y);
+    Result.x = Lerp(a.x, t, b.x);
+    Result.y = Lerp(a.y, t, b.y);
 
     return Result;
 }
 
 inline vec3
-Lerp(vec3 A, f32 t, vec3 B)
+Lerp(vec3 a, f32 t, vec3 b)
 {
     vec3 Result;
 
-    Result.x = Lerp(A.x, t, B.x);
-    Result.y = Lerp(A.y, t, B.y);
-    Result.z = Lerp(A.z, t, B.z);
+    Result.x = Lerp(a.x, t, b.x);
+    Result.y = Lerp(a.y, t, b.y);
+    Result.z = Lerp(a.z, t, b.z);
 
     return Result;
 }
 
 inline quat
-Lerp(quat A, f32 t, quat B)
+Lerp(quat a, f32 t, quat b)
 {
     quat Result;
 
-    Result.x = Lerp(A.x, t, B.x);
-    Result.y = Lerp(A.y, t, B.y);
-    Result.z = Lerp(A.z, t, B.z);
-    Result.w = Lerp(A.w, t, B.w);
+    Result.x = Lerp(a.x, t, b.x);
+    Result.y = Lerp(a.y, t, b.y);
+    Result.z = Lerp(a.z, t, b.z);
+    Result.w = Lerp(a.w, t, b.w);
 
     Result = Normalize(Result);
 
@@ -705,12 +705,12 @@ Lerp(quat A, f32 t, quat B)
 }
 
 inline quat
-Slerp(quat A, f32 t, quat B)
+Slerp(quat a, f32 t, quat b)
 {
     quat Result;
 
-    quat NormalizedA = Normalize(A);
-    quat NormalizedB = Normalize(B);
+    quat NormalizedA = Normalize(a);
+    quat NormalizedB = Normalize(b);
 
     f32 d = Dot(NormalizedA, NormalizedB);
 
@@ -800,24 +800,16 @@ SphericalToCartesian(vec3 SphericalCoords)
 }
 
 inline vec3
-UnprojectPoint(vec3 p, mat4 View, mat4 Projection)
+UnprojectPoint(vec3 Point, mat4 View, mat4 Projection)
 {
     mat4 InvView = Inverse(View);
     mat4 InvProjection = Inverse(Projection);
-    vec4 Point = vec4(p, 1.f);
+    vec4 PointV4 = vec4(Point, 1.f);
 
-    vec4 UnprojectedPoint = InvView * InvProjection * Point;
+    vec4 UnprojectedPoint = InvView * InvProjection * PointV4;
     vec3 Result = UnprojectedPoint.xyz / UnprojectedPoint.w;
 
     return Result;
-}
-
-inline void
-Swap(f32 &a, f32 &b)
-{
-    f32 Temp = a;
-    a = b;
-    b = Temp;
 }
 
 // djb2 by Dan Bernstein
@@ -876,10 +868,14 @@ DistPointLine(vec3 Point, vec3 Origin, vec3 Direction)
 inline mat3
 GetCuboidInertiaTensor(f32 Mass, vec3 Size)
 {
+    f32 xx = Square(Size.x);
+    f32 yy = Square(Size.y);
+    f32 zz = Square(Size.z);
+
     mat3 Result = mat3(
-        Mass * (Square(Size.y) + Square(Size.z)) / 12.f, 0.f, 0.f,
-        0.f, Mass * (Square(Size.x) + Square(Size.z)) / 12.f, 0.f,
-        0.f, 0.f, Mass * (Square(Size.x) + Square(Size.y)) / 12.f
+        Mass * (yy + zz) / 12.f, 0.f, 0.f,
+        0.f, Mass * (xx + zz) / 12.f, 0.f,
+        0.f, 0.f, Mass * (xx + yy) / 12.f
     );
 
     return Result;
