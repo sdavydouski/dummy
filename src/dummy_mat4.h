@@ -107,6 +107,20 @@ struct mat4
 
         return Result;
     }
+
+    inline vec3 operator *(const vec3 &Vector)
+    {
+        vec4 Row0 = Rows[0];
+        vec4 Row1 = Rows[1];
+        vec4 Row2 = Rows[2];
+        vec4 Row3 = Rows[3];
+
+        vec4 V = vec4(Vector, 1.f);
+
+        vec3 Result = vec4(Dot(Row0, V), Dot(Row1, V), Dot(Row2, V), Dot(Row3, V)).xyz;
+
+        return Result;
+    }
 };
 
 inline __m128 MulVecMat_sse(const __m128 &Vector, const mat4 &M)

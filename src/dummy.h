@@ -121,7 +121,11 @@ struct collider_spec
     union
     {
         collider_box Box;
+        collider_sphere Sphere;
     };
+
+    vec3 Translation;
+    quat Rotation;
 };
 
 inline void

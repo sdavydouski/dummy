@@ -2,7 +2,6 @@
 
 struct rigid_body
 {
-    // todo: should be the position of body's center of mass
     vec3 Position;
     vec3 Velocity;
     f32 LinearDamping;
@@ -21,6 +20,9 @@ struct rigid_body
 
     vec3 Acceleration;
     vec3 AngularAcceleration;
+
+    vec3 CenterOfMassLocal;
+    vec3 CenterOfMassWorld;
     
     mat4 LocalToWorldTransform;
 

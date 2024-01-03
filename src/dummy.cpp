@@ -886,7 +886,7 @@ AddModel(game_state *State, game_entity *Entity, game_assets *Assets, const char
 }
 
 inline void
-AddBoxCollider(game_entity *Entity, vec3 HalfSize, vec3 Offset, memory_arena *Arena)
+AddBoxCollider(game_entity *Entity, vec3 HalfSize, mat4 Offset, memory_arena *Arena)
 {
     Entity->Collider = PushType(Arena, collider, Align(16));
     Entity->Collider->Type = Collider_Box;
@@ -904,7 +904,7 @@ AddBoxCollider(game_entity *Entity, memory_arena *Arena)
     aabb Bounds = Entity->Model->Bounds;
 
     vec3 HalfSize = Bounds.HalfExtent;
-    vec3 Offset = Bounds.Center;
+    mat4 Offset = Translate(Bounds.Center);
 
     AddBoxCollider(Entity, HalfSize, Offset, Arena);
 }
@@ -920,11 +920,12 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena)
     SetPosition(Entity->Body, Entity->Transform.Translation);
     SetOrientation(Entity->Body, Entity->Transform.Rotation);
     SetMass(Entity->Body, Mass);
+    SetCenterOfMass(Entity->Body, vec3(0.f, Size.y / 2.f, 0.f));
     SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
     SetLinearDamping(Entity->Body, 0.95f);
     SetAngularDamping(Entity->Body, 0.8f);
 
-    UpdateRigidBodyDerivedState(Entity->Body);
+    CalculateRigidBodyInternalState(Entity->Body);
 }
 
 inline void
@@ -1162,14 +1163,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
             rigid_body *Body = Entity->Body;
             collider *Collider = Entity->Collider;
 
-#if 1
-            if (Collider)
-            {
-                u32 ContactCount = CalculateBoxPlaneContacts(Entity->Collider->Box, State->Ground, CollisionData->Contacts + CollisionData->ContactCount);
-                CollisionData->ContactCount += ContactCount;
-            }
-#endif
-
             if (Body)
             {
                 // Save previous state
@@ -1177,13 +1170,18 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 Body->PrevVelocity = Body->Velocity;
                 Body->PrevAcceleration = Body->Acceleration;
 
+                //
+                //AddTorque(Body, vec3(0.f, 1.f, 0.f));
+                //
+
                 bool32 OnTheGround = false;//NearlyEqual(Entity->Body->Position.y, 0.f);
 
                 if (Collider)
                 {
                     // Collision with the ground
+#if 0
                     {
-                        aabb EntityBounds = Entity->Collider->BoundsWorld;
+                        aabb EntityBounds = Entity->Collider->Bounds;
 
                         //
                         vec3 Acceleration = Body->Acceleration + Body->ForceAccumulator * Body->InverseMass;
@@ -1196,48 +1194,17 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         vec3 ContactPoint;
                         if (IntersectMovingAABBPlane(EntityBounds, State->Ground, Velocity, &CollisionTime, &ContactPoint) && InRange(CollisionTime, 0.f, 1.f))
                         {
-                            Body->Position.y = ContactPoint.y;
+                            //Body->Position.y = ContactPoint.y;
                             OnTheGround = true;
                         }
                     }
-
-#if 0
-                    // Collisions with nearby entities
+#else
+                    if (TestBoxPlane(Collider->Box, State->Ground))
                     {
-                        u32 MaxNearbyEntityCount = 100;
-                        game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
-                        aabb Bounds = CreateAABBMinMax(vec3(-1.0f), vec3(1.0f));
+                        OnTheGround = true;
 
-                        u32 NearbyEntityCount = FindNearbyEntities(Data->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
-
-                        for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
-                        {
-                            game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
-                            rigid_body *NearbyBody = NearbyEntity->Body;
-                            collider *NearbyBodyCollider = NearbyEntity->Collider;
-
-                            if (NearbyBodyCollider)
-                            {
-                                //
-                                vec3 AccelerationA = Body->Acceleration + Body->ForceAccumulator * Body->InverseMass;
-                                vec3 VelocityA = Body->Velocity + Body->Acceleration * dt;
-                                VelocityA *= Power(Body->Damping, dt);
-                                VelocityA *= dt;
-
-                                vec3 AccelerationB = NearbyBody->Acceleration + NearbyBody->ForceAccumulator * NearbyBody->InverseMass;
-                                vec3 VelocityB = NearbyBody->Velocity + NearbyBody->Acceleration * dt;
-                                VelocityB *= Power(NearbyBody->Damping, dt);
-                                VelocityB *= dt;
-                                //
-
-                                f32 tFirst;
-                                f32 tLast;
-                                if (IntersectMovingAABBAABB(GetColliderBounds(Entity), GetColliderBounds(NearbyEntity), VelocityA, VelocityB, &tFirst, &tLast))
-                                {
-                                    // todo:
-                                }
-                            }
-                        }
+                        u32 ContactCount = CalculateBoxPlaneContacts(Entity->Collider->Box, State->Ground, CollisionData->Contacts + CollisionData->ContactCount);
+                        CollisionData->ContactCount += ContactCount;
                     }
 #endif
                 }
@@ -1262,7 +1229,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         Ray.Direction = vec3(0.f, -1.f, 0.f);
 
                         vec3 IntersectionPoint;
-                        if (IntersectRayAABB(Ray, NearbyEntity->Collider->BoundsWorld, IntersectionPoint))
+                        if (IntersectRayAABB(Ray, NearbyEntity->Collider->Bounds, IntersectionPoint))
                         {
                             f32 Distance = Magnitude(Body->Position - IntersectionPoint);
 
@@ -1294,9 +1261,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                 if (!Entity->IsGrounded && !Entity->IsManipulated)
                 {
                     vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
-
 ;                   AddForce(Body, Gravity);
-                    //AddForceAtBodyPoint(Body, vec3(0.f, 1.f, -10.f), vec3(0.2f, -0.2f, 0.f));
                 }
 
                 Integrate(Body, dt);
@@ -1319,6 +1284,8 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         rigid_body *NearbyBody = NearbyEntity->Body;
                         collider *NearbyBodyCollider = NearbyEntity->Collider;
 
+                        if (NearbyEntity->Id == Entity->Id) continue;
+
 #if 0
                         if (Entity->Id == Data->PlayerId)
                         {
@@ -1328,11 +1295,27 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                         if (NearbyBodyCollider)
                         {
+#if 1
+                            //CalculateColliderInternalState(Entity);
+                            //CalculateColliderInternalState(NearbyEntity);
+
+                            if (TestBoxBox(Collider->Box, NearbyBodyCollider->Box))
+                            {
+                                Entity->DebugColor = vec3(0.f, 1.f, 0.f);
+                                NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+
+                                u32 ContactCount = CalculateBoxBoxContacts(Collider->Box, NearbyBodyCollider->Box, CollisionData->Contacts + CollisionData->ContactCount);
+                                CollisionData->ContactCount += ContactCount;
+                            }
+#endif
+
+#if 0
                             vec3 mtv;
                             if (TestColliders(Entity, NearbyEntity, &mtv))
                             {
                                 Entity->Body->Position += mtv;
                             }
+#endif
                         }
                     }
                 }

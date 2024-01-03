@@ -22,12 +22,14 @@ PartitionParticles(particle *Particles, i32 LowIndex, i32 HighIndex)
         do
         {
             LeftIndex += 1;
-        } while (Particles[LeftIndex].CameraDistanceSquared > Pivot.CameraDistanceSquared);
+        } 
+        while (Particles[LeftIndex].CameraDistanceSquared > Pivot.CameraDistanceSquared);
 
         do
         {
             RightIndex -= 1;
-        } while (Particles[RightIndex].CameraDistanceSquared < Pivot.CameraDistanceSquared);
+        } 
+        while (Particles[RightIndex].CameraDistanceSquared < Pivot.CameraDistanceSquared);
 
         if (LeftIndex >= RightIndex)
         {

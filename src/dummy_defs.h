@@ -21,6 +21,7 @@
 #define Assert(...)
 #endif
 
+#define NotImplemented Assert(!"Not implemented")
 #define CTAssert(Expression) static_assert(Expression)
 
 #define i8 int8_t

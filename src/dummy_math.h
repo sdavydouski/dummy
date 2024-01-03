@@ -613,6 +613,18 @@ GetTranslation(mat4 M)
     return Result;
 }
 
+inline vec3
+GetScale(mat4 M)
+{
+    f32 x = Magnitude(M.Column(0).xyz);
+    f32 y = Magnitude(M.Column(1).xyz);
+    f32 z = Magnitude(M.Column(2).xyz);
+
+    vec3 Result = vec3(x, y, z);
+
+    return Result;
+}
+
 inline mat4
 RemoveTranslation(mat4 M)
 {
@@ -629,8 +641,8 @@ RemoveTranslation(mat4 M)
 inline vec3
 GetAxis(mat4 M, u32 Index)
 {
-    vec3 Column = M.Column(Index).xyz;
-    vec3 Result = Normalize(Column);
+    vec3 Result = M.Column(Index).xyz;
+    Result = Normalize(Result);
 
     return Result;
 }

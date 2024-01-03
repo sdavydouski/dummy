@@ -2,15 +2,23 @@
 
 enum collider_type
 {
-    Collider_Box
-    // Sphere, Capsule, etc.
+    Collider_Box,
+    Collider_Sphere
 };
 
 struct collider_box
 {
     vec3 HalfSize;
-    vec3 Offset;
 
+    mat4 Offset;
+    mat4 Transform;
+};
+
+struct collider_sphere
+{
+    f32 Radius;
+
+    mat4 Offset;
     mat4 Transform;
 };
 
@@ -21,11 +29,10 @@ struct collider
     union
     {
         collider_box Box;
+        collider_sphere Sphere;
     };
 
-    // todo: deprecated (or calculate on the fly instead of storing it?)
-    aabb BoundsLocal;
-    aabb BoundsWorld;
+    aabb Bounds;
 };
 
 struct contact

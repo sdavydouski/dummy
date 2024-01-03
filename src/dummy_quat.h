@@ -101,6 +101,14 @@ inline quat operator *(f32 Value, quat q)
     return Result;
 }
 
+inline quat operator +(quat q, vec3 v)
+{
+    quat Result = quat(v.x, v.y, v.z, 0.f) * q;
+    Result += Result * 0.5f;
+
+    return Result;
+}
+
 inline quat &operator +=(quat &Dest, vec3 v)
 {
     quat q = quat(v.x, v.y, v.z, 0.f) * Dest;
@@ -117,7 +125,7 @@ Dot(quat a, quat b)
 }
 
 inline f32
-MagnitudeSquared(quat q)
+SquaredMagnitude(quat q)
 {
     f32 Result = Square(q.x) + Square(q.y) + Square(q.z) + Square(q.w);
     return Result;
@@ -126,7 +134,7 @@ MagnitudeSquared(quat q)
 inline f32
 Magnitude(quat q)
 {
-    f32 Result = Sqrt(MagnitudeSquared(q));
+    f32 Result = Sqrt(SquaredMagnitude(q));
     return Result;
 }
 
@@ -161,7 +169,7 @@ IsFinite(quat q)
 inline quat
 Inverse(quat q)
 {
-    quat Result = quat(-q.x, -q.y, -q.z, q.w) / MagnitudeSquared(q);
+    quat Result = quat(-q.x, -q.y, -q.z, q.w) / SquaredMagnitude(q);
     return Result;
 }
 

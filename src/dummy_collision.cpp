@@ -21,18 +21,17 @@ CalculateColliderInternalState(game_entity *Entity)
     {
         case Collider_Box:
         {
-            // todo: include scale or not?
-#if 0
-            Collider->Box.Transform = TranslateRotate(Position, Rotation) * Translate(Collider->Box.Offset);
-#else
             transform T = CreateTransform(Position, Scale, Rotation);
-            Collider->Box.Transform = Transform(T) * Translate(Collider->Box.Offset);
-#endif
+            Collider->Box.Transform = Transform(T) * Collider->Box.Offset;
 
-            Collider->BoundsLocal = CreateAABBCenterHalfExtent(vec3(0.f), Collider->Box.HalfSize);
-            Collider->BoundsWorld = UpdateBounds(Collider->BoundsLocal, Collider->Box.Transform);
+            aabb BoundsLocal = CreateAABBCenterHalfExtent(vec3(0.f), Collider->Box.HalfSize);
+            Collider->Bounds = UpdateBounds(BoundsLocal, Collider->Box.Transform);
 
             break;
+        }
+        case Collider_Sphere:
+        {
+            NotImplemented;
         }
     }
 }
@@ -44,7 +43,7 @@ GetEntityBounds(game_entity *Entity)
 
     if (Entity->Collider)
     {
-        Result = Entity->Collider->BoundsWorld;
+        Result = Entity->Collider->Bounds;
     }
     else if (Entity->Model)
     {
@@ -418,8 +417,8 @@ TestColliders(game_entity *a, game_entity *b, vec3 *mtv)
 
     if (a->Collider->Type == Collider_Box && b->Collider->Type == Collider_Box)
     {
-        aabb BoxA = a->Collider->BoundsWorld;
-        aabb BoxB = b->Collider->BoundsWorld;
+        aabb BoxA = a->Collider->Bounds;
+        aabb BoxB = b->Collider->Bounds;
 
         return TestAABBAABB(BoxA, BoxB, mtv);
     }
@@ -431,27 +430,11 @@ TestColliders(game_entity *a, game_entity *b, vec3 *mtv)
     return false;
 }
 
-// Test if Box intersects Plane
-dummy_internal bool32 
-TestBoxPlane(collider_box Box, plane Plane)
-{
-    // Compute the projected radius of the box onto the plane direction
-    f32 Radius =
-        Box.HalfSize.x * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 0))) +
-        Box.HalfSize.y * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 1))) +
-        Box.HalfSize.z * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 2)));
-
-    // Compute how far the box is from the origin
-    f32 Distance = Dot(Plane.Normal, GetTranslation(Box.Transform)) - Radius;
-
-    // Check for the intersection
-    return Distance <= Plane.Distance;
-}
-
 inline void
 CalculateVertices(collider_box Box, vec3 *Vertices)
 {
     f32 Signs[] = { -1.f, 1.f };
+    vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
 
     for (u32 x = 0; x < 2; ++x)
     {
@@ -461,12 +444,167 @@ CalculateVertices(collider_box Box, vec3 *Vertices)
             {
                 *Vertices++ =
                     GetTranslation(Box.Transform) +
-                    Signs[x] * GetAxis(Box.Transform, 0) * Box.HalfSize.x +
-                    Signs[y] * GetAxis(Box.Transform, 1) * Box.HalfSize.y +
-                    Signs[z] * GetAxis(Box.Transform, 2) * Box.HalfSize.z;
+                    Signs[x] * GetAxis(Box.Transform, 0) * BoxHalfSize.x +
+                    Signs[y] * GetAxis(Box.Transform, 1) * BoxHalfSize.y +
+                    Signs[z] * GetAxis(Box.Transform, 2) * BoxHalfSize.z;
             }
         }
     }
+}
+
+dummy_internal bool32 
+TestBoxPlane(collider_box Box, plane Plane)
+{
+    vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
+
+    // Compute the projected radius of the box onto the plane direction
+    f32 Radius =
+        BoxHalfSize.x * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 0))) +
+        BoxHalfSize.y * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 1))) +
+        BoxHalfSize.z * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 2)));
+
+    // Compute how far the box is from the origin
+    f32 Distance = Dot(Plane.Normal, GetTranslation(Box.Transform)) - Radius;
+
+    // Check for the intersection
+    return Distance <= Plane.Distance;
+}
+
+inline f32
+TransformToAxis(collider_box Box, vec3 Axis)
+{
+    vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
+
+    f32 Result =
+        BoxHalfSize.x * Abs(Dot(Axis, GetAxis(Box.Transform, 0))) +
+        BoxHalfSize.y * Abs(Dot(Axis, GetAxis(Box.Transform, 1))) +
+        BoxHalfSize.z * Abs(Dot(Axis, GetAxis(Box.Transform, 2)));
+
+    return Result;
+}
+
+inline bool32
+OverlapOnAxis(collider_box a, collider_box b, vec3 Axis)
+{
+    // Make sure we have a normalized axis, and don't check almost parallel axes
+    if (SquaredMagnitude(Axis) < EPSILON)
+    {
+        return true;
+    }
+
+    vec3 ToCenter = GetTranslation(b.Transform) - GetTranslation(a.Transform);
+
+    // Project the half-sizes of a and b onto Axis
+    f32 ProjectionA = TransformToAxis(a, Axis);
+    f32 ProjectionB = TransformToAxis(b, Axis);
+
+    // Project this onto the axis
+    f32 Distance = Abs(Dot(ToCenter, Axis));
+
+    // Check for overlap
+    bool32 Result = (Distance < ProjectionA + ProjectionB);
+    return Result;
+}
+
+inline f32
+PenetrationOnAxis(collider_box a, collider_box b, vec3 Axis)
+{
+    vec3 ToCenter = GetTranslation(b.Transform) - GetTranslation(a.Transform);
+
+    // Project the half-sizes of a and b onto Axis
+    f32 ProjectionA = TransformToAxis(a, Axis);
+    f32 ProjectionB = TransformToAxis(b, Axis);
+
+    // Project this onto the axis
+    f32 Distance = Abs(Dot(ToCenter, Axis));
+
+    // Return the overlap (i.e. positive indicates
+    // overlap, negative indicates separation)
+    f32 Result = ProjectionA + ProjectionB - Distance;
+    return Result;
+}
+
+inline bool32
+TryAxis(collider_box a, collider_box b, vec3 Axis, u32 Index, f32 *SmallestPenetration, u32 *SmallestCase)
+{
+    // Make sure we have a normalized axis, and don't check almost parallel axes
+    if (SquaredMagnitude(Axis) < EPSILON)
+    {
+        return true;
+    }
+
+    Axis = Normalize(Axis);
+
+    f32 Penetration = PenetrationOnAxis(a, b, Axis);
+
+    if (Penetration < 0)
+    {
+        return false;
+    }
+
+    if (Penetration < *SmallestPenetration)
+    {
+        *SmallestPenetration = Penetration;
+        *SmallestCase = Index;
+    }
+
+    return true;
+}
+
+dummy_internal bool32
+TestBoxBox(collider_box a, collider_box b)
+{
+    vec3 xAxisA = GetAxis(a.Transform, 0);
+    vec3 yAxisA = GetAxis(a.Transform, 1);
+    vec3 zAxisA = GetAxis(a.Transform, 2);
+
+    vec3 xAxisB = GetAxis(b.Transform, 0);
+    vec3 yAxisB = GetAxis(b.Transform, 1);
+    vec3 zAxisB = GetAxis(b.Transform, 2);
+
+    bool32 Result = (
+        OverlapOnAxis(a, b, xAxisA) &&
+        OverlapOnAxis(a, b, yAxisA) &&
+        OverlapOnAxis(a, b, zAxisA) &&
+
+        OverlapOnAxis(a, b, xAxisB) &&
+        OverlapOnAxis(a, b, yAxisB) &&
+        OverlapOnAxis(a, b, zAxisB) &&
+
+        OverlapOnAxis(a, b, Cross(xAxisA, xAxisB)) &&
+        OverlapOnAxis(a, b, Cross(xAxisA, yAxisB)) &&
+        OverlapOnAxis(a, b, Cross(xAxisA, zAxisB)) &&
+        OverlapOnAxis(a, b, Cross(yAxisA, xAxisB)) &&
+        OverlapOnAxis(a, b, Cross(yAxisA, yAxisB)) &&
+        OverlapOnAxis(a, b, Cross(yAxisA, zAxisB)) &&
+        OverlapOnAxis(a, b, Cross(zAxisA, xAxisB)) &&
+        OverlapOnAxis(a, b, Cross(zAxisA, yAxisB)) &&
+        OverlapOnAxis(a, b, Cross(zAxisA, zAxisB))
+    );
+
+    return Result;
+}
+
+dummy_internal u32
+CalculateSpherePlaneContacts(collider_sphere *Sphere, plane Plane, contact *Contacts)
+{
+    vec3 Position = GetTranslation(Sphere->Transform);
+
+    // Calculate the distance from the plane
+    f32 Distance = Dot(Position, Plane.Normal) - Sphere->Radius - Plane.Distance;
+
+    if (Distance >= 0)
+    {
+        return 0;
+    }
+
+    contact *Contact = Contacts;
+
+    Contact->Point = Position - Plane.Normal * (Distance + Sphere->Radius);
+    Contact->Normal = Plane.Normal;
+    Contact->Penetration = -Distance;
+
+    return 1;
 }
 
 dummy_internal u32
@@ -504,6 +642,327 @@ CalculateBoxPlaneContacts(collider_box Box, plane Plane, contact *Contacts)
 
     return ContactCount;
 }
+
+dummy_internal u32
+CalculateSphereSphereContacts(collider_sphere a, collider_sphere b, contact *Contacts)
+{
+    vec3 PositionA = GetTranslation(a.Transform);
+    vec3 PositionB = GetTranslation(b.Transform);
+
+    // Find the vector between the objects
+    vec3 MidLine = PositionA - PositionB;
+    f32 Distance = Magnitude(MidLine);
+
+    // See if it is large enough
+    if (Distance <= 0.f || Distance >= a.Radius + b.Radius)
+    {
+        return 0;
+    }
+
+    contact *Contact = Contacts;
+
+    Contact->Point = PositionA + MidLine * 0.5f;
+    Contact->Normal = Normalize(MidLine);
+    Contact->Penetration = a.Radius + b.Radius - Distance;
+
+    return 1;
+}
+
+dummy_internal u32
+CalculateBoxSphereContacts(collider_box Box, collider_sphere Sphere, contact *Contacts)
+{
+    // Transform the center of the sphere into box coordinates
+    vec3 SphereCenterWorld = GetTranslation(Sphere.Transform);
+    vec3 SphereCenterBox = (Inverse(Box.Transform) * vec4(SphereCenterWorld, 1.f)).xyz;
+
+    vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
+
+    // Early out check to see if we can exclude the contact
+    if (
+        Abs(SphereCenterBox.x) - Sphere.Radius > BoxHalfSize.x ||
+        Abs(SphereCenterBox.y) - Sphere.Radius > BoxHalfSize.y ||
+        Abs(SphereCenterBox.z) - Sphere.Radius > BoxHalfSize.z
+    )
+    {
+        return 0;
+    }
+
+    vec3 ClosestPointBox = vec3(0.f);
+
+    // Clamp each coordinate to the box
+    for (u32 Axis = 0; Axis < 3; ++Axis)
+    {
+        f32 Distance = SphereCenterBox[Axis];
+
+        if (Distance > BoxHalfSize[Axis])
+        {
+            Distance = BoxHalfSize[Axis];
+        }
+
+        if (Distance < -BoxHalfSize[Axis])
+        {
+            Distance = -BoxHalfSize[Axis];
+        }
+
+        ClosestPointBox[Axis] = Distance;
+    }
+
+    // Check we're in contact
+    f32 Distance = Magnitude(ClosestPointBox - SphereCenterBox);
+
+    if (Distance > Sphere.Radius)
+    {
+        return 0;
+    }
+
+    vec3 ClosestPointWorld = (Box.Transform * vec4(ClosestPointBox, 1.f)).xyz;
+
+    contact *Contact = Contacts;
+
+    Contact->Point = ClosestPointWorld;
+    Contact->Normal = Normalize(ClosestPointWorld - SphereCenterWorld);
+    Contact->Penetration = Sphere.Radius - Distance;
+
+    return 1;
+}
+
+dummy_internal void
+FillPointFaceBoxBox(collider_box a, collider_box b, contact *Contacts, f32 Penetration, u32 Best)
+{
+    // This method is called when we know that a vertex from
+    // box two is in contact with box one
+    contact *Contact = Contacts;
+
+    vec3 ToCenter = GetTranslation(b.Transform) - GetTranslation(a.Transform);
+
+    // We know which axis the collision is on (i.e. best),
+    // but we need to work out which of the two faces on
+    // this axis
+    vec3 Normal = GetAxis(a.Transform, Best);
+    if (Dot(Normal, ToCenter) > 0.f)
+    {
+        Normal *= -1.f;
+    }
+
+    // Work out which vertex of box two we're colliding with
+    vec3 Vertex = b.HalfSize;
+
+    for (u32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+    {
+        if (Dot(GetAxis(b.Transform, AxisIndex), Normal) < 0)
+        {
+            Vertex[AxisIndex] *= -1.f;
+        }
+    }
+
+    Contact->Point = b.Transform * Vertex;
+    Contact->Normal = Normal;
+    Contact->Penetration = Penetration;
+}
+
+// If useOne is true, and the contact point is outside
+// the edge (in the case of an edge-face contact) then
+// we use one's midpoint, otherwise we use two's
+dummy_internal vec3
+ContactPoint(vec3 pOne, vec3 dOne, f32 oneSize, vec3 pTwo, vec3 dTwo, f32 twoSize, bool32 useOne)
+{
+    vec3 toSt, cOne, cTwo;
+    f32 dpStaOne, dpStaTwo, dpOneTwo, smOne, smTwo;
+    f32 denom, mua, mub;
+
+    smOne = SquaredMagnitude(dOne);
+    smTwo = SquaredMagnitude(dTwo);
+    dpOneTwo = Dot(dTwo, dOne);
+
+    toSt = pOne - pTwo;
+    dpStaOne = Dot(dOne, toSt);
+    dpStaTwo = Dot(dTwo, toSt);
+
+    denom = smOne * smTwo - dpOneTwo * dpOneTwo;
+
+    // Zero denominator indicates parrallel lines
+    if (NearlyEqual(denom, 0.f))
+    {
+        return useOne ? pOne : pTwo;
+    }
+
+    mua = (dpOneTwo * dpStaTwo - smTwo * dpStaOne) / denom;
+    mub = (smOne * dpStaTwo - dpOneTwo * dpStaOne) / denom;
+
+    // If either of the edges has the nearest point out
+    // of bounds, then the edges aren't crossed, we have
+    // an edge-face contact. Our point is on the edge, which
+    // we know from the useOne parameter
+    if (
+        mua > oneSize ||
+        mua < -oneSize ||
+        mub > twoSize ||
+        mub < -twoSize)
+    {
+        return useOne ? pOne : pTwo;
+    }
+    else
+    {
+        cOne = pOne + dOne * mua;
+        cTwo = pTwo + dTwo * mub;
+
+        return cOne * 0.5f + cTwo * 0.5f;
+    }
+}
+
+dummy_internal u32
+CalculateBoxBoxContacts(collider_box a, collider_box b, contact *Contacts)
+{
+    // We start assuming there is no contact
+    f32 Penetration = F32_MAX;
+    u32 Best = 0xffffff;
+
+    // Now we check each axes, returning if it gives us
+    // a separating axis, and keeping track of the axis with
+    // the smallest penetration otherwise
+    vec3 xAxisA = GetAxis(a.Transform, 0);
+    vec3 yAxisA = GetAxis(a.Transform, 1);
+    vec3 zAxisA = GetAxis(a.Transform, 2);
+
+    vec3 xAxisB = GetAxis(b.Transform, 0);
+    vec3 yAxisB = GetAxis(b.Transform, 1);
+    vec3 zAxisB = GetAxis(b.Transform, 2);
+
+    if (!TryAxis(a, b, xAxisA, 0, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, yAxisA, 1, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, zAxisA, 2, &Penetration, &Best)) return 0;
+
+    if (!TryAxis(a, b, xAxisB, 3, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, yAxisB, 4, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, zAxisB, 5, &Penetration, &Best)) return 0;
+
+    // Store the best axis-major, in case we run into almost parallel edge collisions later
+    u32 BestSingleAxis = Best;
+
+    if (!TryAxis(a, b, Cross(xAxisA, xAxisB), 6, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(xAxisA, yAxisB), 7, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(xAxisA, zAxisB), 8, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(yAxisA, xAxisB), 9, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(yAxisA, yAxisB), 10, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(yAxisA, zAxisB), 11, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(zAxisA, xAxisB), 12, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(zAxisA, yAxisB), 13, &Penetration, &Best)) return 0;
+    if (!TryAxis(a, b, Cross(zAxisA, zAxisB), 14, &Penetration, &Best)) return 0;
+
+    // Make sure we've got a result
+    Assert(Best != 0xffffff);
+
+    // We now know there's a collision, and we know which
+    // of the axes gave the smallest penetration. We now
+    // can deal with it in different ways depending on
+    // the case
+    if (Best < 3)
+    {
+        // We've got a vertex of box two on a face of box one
+        FillPointFaceBoxBox(a, b, Contacts, Penetration, Best);
+
+        return 1;
+    }
+    else if (Best < 6)
+    {
+        // We've got a vertex of box one on a face of box two.
+        // We use the same algorithm as above, but swap around
+        // one and two (and therefore also the vector between their
+        // centers)
+        FillPointFaceBoxBox(b, a, Contacts, Penetration, Best - 3);
+
+        return 1;
+    }
+    else
+    {
+        // We've got an edge-edge contact. Find out which axes
+        Best -= 6;
+
+        u32 AxisIndexA = Best / 3;
+        u32 AxisIndexB = Best % 3;
+
+        vec3 AxisA = GetAxis(a.Transform, AxisIndexA);
+        vec3 AxisB = GetAxis(b.Transform, AxisIndexB);
+
+        vec3 Axis = Cross(AxisA, AxisB);
+        Axis = Normalize(Axis);
+
+        vec3 ToCenter = GetTranslation(b.Transform) - GetTranslation(a.Transform);
+
+        // The axis should point from box one to box two
+        if (Dot(Axis, ToCenter) > 0.f)
+        {
+            Axis *= -1.f;
+        }
+
+        // We have the axes, but not the edges: each axis has 4 edges parallel
+        // to it, we need to find which of the 4 for each object. We do
+        // that by finding the point in the center of the edge. We know
+        // its component in the direction of the box's collision axis is zero
+        // (its a mid-point) and we determine which of the extremes in each
+        // of the other axes is closest
+        vec3 PointOnOneEdge = a.HalfSize;
+        vec3 PointOnTwoEdge = b.HalfSize;
+
+        for (u32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+        {
+            if (AxisIndex == AxisIndexA)
+            {
+                PointOnOneEdge[AxisIndex] = 0;
+            }
+            else if (Dot(GetAxis(a.Transform, AxisIndex), Axis) > 0)
+            {
+                PointOnOneEdge[AxisIndex] *= -1.f;
+            }
+
+            if (AxisIndex == AxisIndexB)
+            {
+                PointOnTwoEdge[AxisIndex] = 0;
+            }
+            else if (Dot(GetAxis(b.Transform, AxisIndex), Axis) < 0)
+            {
+                PointOnTwoEdge[AxisIndex] *= -1.f;
+            }
+        }
+
+        // Move them into world coordinates
+        PointOnOneEdge = a.Transform * PointOnOneEdge;
+        PointOnTwoEdge = b.Transform * PointOnTwoEdge;
+
+        // So we have a point and a direction for the colliding edges.
+        // We need to find out point of closest approach of the two
+        // line-segments
+        vec3 HalfSizeA = a.HalfSize * GetScale(a.Transform);
+        vec3 HalfSizeB = b.HalfSize * GetScale(b.Transform);
+
+        vec3 Vertex = ContactPoint(
+            PointOnOneEdge, AxisA, HalfSizeA[AxisIndexA], 
+            PointOnTwoEdge, AxisB, HalfSizeB[AxisIndexB], 
+            BestSingleAxis > 2
+        );
+
+        contact *Contact = Contacts;
+
+        Contact->Point = Vertex;
+        Contact->Normal = Axis;
+        Contact->Penetration = Penetration;
+
+        return 1;
+    }
+
+    return 0;
+}
+
+struct contact_resolver
+{
+    contact *Contact;
+    rigid_body *Body;
+
+    mat3 ContactToWorld;
+    mat3 WorldToContact;
+
+    vec3 ContactVelocity;
+};
 
 // Constructs an arbitrary orthonormal basis for the contact
 dummy_internal mat3
@@ -553,17 +1012,6 @@ ContactToWorldTransform(contact *Contact)
 
     return Result;
 }
-
-struct contact_resolver
-{
-    contact *Contact;
-    rigid_body *Body;
-
-    mat3 ContactToWorld;
-    mat3 WorldToContact;
-
-    vec3 ContactVelocity;
-};
 
 dummy_internal vec3
 CalculateLocalVelocity(contact_resolver *Resolver, f32 dt)

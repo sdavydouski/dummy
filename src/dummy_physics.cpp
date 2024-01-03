@@ -61,6 +61,12 @@ SetAngularDamping(rigid_body *Body, f32 AngularDamping)
     Body->AngularDamping = AngularDamping;
 }
 
+inline void
+SetCenterOfMass(rigid_body *Body, vec3 CenterOfMass)
+{
+    Body->CenterOfMassLocal = CenterOfMass;
+}
+
 inline mat3
 CalculateInverseInertiaWorld(rigid_body *Body)
 {
@@ -81,9 +87,10 @@ CalculateInverseInertiaWorld(rigid_body *Body)
 }
 
 inline void
-UpdateRigidBodyDerivedState(rigid_body *Body)
+CalculateRigidBodyInternalState(rigid_body *Body)
 {
-    Body->LocalToWorldTransform = TranslateRotate(Body->Position, Body->Orientation);
+    Body->CenterOfMassWorld = Body->Position + Body->CenterOfMassLocal;
+    Body->LocalToWorldTransform = TranslateRotate(Body->CenterOfMassWorld, Body->Orientation);
     Body->InverseInertiaTensorWorld = CalculateInverseInertiaWorld(Body);
 }
 
@@ -101,11 +108,12 @@ Integrate(rigid_body *Body, f32 dt)
     Body->AngularVelocity += Body->AngularAcceleration * dt;
     Body->AngularVelocity *= Power(Body->AngularDamping, dt);
     Body->Orientation += Body->AngularVelocity * dt;
+    Body->Orientation = Normalize(Body->Orientation);
 
     Body->ForceAccumulator = vec3(0.f);
     Body->TorqueAccumulator = vec3(0.f);
 
-    UpdateRigidBodyDerivedState(Body);
+    CalculateRigidBodyInternalState(Body);
 }
 
 inline void
@@ -124,7 +132,7 @@ inline void
 AddForceAtPoint(rigid_body *Body, vec3 Force, vec3 PointWorld)
 {
     // Convert to coordinates relative to center of mass
-    vec3 Point = PointWorld - Body->Position;
+    vec3 Point = PointWorld - Body->CenterOfMassWorld;
     vec3 Torque = Cross(Point, Force);
 
     AddForce(Body, Force);

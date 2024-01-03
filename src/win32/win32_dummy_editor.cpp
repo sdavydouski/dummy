@@ -388,7 +388,7 @@ Win32InitEditor(editor_state *EditorState, win32_platform_state *PlatformState)
     EditorInitRenderer(EditorState);
 
     // Load Fonts
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 
     // Setup Config
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -631,7 +631,6 @@ EditorRenderColliderInfo(collider *Collider)
         {
             case Collider_Box:
             {
-                ImGui::InputFloat3("Center", Collider->Box.Offset.Elements);
                 ImGui::InputFloat3("HalfSize", Collider->Box.HalfSize.Elements);
                 break;
             }
@@ -1017,7 +1016,7 @@ EditorRenderEntityInfo(
     }
     else
     {
-        if (ImGui::CollapsingHeader("Add Box Collider"))
+        if (ImGui::CollapsingHeader("Add Collider"))
         {
             collider_spec *Collider = &EditorState->AddEntity.Collider;
 
@@ -1032,10 +1031,13 @@ EditorRenderEntityInfo(
             else
             {
                 ImGui::InputFloat3("HalfSize##Collider", Collider->Box.HalfSize.Elements);
-                ImGui::InputFloat3("Offset##Collider", Collider->Box.Offset.Elements);
+                ImGui::InputFloat3("Translation##Collider", Collider->Translation.Elements);
+                ImGui::InputFloat4("Rotation##Collider", Collider->Rotation.Elements);
 
                 if (ImGui::Button("Add##Collider"))
                 {
+                    Collider->Box.Offset = TranslateRotate(Collider->Translation, Collider->Rotation);
+
                     AddBoxCollider(Entity, Collider->Box.HalfSize, Collider->Box.Offset, &GameState->WorldArea.Arena);
                     EditorState->AddEntity.Collider = {};
                 }
@@ -1528,13 +1530,20 @@ Win32RenderEditor(
                 ImGui::EndMenu();
             }
 
+#if DEBUG
+            const char *Build = "DEBUG";
+#else
+            const char *Build = "RELEASE";
+#endif
+
             char Text[256];
             FormatString(
                 Text,
-                "%.3f ms/frame (%.1f FPS) | Time scale: %.2f",
+                "%.3f ms/frame (%.1f FPS) | Time scale: %.2f | %s",
                 GameParameters->UnscaledDelta * 1000.f,
                 1.f / GameParameters->UnscaledDelta,
-                GameParameters->TimeScale
+                GameParameters->TimeScale,
+                Build
             );
 
             ImVec2 TextSize = ImGui::CalcTextSize(Text);
