@@ -712,14 +712,22 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
         T.Scale *= Entity->Collider->Box.HalfSize;
 
         DrawBox(RenderCommands, T, vec4(1.f, 0.f, 1.f, 1.f));
+
+        if (Entity->Body)
+        {
+            DrawPoint(RenderCommands, Entity->Body->CenterOfMassWorld, vec4(1.f, 1.f, 0.f, 1.f), 10.f);
+        }
+
         return;
     }
 
     if (Entity->Body)
     {
-        Color = vec4(1.f, 0.f, 0.f, 1.f);
+        //Color = vec4(1.f, 0.f, 0.f, 1.f);
 
-        Bounds.Center += Entity->Transform.Translation - Entity->Body->Position;
+        //Bounds.Center += Entity->Transform.Translation - Entity->Body->Position;
+
+        DrawPoint(RenderCommands, Entity->Body->CenterOfMassWorld, vec4(1.f, 0.f, 1.f, 1.f), 10.f);
     }
 
     transform Transform = CreateTransform(Bounds.Center, Bounds.HalfExtent);
@@ -916,6 +924,23 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena)
 
     f32 Mass = 10.f;
     vec3 Size = vec3(1.f);
+
+    SetPosition(Entity->Body, Entity->Transform.Translation);
+    SetOrientation(Entity->Body, Entity->Transform.Rotation);
+    SetMass(Entity->Body, Mass);
+    SetCenterOfMass(Entity->Body, vec3(0.f, Size.y / 2.f, 0.f));
+    SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
+    SetLinearDamping(Entity->Body, 0.95f);
+    SetAngularDamping(Entity->Body, 0.8f);
+
+    CalculateRigidBodyInternalState(Entity->Body);
+}
+
+// todo: remove
+inline void
+AddRigidBody(game_entity *Entity, memory_arena *Arena, f32 Mass, vec3 Size)
+{
+    Entity->Body = PushType(Arena, rigid_body, Align(16));
 
     SetPosition(Entity->Body, Entity->Transform.Translation);
     SetOrientation(Entity->Body, Entity->Transform.Rotation);
@@ -1152,8 +1177,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
     f32 dt = Data->UpdateRate;
 
-    CollisionData->ContactCount = 0;
-
     for (u32 EntityIndex = Data->StartIndex; EntityIndex < Data->EndIndex; ++EntityIndex)
     {
         game_entity *Entity = Data->Entities + EntityIndex;
@@ -1201,10 +1224,12 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 #else
                     if (TestBoxPlane(Collider->Box, State->Ground))
                     {
-                        OnTheGround = true;
+                        //OnTheGround = true;
 
-                        u32 ContactCount = CalculateBoxPlaneContacts(Entity->Collider->Box, State->Ground, CollisionData->Contacts + CollisionData->ContactCount);
+                        u32 ContactCount = CalculateBoxPlaneContacts(Entity->Collider->Box, State->Ground, Body, CollisionData->Contacts + CollisionData->ContactCount);
                         CollisionData->ContactCount += ContactCount;
+
+                        Assert(CollisionData->ContactCount < CollisionData->MaxContactCount);
                     }
 #endif
                 }
@@ -1301,11 +1326,13 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                             if (TestBoxBox(Collider->Box, NearbyBodyCollider->Box))
                             {
-                                Entity->DebugColor = vec3(0.f, 1.f, 0.f);
-                                NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
+                                //Entity->DebugColor = vec3(0.f, 1.f, 0.f);
+                                //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
 
-                                u32 ContactCount = CalculateBoxBoxContacts(Collider->Box, NearbyBodyCollider->Box, CollisionData->Contacts + CollisionData->ContactCount);
+                                u32 ContactCount = CalculateBoxBoxContacts(Collider->Box, NearbyBodyCollider->Box, Body, NearbyBody, CollisionData->Contacts + CollisionData->ContactCount);
                                 CollisionData->ContactCount += ContactCount;
+
+                                Assert(CollisionData->ContactCount < CollisionData->MaxContactCount);
                             }
 #endif
 
@@ -1760,7 +1787,7 @@ DLLExport GAME_INIT(GameInit)
     State->SkyboxId = 1;
 
     State->CollisionData.ContactCount = 0;
-    State->CollisionData.MaxContactCount = 100;
+    State->CollisionData.MaxContactCount = 512;
     State->CollisionData.Contacts = PushArray(&State->PermanentArena, State->CollisionData.MaxContactCount, contact);
 
     game_process *Sentinel = &State->ProcessSentinel;
@@ -1874,12 +1901,15 @@ SpawnBox(game_state *State, render_commands *RenderCommands)
 {
     game_entity *Entity = CreateGameEntity(State);
 
+    f32 Mass = 10.f;
+    vec3 Size = vec3(1.f);
+
     //Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)));
-    Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f));
+    Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f), Size);
 
     AddModel(State, Entity, &State->Assets, "cube", RenderCommands, &State->WorldArea.Arena);
     AddBoxCollider(Entity, &State->WorldArea.Arena);
-    AddRigidBody(Entity, &State->WorldArea.Arena);
+    AddRigidBody(Entity, &State->WorldArea.Arena, Mass, Size);
 
     State->SelectedEntity = Entity;
 }
@@ -2096,6 +2126,14 @@ DLLExport GAME_UPDATE(GameUpdate)
     }
 #endif
 
+    // todo!!!: problem with shared state since contact data is updated in multiple threads
+    for (u32 ContactIndex = 0; ContactIndex < State->CollisionData.ContactCount; ++ContactIndex)
+    {
+        contact *Contact = State->CollisionData.Contacts + ContactIndex;
+        *Contact = {};
+    }
+    State->CollisionData.ContactCount = 0;
+
     u32 EntityBatchCount = 100;
     u32 UpdateEntityBatchJobCount = Ceil((f32) Area->EntityCount / (f32) EntityBatchCount);
     job *UpdateEntityBatchJobs = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, job);
@@ -2128,6 +2166,8 @@ DLLExport GAME_UPDATE(GameUpdate)
     {
         Platform->KickJobsAndWait(State->JobQueue, UpdateEntityBatchJobCount, UpdateEntityBatchJobs);
     }
+
+    ResolveContacts(State->CollisionData.Contacts, State->CollisionData.ContactCount, Params->UpdateRate);
 }
 
 DLLExport GAME_RENDER(GameRender)
@@ -2575,12 +2615,18 @@ DLLExport GAME_RENDER(GameRender)
             }
 #endif
 
-#if 1
+#if 0
             for (u32 ContactIndex = 0; ContactIndex < State->CollisionData.ContactCount; ++ContactIndex)
             {
                 contact *Contact = State->CollisionData.Contacts + ContactIndex;
+
                 DrawBox(RenderCommands, CreateTransform(Contact->Point, vec3(0.05f)), vec4(1.f, 1.f, 0.f, 1.f));
-                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->Normal * 0.1f, vec4(0.f, 1.f, 0.f, 1.f), 12.f);
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->Normal * 0.125f, vec4(1.f, 1.f, 0.f, 1.f), 8.f);
+
+                // Draw contact basis axis
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(0) * 0.25f, vec4(0.f, 0.f, 1.f, 1.f), 8.f);
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(1) * 0.25f, vec4(0.f, 1.f, 0.f, 1.f), 8.f);
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(2) * 0.25f, vec4(1.f, 0.f, 0.f, 1.f), 8.f);
             }
 #endif
 

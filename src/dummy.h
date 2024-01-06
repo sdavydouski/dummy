@@ -14,8 +14,8 @@
 #include "dummy_input.h"
 #include "dummy_events.h"
 #include "dummy_bounds.h"
-#include "dummy_collision.h"
 #include "dummy_physics.h"
+#include "dummy_collision.h"
 #include "dummy_visibility.h"
 #include "dummy_spatial.h"
 #include "dummy_camera.h"
@@ -54,6 +54,7 @@ aabb UpdateBounds(aabb Bounds, transform T);
 bool32 TestAABBAABB(aabb a, aabb b);
 bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord);
 audio_play_options SetVolume(f32 Volume);
+void CalculateRigidBodyInternalState(rigid_body *Body);
 //
 
 #define SID(String) Hash(String)

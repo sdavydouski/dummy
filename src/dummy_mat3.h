@@ -74,6 +74,17 @@ struct mat3
     }
 };
 
+inline mat3 operator +(mat3 a, mat3 b)
+{
+    mat3 Result = mat3(
+        a.Rows[0] + b.Rows[0],
+        a.Rows[1] + b.Rows[1],
+        a.Rows[2] + b.Rows[2]
+    );
+
+    return Result;
+}
+
 inline mat3 operator *(mat3 a, mat3 b)
 {
     vec3 Row0 = a.Rows[0];
@@ -88,6 +99,17 @@ inline mat3 operator *(mat3 a, mat3 b)
         Dot(Row0, Column0), Dot(Row0, Column1), Dot(Row0, Column2),
         Dot(Row1, Column0), Dot(Row1, Column1), Dot(Row1, Column2),
         Dot(Row2, Column0), Dot(Row2, Column1), Dot(Row2, Column2)
+    );
+
+    return Result;
+}
+
+inline mat3 operator *(mat3 M, f32 Scalar)
+{
+    mat3 Result = mat3(
+        M[0] * Scalar,
+        M[1] * Scalar,
+        M[2] * Scalar
     );
 
     return Result;
@@ -129,6 +151,18 @@ Transpose(mat3 M)
         M.Column(0),
         M.Column(1),
         M.Column(2)
+    );
+
+    return Result;
+}
+
+inline mat3
+SkewSymmetric(vec3 Vector)
+{
+    mat3 Result = mat3(
+        0.f, -Vector.z, Vector.y,
+        Vector.z, 0.f, -Vector.x,
+        -Vector.y, Vector.x, 0.f
     );
 
     return Result;

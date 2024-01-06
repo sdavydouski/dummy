@@ -89,7 +89,9 @@ CalculateInverseInertiaWorld(rigid_body *Body)
 inline void
 CalculateRigidBodyInternalState(rigid_body *Body)
 {
-    Body->CenterOfMassWorld = Body->Position + Body->CenterOfMassLocal;
+    mat4 R = GetRotationMatrix(Body->Orientation);
+
+    Body->CenterOfMassWorld = Body->Position + R * Body->CenterOfMassLocal;
     Body->LocalToWorldTransform = TranslateRotate(Body->CenterOfMassWorld, Body->Orientation);
     Body->InverseInertiaTensorWorld = CalculateInverseInertiaWorld(Body);
 }

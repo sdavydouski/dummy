@@ -608,7 +608,7 @@ CalculateSpherePlaneContacts(collider_sphere *Sphere, plane Plane, contact *Cont
 }
 
 dummy_internal u32
-CalculateBoxPlaneContacts(collider_box Box, plane Plane, contact *Contacts)
+CalculateBoxPlaneContacts(collider_box Box, plane Plane, rigid_body *Body, contact *Contacts)
 {
     // Check for intersection
     if (!TestBoxPlane(Box, Plane))
@@ -637,6 +637,10 @@ CalculateBoxPlaneContacts(collider_box Box, plane Plane, contact *Contacts)
             Contact->Point = VertexPosition + Plane.Normal * (VertexDistance - Plane.Distance);
             Contact->Normal = Plane.Normal;
             Contact->Penetration = Plane.Distance - VertexDistance;
+            Contact->Bodies[0] = Body;
+            // todo:
+            Contact->Friction = 0.5f;
+            Contact->Restitution = 0.4f;
         }
     }
 
@@ -673,7 +677,7 @@ CalculateBoxSphereContacts(collider_box Box, collider_sphere Sphere, contact *Co
 {
     // Transform the center of the sphere into box coordinates
     vec3 SphereCenterWorld = GetTranslation(Sphere.Transform);
-    vec3 SphereCenterBox = (Inverse(Box.Transform) * vec4(SphereCenterWorld, 1.f)).xyz;
+    vec3 SphereCenterBox = Inverse(Box.Transform) * SphereCenterWorld;
 
     vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
 
@@ -715,7 +719,7 @@ CalculateBoxSphereContacts(collider_box Box, collider_sphere Sphere, contact *Co
         return 0;
     }
 
-    vec3 ClosestPointWorld = (Box.Transform * vec4(ClosestPointBox, 1.f)).xyz;
+    vec3 ClosestPointWorld = Box.Transform * ClosestPointBox;
 
     contact *Contact = Contacts;
 
@@ -727,7 +731,7 @@ CalculateBoxSphereContacts(collider_box Box, collider_sphere Sphere, contact *Co
 }
 
 dummy_internal void
-FillPointFaceBoxBox(collider_box a, collider_box b, contact *Contacts, f32 Penetration, u32 Best)
+FillPointFaceBoxBox(collider_box a, collider_box b, rigid_body *BodyA, rigid_body *BodyB, contact *Contacts, f32 Penetration, u32 Best)
 {
     // This method is called when we know that a vertex from
     // box two is in contact with box one
@@ -758,6 +762,11 @@ FillPointFaceBoxBox(collider_box a, collider_box b, contact *Contacts, f32 Penet
     Contact->Point = b.Transform * Vertex;
     Contact->Normal = Normal;
     Contact->Penetration = Penetration;
+    Contact->Bodies[0] = BodyA;
+    Contact->Bodies[1] = BodyB;
+    // todo:
+    Contact->Friction = 0.5f;
+    Contact->Restitution = 0.1f;
 }
 
 // If useOne is true, and the contact point is outside
@@ -811,7 +820,7 @@ ContactPoint(vec3 pOne, vec3 dOne, f32 oneSize, vec3 pTwo, vec3 dTwo, f32 twoSiz
 }
 
 dummy_internal u32
-CalculateBoxBoxContacts(collider_box a, collider_box b, contact *Contacts)
+CalculateBoxBoxContacts(collider_box a, collider_box b, rigid_body *BodyA, rigid_body *BodyB, contact *Contacts)
 {
     // We start assuming there is no contact
     f32 Penetration = F32_MAX;
@@ -859,7 +868,7 @@ CalculateBoxBoxContacts(collider_box a, collider_box b, contact *Contacts)
     if (Best < 3)
     {
         // We've got a vertex of box two on a face of box one
-        FillPointFaceBoxBox(a, b, Contacts, Penetration, Best);
+        FillPointFaceBoxBox(a, b, BodyA, BodyB, Contacts, Penetration, Best);
 
         return 1;
     }
@@ -869,7 +878,7 @@ CalculateBoxBoxContacts(collider_box a, collider_box b, contact *Contacts)
         // We use the same algorithm as above, but swap around
         // one and two (and therefore also the vector between their
         // centers)
-        FillPointFaceBoxBox(b, a, Contacts, Penetration, Best - 3);
+        FillPointFaceBoxBox(b, a, BodyB, BodyA, Contacts, Penetration, Best - 3);
 
         return 1;
     }
@@ -946,6 +955,11 @@ CalculateBoxBoxContacts(collider_box a, collider_box b, contact *Contacts)
         Contact->Point = Vertex;
         Contact->Normal = Axis;
         Contact->Penetration = Penetration;
+        Contact->Bodies[0] = BodyA;
+        Contact->Bodies[1] = BodyB;
+        // todo:
+        Contact->Friction = 0.5f;
+        Contact->Restitution = 0.1f;
 
         return 1;
     }
@@ -953,20 +967,19 @@ CalculateBoxBoxContacts(collider_box a, collider_box b, contact *Contacts)
     return 0;
 }
 
-struct contact_resolver
+inline void
+SwapContactBodies(contact *Contact)
 {
-    contact *Contact;
-    rigid_body *Body;
+    rigid_body *Temp = Contact->Bodies[0];
+    Contact->Bodies[0] = Contact->Bodies[1];
+    Contact->Bodies[1] = Temp;
 
-    mat3 ContactToWorld;
-    mat3 WorldToContact;
-
-    vec3 ContactVelocity;
-};
+    Contact->Normal *= -1.f;
+}
 
 // Constructs an arbitrary orthonormal basis for the contact
-dummy_internal mat3
-ContactToWorldTransform(contact *Contact)
+dummy_internal void
+CalculateContactBasis(contact *Contact)
 {
     vec3 xAxis = Contact->Normal;
     vec3 yAxis;
@@ -1004,35 +1017,35 @@ ContactToWorldTransform(contact *Contact)
         zAxis.z = Contact->Normal.x * yAxis.y;
     }
 
-    mat3 Result = mat3(
+    mat3 ContactToWorld = mat3(
         vec3(xAxis.x, yAxis.x, zAxis.x),
         vec3(xAxis.y, yAxis.y, zAxis.y),
         vec3(xAxis.z, yAxis.z, zAxis.z)
     );
 
-    return Result;
+    mat3 WorldToContact = Transpose(ContactToWorld);
+
+    Contact->ContactToWorld = ContactToWorld;
+    Contact->WorldToContact = WorldToContact;
 }
 
 dummy_internal vec3
-CalculateLocalVelocity(contact_resolver *Resolver, f32 dt)
+CalculateLocalVelocity(contact *Contact, u32 ContactBodyIndex, f32 dt)
 {
-    contact *Contact = Resolver->Contact;
-    rigid_body *Body = Resolver->Body;
-
-    vec3 RelativeContactPosition = Contact->Point - Body->Position;
+    rigid_body *Body = Contact->Bodies[ContactBodyIndex];
 
     // Calculate the velocity of the contact point
-    vec3 VelocityWorld = Cross(Body->AngularVelocity, RelativeContactPosition);
+    vec3 VelocityWorld = Cross(Body->AngularVelocity, Contact->RelativeContactPositions[ContactBodyIndex]);
     VelocityWorld += Body->Velocity;
 
     // Turn the velocity into contact-coordinates
-    vec3 VelocityContact = Resolver->WorldToContact * VelocityWorld;
+    vec3 VelocityContact = Contact->WorldToContact * VelocityWorld;
 
     // Calculate the ammount of velocity that is due to forces without reactions
-    vec3 AccelerationVelocityWorld = Body->PrevAcceleration * dt;
+    vec3 AccelerationVelocityWorld = Body->Acceleration * dt;
 
     // Calculate the velocity in contact-coordinates
-    vec3 AccelerationVelocityContact = Resolver->WorldToContact * AccelerationVelocityWorld;
+    vec3 AccelerationVelocityContact = Contact->WorldToContact * AccelerationVelocityWorld;
 
     // We ignore any component of acceleration in the contact normal direction, we are only interested in planar acceleration
     AccelerationVelocityContact.x = 0.f;
@@ -1044,31 +1057,505 @@ CalculateLocalVelocity(contact_resolver *Resolver, f32 dt)
 }
 
 dummy_internal void
-ResolveContactsOrSomething()
+CalculateDesiredDeltaVelocity(contact *Contact, f32 dt)
 {
-    //
-    contact Contact = 
+    f32 VelocityLimit = 0.25f;
+
+    // Calculate the acceleration induced velocity accumulated this frame
+    f32 VelocityFromAcceleration = Dot(Contact->Bodies[0]->Acceleration * dt, Contact->Normal);
+
+    if (Contact->Bodies[1])
     {
-        .Point = vec3(0.f),
-        .Normal = vec3(0.f, 1.f, 0.f),
-        .Penetration = 0.1f
-    };
-    rigid_body Body = {};
-    f32 dt = 0.01f;
+        VelocityFromAcceleration -= Dot(Contact->Bodies[1]->Acceleration * dt, Contact->Normal);
+    }
 
-    contact_resolver Resolver = {};
-    Resolver.Contact = &Contact;
-    Resolver.Body = &Body;
-    //
+    // If the velocity is very slow, limit the restitution
+    f32 Restituion = Contact->Restitution;
+    if (Abs(Contact->ContactVelocity.x) < VelocityLimit)
+    {
+        Restituion = 0.f;
+    }
 
-    //
-    Resolver.ContactToWorld = ContactToWorldTransform(Resolver.Contact);
-    Resolver.WorldToContact = Transpose(Resolver.ContactToWorld);
+    // Combine the bounce velocity with the removed acceleration velocity
+    Contact->DesiredDeltaVelocity = -Contact->ContactVelocity.x - Restituion * (Contact->ContactVelocity.x - VelocityFromAcceleration);
+}
 
-    Resolver.ContactVelocity = CalculateLocalVelocity(&Resolver, dt);
+dummy_internal void
+PrepareContacts(contact *Contacts, u32 Count, f32 dt)
+{
+    for (u32 ContactIndex = 0; ContactIndex < Count; ++ContactIndex)
+    {
+        contact *Contact = Contacts + ContactIndex;
 
+        if (!Contact->Bodies[0])
+        {
+            SwapContactBodies(Contact);
+        }
 
+        Assert(Contact->Bodies[0]);
 
-    // todo(continue): contact resolution!!!
-    //
+        CalculateContactBasis(Contact);
+
+        Contact->RelativeContactPositions[0] = Contact->Point - Contact->Bodies[0]->CenterOfMassWorld;
+        if (Contact->Bodies[1])
+        {
+            Contact->RelativeContactPositions[1] = Contact->Point - Contact->Bodies[1]->CenterOfMassWorld;
+        }
+
+        Contact->ContactVelocity = CalculateLocalVelocity(Contact, 0, dt);
+        if (Contact->Bodies[1])
+        {
+            Contact->ContactVelocity -= CalculateLocalVelocity(Contact, 1, dt);
+        }
+
+        CalculateDesiredDeltaVelocity(Contact, dt);
+    }
+}
+
+dummy_internal void
+ApplyPositionChange(contact *Contact, vec3 *LinearChange, vec3 *AngularChange, f32 Penetration)
+{
+    f32 AngularLimit = 0.2f;
+    f32 AngularMove[2];
+    f32 LinearMove[2];
+
+    f32 TotalInertia = 0.f;
+    f32 LinearInertia[2];
+    f32 AngularInertia[2];
+
+    // We need to work out the inertia of each object in the direction
+    // of the contact normal, due to angular inertia only
+    for (u32 BodyIndex = 0; BodyIndex < 2; ++BodyIndex)
+    {
+        rigid_body *Body = Contact->Bodies[BodyIndex];
+
+        if (Body)
+        {
+            // Use the same procedure as for calculating frictionless
+            // velocity change to work out the angular inertia
+            vec3 AngularInertiaWorld = Cross(Contact->RelativeContactPositions[BodyIndex], Contact->Normal);
+            AngularInertiaWorld = Body->InverseInertiaTensorWorld * AngularInertiaWorld;
+            AngularInertiaWorld = Cross(AngularInertiaWorld, Contact->RelativeContactPositions[BodyIndex]);
+            AngularInertia[BodyIndex] = Dot(AngularInertiaWorld, Contact->Normal);
+
+            // The linear component is simply the inverse mass
+            LinearInertia[BodyIndex] = Body->InverseMass;
+
+            // Keep track of the total inertia from all components
+            TotalInertia += LinearInertia[BodyIndex] + AngularInertia[BodyIndex];
+        }
+
+        // We break the loop here so that the TotalInertia value is
+        // completely calculated (by both iterations) before
+        // continuing
+    }
+
+    // Loop through again calculating and applying the changes
+    for (u32 BodyIndex = 0; BodyIndex < 2; ++BodyIndex)
+    {
+        rigid_body *Body = Contact->Bodies[BodyIndex];
+
+        if (Body)
+        {
+            // The linear and angular movements required are in proportion to the two inverse inertias
+            f32 Sign = (BodyIndex == 0) ? 1.f : -1.f;
+            AngularMove[BodyIndex] = Sign * Penetration * (AngularInertia[BodyIndex] / TotalInertia);
+            LinearMove[BodyIndex] = Sign * Penetration * (LinearInertia[BodyIndex] / TotalInertia);
+
+            // To avoid angular projections that are too great (when mass is large
+            // but inertia tensor is small) limit the angular move
+            vec3 Projection = 
+                Contact->RelativeContactPositions[BodyIndex] + 
+                Contact->Normal * (-Dot(Contact->RelativeContactPositions[BodyIndex], Contact->Normal));
+
+            // Use the small angle approximation for the sine of the angle (i.e.
+            // the magnitude would be sine(angularLimit) * projection.magnitude
+            // but we approximate sine(angularLimit) to angularLimit)
+            f32 MaxMagnitude = AngularLimit * Magnitude(Projection);
+
+            if (AngularMove[BodyIndex] < -MaxMagnitude)
+            {
+                f32 TotalMove = AngularMove[BodyIndex] + LinearMove[BodyIndex];
+                AngularMove[BodyIndex] = -MaxMagnitude;
+                LinearMove[BodyIndex] = TotalMove - AngularMove[BodyIndex];
+            }
+            else if (AngularMove[BodyIndex] > MaxMagnitude)
+            {
+                f32 TotalMove = AngularMove[BodyIndex] + LinearMove[BodyIndex];
+                AngularMove[BodyIndex] = MaxMagnitude;
+                LinearMove[BodyIndex] = TotalMove - AngularMove[BodyIndex];
+            }
+
+            // We have the linear amount of movement required by turning
+            // the rigid body (in angularMove[i]). We now need to
+            // calculate the desired rotation to achieve that
+            if (AngularMove[BodyIndex] == 0)
+            {
+                // Easy case - no angular movement means no rotation
+                AngularChange[BodyIndex] = vec3(0.f);
+            }
+            else
+            {
+                // Work out the direction we'd like to rotate in
+                vec3 TargetAngularDirection = Cross(Contact->RelativeContactPositions[BodyIndex], Contact->Normal);
+
+                // Work out the direction we'd need to rotate to achieve that
+                AngularChange[BodyIndex] = 
+                    Body->InverseInertiaTensorWorld * TargetAngularDirection * 
+                    (AngularMove[BodyIndex] / AngularInertia[BodyIndex]);
+            }
+
+            // Velocity change is easier - it is just the linear movement along the contact normal
+            LinearChange[BodyIndex] = Contact->Normal * LinearMove[BodyIndex];
+
+            // Now we can start to apply the values we've calculated.
+            // Apply the linear movement
+            Body->Position += Contact->Normal * LinearMove[BodyIndex];
+
+            // And the change in orientation
+            Body->Orientation += AngularChange[BodyIndex];
+
+            // We need to calculate the derived data for any body that is
+            // asleep, so that the changes are reflected in the object's
+            // data. Otherwise the resolution will not change the position
+            // of the object, and the next collision detection round will
+            // have the same penetration
+            CalculateRigidBodyInternalState(Body);
+        }
+    }
+}
+
+dummy_internal vec3
+CalculateFrictionlessImpulse(contact *Contact)
+{
+    // Build a vector that shows the change in velocity in
+    // world space for a unit impulse in the direction of the contact normal
+    vec3 DeltaVelocityWorld = Cross(Contact->RelativeContactPositions[0], Contact->Normal);
+    DeltaVelocityWorld = Contact->Bodies[0]->InverseInertiaTensorWorld * DeltaVelocityWorld;
+    DeltaVelocityWorld = Cross(DeltaVelocityWorld, Contact->RelativeContactPositions[0]);
+
+    // Work out the change in velocity in contact coordiantes
+    f32 DeltaVelocity = Dot(DeltaVelocityWorld, Contact->Normal);
+
+    // Add the linear component of velocity change
+    DeltaVelocity += Contact->Bodies[0]->InverseMass;
+
+    // Check if we need to the second body's data
+    if (Contact->Bodies[1])
+    {
+        // Go through the same transformation sequence again
+        vec3 DeltaVelocityWorld = Cross(Contact->RelativeContactPositions[1], Contact->Normal);
+        DeltaVelocityWorld = Contact->Bodies[1]->InverseInertiaTensorWorld * DeltaVelocityWorld;
+        DeltaVelocityWorld = Cross(DeltaVelocityWorld, Contact->RelativeContactPositions[1]);
+
+        // Add the change in velocity due to rotation
+        DeltaVelocity += Dot(DeltaVelocityWorld, Contact->Normal);
+
+        // Add the change in velocity due to linear motion
+        DeltaVelocity += Contact->Bodies[1]->InverseMass;
+    }
+
+    // Calculate the required size of the impulse
+    vec3 Result = vec3(Contact->DesiredDeltaVelocity / DeltaVelocity, 0.f, 0.f);
+    return Result;
+}
+
+dummy_internal vec3
+CalculateFrictionImpulse(contact *Contact)
+{
+    f32 InverseMass = Contact->Bodies[0]->InverseMass;
+
+    // The equivalent of a cross product in matrices is multiplication
+    // by a skew symmetric matrix - we build the matrix for converting
+    // between linear and angular quantities
+    mat3 ImpulseToTorque = SkewSymmetric(Contact->RelativeContactPositions[0]);
+
+    // Build the matrix to convert contact impulse to change in velocity
+    // in world coordinates
+    mat3 DeltaVelocityWorld = ImpulseToTorque;
+    DeltaVelocityWorld = DeltaVelocityWorld * Contact->Bodies[0]->InverseInertiaTensorWorld;
+    DeltaVelocityWorld = DeltaVelocityWorld * ImpulseToTorque;
+    DeltaVelocityWorld = DeltaVelocityWorld * -1.f;
+
+    // Check if we need to add body two's data
+    if (Contact->Bodies[1])
+    {
+        // Set the cross product matrix
+        mat3 ImpulseToTorque = SkewSymmetric(Contact->RelativeContactPositions[1]);
+
+        // Calculate the velocity change matrix
+        mat3 DeltaVelocityWorld2 = ImpulseToTorque;
+        DeltaVelocityWorld2 = DeltaVelocityWorld2 * Contact->Bodies[1]->InverseInertiaTensorWorld;
+        DeltaVelocityWorld2 = DeltaVelocityWorld2 * ImpulseToTorque;
+        DeltaVelocityWorld2 = DeltaVelocityWorld2 * -1.f;
+
+        // Add to the total delta velocity
+        DeltaVelocityWorld = DeltaVelocityWorld + DeltaVelocityWorld2;
+
+        // Add to the inverse mass
+        InverseMass += Contact->Bodies[1]->InverseMass;
+    }
+
+    // Do a change of basis to convert into contact coordinates
+    mat3 DeltaVelocity = Contact->WorldToContact;
+    DeltaVelocity = DeltaVelocity * DeltaVelocityWorld;
+    DeltaVelocity = DeltaVelocity * Contact->ContactToWorld;
+
+    // Add in the linear velocity change
+    DeltaVelocity[0][0] += InverseMass;
+    DeltaVelocity[1][1] += InverseMass;
+    DeltaVelocity[2][2] += InverseMass;
+
+    // Invert to get the impulse needed per unit velocity
+    mat3 ImpulseMatrix = Inverse(DeltaVelocity);
+
+    // Find the target velocities to kill
+    vec3 VelocityKill = vec3(Contact->DesiredDeltaVelocity, -Contact->ContactVelocity.y, -Contact->ContactVelocity.z);
+
+    // Find the impulse to kill target velocities
+    vec3 ImpulseContact = ImpulseMatrix * VelocityKill;
+
+    // Check for exceeding friction
+    f32 PlanarImpulse = Sqrt(Square(ImpulseContact.y) + Square(ImpulseContact.z));
+
+    if (PlanarImpulse > ImpulseContact.x * Contact->Friction)
+    {
+        // We need to use dynamic friction
+        ImpulseContact.y /= PlanarImpulse;
+        ImpulseContact.z /= PlanarImpulse;
+
+        ImpulseContact.x =
+            DeltaVelocity[0][0] +
+            DeltaVelocity[0][1] * Contact->Friction * ImpulseContact.y +
+            DeltaVelocity[0][2] * Contact->Friction * ImpulseContact.z;
+        ImpulseContact.x = Contact->DesiredDeltaVelocity / ImpulseContact.x;
+        ImpulseContact.y *= Contact->Friction * ImpulseContact.x;
+        ImpulseContact.z *= Contact->Friction * ImpulseContact.x;
+    }
+
+    return ImpulseContact;
+}
+
+dummy_internal void
+ApplyVelocityChange(contact *Contact, vec3 *VelocityChange, vec3 *RotationChange)
+{
+    // We will calculate the impulse for each contact axis
+    vec3 ImpulseContact;
+
+    if (Contact->Friction == 0.f)
+    {
+        // Use the short format for frictionless contacts
+        ImpulseContact = CalculateFrictionlessImpulse(Contact);
+    }
+    else
+    {
+        // Otherwise we may have impulses that aren't in the direction of the
+        // contact, so we need the more complex version
+        ImpulseContact = CalculateFrictionImpulse(Contact);
+    }
+
+    // Convert impulse to world coordinates
+    vec3 Impulse = Contact->ContactToWorld * ImpulseContact;
+
+    // Split in the impulse into linear and rotational components
+    vec3 ImpulsiveTorque = Cross(Contact->RelativeContactPositions[0], Impulse);
+    RotationChange[0] = Contact->Bodies[0]->InverseInertiaTensorWorld * ImpulsiveTorque;
+    VelocityChange[0] = Impulse * Contact->Bodies[0]->InverseMass;
+
+    // Apply the changes
+    Contact->Bodies[0]->Velocity += VelocityChange[0];
+    Contact->Bodies[0]->AngularVelocity += RotationChange[0];
+
+    if (Contact->Bodies[1])
+    {
+        // Work out body one's linear and angular changes
+        vec3 ImpulsiveTorque = Cross(Impulse, Contact->RelativeContactPositions[1]);
+        RotationChange[1] = Contact->Bodies[1]->InverseInertiaTensorWorld * ImpulsiveTorque;
+        VelocityChange[1] = Impulse * -Contact->Bodies[1]->InverseMass;
+
+        // And apply them
+        Contact->Bodies[1]->Velocity += VelocityChange[1];
+        Contact->Bodies[1]->AngularVelocity += RotationChange[1];
+    }
+}
+
+dummy_internal void
+AdjustPositions(contact *Contacts, u32 Count, f32 dt)
+{
+    vec3 LinearChange[2];
+    vec3 AngularChange[2];
+
+    f32 MaxPenetration;
+    vec3 DeltaPosition;
+
+    u32 MaxPenetrationIndex = Count;
+    contact *MaxPenetrationContact = 0;
+
+    // Iteratively resolve interpenetrations in order of severity
+    
+    // todo:
+    u32 PositionIterationsUsed = 0;
+    // todo:
+    u32 PositionIterations = Count * 4;
+    // todo
+    f32 PositionEpsilon = 0.01f;
+
+    while (PositionIterationsUsed < PositionIterations)
+    {
+        // Find biggest penetration
+        MaxPenetration = PositionEpsilon;
+        MaxPenetrationIndex = Count;
+
+        for (u32 ContactIndex = 0; ContactIndex < Count; ++ContactIndex)
+        {
+            contact *Contact = Contacts + ContactIndex;
+
+            if (Contact->Penetration > MaxPenetration)
+            {
+                MaxPenetration = Contact->Penetration;
+                MaxPenetrationIndex = ContactIndex;
+                MaxPenetrationContact = Contact;
+            }
+        }
+
+        if (MaxPenetrationIndex == Count)
+        {
+            break;
+        }
+
+        // Resolve the penetration
+        ApplyPositionChange(MaxPenetrationContact, LinearChange, AngularChange, MaxPenetration);
+
+        // Again this action may have changed the penetration of other bodies, so we update contacts
+        for (u32 ContactIndex = 0; ContactIndex < Count; ++ContactIndex)
+        {
+            contact *Contact = Contacts + ContactIndex;
+
+            // Check each body in the contact
+            for (u32 BodyIndex = 0; BodyIndex < 2; ++BodyIndex)
+            {
+                rigid_body *Body = Contact->Bodies[BodyIndex];
+
+                if (Body)
+                {
+                    // Check for a match with each body in the newly resolved contact
+                    for (u32 OtherBodyIndex = 0; OtherBodyIndex < 2; ++OtherBodyIndex)
+                    {
+                        if (Body == MaxPenetrationContact->Bodies[OtherBodyIndex])
+                        {
+                            DeltaPosition = 
+                                LinearChange[OtherBodyIndex] + 
+                                Cross(AngularChange[OtherBodyIndex], Contact->RelativeContactPositions[BodyIndex]);
+
+                            // The sign of the change is positive if we're
+                            // dealing with the second body in a contact
+                            // and negative otherwise (because we're
+                            // subtracting the resolution)..
+                            Contact->Penetration += Dot(DeltaPosition, Contact->Normal) * (BodyIndex ? 1.f : -1.f);
+                        }
+                    }
+                }
+            }
+        }
+
+        ++PositionIterationsUsed;
+    }
+}
+
+dummy_internal void
+AdjustVelocities(contact *Contacts, u32 Count, f32 dt)
+{
+    vec3 VelocityChange[2];
+    vec3 RotationChange[2];
+
+    vec3 DeltaVelocity;
+
+    // Iteratively handle impacts in order of severity
+    // todo:
+    u32 VelocityIterationsUsed = 0;
+    // todo:
+    u32 VelocityIterations = Count * 4;
+    // todo
+    f32 VelocityEpsilon = 0.01f;
+
+    while (VelocityIterationsUsed < VelocityIterations)
+    {
+        // Find contact with maximum magnitude of probable velocity change
+        f32 MaxVelocity = VelocityEpsilon;
+        u32 MaxVelocityIndex = Count;
+        contact *MaxVelocityContact = 0;
+
+        for (u32 ContactIndex = 0; ContactIndex < Count; ++ContactIndex)
+        {
+            contact *Contact = Contacts + ContactIndex;
+
+            if (Contact->DesiredDeltaVelocity > MaxVelocity)
+            {
+                MaxVelocity = Contact->DesiredDeltaVelocity;
+                MaxVelocityIndex = ContactIndex;
+                MaxVelocityContact = Contact;
+            }
+        }
+
+        if (MaxVelocityIndex == Count)
+        {
+            break;
+        }
+
+        // Do the resolution on the contact that came out top
+        ApplyVelocityChange(MaxVelocityContact, VelocityChange, RotationChange);
+
+        // With the change in velocity of the two bodies, the update of
+        // contact velocities means that some of the relative closing
+        // velocities need recomputing
+        for (u32 ContactIndex = 0; ContactIndex < Count; ++ContactIndex)
+        {
+            contact *Contact = Contacts + ContactIndex;
+
+            // Check each body in the contact
+            for (u32 BodyIndex = 0; BodyIndex < 2; ++BodyIndex)
+            {
+                rigid_body *Body = Contact->Bodies[BodyIndex];
+
+                if (Body)
+                {
+                    // Check for a match with each body in the newly resolved contact
+                    for (u32 OtherBodyIndex = 0; OtherBodyIndex < 2; ++OtherBodyIndex)
+                    {
+                        if (Body == MaxVelocityContact->Bodies[OtherBodyIndex])
+                        {
+                            DeltaVelocity = 
+                                VelocityChange[OtherBodyIndex] + 
+                                Cross(RotationChange[OtherBodyIndex], Contact->RelativeContactPositions[BodyIndex]);
+
+                            // The sign of the change is negative if we're dealing
+                            // with the second body in a contact
+                            Contact->ContactVelocity += Contact->WorldToContact * DeltaVelocity * (BodyIndex ? -1.f : 1.f);
+                            CalculateDesiredDeltaVelocity(Contact, dt);
+                        }
+                    }
+                }
+            }
+        }
+
+        ++VelocityIterationsUsed;
+    }
+}
+
+dummy_internal void
+ResolveContacts(contact *Contacts, u32 Count, f32 dt)
+{
+    Assert(dt > 0.f);
+
+    if (Count > 0)
+    {
+        // Prepare the contacts for processing
+        PrepareContacts(Contacts, Count, dt);
+
+        // Resolve the interpenetration problems with the contacts
+        AdjustPositions(Contacts, Count, dt);
+
+        // Resolve the velocity problems with the contacts
+        AdjustVelocities(Contacts, Count, dt);
+    }
 }
