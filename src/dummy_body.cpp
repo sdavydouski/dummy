@@ -4,28 +4,25 @@ inline void
 SetPosition(rigid_body *Body, vec3 Position)
 {
     Body->Position = Position;
-    Body->PrevPosition = Position;
+    Body->PrevPosition = Body->Position;
 }
 
 inline void
 SetOrientation(rigid_body *Body, quat Orientation)
 {
     Body->Orientation = Orientation;
-    Body->PrevOrientation = Orientation;
 }
 
 inline void
 SetVelocity(rigid_body *Body, vec3 Velocity)
 {
     Body->Velocity = Velocity;
-    Body->PrevVelocity = Velocity;
 }
 
 inline void
 SetAngularVelocity(rigid_body *Body, vec3 AngularVelocity)
 {
     Body->AngularVelocity = AngularVelocity;
-    Body->PrevAngularVelocity = AngularVelocity;
 }
 
 inline f32
@@ -67,14 +64,40 @@ SetCenterOfMass(rigid_body *Body, vec3 CenterOfMass)
     Body->CenterOfMassLocal = CenterOfMass;
 }
 
+inline void
+SetIsAwake(rigid_body *Body, bool32 IsAwake)
+{
+    Body->IsAwake = IsAwake;
+
+    if (Body->IsAwake)
+    {
+        // Add a bit of motion to avoid it falling asleep immediately
+        Body->Motion = SleepEpsilon * 2.f;
+    }
+    else
+    {
+        Body->Velocity = vec3(0.f);
+        Body->AngularVelocity = vec3(0.f);
+    }
+}
+
+inline void
+SetCanSleep(rigid_body *Body, bool32 CanSleep)
+{
+    Body->CanSleep = CanSleep;
+
+    if (!Body->CanSleep && !Body->IsAwake)
+    {
+        SetIsAwake(Body, true);
+    }
+}
+
 inline mat3
 CalculateInverseInertiaWorld(rigid_body *Body)
 {
     mat4 InverseInertiaTensorLocalM4 = mat4(Body->InverseInertiaTensorLocal);
     mat4 InertiaTensorLocalM4 = Inverse(InverseInertiaTensorLocalM4);
     mat4 WorldToLocalTransform = Inverse(Body->LocalToWorldTransform);
-    // todo: recheck
-    //mat4 InertiaTensorWorldM4 = WorldToLocalTransform * InertiaTensorLocalM4 * Transpose(WorldToLocalTransform);
     mat4 InertiaTensorWorldM4 = Transpose(WorldToLocalTransform) * InertiaTensorLocalM4 * WorldToLocalTransform;
 
     mat3 Result = mat3(
@@ -87,12 +110,12 @@ CalculateInverseInertiaWorld(rigid_body *Body)
 }
 
 inline void
-CalculateRigidBodyInternalState(rigid_body *Body)
+CalculateRigidBodyState(rigid_body *Body)
 {
-    mat4 R = GetRotationMatrix(Body->Orientation);
+    mat4 RotationM = GetRotationMatrix(Body->Orientation);
 
-    Body->CenterOfMassWorld = Body->Position + R * Body->CenterOfMassLocal;
-    Body->LocalToWorldTransform = TranslateRotate(Body->CenterOfMassWorld, Body->Orientation);
+    Body->CenterOfMassWorld = Body->Position + RotationM * Body->CenterOfMassLocal;
+    Body->LocalToWorldTransform = Translate(RotationM, Body->CenterOfMassWorld);
     Body->InverseInertiaTensorWorld = CalculateInverseInertiaWorld(Body);
 }
 
@@ -101,33 +124,56 @@ Integrate(rigid_body *Body, f32 dt)
 {
     Assert(dt > 0.f);
 
-    Body->Acceleration = Body->ForceAccumulator * Body->InverseMass;
-    Body->Velocity += Body->Acceleration * dt;
-    Body->Velocity *= Power(Body->LinearDamping, dt);
-    Body->Position += Body->Velocity * dt;
+    if (Body->IsAwake)
+    {
+        Body->PrevPosition = Body->Position;
+        Body->PrevVelocity = Body->Velocity;
+        Body->PrevAcceleration = Body->Acceleration;
 
-    Body->AngularAcceleration = Body->InverseInertiaTensorWorld * Body->TorqueAccumulator;
-    Body->AngularVelocity += Body->AngularAcceleration * dt;
-    Body->AngularVelocity *= Power(Body->AngularDamping, dt);
-    Body->Orientation += Body->AngularVelocity * dt;
-    Body->Orientation = Normalize(Body->Orientation);
+        Body->Acceleration = Body->ForceAccumulator * Body->InverseMass;
+        Body->Velocity += Body->Acceleration * dt;
+        Body->Velocity *= Power(Body->LinearDamping, dt);
+        Body->Position += Body->Velocity * dt;
 
-    Body->ForceAccumulator = vec3(0.f);
-    Body->TorqueAccumulator = vec3(0.f);
+        Body->AngularAcceleration = Body->InverseInertiaTensorWorld * Body->TorqueAccumulator;
+        Body->AngularVelocity += Body->AngularAcceleration * dt;
+        Body->AngularVelocity *= Power(Body->AngularDamping, dt);
+        Body->Orientation += Body->AngularVelocity * dt;
+        Body->Orientation = Normalize(Body->Orientation);
 
-    CalculateRigidBodyInternalState(Body);
+        Body->ForceAccumulator = vec3(0.f);
+        Body->TorqueAccumulator = vec3(0.f);
+
+        CalculateRigidBodyState(Body);
+
+        if (Body->CanSleep)
+        {
+            f32 CurrentMotion = SquaredMagnitude(Body->Velocity) + SquaredMagnitude(Body->AngularVelocity);
+            f32 Bias = Power(0.5f, dt);
+
+            Body->Motion = Lerp(CurrentMotion, Bias, Body->Motion);
+            Body->Motion = Min(Body->Motion, SleepEpsilon * 10.f);
+
+            if (Body->Motion < SleepEpsilon)
+            {
+                SetIsAwake(Body, false);
+            }
+        }
+    }
 }
 
 inline void
 AddForce(rigid_body *Body, vec3 Force)
 {
     Body->ForceAccumulator += Force;
+    Body->IsAwake = true;
 }
 
 inline void
 AddTorque(rigid_body *Body, vec3 Torque)
 {
     Body->TorqueAccumulator += Torque;
+    Body->IsAwake = true;
 }
 
 inline void

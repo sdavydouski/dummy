@@ -395,6 +395,19 @@ Translate(vec3 Value)
 }
 
 inline mat4
+Translate(mat4 M, vec3 Value)
+{
+    mat4 Result = mat4(
+        M[0][0], M[0][1], M[0][2], Value.x,
+        M[1][0], M[1][1], M[1][2], Value.y,
+        M[2][0], M[2][1], M[2][2], Value.z,
+        0.f, 0.f, 0.f, 1.f
+    );
+
+    return Result;
+}
+
+inline mat4
 RotateX(f32 Angle)
 {
     mat4 Result = mat4(

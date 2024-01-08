@@ -26,6 +26,7 @@
     <ClInclude Include="dummy_audio.h" />
     <ClInclude Include="dummy_bounds.h" />
     <ClInclude Include="dummy_camera.h" />
+    <ClInclude Include="dummy_contact.h" />
     <ClInclude Include="dummy_events.h" />
     <ClInclude Include="dummy_job.h" />
     <ClInclude Include="dummy_mat3.h" />
@@ -45,7 +46,7 @@
     <ClInclude Include="dummy_mat4.h" />
     <ClInclude Include="dummy_math.h" />
     <ClInclude Include="dummy_memory.h" />
-    <ClInclude Include="dummy_physics.h" />
+    <ClInclude Include="dummy_body.h" />
     <ClInclude Include="dummy_platform.h" />
     <ClInclude Include="dummy_quat.h" />
     <ClInclude Include="dummy_random.h" />
@@ -57,6 +58,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_contact.cpp" />
     <None Include="dummy_bounds.cpp" />
     <None Include="dummy_particles.cpp" />
     <None Include="dummy_camera.cpp" />
@@ -66,7 +68,7 @@
     <None Include="dummy_animator.cpp" />
     <None Include="dummy_visibility.cpp" />
     <None Include="dummy_process.cpp" />
-    <None Include="dummy_physics.cpp" />
+    <None Include="dummy_body.cpp" />
     <None Include="dummy_animation.cpp" />
     <None Include="dummy_assets.cpp" />
     <None Include="dummy_renderer.cpp" />

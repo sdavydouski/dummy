@@ -3,8 +3,9 @@
 #include "dummy_renderer.cpp"
 #include "dummy_events.cpp"
 #include "dummy_bounds.cpp"
+#include "dummy_body.cpp"
 #include "dummy_collision.cpp"
-#include "dummy_physics.cpp"
+#include "dummy_contact.cpp"
 #include "dummy_spatial.cpp"
 #include "dummy_camera.cpp"
 #include "dummy_particles.cpp"
@@ -901,7 +902,7 @@ AddBoxCollider(game_entity *Entity, vec3 HalfSize, mat4 Offset, memory_arena *Ar
     Entity->Collider->Box.HalfSize = HalfSize;
     Entity->Collider->Box.Offset = Offset;
 
-    CalculateColliderInternalState(Entity);
+    CalculateColliderState(Entity);
 }
 
 inline void
@@ -932,8 +933,10 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena)
     SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
     SetLinearDamping(Entity->Body, 0.95f);
     SetAngularDamping(Entity->Body, 0.8f);
+    SetIsAwake(Entity->Body, true);
+    SetCanSleep(Entity->Body, true);
 
-    CalculateRigidBodyInternalState(Entity->Body);
+    CalculateRigidBodyState(Entity->Body);
 }
 
 // todo: remove
@@ -949,8 +952,10 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena, f32 Mass, vec3 Size)
     SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
     SetLinearDamping(Entity->Body, 0.95f);
     SetAngularDamping(Entity->Body, 0.8f);
+    SetIsAwake(Entity->Body, true);
+    SetCanSleep(Entity->Body, true);
 
-    CalculateRigidBodyInternalState(Entity->Body);
+    CalculateRigidBodyState(Entity->Body);
 }
 
 inline void
@@ -1173,7 +1178,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
     game_state *State = Data->State;
     platform_api *Platform = Data->Platform;
-    collision *CollisionData = &State->CollisionData;
+    contact_resolver *CollisionData = &State->CollisionData;
 
     f32 dt = Data->UpdateRate;
 
@@ -1188,13 +1193,13 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
             if (Body)
             {
-                // Save previous state
-                Body->PrevPosition = Body->Position;
-                Body->PrevVelocity = Body->Velocity;
-                Body->PrevAcceleration = Body->Acceleration;
+                if (Body->IsAwake)
+                {
+                    Entity->DebugColor = vec3(0.f, 0.8f, 0.f);
+                }
 
                 //
-                //AddTorque(Body, vec3(0.f, 1.f, 0.f));
+                //AddTorque(Body, vec3(0.f, 5.f, 0.f));
                 //
 
                 bool32 OnTheGround = false;//NearlyEqual(Entity->Body->Position.y, 0.f);
@@ -1234,6 +1239,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 #endif
                 }
 
+#if 0
                 u32 MaxNearbyEntityCount = 10;
                 game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
                 aabb Bounds = CreateAABBMinMax(vec3(0.f, -0.01f, 0.f), vec3(0.f, 0.f, 0.f));
@@ -1288,10 +1294,14 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
 ;                   AddForce(Body, Gravity);
                 }
+#else
+                vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
+                AddForce(Body, Gravity);
+#endif
 
                 Integrate(Body, dt);
 
-                CalculateColliderInternalState(Entity);
+                CalculateColliderState(Entity);
 
 #if 1
                 if (Collider)
@@ -1428,7 +1438,7 @@ JOB_ENTRY_POINT(ProcessEntityBatchJob)
 
             if (Entity->Collider)
             {
-                CalculateColliderInternalState(Entity);
+                CalculateColliderState(Entity);
             }
 
             if (Entity->Model)
@@ -1905,13 +1915,13 @@ SpawnBox(game_state *State, render_commands *RenderCommands)
     vec3 Size = vec3(1.f);
 
     //Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)));
-    Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f), Size);
+    Entity->Transform = CreateTransform(vec3(0.f, 10.f, 0.f), Size);
 
     AddModel(State, Entity, &State->Assets, "cube", RenderCommands, &State->WorldArea.Arena);
     AddBoxCollider(Entity, &State->WorldArea.Arena);
     AddRigidBody(Entity, &State->WorldArea.Arena, Mass, Size);
 
-    State->SelectedEntity = Entity;
+    //State->SelectedEntity = Entity;
 }
 
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
@@ -2126,15 +2136,8 @@ DLLExport GAME_UPDATE(GameUpdate)
     }
 #endif
 
-    // todo!!!: problem with shared state since contact data is updated in multiple threads
-    for (u32 ContactIndex = 0; ContactIndex < State->CollisionData.ContactCount; ++ContactIndex)
-    {
-        contact *Contact = State->CollisionData.Contacts + ContactIndex;
-        *Contact = {};
-    }
-    State->CollisionData.ContactCount = 0;
-
-    u32 EntityBatchCount = 100;
+    // todo:
+    u32 EntityBatchCount = 300;
     u32 UpdateEntityBatchJobCount = Ceil((f32) Area->EntityCount / (f32) EntityBatchCount);
     job *UpdateEntityBatchJobs = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, job);
     update_entity_batch_job *UpdateEntityBatchJobParams = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, update_entity_batch_job);
@@ -2168,6 +2171,14 @@ DLLExport GAME_UPDATE(GameUpdate)
     }
 
     ResolveContacts(State->CollisionData.Contacts, State->CollisionData.ContactCount, Params->UpdateRate);
+
+    // todo!!!: problem with shared state since contact data is updated in multiple threads
+    for (u32 ContactIndex = 0; ContactIndex < State->CollisionData.ContactCount; ++ContactIndex)
+    {
+        contact *Contact = State->CollisionData.Contacts + ContactIndex;
+        *Contact = {};
+    }
+    State->CollisionData.ContactCount = 0;
 }
 
 DLLExport GAME_RENDER(GameRender)
@@ -2587,7 +2598,7 @@ DLLExport GAME_RENDER(GameRender)
 
             if (State->Assets.State != GameAssetsState_Ready)
             {
-                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 0.75f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
             }
 
 #if 0

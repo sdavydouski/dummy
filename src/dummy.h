@@ -14,8 +14,9 @@
 #include "dummy_input.h"
 #include "dummy_events.h"
 #include "dummy_bounds.h"
-#include "dummy_physics.h"
+#include "dummy_body.h"
 #include "dummy_collision.h"
+#include "dummy_contact.h"
 #include "dummy_visibility.h"
 #include "dummy_spatial.h"
 #include "dummy_camera.h"
@@ -54,7 +55,11 @@ aabb UpdateBounds(aabb Bounds, transform T);
 bool32 TestAABBAABB(aabb a, aabb b);
 bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord);
 audio_play_options SetVolume(f32 Volume);
-void CalculateRigidBodyInternalState(rigid_body *Body);
+void CalculateRigidBodyState(rigid_body *Body);
+f32 TransformToAxis(collider_box Box, vec3 Axis);
+void CalculateVertices(collider_box Box, vec3 *Vertices);
+bool32 TestBoxPlane(collider_box Box, plane Plane);
+void SetIsAwake(rigid_body *Body, bool32 IsAwake);
 //
 
 #define SID(String) Hash(String)
@@ -74,6 +79,29 @@ struct game_entity
     ivec3 GridCellCoords[2];
     transform Transform;
 
+    /*
+    // todo:
+
+    struct game_state
+    {
+        model Models[...];
+        skinning_data Skinning[...];
+        animation_graph Animation[...];
+        collider Collider[...];
+        rigid_body Body[...];
+        ...
+    }
+
+    struct game_entity
+    {
+        u32 ModelIndex;
+        u32 SkinningIndex;
+        u32 AnimationIndex;
+        u32 ColliderIndex;
+        u32 BodyIndex;
+        ...
+    }
+    */
     model *Model;
     skinning_data *Skinning;
     animation_graph *Animation;
@@ -406,7 +434,7 @@ struct game_state
 
     value_state<bool32> DanceMode;
 
-    collision CollisionData;
+    contact_resolver CollisionData;
 
     // todo: temp
     u32 SkyboxId;

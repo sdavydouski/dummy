@@ -1,5 +1,8 @@
 #pragma once
 
+// todo:
+constexpr f32 SleepEpsilon = 0.4f;
+
 struct rigid_body
 {
     vec3 Position;
@@ -26,13 +29,11 @@ struct rigid_body
     
     mat4 LocalToWorldTransform;
 
-    // ?
     vec3 PrevPosition;
     vec3 PrevVelocity;
     vec3 PrevAcceleration;
 
-    quat PrevOrientation;
-    vec3 PrevAngularVelocity;
-    vec3 PrevAngularAcceleration;
-    //
+    f32 Motion;
+    bool32 IsAwake;
+    bool32 CanSleep;
 };

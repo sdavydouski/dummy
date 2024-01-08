@@ -388,7 +388,7 @@ Win32InitEditor(editor_state *EditorState, win32_platform_state *PlatformState)
     EditorInitRenderer(EditorState);
 
     // Load Fonts
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
     // Setup Config
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -1816,10 +1816,12 @@ Win32RenderEditor(
 
             if (Entity->Body)
             {
-                Entity->Body->Acceleration = vec3(0.f);
-                Entity->Body->Velocity = vec3(0.f);
-                Entity->Body->Position = Entity->Transform.Translation;
-                Entity->Body->Orientation = Entity->Transform.Rotation;
+                SetPosition(Entity->Body, Entity->Transform.Translation);
+                SetOrientation(Entity->Body, Entity->Transform.Rotation);
+                SetVelocity(Entity->Body, vec3(0.f));
+                SetIsAwake(Entity->Body, true);
+
+                CalculateRigidBodyState(Entity->Body);
             }
         }
     }

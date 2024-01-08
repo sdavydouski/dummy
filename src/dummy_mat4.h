@@ -70,7 +70,7 @@ struct mat4
         Rows[0] = vec4(M.Rows[0], 0.f);
         Rows[1] = vec4(M.Rows[1], 0.f);
         Rows[2] = vec4(M.Rows[2], 0.f);
-        Rows[3] = vec4(M.Rows[3], 1.f);
+        Rows[3] = vec4(0.f, 0.f, 0.f, 1.f);
     }
 
     static inline mat4 identity()
