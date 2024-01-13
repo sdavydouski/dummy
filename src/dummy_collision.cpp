@@ -431,10 +431,10 @@ TestColliders(game_entity *a, game_entity *b, vec3 *mtv)
 }
 
 inline void
-CalculateVertices(collider_box Box, vec3 *Vertices)
+CalculateVertices(collider_box *Box, vec3 *Vertices)
 {
     f32 Signs[] = { -1.f, 1.f };
-    vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
+    vec3 BoxHalfSize = Box->HalfSize * GetScale(Box->Transform);
 
     for (u32 x = 0; x < 2; ++x)
     {
@@ -443,30 +443,30 @@ CalculateVertices(collider_box Box, vec3 *Vertices)
             for (u32 z = 0; z < 2; ++z)
             {
                 *Vertices++ =
-                    GetTranslation(Box.Transform) +
-                    Signs[x] * GetAxis(Box.Transform, 0) * BoxHalfSize.x +
-                    Signs[y] * GetAxis(Box.Transform, 1) * BoxHalfSize.y +
-                    Signs[z] * GetAxis(Box.Transform, 2) * BoxHalfSize.z;
+                    GetTranslation(Box->Transform) +
+                    Signs[x] * GetAxis(Box->Transform, 0) * BoxHalfSize.x +
+                    Signs[y] * GetAxis(Box->Transform, 1) * BoxHalfSize.y +
+                    Signs[z] * GetAxis(Box->Transform, 2) * BoxHalfSize.z;
             }
         }
     }
 }
 
 inline f32
-TransformToAxis(collider_box Box, vec3 Axis)
+TransformToAxis(collider_box *Box, vec3 Axis)
 {
-    vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
+    vec3 BoxHalfSize = Box->HalfSize * GetScale(Box->Transform);
 
     f32 Result =
-        BoxHalfSize.x * Abs(Dot(Axis, GetAxis(Box.Transform, 0))) +
-        BoxHalfSize.y * Abs(Dot(Axis, GetAxis(Box.Transform, 1))) +
-        BoxHalfSize.z * Abs(Dot(Axis, GetAxis(Box.Transform, 2)));
+        BoxHalfSize.x * Abs(Dot(Axis, GetAxis(Box->Transform, 0))) +
+        BoxHalfSize.y * Abs(Dot(Axis, GetAxis(Box->Transform, 1))) +
+        BoxHalfSize.z * Abs(Dot(Axis, GetAxis(Box->Transform, 2)));
 
     return Result;
 }
 
 inline bool32
-OverlapOnAxis(collider_box a, collider_box b, vec3 Axis)
+OverlapOnAxis(collider_box *One, collider_box *Two, vec3 Axis)
 {
     // Make sure we have a normalized axis, and don't check almost parallel axes
     if (SquaredMagnitude(Axis) < EPSILON)
@@ -474,67 +474,68 @@ OverlapOnAxis(collider_box a, collider_box b, vec3 Axis)
         return true;
     }
 
-    vec3 ToCenter = GetTranslation(b.Transform) - GetTranslation(a.Transform);
+    vec3 ToCenter = GetTranslation(Two->Transform) - GetTranslation(One->Transform);
 
-    // Project the half-sizes of a and b onto Axis
-    f32 ProjectionA = TransformToAxis(a, Axis);
-    f32 ProjectionB = TransformToAxis(b, Axis);
+    // Project the half-sizes of One and Two onto Axis
+    f32 ProjectionOne = TransformToAxis(One, Axis);
+    f32 ProjectionTwo = TransformToAxis(Two, Axis);
 
     // Project this onto the axis
     f32 Distance = Abs(Dot(ToCenter, Axis));
 
     // Check for overlap
-    bool32 Result = (Distance < ProjectionA + ProjectionB);
+    bool32 Result = (Distance < ProjectionOne + ProjectionTwo);
+
     return Result;
 }
 
 dummy_internal bool32
-TestBoxPlane(collider_box Box, plane Plane)
+TestBoxPlane(collider_box *Box, plane Plane)
 {
-    vec3 BoxHalfSize = Box.HalfSize * GetScale(Box.Transform);
+    vec3 BoxHalfSize = Box->HalfSize * GetScale(Box->Transform);
 
     // Compute the projected radius of the box onto the plane direction
     f32 Radius =
-        BoxHalfSize.x * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 0))) +
-        BoxHalfSize.y * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 1))) +
-        BoxHalfSize.z * Abs(Dot(Plane.Normal, GetAxis(Box.Transform, 2)));
+        BoxHalfSize.x * Abs(Dot(Plane.Normal, GetAxis(Box->Transform, 0))) +
+        BoxHalfSize.y * Abs(Dot(Plane.Normal, GetAxis(Box->Transform, 1))) +
+        BoxHalfSize.z * Abs(Dot(Plane.Normal, GetAxis(Box->Transform, 2)));
 
     // Compute how far the box is from the origin
-    f32 Distance = Dot(Plane.Normal, GetTranslation(Box.Transform)) - Radius;
+    f32 Distance = Dot(Plane.Normal, GetTranslation(Box->Transform)) - Radius;
 
     // Check for the intersection
     return Distance <= Plane.Distance;
 }
 
 dummy_internal bool32
-TestBoxBox(collider_box a, collider_box b)
+TestBoxBox(collider_box *One, collider_box *Two)
 {
-    vec3 xAxisA = GetAxis(a.Transform, 0);
-    vec3 yAxisA = GetAxis(a.Transform, 1);
-    vec3 zAxisA = GetAxis(a.Transform, 2);
+    vec3 xAxisA = GetAxis(One->Transform, 0);
+    vec3 yAxisA = GetAxis(One->Transform, 1);
+    vec3 zAxisA = GetAxis(One->Transform, 2);
 
-    vec3 xAxisB = GetAxis(b.Transform, 0);
-    vec3 yAxisB = GetAxis(b.Transform, 1);
-    vec3 zAxisB = GetAxis(b.Transform, 2);
+    vec3 xAxisB = GetAxis(Two->Transform, 0);
+    vec3 yAxisB = GetAxis(Two->Transform, 1);
+    vec3 zAxisB = GetAxis(Two->Transform, 2);
 
     bool32 Result = (
-        OverlapOnAxis(a, b, xAxisA) &&
-        OverlapOnAxis(a, b, yAxisA) &&
-        OverlapOnAxis(a, b, zAxisA) &&
+        OverlapOnAxis(One, Two, xAxisA) &&
+        OverlapOnAxis(One, Two, yAxisA) &&
+        OverlapOnAxis(One, Two, zAxisA) &&
 
-        OverlapOnAxis(a, b, xAxisB) &&
-        OverlapOnAxis(a, b, yAxisB) &&
-        OverlapOnAxis(a, b, zAxisB) &&
+        OverlapOnAxis(One, Two, xAxisB) &&
+        OverlapOnAxis(One, Two, yAxisB) &&
+        OverlapOnAxis(One, Two, zAxisB) &&
 
-        OverlapOnAxis(a, b, Cross(xAxisA, xAxisB)) &&
-        OverlapOnAxis(a, b, Cross(xAxisA, yAxisB)) &&
-        OverlapOnAxis(a, b, Cross(xAxisA, zAxisB)) &&
-        OverlapOnAxis(a, b, Cross(yAxisA, xAxisB)) &&
-        OverlapOnAxis(a, b, Cross(yAxisA, yAxisB)) &&
-        OverlapOnAxis(a, b, Cross(yAxisA, zAxisB)) &&
-        OverlapOnAxis(a, b, Cross(zAxisA, xAxisB)) &&
-        OverlapOnAxis(a, b, Cross(zAxisA, yAxisB)) &&
-        OverlapOnAxis(a, b, Cross(zAxisA, zAxisB))
+        OverlapOnAxis(One, Two, Cross(xAxisA, xAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(xAxisA, yAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(xAxisA, zAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(yAxisA, xAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(yAxisA, yAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(yAxisA, zAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(zAxisA, xAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(zAxisA, yAxisB)) &&
+        OverlapOnAxis(One, Two, Cross(zAxisA, zAxisB))
     );
 
     return Result;

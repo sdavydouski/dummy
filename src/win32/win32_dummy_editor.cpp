@@ -1746,7 +1746,6 @@ Win32RenderEditor(
     ImGui::SetNextWindowBgAlpha(0.3f);
     ImGui::Begin("Game Overlay", 0, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
     ImGui::Text("Size: %d, %d", GameParameters->WindowWidth, GameParameters->WindowHeight);
-
 #if 0
     game_camera *PlayerCamera = &GameState->PlayerCamera;
 

@@ -12,6 +12,7 @@ struct collider_box
 
     mat4 Offset;
     mat4 Transform;
+    rigid_body *Body;
 };
 
 struct collider_sphere
@@ -20,6 +21,7 @@ struct collider_sphere
 
     mat4 Offset;
     mat4 Transform;
+    rigid_body *Body;
 };
 
 struct collider

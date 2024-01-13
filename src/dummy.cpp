@@ -903,6 +903,12 @@ AddBoxCollider(game_entity *Entity, vec3 HalfSize, mat4 Offset, memory_arena *Ar
     Entity->Collider->Box.Offset = Offset;
 
     CalculateColliderState(Entity);
+
+    // todo:
+    if (Entity->Body)
+    {
+        Entity->Collider->Box.Body = Entity->Body;
+    }
 }
 
 inline void
@@ -937,6 +943,12 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena)
     SetCanSleep(Entity->Body, true);
 
     CalculateRigidBodyState(Entity->Body);
+
+    // todo:
+    if (Entity->Collider)
+    {
+        Entity->Collider->Box.Body = Entity->Body;
+    }
 }
 
 // todo: remove
@@ -948,7 +960,7 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena, f32 Mass, vec3 Size)
     SetPosition(Entity->Body, Entity->Transform.Translation);
     SetOrientation(Entity->Body, Entity->Transform.Rotation);
     SetMass(Entity->Body, Mass);
-    SetCenterOfMass(Entity->Body, vec3(0.f, Size.y / 2.f, 0.f));
+    SetCenterOfMass(Entity->Body, vec3(0.f));
     SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
     SetLinearDamping(Entity->Body, 0.95f);
     SetAngularDamping(Entity->Body, 0.8f);
@@ -956,6 +968,12 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena, f32 Mass, vec3 Size)
     SetCanSleep(Entity->Body, true);
 
     CalculateRigidBodyState(Entity->Body);
+
+    // todo:
+    if (Entity->Collider)
+    {
+        Entity->Collider->Box.Body = Entity->Body;
+    }
 }
 
 inline void
@@ -1178,7 +1196,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
     game_state *State = Data->State;
     platform_api *Platform = Data->Platform;
-    contact_resolver *CollisionData = &State->CollisionData;
+    contact_resolver *ContactResolver = &State->ContactResolver;
 
     f32 dt = Data->UpdateRate;
 
@@ -1227,14 +1245,19 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         }
                     }
 #else
-                    if (TestBoxPlane(Collider->Box, State->Ground))
+                    if (TestBoxPlane(&Collider->Box, State->Ground))
                     {
                         //OnTheGround = true;
 
-                        u32 ContactCount = CalculateBoxPlaneContacts(Entity->Collider->Box, State->Ground, Body, CollisionData->Contacts + CollisionData->ContactCount);
-                        CollisionData->ContactCount += ContactCount;
+                        contact_params ContactParams = 
+                        {
+                            .Friction = 0.5f,
+                            .Restitution = 0.4f
+                        };
+                        u32 ContactCount = CalculateBoxPlaneContacts(&Entity->Collider->Box, State->Ground, ContactResolver->Contacts + ContactResolver->ContactCount, ContactParams);
+                        ContactResolver->ContactCount += ContactCount;
 
-                        Assert(CollisionData->ContactCount < CollisionData->MaxContactCount);
+                        Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
                     }
 #endif
                 }
@@ -1295,17 +1318,19 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 ;                   AddForce(Body, Gravity);
                 }
 #else
-                vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
-                AddForce(Body, Gravity);
+                if (!Entity->IsManipulated)
+                {
+                    vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
+                    AddForce(Body, Gravity);
+                }
 #endif
 
                 Integrate(Body, dt);
 
-                CalculateColliderState(Entity);
-
-#if 1
                 if (Collider)
                 {
+                    CalculateColliderState(Entity);
+
                     // Collisions with nearby entities
                     u32 MaxNearbyEntityCount = 100;
                     game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
@@ -1330,33 +1355,27 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                         if (NearbyBodyCollider)
                         {
-#if 1
                             //CalculateColliderInternalState(Entity);
                             //CalculateColliderInternalState(NearbyEntity);
 
-                            if (TestBoxBox(Collider->Box, NearbyBodyCollider->Box))
+                            if (TestBoxBox(&Collider->Box, &NearbyBodyCollider->Box))
                             {
                                 //Entity->DebugColor = vec3(0.f, 1.f, 0.f);
                                 //NearbyEntity->DebugColor = vec3(0.f, 1.f, 0.f);
 
-                                u32 ContactCount = CalculateBoxBoxContacts(Collider->Box, NearbyBodyCollider->Box, Body, NearbyBody, CollisionData->Contacts + CollisionData->ContactCount);
-                                CollisionData->ContactCount += ContactCount;
+                                contact_params ContactParams =
+                                {
+                                    .Friction = 0.6f,
+                                    .Restitution = 0.2f
+                                };
+                                u32 ContactCount = CalculateBoxBoxContacts(&Collider->Box, &NearbyBodyCollider->Box, ContactResolver->Contacts + ContactResolver->ContactCount, ContactParams);
+                                ContactResolver->ContactCount += ContactCount;
 
-                                Assert(CollisionData->ContactCount < CollisionData->MaxContactCount);
+                                Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
                             }
-#endif
-
-#if 0
-                            vec3 mtv;
-                            if (TestColliders(Entity, NearbyEntity, &mtv))
-                            {
-                                Entity->Body->Position += mtv;
-                            }
-#endif
                         }
                     }
                 }
-#endif
             }
 
             if (Entity->ParticleEmitter)
@@ -1796,9 +1815,13 @@ DLLExport GAME_INIT(GameInit)
     // todo: temp
     State->SkyboxId = 1;
 
-    State->CollisionData.ContactCount = 0;
-    State->CollisionData.MaxContactCount = 512;
-    State->CollisionData.Contacts = PushArray(&State->PermanentArena, State->CollisionData.MaxContactCount, contact);
+    State->ContactResolver = {};
+    State->ContactResolver.ContactCount = 0;
+    State->ContactResolver.MaxContactCount = 1024;
+    State->ContactResolver.Contacts = PushArray(&State->PermanentArena, State->ContactResolver.MaxContactCount, contact);
+    State->ContactResolver.PositionEpsilon = 0.001f;
+    State->ContactResolver.VelocityEpsilon = 0.001f;
+
 
     game_process *Sentinel = &State->ProcessSentinel;
     Sentinel->Key = GenerateGameProcessId(State);
@@ -1914,10 +1937,13 @@ SpawnBox(game_state *State, render_commands *RenderCommands)
     f32 Mass = 10.f;
     vec3 Size = vec3(1.f);
 
-    //Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)));
-    Entity->Transform = CreateTransform(vec3(0.f, 10.f, 0.f), Size);
+#if 0
+    Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)));
+#else
+    Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f), Size);
+#endif
 
-    AddModel(State, Entity, &State->Assets, "cube", RenderCommands, &State->WorldArea.Arena);
+    AddModel(State, Entity, &State->Assets, "box", RenderCommands, &State->WorldArea.Arena);
     AddBoxCollider(Entity, &State->WorldArea.Arena);
     AddRigidBody(Entity, &State->WorldArea.Arena, Mass, Size);
 
@@ -2136,8 +2162,20 @@ DLLExport GAME_UPDATE(GameUpdate)
     }
 #endif
 
-    // todo:
-    u32 EntityBatchCount = 300;
+    contact_resolver *ContactResolver = &State->ContactResolver;
+
+    // todo!!!: problem with shared state since contact data is updated in multiple threads
+    for (u32 ContactIndex = 0; ContactIndex < ContactResolver->ContactCount; ++ContactIndex)
+    {
+        contact *Contact = ContactResolver->Contacts + ContactIndex;
+        *Contact = {};
+    }
+    // todo(continue): contact coherence!
+    ContactResolver->ContactCount = 0;
+    //
+
+#if 0
+    u32 EntityBatchCount = 100;
     u32 UpdateEntityBatchJobCount = Ceil((f32) Area->EntityCount / (f32) EntityBatchCount);
     job *UpdateEntityBatchJobs = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, job);
     update_entity_batch_job *UpdateEntityBatchJobParams = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, update_entity_batch_job);
@@ -2169,16 +2207,134 @@ DLLExport GAME_UPDATE(GameUpdate)
     {
         Platform->KickJobsAndWait(State->JobQueue, UpdateEntityBatchJobCount, UpdateEntityBatchJobs);
     }
+#else
+    // Single-thread
+    f32 dt = Params->UpdateRate;
 
-    ResolveContacts(State->CollisionData.Contacts, State->CollisionData.ContactCount, Params->UpdateRate);
-
-    // todo!!!: problem with shared state since contact data is updated in multiple threads
-    for (u32 ContactIndex = 0; ContactIndex < State->CollisionData.ContactCount; ++ContactIndex)
+    // Update bodies
+    for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
     {
-        contact *Contact = State->CollisionData.Contacts + ContactIndex;
-        *Contact = {};
+        game_entity *Entity = Area->Entities + EntityIndex;
+
+        if (Entity->Destroyed) continue;
+
+        rigid_body *Body = Entity->Body;
+        collider *Collider = Entity->Collider;
+
+        if (Body)
+        {
+            if (Body->IsAwake)
+            {
+                Entity->DebugColor = vec3(0.f, 0.8f, 0.f);
+            }
+
+            if (!Entity->IsManipulated)
+            {
+                vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
+                AddForce(Body, Gravity);
+            }
+
+            Integrate(Body, dt);
+        }
+
+        if (Collider)
+        {
+            CalculateColliderState(Entity);
+        }
+
+        if (Entity->ParticleEmitter)
+        {
+            particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
+
+            for (u32 ParticleSpawnIndex = 0; ParticleSpawnIndex < ParticleEmitter->ParticlesSpawn; ++ParticleSpawnIndex)
+            {
+                particle *Particle = ParticleEmitter->Particles + ParticleEmitter->NextParticleIndex++;
+
+                if (ParticleEmitter->NextParticleIndex >= ParticleEmitter->ParticleCount)
+                {
+                    ParticleEmitter->NextParticleIndex = 0;
+                }
+
+                random_sequence *Entropy = &State->ParticleEntropy;
+
+                Particle->Position = Entity->Transform.Translation + vec3(
+                    RandomBetween(Entropy, -0.05f, 0.05f),
+                    RandomBetween(Entropy, 0.f, 0.1f),
+                    RandomBetween(Entropy, -0.05f, 0.05f)
+                );
+                Particle->Velocity = Rotate(vec3(RandomBetween(Entropy, -0.5f, 0.5f), RandomBetween(Entropy, 3.f, 6.f), RandomBetween(Entropy, -0.5f, 0.5f)), Entity->Transform.Rotation);
+                Particle->Acceleration = Rotate(vec3(0.f, -10.f, 0.f), Entity->Transform.Rotation);
+                Particle->Color = ParticleEmitter->Color;
+                Particle->dColor = vec4(0.f, 0.f, 0.f, -0.5f);
+                Particle->Size = ParticleEmitter->Size;
+                Particle->dSize = vec2(-0.1f);
+            }
+        }
     }
-    State->CollisionData.ContactCount = 0;
+
+    // Contact generation
+    for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
+    {
+        game_entity *Entity = Area->Entities + EntityIndex;
+
+        if (Entity->Destroyed) continue;
+
+        collider *Collider = Entity->Collider;
+
+        if (Collider)
+        {
+            // Collision with the ground
+            if (TestBoxPlane(&Collider->Box, State->Ground))
+            {
+                contact_params ContactParams =
+                {
+                    .Friction = 0.5f,
+                    .Restitution = 0.4f
+                };
+                u32 ContactCount = CalculateBoxPlaneContacts(&Entity->Collider->Box, State->Ground, ContactResolver->Contacts + ContactResolver->ContactCount, ContactParams);
+                ContactResolver->ContactCount += ContactCount;
+
+                Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
+            }
+
+            // Collisions with nearby entities
+            u32 MaxNearbyEntityCount = 100;
+            game_entity **NearbyEntities = PushArray(ScopedMemory.Arena, MaxNearbyEntityCount, game_entity *);
+            aabb Bounds = CreateAABBMinMax(vec3(-1.0f), vec3(1.0f));
+
+            u32 NearbyEntityCount = FindNearbyEntities(&Area->SpatialGrid, Entity, Bounds, NearbyEntities, MaxNearbyEntityCount);
+
+            for (u32 NearbyEntityIndex = 0; NearbyEntityIndex < NearbyEntityCount; ++NearbyEntityIndex)
+            {
+                game_entity *NearbyEntity = NearbyEntities[NearbyEntityIndex];
+                rigid_body *NearbyBody = NearbyEntity->Body;
+                collider *NearbyBodyCollider = NearbyEntity->Collider;
+
+                if (NearbyEntity->Id == Entity->Id) continue;
+
+                if (NearbyBodyCollider)
+                {
+                    if (TestBoxBox(&Collider->Box, &NearbyBodyCollider->Box))
+                    {
+                        contact_params ContactParams =
+                        {
+                            .Friction = 0.6f,
+                            .Restitution = 0.1f
+                        };
+                        u32 ContactCount = CalculateBoxBoxContacts(&Collider->Box, &NearbyBodyCollider->Box, ContactResolver->Contacts + ContactResolver->ContactCount, ContactParams);
+                        ContactResolver->ContactCount += ContactCount;
+
+                        Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
+                    }
+                }
+            }
+
+            CalculateColliderState(Entity);
+        }
+    }
+#endif
+
+    ResolveContacts(&State->ContactResolver, Params->UpdateRate);
 }
 
 DLLExport GAME_RENDER(GameRender)
@@ -2207,6 +2363,14 @@ DLLExport GAME_RENDER(GameRender)
     RenderCommands->Settings.ScreenHeightInUnits = ScreenHeightInUnits;
 
     AudioCommands->Settings.Volume = State->MasterVolume;
+
+    // todo:
+    ClearStream(&State->Stream);
+
+    char GameLog[256];
+    FormatString(GameLog, "Contact Count: %d", State->ContactResolver.ContactCount);
+    Out(&State->Stream, GameLog);
+    //
 
     if (State->Assets.State == GameAssetsState_Loaded)
     {
@@ -2626,13 +2790,13 @@ DLLExport GAME_RENDER(GameRender)
             }
 #endif
 
-#if 0
-            for (u32 ContactIndex = 0; ContactIndex < State->CollisionData.ContactCount; ++ContactIndex)
+#if 1
+            for (u32 ContactIndex = 0; ContactIndex < State->ContactResolver.ContactCount; ++ContactIndex)
             {
-                contact *Contact = State->CollisionData.Contacts + ContactIndex;
+                contact *Contact = State->ContactResolver.Contacts + ContactIndex;
 
                 DrawBox(RenderCommands, CreateTransform(Contact->Point, vec3(0.05f)), vec4(1.f, 1.f, 0.f, 1.f));
-                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->Normal * 0.125f, vec4(1.f, 1.f, 0.f, 1.f), 8.f);
+                //DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->Normal * 0.125f, vec4(1.f, 1.f, 0.f, 1.f), 8.f);
 
                 // Draw contact basis axis
                 DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(0) * 0.25f, vec4(0.f, 0.f, 1.f, 1.f), 8.f);

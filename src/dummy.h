@@ -56,9 +56,9 @@ bool32 TestAABBAABB(aabb a, aabb b);
 bool32 IntersectRayAABB(ray Ray, aabb Box, vec3 &Coord);
 audio_play_options SetVolume(f32 Volume);
 void CalculateRigidBodyState(rigid_body *Body);
-f32 TransformToAxis(collider_box Box, vec3 Axis);
-void CalculateVertices(collider_box Box, vec3 *Vertices);
-bool32 TestBoxPlane(collider_box Box, plane Plane);
+f32 TransformToAxis(collider_box *Box, vec3 Axis);
+void CalculateVertices(collider_box *Box, vec3 *Vertices);
+bool32 TestBoxPlane(collider_box *Box, plane Plane);
 void SetIsAwake(rigid_body *Body, bool32 IsAwake);
 //
 
@@ -84,7 +84,7 @@ struct game_entity
 
     struct game_state
     {
-        model Models[...];
+        model Model[...];
         skinning_data Skinning[...];
         animation_graph Animation[...];
         collider Collider[...];
@@ -434,7 +434,7 @@ struct game_state
 
     value_state<bool32> DanceMode;
 
-    contact_resolver CollisionData;
+    contact_resolver ContactResolver;
 
     // todo: temp
     u32 SkyboxId;
