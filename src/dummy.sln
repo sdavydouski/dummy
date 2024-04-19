@@ -98,6 +98,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "hlsl", "hlsl", "{AC0E6377-F
 		shaders\hlsl\simple.hlsl = shaders\hlsl\simple.hlsl
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{85880E16-96DA-4A52-AD71-9D13F11628F9}"
+	ProjectSection(SolutionItems) = preProject
+		..\docs\todo.txt = ..\docs\todo.txt
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
