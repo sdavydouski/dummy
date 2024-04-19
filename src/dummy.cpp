@@ -13,6 +13,7 @@
 #include "dummy_animator.cpp"
 #include "dummy_process.cpp"
 #include "dummy_visibility.cpp"
+#include "dummy_save.cpp"
 
 inline vec3
 NormalizeRGB(vec3 RGB)
@@ -605,7 +606,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
         vec4 Color = vec4(1.f, 1.f, 0.f, 1.f);
 
         DrawBox(RenderCommands, Transform, Color);
-        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.05f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_WorldSpace, true);
+        DrawText(RenderCommands, Joint->Name, Font, Transform.Translation, 0.05f, vec4(0.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawMode_WorldSpace, true);
 
         if (Joint->ParentIndex > -1)
         {
@@ -614,7 +615,7 @@ DrawSkeleton(render_commands *RenderCommands, game_state *State, skeleton_pose *
             vec3 LineStart = GetTranslation(ParentGlobalJointPose);
             vec3 LineEnd = GetTranslation(GlobalJointPose);
 
-            DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 2.f);
+            DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 2.f, DrawMode_WorldSpace);
         }
     }
 }
@@ -629,7 +630,7 @@ RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
 
         vec3 LineStart = Frustrum->Vertices[Edge.VertexIndex[0]];
         vec3 LineEnd = Frustrum->Vertices[Edge.VertexIndex[1]];
-        DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 4.f);
+        DrawLine(RenderCommands, LineStart, LineEnd, vec4(1.f, 0.f, 1.f, 1.f), 4.f, DrawMode_WorldSpace);
     }
 
 #if 0
@@ -925,7 +926,7 @@ AddBoxCollider(game_entity *Entity, memory_arena *Arena)
 }
 
 inline void
-AddRigidBody(game_entity *Entity, memory_arena *Arena)
+AddRigidBody(game_state *State, game_entity *Entity, memory_arena *Arena)
 {
     Entity->Body = PushType(Arena, rigid_body, Align(16));
 
@@ -935,37 +936,12 @@ AddRigidBody(game_entity *Entity, memory_arena *Arena)
     SetPosition(Entity->Body, Entity->Transform.Translation);
     SetOrientation(Entity->Body, Entity->Transform.Rotation);
     SetMass(Entity->Body, Mass);
-    SetCenterOfMass(Entity->Body, vec3(0.f, Size.y / 2.f, 0.f));
-    SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
-    SetLinearDamping(Entity->Body, 0.95f);
-    SetAngularDamping(Entity->Body, 0.8f);
-    SetIsAwake(Entity->Body, true);
-    SetCanSleep(Entity->Body, true);
-
-    CalculateRigidBodyState(Entity->Body);
-
-    // todo:
-    if (Entity->Collider)
-    {
-        Entity->Collider->Box.Body = Entity->Body;
-    }
-}
-
-// todo: remove
-inline void
-AddRigidBody(game_entity *Entity, memory_arena *Arena, f32 Mass, vec3 Size)
-{
-    Entity->Body = PushType(Arena, rigid_body, Align(16));
-
-    SetPosition(Entity->Body, Entity->Transform.Translation);
-    SetOrientation(Entity->Body, Entity->Transform.Rotation);
-    SetMass(Entity->Body, Mass);
+    //SetInfiniteMass(Entity->Body);
     SetCenterOfMass(Entity->Body, vec3(0.f));
     SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
-    SetLinearDamping(Entity->Body, 0.95f);
+    //SetLinearDamping(Entity->Body, 0.95f);
+    SetLinearDamping(Entity->Body, 0.05f);
     SetAngularDamping(Entity->Body, 0.8f);
-    SetIsAwake(Entity->Body, true);
-    SetCanSleep(Entity->Body, true);
 
     CalculateRigidBodyState(Entity->Body);
 
@@ -1047,7 +1023,7 @@ CopyGameEntity(game_state *State, render_commands *RenderCommands, audio_command
 
     if (Source->Body)
     {
-        AddRigidBody(Dest, &Area->Arena);
+        AddRigidBody(State, Dest, &Area->Arena);
     }
 
     if (Source->PointLight)
@@ -1211,15 +1187,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
             if (Body)
             {
-                if (Body->IsAwake)
-                {
-                    Entity->DebugColor = vec3(0.f, 0.8f, 0.f);
-                }
-
-                //
-                //AddTorque(Body, vec3(0.f, 5.f, 0.f));
-                //
-
                 bool32 OnTheGround = false;//NearlyEqual(Entity->Body->Position.y, 0.f);
 
                 if (Collider)
@@ -1247,22 +1214,11 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 #else
                     if (TestBoxPlane(&Collider->Box, State->Ground))
                     {
-                        //OnTheGround = true;
-
-                        contact_params ContactParams = 
-                        {
-                            .Friction = 0.5f,
-                            .Restitution = 0.4f
-                        };
-                        u32 ContactCount = CalculateBoxPlaneContacts(&Entity->Collider->Box, State->Ground, ContactResolver->Contacts + ContactResolver->ContactCount, ContactParams);
-                        ContactResolver->ContactCount += ContactCount;
-
-                        Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
+                        OnTheGround = true;
                     }
 #endif
                 }
 
-#if 0
                 u32 MaxNearbyEntityCount = 10;
                 game_entity **NearbyEntities = PushArray(&Data->Arena, MaxNearbyEntityCount, game_entity *);
                 aabb Bounds = CreateAABBMinMax(vec3(0.f, -0.01f, 0.f), vec3(0.f, 0.f, 0.f));
@@ -1317,13 +1273,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                     vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
 ;                   AddForce(Body, Gravity);
                 }
-#else
-                if (!Entity->IsManipulated)
-                {
-                    vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
-                    AddForce(Body, Gravity);
-                }
-#endif
 
                 Integrate(Body, dt);
 
@@ -1617,7 +1566,7 @@ Spec2Entity(game_entity_spec *Spec, game_entity *Entity, game_state *State, rend
     if (Spec->RigidBodySpec.Has)
     {
         rigid_body_spec RigidBodySpec = Spec->RigidBodySpec;
-        AddRigidBody(Entity, Arena);
+        AddRigidBody(State, Entity, Arena);
     }
 
     if (Spec->PointLightSpec.Has)
@@ -1816,12 +1765,11 @@ DLLExport GAME_INIT(GameInit)
     State->SkyboxId = 1;
 
     State->ContactResolver = {};
+    State->ContactResolver.PositionEpsilon = 0.001f;
+    State->ContactResolver.VelocityEpsilon = 0.001f;
     State->ContactResolver.ContactCount = 0;
     State->ContactResolver.MaxContactCount = 1024;
     State->ContactResolver.Contacts = PushArray(&State->PermanentArena, State->ContactResolver.MaxContactCount, contact);
-    State->ContactResolver.PositionEpsilon = 0.001f;
-    State->ContactResolver.VelocityEpsilon = 0.001f;
-
 
     game_process *Sentinel = &State->ProcessSentinel;
     Sentinel->Key = GenerateGameProcessId(State);
@@ -1934,20 +1882,34 @@ SpawnBox(game_state *State, render_commands *RenderCommands)
 {
     game_entity *Entity = CreateGameEntity(State);
 
-    f32 Mass = 10.f;
-    vec3 Size = vec3(1.f);
-
 #if 0
     Entity->Transform = CreateTransform(vec3(RandomBetween(&State->GeneralEntropy, -5.f, 5.f), 5.f, RandomBetween(&State->GeneralEntropy, -5.f, 5.f)));
 #else
-    Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f), Size);
+    Entity->Transform = CreateTransform(vec3(0.f, 5.f, 0.f), vec3(1.f));
 #endif
 
     AddModel(State, Entity, &State->Assets, "box", RenderCommands, &State->WorldArea.Arena);
     AddBoxCollider(Entity, &State->WorldArea.Arena);
-    AddRigidBody(Entity, &State->WorldArea.Arena, Mass, Size);
+    AddRigidBody(State, Entity, &State->WorldArea.Arena);
 
     //State->SelectedEntity = Entity;
+}
+
+dummy_internal void
+SpawnPlayer(game_state *State, render_commands *RenderCommands)
+{
+    game_entity *Entity = CreateGameEntity(State);
+
+    f32 InverseMass = 0.f;
+    vec3 Size = vec3(0.3f, 1.8f, 0.3f);
+
+    Entity->Transform = CreateTransform(vec3(0.f, 0.f, 0.f));
+
+    AddModel(State, Entity, &State->Assets, "ybot", RenderCommands, &State->WorldArea.Arena);
+    AddBoxCollider(Entity, &State->WorldArea.Arena);
+    AddRigidBody(State, Entity, &State->WorldArea.Arena);
+
+    State->SelectedEntity = Entity;
 }
 
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
@@ -1961,7 +1923,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
     {
         if (State->Mode == GameMode_Menu)
         {
-            State->Mode = GameMode_World;
+            State->Mode = GameMode_Editor;
         }
         else
         {
@@ -1986,7 +1948,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
     if (Input->SpawnBox.IsActivated)
     {
+#if 0
         SpawnBox(State, RenderCommands);
+#else
+        SpawnPlayer(State, RenderCommands);
+#endif
     }
 
     switch (State->Mode)
@@ -2025,10 +1991,10 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     {
                         if (Player->IsGrounded)
                         {
-#if 1
+#if 0
                             Player->Body->Acceleration.y = 180.f;
 #else
-                            AddForce(Player->Body, vec3(0.f, 400.f, 0.f));
+                            AddForce(Player->Body, vec3(0.f, 4000.f, 0.f));
 #endif
                             // todo:
                             Player->Body->Position.y += 0.01f;
@@ -2052,7 +2018,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
                     if (Player->IsGrounded)
                     {
-#if 1
+#if 0
                         Player->Body->Acceleration.x = (xMoveX + xMoveY) * 40.f;
                         Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
 #else
@@ -2155,26 +2121,26 @@ DLLExport GAME_UPDATE(GameUpdate)
     {
         game_entity *Entity = Area->Entities + EntityIndex;
 
-        if (!Entity->Destroyed)
-        {
-            Entity->DebugColor = vec3(1.f); //Entity->TestColor;
-        }
+        if (Entity->Destroyed) continue;
+
+        Entity->DebugColor = vec3(1.f); //Entity->TestColor;
     }
 #endif
 
+#if 1
     contact_resolver *ContactResolver = &State->ContactResolver;
 
-    // todo!!!: problem with shared state since contact data is updated in multiple threads
+    // todo: contact coherence across frames!
     for (u32 ContactIndex = 0; ContactIndex < ContactResolver->ContactCount; ++ContactIndex)
     {
         contact *Contact = ContactResolver->Contacts + ContactIndex;
         *Contact = {};
     }
-    // todo(continue): contact coherence!
     ContactResolver->ContactCount = 0;
     //
+#endif
 
-#if 0
+#if 1
     u32 EntityBatchCount = 100;
     u32 UpdateEntityBatchJobCount = Ceil((f32) Area->EntityCount / (f32) EntityBatchCount);
     job *UpdateEntityBatchJobs = PushArray(ScopedMemory.Arena, UpdateEntityBatchJobCount, job);
@@ -2208,8 +2174,10 @@ DLLExport GAME_UPDATE(GameUpdate)
         Platform->KickJobsAndWait(State->JobQueue, UpdateEntityBatchJobCount, UpdateEntityBatchJobs);
     }
 #else
-    // Single-thread
+    // Single thread
     f32 dt = Params->UpdateRate;
+
+    // todo: special code for player controller ?
 
     // Update bodies
     for (u32 EntityIndex = 0; EntityIndex < Area->EntityCount; ++EntityIndex)
@@ -2220,13 +2188,22 @@ DLLExport GAME_UPDATE(GameUpdate)
 
         rigid_body *Body = Entity->Body;
         collider *Collider = Entity->Collider;
+        particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
 
         if (Body)
         {
-            if (Body->IsAwake)
+            /*if (Entity->IsGrounded)
             {
-                Entity->DebugColor = vec3(0.f, 0.8f, 0.f);
-            }
+                if (Body->Velocity.y < 0.f)
+                {
+                    Body->Velocity.y = 0.f;
+                }
+
+                if (Body->Acceleration.y < 0.f)
+                {
+                    Body->Acceleration.y = 0.f;
+                }
+            }*/
 
             if (!Entity->IsManipulated)
             {
@@ -2242,10 +2219,8 @@ DLLExport GAME_UPDATE(GameUpdate)
             CalculateColliderState(Entity);
         }
 
-        if (Entity->ParticleEmitter)
+        if (ParticleEmitter)
         {
-            particle_emitter *ParticleEmitter = Entity->ParticleEmitter;
-
             for (u32 ParticleSpawnIndex = 0; ParticleSpawnIndex < ParticleEmitter->ParticlesSpawn; ++ParticleSpawnIndex)
             {
                 particle *Particle = ParticleEmitter->Particles + ParticleEmitter->NextParticleIndex++;
@@ -2280,22 +2255,27 @@ DLLExport GAME_UPDATE(GameUpdate)
         if (Entity->Destroyed) continue;
 
         collider *Collider = Entity->Collider;
+        rigid_body *Body = Entity->Body;
 
-        if (Collider)
+        if (Collider && Body)
         {
+            bool32 OnTheGround = false;
+
             // Collision with the ground
             if (TestBoxPlane(&Collider->Box, State->Ground))
             {
+                OnTheGround = true;
+
                 contact_params ContactParams =
                 {
                     .Friction = 0.5f,
                     .Restitution = 0.4f
                 };
-                u32 ContactCount = CalculateBoxPlaneContacts(&Entity->Collider->Box, State->Ground, ContactResolver->Contacts + ContactResolver->ContactCount, ContactParams);
-                ContactResolver->ContactCount += ContactCount;
-
-                Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
+                State->ContactResolver.ContactCount += CalculateBoxPlaneContacts(&Entity->Collider->Box, State->Ground, State->ContactResolver.Contacts + State->ContactResolver.ContactCount, ContactParams);
+                Assert(State->ContactResolver.ContactCount < State->ContactResolver.MaxContactCount);
             }
+
+            Entity->IsGrounded = OnTheGround;
 
             // Collisions with nearby entities
             u32 MaxNearbyEntityCount = 100;
@@ -2314,17 +2294,15 @@ DLLExport GAME_UPDATE(GameUpdate)
 
                 if (NearbyBodyCollider)
                 {
-                    if (TestBoxBox(&Collider->Box, &NearbyBodyCollider->Box))
+                    //if (TestBoxBox(&Collider->Box, &NearbyBodyCollider->Box))
                     {
                         contact_params ContactParams =
                         {
                             .Friction = 0.6f,
                             .Restitution = 0.1f
                         };
-                        u32 ContactCount = CalculateBoxBoxContacts(&Collider->Box, &NearbyBodyCollider->Box, ContactResolver->Contacts + ContactResolver->ContactCount, ContactParams);
-                        ContactResolver->ContactCount += ContactCount;
-
-                        Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
+                        State->ContactResolver.ContactCount += CalculateBoxBoxContacts(&Collider->Box, &NearbyBodyCollider->Box, State->ContactResolver.Contacts + State->ContactResolver.ContactCount, ContactParams);
+                        Assert(State->ContactResolver.ContactCount < State->ContactResolver.MaxContactCount);
                     }
                 }
             }
@@ -2508,9 +2486,9 @@ DLLExport GAME_RENDER(GameRender)
                     f32 AxisLength = 3.f;
 
 #if 1
-                    DrawLine(RenderCommands, Origin, Origin + xAxis * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
-                    DrawLine(RenderCommands, Origin, Origin + yAxis * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
-                    DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
+                    DrawLine(RenderCommands, Origin, Origin + xAxis * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f, DrawMode_WorldSpace);
+                    DrawLine(RenderCommands, Origin, Origin + yAxis * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f, DrawMode_WorldSpace);
+                    DrawLine(RenderCommands, Origin, Origin + zAxis * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f, DrawMode_WorldSpace);
 #endif
 
                     if (State->Assets.State == GameAssetsState_Ready)
@@ -2762,7 +2740,7 @@ DLLExport GAME_RENDER(GameRender)
 
             if (State->Assets.State != GameAssetsState_Ready)
             {
-                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
+                DrawText(RenderCommands, "Loading assets...", Font, vec3(0.f, 0.f, 0.f), 0.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawMode_ScreenSpace);
             }
 
 #if 0
@@ -2790,22 +2768,27 @@ DLLExport GAME_RENDER(GameRender)
             }
 #endif
 
-#if 1
+#if 0
             for (u32 ContactIndex = 0; ContactIndex < State->ContactResolver.ContactCount; ++ContactIndex)
             {
                 contact *Contact = State->ContactResolver.Contacts + ContactIndex;
 
                 DrawBox(RenderCommands, CreateTransform(Contact->Point, vec3(0.05f)), vec4(1.f, 1.f, 0.f, 1.f));
+
+                char Label[32];
+                FormatString(Label, "%x, %x", Contact->Features[0], Contact->Features[1]);
+
+                //DrawText(RenderCommands, Label, Font, Contact->Point, 0.2f, vec4(1.f, 0.f, 1.f, 1.f), DrawText_AlignCenter, DrawMode_WorldSpace);
                 //DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->Normal * 0.125f, vec4(1.f, 1.f, 0.f, 1.f), 8.f);
 
                 // Draw contact basis axis
-                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(0) * 0.25f, vec4(0.f, 0.f, 1.f, 1.f), 8.f);
-                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(1) * 0.25f, vec4(0.f, 1.f, 0.f, 1.f), 8.f);
-                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(2) * 0.25f, vec4(1.f, 0.f, 0.f, 1.f), 8.f);
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(0) * 0.25f, vec4(0.f, 0.f, 1.f, 1.f), 4.f, DrawMode_WorldSpace);
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(1) * 0.25f, vec4(0.f, 1.f, 0.f, 1.f), 4.f, DrawMode_WorldSpace);
+                DrawLine(RenderCommands, Contact->Point, Contact->Point + Contact->ContactToWorld.Column(2) * 0.25f, vec4(1.f, 0.f, 0.f, 1.f), 4.f, DrawMode_WorldSpace);
             }
 #endif
 
-#if 1
+#if 0
             if (State->Player && State->Player->Model)
             {
                 char Text[256];
@@ -2813,6 +2796,30 @@ DLLExport GAME_RENDER(GameRender)
                 DrawText(RenderCommands, Text, Font, vec3(Left, Bottom, 0.f) + vec3(0.2f, 0.2f, 0.f), 0.4f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignLeft, DrawText_ScreenSpace);
             }
 #endif
+
+            // Draw world-axes
+            vec3 Start = vec3(Left + 0.75f, Bottom + 0.75f, 0.f);
+            mat4 CameraTransform = GetCameraTransform(Camera);
+
+            vec4 Red = vec4(1.f, 0.f, 0.f, 1.f);
+            vec4 Green = vec4(0.f, 1.f, 0.f, 1.f);
+            vec4 Blue = vec4(0.f, 0.f, 1.f, 1.f);
+
+            vec3 CameraX = CameraTransform.Column(0).xyz;
+            vec3 CameraY = CameraTransform.Column(1).xyz;
+            vec3 CameraZ = CameraTransform.Column(2).xyz;
+
+            vec3 EndX = Start + CameraX * 0.5f;
+            vec3 EndY = Start + CameraY * 0.5f;
+            vec3 EndZ = Start + CameraZ * 0.5f;
+
+            DrawLine(RenderCommands, Start, EndX, Red, 4.f, DrawMode_ScreenSpace);
+            DrawLine(RenderCommands, Start, EndY, Green, 4.f, DrawMode_ScreenSpace);
+            DrawLine(RenderCommands, Start, EndZ, Blue, 4.f, DrawMode_ScreenSpace);
+
+            DrawText(RenderCommands, "X", Font, EndX + CameraX * 0.1f, 0.4f, Red, DrawText_AlignCenter, DrawMode_ScreenSpace);
+            DrawText(RenderCommands, "Y", Font, EndY + CameraY * 0.1f, 0.4f, Green, DrawText_AlignCenter, DrawMode_ScreenSpace);
+            DrawText(RenderCommands, "Z", Font, EndZ + CameraZ * 0.1f, 0.4f, Blue, DrawText_AlignCenter, DrawMode_ScreenSpace);
 
             break;
         }
@@ -2885,7 +2892,7 @@ DLLExport GAME_RENDER(GameRender)
             }
 
             font *Font = GetFontAsset(&State->Assets, "Where My Keys");
-            DrawText(RenderCommands, "Dummy", Font, vec3(0.f, 0.f, 0.f), 1.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawText_ScreenSpace);
+            DrawText(RenderCommands, "Dummy", Font, vec3(0.f, 0.f, 0.f), 1.5f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawMode_ScreenSpace);
 
             break;
         }

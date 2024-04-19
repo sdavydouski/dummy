@@ -34,6 +34,7 @@
     <ClInclude Include="dummy_plane.h" />
     <ClInclude Include="dummy_process.h" />
     <ClInclude Include="dummy_profiler.h" />
+    <ClInclude Include="dummy_save.h" />
     <ClInclude Include="dummy_spatial.h" />
     <ClInclude Include="dummy_stream.h" />
     <ClInclude Include="dummy_text.h" />
@@ -58,6 +59,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />
+    <None Include="dummy_save.cpp" />
     <None Include="dummy_contact.cpp" />
     <None Include="dummy_bounds.cpp" />
     <None Include="dummy_particles.cpp" />

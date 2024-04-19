@@ -1690,6 +1690,7 @@ LoadModelAsset(const char *FilePath, model_asset *Asset, u32 Flags)
 {
     aiPropertyStore *AssimpPropertyStore = aiCreatePropertyStore();
     aiSetImportPropertyInteger(AssimpPropertyStore, AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, 0);
+    aiSetImportPropertyFloat(AssimpPropertyStore, AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY, 1.f);
 
     const aiScene *AssimpScene = aiImportFileExWithProperties(FilePath, Flags, 0, AssimpPropertyStore);
 
@@ -2175,7 +2176,8 @@ ProcessModelAsset(const char *FilePath, const char *AnimationConfigPath, const c
         aiProcess_RemoveRedundantMaterials |
         aiProcess_FixInfacingNormals |
         aiProcess_OptimizeGraph |
-        aiProcess_OptimizeMeshes;
+        aiProcess_OptimizeMeshes |
+        aiProcess_GlobalScale;
 
     model_asset Asset;
 

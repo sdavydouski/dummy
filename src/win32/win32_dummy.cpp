@@ -1532,7 +1532,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 #if 1
             char WindowTitle[64];
-            FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.Delta * 1000.f, 1.f / GameParameters.Delta);
+            FormatString(WindowTitle, "Dummy | %.3f ms, %.1f fps", GameParameters.UnscaledDelta * 1000.f, 1.f / GameParameters.UnscaledDelta);
             SetWindowTextA(PlatformState.WindowHandle, WindowTitle);
 #endif
 

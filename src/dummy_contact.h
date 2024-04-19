@@ -1,5 +1,11 @@
 #pragma once
 
+struct contact_params
+{
+    f32 Friction;
+    f32 Restitution;
+};
+
 struct contact
 {
     vec3 Point;
@@ -23,27 +29,17 @@ struct contact
 
     // World space position of the contact point relative to center of each body
     vec3 RelativeContactPositions[2];
-};
 
-struct contact_manifold
-{
-    rigid_body *Bodies[2];
-    contact Contacts[4];
-    u32 ContactCount;
-};
-
-struct contact_params
-{
-    f32 Friction;
-    f32 Restitution;
+    // Features that are involved in the contact (point, edge or face)
+    u32 Features[2];
 };
 
 struct contact_resolver
 {
+    f32 PositionEpsilon;
+    f32 VelocityEpsilon;
+
     u32 ContactCount;
     u32 MaxContactCount;
     contact *Contacts;
-
-    f32 PositionEpsilon;
-    f32 VelocityEpsilon;
 };

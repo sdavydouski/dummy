@@ -32,8 +32,4 @@ struct rigid_body
     vec3 PrevPosition;
     vec3 PrevVelocity;
     vec3 PrevAcceleration;
-
-    f32 Motion;
-    bool32 IsAwake;
-    bool32 CanSleep;
 };

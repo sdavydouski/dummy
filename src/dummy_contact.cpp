@@ -45,6 +45,141 @@ TryAxis(collider_box *One, collider_box *Two, vec3 Axis, u32 Index, f32 *Smalles
     return true;
 }
 
+#if 0
+/*
+       .6--------7
+     .' |      .'|
+    2--------3'  |
+    |   |    |   |
+    |  ,5--------8
+    |.'      | .'
+    1--------4'
+*/
+inline u32
+GetBoxPointId(vec3 Point)
+{
+    if (Point == vec3(-1.f, -1.f, 1.f)) return 0x1;
+    if (Point == vec3(-1.f, 1.f, 1.f)) return 0x2;
+    if (Point == vec3(1.f, 1.f, 1.f)) return 0x3;
+    if (Point == vec3(1.f, -1.f, 1.f)) return 0x4;
+
+    if (Point == vec3(-1.f, -1.f, -1.f)) return 0x5;
+    if (Point == vec3(-1.f, 1.f, -1.f)) return 0x6;
+    if (Point == vec3(1.f, 1.f, -1.f)) return 0x7;
+    if (Point == vec3(1.f, -1.f, -1.f)) return 0x8;
+
+    Assert(!"Invalid point");
+
+    return 0;
+}
+
+/*
+       .+---6----+
+     9' |     10'|
+    +---2----+'  |
+    |   7    |   8
+    3  ,+--5-4---+
+    |11      | 12
+    +---1----+'
+*/
+inline u32
+GetBoxEdgeId(vec3 PointOnEdge)
+{
+    if (PointOnEdge == vec3(0.f, -0.5f, 0.5f)) return 0xE1;
+    if (PointOnEdge == vec3(0.f, 0.5f, 0.5f)) return 0xE2;
+
+    if (PointOnEdge == vec3(-0.5f, 0.f, 0.5f)) return 0xE3;
+    if (PointOnEdge == vec3(0.5f, 0.f, 0.5f)) return 0xE4;
+
+    if (PointOnEdge == vec3(0.f, -0.5f, -0.5f)) return 0xE5;
+    if (PointOnEdge == vec3(0.f, 0.5f, -0.5f)) return 0xE6;
+
+    if (PointOnEdge == vec3(-0.5f, 0.f, -0.5f)) return 0xE7;
+    if (PointOnEdge == vec3(0.5f, 0.f, -0.5f)) return 0xE8;
+
+    if (PointOnEdge == vec3(-0.5f, 0.5f, 0.f)) return 0xE9;
+    if (PointOnEdge == vec3(0.5f, 0.5f, 0.f)) return 0xE10;
+
+    if (PointOnEdge == vec3(-0.5f, -0.5f, 0.f)) return 0xE11;
+    if (PointOnEdge == vec3(0.5f, -0.5f, 0.f)) return 0xE12;
+
+    Assert(!"Invalid edge");
+
+    return 0;
+}
+
+/*
+       .+--------+
+     .' | 5    .'|
+    +--------+'  |
+    | 4 |  2 | 3 |
+    |  ,1--------+
+    |.'   6  | .'
+    +--------+'
+*/
+inline u32
+GetBoxFaceId(vec3 Normal)
+{
+    vec3 xAxis = vec3(1.f, 0.f, 0.f);
+    vec3 yAxis = vec3(0.f, 1.f, 0.f);
+    vec3 zAxis = vec3(0.f, 0.f, 1.f);
+
+    if (Normal == zAxis) return 0xF1;
+    if (Normal == -zAxis) return 0xF2;
+
+    if (Normal == xAxis) return 0xF3;
+    if (Normal == -xAxis) return 0xF4;
+
+    if (Normal == yAxis) return 0xF5;
+    if (Normal == -yAxis) return 0xF6;
+
+    Assert(!"Invalid face");
+
+    return 0;
+}
+
+inline bool32
+IsContactInQueue(contact *Contact, u32 BodyOneId, u32 BodyTwoId, u32 FeatureOne, u32 FeatureTwo)
+{
+    if (!Contact->Bodies[1]) return false;
+
+    u32 ContactBodyOneId = Contact->Bodies[0]->Id;
+    u32 ContactBodyTwoId = Contact->Bodies[1]->Id;
+
+    u32 ContactFeatureOneId = Contact->Features[0];
+    u32 ContactFeatureTwoId = Contact->Features[1];
+
+    if (ContactBodyOneId == BodyOneId && ContactBodyTwoId == BodyTwoId && ContactFeatureOneId == FeatureOne && ContactFeatureTwoId == FeatureTwo)
+    {
+        return true;
+    }
+
+    if (ContactBodyOneId == BodyTwoId && ContactBodyTwoId == BodyOneId && ContactFeatureOneId == FeatureTwo && ContactFeatureTwoId == FeatureOne)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+dummy_internal contact *
+GetContactFromQueue(contact_queue *ContactQueue, u32 BodyOneId, u32 BodyTwoId, u32 FeatureOne, u32 FeatureTwo)
+{
+    for (u32 ContactIndex = 0; ContactIndex < ContactQueue->ContactCount; ++ContactIndex)
+    {
+        contact *Contact = ContactQueue->Contacts + ContactIndex;
+
+        if (IsContactInQueue(Contact, BodyOneId, BodyTwoId, FeatureOne, FeatureTwo))
+        {
+            return Contact;
+        }
+    }
+
+    contact *Contact = ContactQueue->Contacts + ContactQueue->ContactCount++;
+    return Contact;
+}
+#endif
+
 dummy_internal u32
 CalculateSpherePlaneContacts(collider_sphere *Sphere, plane Plane, contact *Contacts, contact_params Params)
 {
@@ -138,7 +273,7 @@ CalculateSphereSphereContacts(collider_sphere *One, collider_sphere *Two, contac
 }
 
 dummy_internal u32
-CalculateBoxSphereContacts(collider_box *Box, collider_sphere *Sphere, contact *Contacts)
+CalculateBoxSphereContacts(collider_box *Box, collider_sphere *Sphere, contact *Contacts, contact_params Params)
 {
     // Transform the center of the sphere into box coordinates
     vec3 SphereCenterWorld = GetTranslation(Sphere->Transform);
@@ -191,6 +326,8 @@ CalculateBoxSphereContacts(collider_box *Box, collider_sphere *Sphere, contact *
     Contact->Point = ClosestPointWorld;
     Contact->Normal = Normalize(ClosestPointWorld - SphereCenterWorld);
     Contact->Penetration = Sphere->Radius - Distance;
+    Contact->Friction = Params.Friction;
+    Contact->Restitution = Params.Restitution;
 
     return 1;
 }
@@ -199,33 +336,46 @@ dummy_internal void
 FillPointFaceBoxBox(collider_box *One, collider_box *Two, contact *Contacts, contact_params Params, f32 Penetration, u32 Best)
 {
     // This method is called when we know that a vertex from box two is in contact with box one
-    contact *Contact = Contacts;
-
     vec3 ToCenter = GetTranslation(Two->Transform) - GetTranslation(One->Transform);
 
+    /*vec3 LocalAxes[] = {
+        vec3(1.f, 0.f, 0.f),
+        vec3(0.f, 1.f, 0.f),
+        vec3(0.f, 0.f, 1.f)
+    };
+    vec3 NormalLocal = LocalAxes[Best];*/
+
     // We know which axis the collision is on (i.e. best), but we need to work out which of the two faces on this axis
-    vec3 Normal = GetAxis(One->Transform, Best);
-    if (Dot(Normal, ToCenter) > 0.f)
+    vec3 NormalWorld = GetAxis(One->Transform, Best);
+    if (Dot(NormalWorld, ToCenter) > 0.f)
     {
-        Normal *= -1.f;
+        NormalWorld *= -1.f;
+        //NormalLocal *= -1.f;
     }
 
     // Work out which vertex of box two we're colliding with
-    vec3 Vertex = Two->HalfSize;
+    vec3 VertexLocal = Two->HalfSize;
 
     for (u32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
     {
-        if (Dot(GetAxis(Two->Transform, AxisIndex), Normal) < 0)
+        if (Dot(GetAxis(Two->Transform, AxisIndex), NormalWorld) < 0)
         {
-            Vertex[AxisIndex] *= -1.f;
+            VertexLocal[AxisIndex] *= -1.f;
         }
     }
 
-    Contact->Point = Two->Transform * Vertex;
-    Contact->Normal = Normal;
+    //u32 FeatureOne = GetBoxFaceId(NormalLocal);
+    //u32 FeatureTwo = GetBoxPointId(VertexLocal / Two->HalfSize);
+
+    contact *Contact = Contacts;
+
+    Contact->Point = Two->Transform * VertexLocal;
+    Contact->Normal = NormalWorld;
     Contact->Penetration = Penetration;
     Contact->Bodies[0] = One->Body;
     Contact->Bodies[1] = Two->Body;
+    //Contact->Features[0] = FeatureOne;
+    //Contact->Features[1] = FeatureTwo;
     Contact->Friction = Params.Friction;
     Contact->Restitution = Params.Restitution;
 }
@@ -280,6 +430,7 @@ ContactPoint(vec3 pOne, vec3 dOne, f32 oneSize, vec3 pTwo, vec3 dTwo, f32 twoSiz
     }
 }
 
+// todo: https://gamedev.stackexchange.com/questions/111390/multiple-contacts-for-sat-collision-detection
 dummy_internal u32
 CalculateBoxBoxContacts(collider_box *One, collider_box *Two, contact *Contacts, contact_params Params)
 {
@@ -337,8 +488,7 @@ CalculateBoxBoxContacts(collider_box *One, collider_box *Two, contact *Contacts,
     {
         // We've got a vertex of box one on a face of box two.
         // We use the same algorithm as above, but swap around
-        // one and two (and therefore also the vector between their
-        // centers)
+        // one and two
         FillPointFaceBoxBox(Two, One, Contacts, Params, Penetration, Best - 3);
 
         return 1;
@@ -371,53 +521,57 @@ CalculateBoxBoxContacts(collider_box *One, collider_box *Two, contact *Contacts,
         // its component in the direction of the box's collision axis is zero
         // (its a mid-point) and we determine which of the extremes in each
         // of the other axes is closest
-        vec3 PointOnOneEdge = One->HalfSize;
-        vec3 PointOnTwoEdge = Two->HalfSize;
+        vec3 PointOnOneEdgeLocal = One->HalfSize;
+        vec3 PointOnTwoEdgeLocal = Two->HalfSize;
 
         for (u32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
         {
             if (AxisIndex == AxisIndexOne)
             {
-                PointOnOneEdge[AxisIndex] = 0;
+                PointOnOneEdgeLocal[AxisIndex] = 0;
             }
             else if (Dot(GetAxis(One->Transform, AxisIndex), Axis) > 0)
             {
-                PointOnOneEdge[AxisIndex] *= -1.f;
+                PointOnOneEdgeLocal[AxisIndex] *= -1.f;
             }
 
             if (AxisIndex == AxisIndexTwo)
             {
-                PointOnTwoEdge[AxisIndex] = 0;
+                PointOnTwoEdgeLocal[AxisIndex] = 0;
             }
             else if (Dot(GetAxis(Two->Transform, AxisIndex), Axis) < 0)
             {
-                PointOnTwoEdge[AxisIndex] *= -1.f;
+                PointOnTwoEdgeLocal[AxisIndex] *= -1.f;
             }
         }
 
         // Move them into world coordinates
-        PointOnOneEdge = One->Transform * PointOnOneEdge;
-        PointOnTwoEdge = Two->Transform * PointOnTwoEdge;
+        vec3 PointOnOneEdgeWorld = One->Transform * PointOnOneEdgeLocal;
+        vec3 PointOnTwoEdgeWorld = Two->Transform * PointOnTwoEdgeLocal;
 
         // So we have a point and a direction for the colliding edges.
-        // We need to find out point of closest approach of the two
-        // line-segments
+        // We need to find out point of closest approach of the two line-segments
         vec3 HalfSizeOne = One->HalfSize * GetScale(One->Transform);
         vec3 HalfSizeTwo = Two->HalfSize * GetScale(Two->Transform);
 
         vec3 Vertex = ContactPoint(
-            PointOnOneEdge, AxisOne, HalfSizeOne[AxisIndexOne],
-            PointOnTwoEdge, AxisTwo, HalfSizeTwo[AxisIndexTwo],
+            PointOnOneEdgeWorld, AxisOne, HalfSizeOne[AxisIndexOne],
+            PointOnTwoEdgeWorld, AxisTwo, HalfSizeTwo[AxisIndexTwo],
             BestSingleAxis > 2
         );
 
-        contact *Contact = Contacts;
+        //u32 FeatureOne = GetBoxEdgeId(PointOnOneEdgeLocal);
+        //u32 FeatureTwo = GetBoxEdgeId(PointOnTwoEdgeLocal);
+
+        contact *Contact = Contacts;//GetContactFromQueue(ContactQueue, One->Body->Id, Two->Body->Id, FeatureOne, FeatureTwo);
 
         Contact->Point = Vertex;
         Contact->Normal = Axis;
         Contact->Penetration = Penetration;
         Contact->Bodies[0] = One->Body;
         Contact->Bodies[1] = Two->Body;
+        //Contact->Features[0] = FeatureOne;
+        //Contact->Features[1] = FeatureTwo;
         Contact->Friction = Params.Friction;
         Contact->Restitution = Params.Restitution;
 
@@ -430,9 +584,13 @@ CalculateBoxBoxContacts(collider_box *One, collider_box *Two, contact *Contacts,
 inline void
 SwapContactBodies(contact *Contact)
 {
-    rigid_body *Temp = Contact->Bodies[0];
+    rigid_body *TempBody = Contact->Bodies[0];
     Contact->Bodies[0] = Contact->Bodies[1];
-    Contact->Bodies[1] = Temp;
+    Contact->Bodies[1] = TempBody;
+
+    u32 TempFeature = Contact->Features[0];
+    Contact->Features[0] = Contact->Features[1];
+    Contact->Features[1] = TempFeature;
 
     Contact->Normal *= -1.f;
 }
@@ -531,13 +689,13 @@ CalculateDesiredDeltaVelocity(contact *Contact, f32 dt)
     // Calculate the acceleration induced velocity accumulated this frame
     f32 VelocityFromAcceleration = 0.f;
     
-    if (Contact->Bodies[0]->IsAwake)
+    //if (Contact->Bodies[0]->IsAwake)
     {
         // todo: PrevAcceleration?
         VelocityFromAcceleration += Dot(Contact->Bodies[0]->Acceleration * dt, Contact->Normal);
     }
 
-    if (Contact->Bodies[1] && Contact->Bodies[1]->IsAwake)
+    if (Contact->Bodies[1])// && Contact->Bodies[1]->IsAwake)
     {
         // todo: PrevAcceleration?
         VelocityFromAcceleration -= Dot(Contact->Bodies[1]->Acceleration * dt, Contact->Normal);
@@ -552,30 +710,6 @@ CalculateDesiredDeltaVelocity(contact *Contact, f32 dt)
 
     // Combine the bounce velocity with the removed acceleration velocity
     Contact->DesiredDeltaVelocity = -Contact->ContactVelocity.x - Restituion * (Contact->ContactVelocity.x - VelocityFromAcceleration);
-}
-
-dummy_internal void
-MatchAwakeState(contact *Contact)
-{
-    // Collisions with the world never cause a body to wake up
-    if (Contact->Bodies[1])
-    {
-        bool32 Body0Awake = Contact->Bodies[0]->IsAwake;
-        bool32 Body1Awake = Contact->Bodies[1]->IsAwake;
-
-        // Wake up only the sleeping one
-        if (Body0Awake ^ Body1Awake)
-        {
-            if (Body0Awake)
-            {
-                SetIsAwake(Contact->Bodies[1], true);
-            }
-            else
-            {
-                SetIsAwake(Contact->Bodies[0], true);
-            }
-        }
-    }
 }
 
 dummy_internal void
@@ -726,7 +860,7 @@ ApplyPositionChange(contact *Contact, vec3 *LinearChange, vec3 *AngularChange, f
             // data. Otherwise the resolution will not change the position
             // of the object, and the next collision detection round will
             // have the same penetration
-            if (!Body->IsAwake)
+            //if (!Body->IsAwake)
             {
                 CalculateRigidBodyState(Body);
             }
@@ -935,7 +1069,7 @@ AdjustPositions(contact_resolver *Resolver, f32 dt)
         }
 
         // Match the awake state at the contact
-        MatchAwakeState(MaxPenetrationContact);
+        //MatchAwakeState(MaxPenetrationContact);
 
         // Resolve the penetration
         ApplyPositionChange(MaxPenetrationContact, LinearChange, AngularChange, MaxPenetration);
@@ -1013,7 +1147,7 @@ AdjustVelocities(contact_resolver *Resolver, f32 dt)
         }
 
         // Match the awake state at the contact
-        MatchAwakeState(MaxVelocityContact);
+        //MatchAwakeState(MaxVelocityContact);
 
         // Do the resolution on the contact that came out top
         ApplyVelocityChange(MaxVelocityContact, VelocityChange, RotationChange);

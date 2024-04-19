@@ -65,6 +65,12 @@ struct skinning_data
     mat4 *SkinningMatrices;
 };
 
+enum draw_mode
+{
+    DrawMode_WorldSpace,
+    DrawMode_ScreenSpace
+};
+
 enum render_command_type
 {
     RenderCommand_AddMesh,
@@ -244,6 +250,7 @@ struct render_command_draw_line
     vec3 End;
     vec4 Color;
     f32 Thickness;
+    draw_mode Mode;
 };
 
 struct render_command_draw_rectangle
@@ -258,12 +265,6 @@ struct render_command_draw_box
     render_command_header Header;
     transform Transform;
     vec4 Color;
-};
-
-enum draw_text_mode
-{
-    DrawText_WorldSpace,
-    DrawText_ScreenSpace
 };
 
 enum draw_text_alignment
@@ -283,7 +284,7 @@ struct render_command_draw_text
     f32 Scale;
     vec4 Color;
     draw_text_alignment Alignment;
-    draw_text_mode Mode;
+    draw_mode Mode;
     bool32 DepthEnabled;
 };
 

@@ -1057,7 +1057,7 @@ EditorRenderEntityInfo(
 
             if (ImGui::Button("Add##RigidBody"))
             {
-                AddRigidBody(Entity, &GameState->WorldArea.Arena);
+                AddRigidBody(GameState, Entity, &GameState->WorldArea.Arena);
                 EditorState->AddEntity.RigidBody = {};
             }
         }
@@ -1818,7 +1818,6 @@ Win32RenderEditor(
                 SetPosition(Entity->Body, Entity->Transform.Translation);
                 SetOrientation(Entity->Body, Entity->Transform.Rotation);
                 SetVelocity(Entity->Body, vec3(0.f));
-                SetIsAwake(Entity->Body, true);
 
                 CalculateRigidBodyState(Entity->Body);
             }

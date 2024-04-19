@@ -118,13 +118,14 @@ DrawPoint(render_commands *Commands, vec3 Position, vec4 Color, f32 Size)
 }
 
 inline void
-DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness)
+DrawLine(render_commands *Commands, vec3 Start, vec3 End, vec4 Color, f32 Thickness, draw_mode Mode)
 {
     render_command_draw_line *Command = PushRenderCommand(Commands, render_command_draw_line, RenderCommand_DrawLine);
     Command->Start = Start;
     Command->End = End;
     Command->Color = Color;
     Command->Thickness = Thickness;
+    Command->Mode = Mode;
 }
 
 inline void
@@ -152,7 +153,7 @@ DrawText(
     f32 Scale,
     vec4 Color,
     draw_text_alignment Alignment,
-    draw_text_mode Mode,
+    draw_mode Mode,
     bool32 DepthEnabled = false
 )
 {
@@ -176,7 +177,7 @@ DrawText(
     f32 Scale, 
     vec4 Color, 
     draw_text_alignment Alignment, 
-    draw_text_mode Mode, 
+    draw_mode Mode,
     bool32 DepthEnabled = false
 )
 {

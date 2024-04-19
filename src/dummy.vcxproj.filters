@@ -36,6 +36,7 @@
     <ClInclude Include="dummy_bounds.h" />
     <ClInclude Include="dummy_particles.h" />
     <ClInclude Include="dummy_contact.h" />
+    <ClInclude Include="dummy_save.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dummy_renderer.cpp" />
@@ -53,6 +54,7 @@
     <None Include="dummy_particles.cpp" />
     <None Include="dummy_bounds.cpp" />
     <None Include="dummy_contact.cpp" />
+    <None Include="dummy_save.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

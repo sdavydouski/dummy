@@ -4,6 +4,9 @@
 #define PROFILER 1
 #define ASSERT 1
 
+#define SID(String) Hash(String)
+#define MAX_ENTITY_NAME 256
+
 #include "dummy_defs.h"
 #include "dummy_math.h"
 #include "dummy_random.h"
@@ -28,6 +31,7 @@
 #include "dummy_audio.h"
 #include "dummy_renderer.h"
 #include "dummy_text.h"
+#include "dummy_save.h"
 #include "dummy_job.h"
 #include "dummy_profiler.h"
 #include "dummy_platform.h"
@@ -58,12 +62,9 @@ audio_play_options SetVolume(f32 Volume);
 void CalculateRigidBodyState(rigid_body *Body);
 f32 TransformToAxis(collider_box *Box, vec3 Axis);
 void CalculateVertices(collider_box *Box, vec3 *Vertices);
+void CalculateNormalizedVertices(collider_box *Box, vec3 *Vertices);
 bool32 TestBoxPlane(collider_box *Box, plane Plane);
-void SetIsAwake(rigid_body *Body, bool32 IsAwake);
 //
-
-#define SID(String) Hash(String)
-#define MAX_ENTITY_NAME 256
 
 enum game_mode
 {
@@ -78,30 +79,9 @@ struct game_entity
     char Name[MAX_ENTITY_NAME];
     ivec3 GridCellCoords[2];
     transform Transform;
+    vec3 DebugColor;
 
-    /*
-    // todo:
-
-    struct game_state
-    {
-        model Model[...];
-        skinning_data Skinning[...];
-        animation_graph Animation[...];
-        collider Collider[...];
-        rigid_body Body[...];
-        ...
-    }
-
-    struct game_entity
-    {
-        u32 ModelIndex;
-        u32 SkinningIndex;
-        u32 AnimationIndex;
-        u32 ColliderIndex;
-        u32 BodyIndex;
-        ...
-    }
-    */
+#if 1
     model *Model;
     skinning_data *Skinning;
     animation_graph *Animation;
@@ -110,11 +90,20 @@ struct game_entity
     point_light *PointLight;
     particle_emitter *ParticleEmitter;
     audio_source *AudioSource;
+#else
+    u32 ModelIndex;
+    u32 SkinningIndex;
+    u32 AnimationIndex;
+    u32 ColliderIndex;
+    u32 BodyIndex;
+    u32 PointLightIndex;
+    u32 ParticleEmitterIndex;
+    u32 AudioSourceIndex;
+#endif
 
     // ?
     bool32 Visible;
     bool32 Destroyed;
-    vec3 DebugColor;
     bool32 IsGrounded;
     bool32 IsManipulated;
 };
@@ -125,154 +114,19 @@ struct world_area
     u32 EntityCount;
     game_entity *Entities;
     spatial_hash_grid SpatialGrid;
-
     memory_arena Arena;
+
+#if 0
+    model *Models[1024];
+    skinning_data Skins[256];
+    animation_graph AnimationGraphs[256];
+    collider Colliders[1024];
+    rigid_body Bodies[512];
+    point_light PointLight[64];
+    particle_emitter ParticleEmitters[64];
+    audio_source AudioSources[64];
+#endif
 };
-
-struct model_spec
-{
-    bool32 Has;
-    char ModelRef[64];
-};
-
-inline void
-Model2Spec(model *Model, model_spec *Spec)
-{
-    Spec->Has = true;
-    CopyString(Model->Key, Spec->ModelRef);
-}
-
-struct collider_spec
-{
-    bool32 Has;
-
-    collider_type Type;
-    union
-    {
-        collider_box Box;
-        collider_sphere Sphere;
-    };
-
-    vec3 Translation;
-    quat Rotation;
-};
-
-inline void
-Collider2Spec(collider *Collider, collider_spec *Spec)
-{
-    Spec->Has = true;
-    Spec->Type = Collider->Type;
-
-    switch (Collider->Type)
-    {
-        case Collider_Box:
-        {
-            Spec->Box = Collider->Box;
-
-            break;
-        }
-        default:
-        {
-            Assert(!"Not implemented");
-        }
-    }
-}
-
-struct rigid_body_spec
-{
-    bool32 Has;
-};
-
-inline void
-RigidBody2Spec(rigid_body *Body, rigid_body_spec *Spec)
-{
-    Spec->Has = true;
-}
-
-struct point_light_spec
-{
-    bool32 Has;
-    vec3 Color;
-    light_attenuation Attenuation;
-};
-
-inline void
-PointLight2Spec(point_light *PointLight, point_light_spec *Spec)
-{
-    Spec->Has = true;
-    Spec->Color = PointLight->Color;
-    Spec->Attenuation = PointLight->Attenuation;
-}
-
-struct particle_emitter_spec
-{
-    bool32 Has;
-    u32 ParticleCount;
-    u32 ParticlesSpawn;
-    vec4 Color;
-    vec2 Size;
-};
-
-inline void
-ParticleEmitter2Spec(particle_emitter *ParticleEmitter, particle_emitter_spec *Spec)
-{
-    Spec->Has = true;
-    Spec->ParticleCount = ParticleEmitter->ParticleCount;
-    Spec->ParticlesSpawn = ParticleEmitter->ParticlesSpawn;
-    Spec->Color = ParticleEmitter->Color;
-    Spec->Size = ParticleEmitter->Size;
-}
-
-struct audio_source_spec
-{
-    bool32 Has;
-    char AudioClipRef[64];
-    f32 Volume;
-    f32 MinDistance;
-    f32 MaxDistance;
-};
-
-inline void
-AudioSource2Spec(audio_source *AudioSource, audio_source_spec *Spec)
-{
-    Spec->Has = true;
-    CopyString(AudioSource->AudioClip->Key, Spec->AudioClipRef);
-    Spec->Volume = AudioSource->Volume;
-    Spec->MinDistance = AudioSource->MinDistance;
-    Spec->MaxDistance = AudioSource->MaxDistance;
-}
-
-struct game_entity_spec
-{
-    char Name[MAX_ENTITY_NAME];
-    transform Transform;
-    model_spec ModelSpec;
-    collider_spec ColliderSpec;
-    rigid_body_spec RigidBodySpec;
-    point_light_spec PointLightSpec;
-    particle_emitter_spec ParticleEmitterSpec;
-    audio_source_spec AudioSourceSpec;
-
-    vec3 DebugColor;
-};
-
-#pragma pack(push, 1)
-
-enum game_file_type
-{
-    GameFile_Area,
-    GameFile_Entity
-};
-
-struct game_file_header
-{
-    u32 MagicValue;
-    u32 Version;
-    u32 EntityCount;
-    game_file_type Type;
-};
-
-#pragma pack(pop)
 
 struct entity_render_batch
 {
@@ -376,24 +230,18 @@ struct game_state
     memory_arena PermanentArena;
     memory_arena FrameArena;
 
-    world_area WorldArea;
-
     job_queue *JobQueue;
-    
     stream Stream;
 
+    world_area WorldArea;
+
     game_mode Mode;
-
-    vec2 TargetMove;
-    vec2 CurrentMove;
-
-    vec2 ViewFrustrumSize;
 
     game_camera PlayerCamera;
     game_camera EditorCamera;
 
+    vec2 ViewFrustrumSize;
     polyhedron Frustrum;
-
     plane Ground;
 
     game_assets Assets;
@@ -429,11 +277,15 @@ struct game_state
 
     vec3 BackgroundColor;
 
+    vec2 TargetMove;
+    vec2 CurrentMove;
+
     game_options Options;
     game_menu_quad MenuQuads[4];
 
     value_state<bool32> DanceMode;
 
+    // todo:
     contact_resolver ContactResolver;
 
     // todo: temp

@@ -33,7 +33,7 @@ void main()
     vs_out.TextureCoords = in_TextureCoords;
     vs_out.TangentBasis = mat3(u_Model) * mat3(in_Tangent, in_Bitangent, in_Normal);
     vs_out.CascadeBlend = CalculateCascadeBlend(WorldPosition.xyz, u_CameraDirection, u_CameraPosition);
-    vs_out.Color = vec3(1.f);
+    vs_out.Color = u_Color;
 
     gl_Position = u_ViewProjection * WorldPosition;
 }

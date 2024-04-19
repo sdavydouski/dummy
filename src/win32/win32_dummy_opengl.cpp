@@ -1960,8 +1960,15 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         mat4 S = Scale(Command->End - Command->Start);
                         mat4 Model = T * S;
 
-                        // todo: world mode?
-                        glUniform1i(OpenGLGetUniformLocation(Shader, "u_Mode"), OPENGL_WORLD_SPACE_MODE);
+                        if (Command->Mode == DrawMode_WorldSpace)
+                        {
+                            glUniform1i(OpenGLGetUniformLocation(Shader, "u_Mode"), OPENGL_WORLD_SPACE_MODE);
+                        }
+                        else
+                        {
+                            glUniform1i(OpenGLGetUniformLocation(Shader, "u_Mode"), OPENGL_SCREEN_SPACE_MODE);
+                        }
+
                         glUniformMatrix4fv(OpenGLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
                         glUniform4f(OpenGLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
                     }
@@ -2012,7 +2019,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     glUniformMatrix4fv(OpenGLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
                     glUniform4f(OpenGLGetUniformLocation(Shader, "u_Color"), Command->Color.r, Command->Color.g, Command->Color.b, Command->Color.a);
 
-                    // todo
+                    // todo: properly outline selected entities
                     if (!Options->WireframeMode)
                     {
                         glLineWidth(4.f);
@@ -2026,6 +2033,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         glLineWidth(1.f);
                         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
                     }
+                    //
                 }
 
                 break;
@@ -2046,6 +2054,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                         glDisable(GL_DEPTH_TEST);
                     }
 
+                    if (Options->WireframeMode)
+                    {
+                        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                    }
+
                     font *Font = Command->Font;
                     
                     vec2 ScreenSizeInUnits = vec2(Commands->Settings.ScreenWidthInUnits, Commands->Settings.ScreenHeightInUnits);
@@ -2062,7 +2075,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     mat4 CameraToWorld = mat4(1.f);
                     vec4 CameraSpacePosition = vec4(Command->Position, 1.f);
 
-                    if (Command->Mode == DrawText_WorldSpace)
+                    if (Command->Mode == DrawMode_WorldSpace)
                     {
                         Mode = OPENGL_WORLD_SPACE_MODE;
 
@@ -2122,6 +2135,11 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
                     if (!Command->DepthEnabled)
                     {
                         glEnable(GL_DEPTH_TEST);
+                    }
+
+                    if (Options->WireframeMode)
+                    {
+                        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                     }
                 }
 
@@ -2232,7 +2250,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawGrid:
             {
-                if (!Options->RenderShadowMap)
+                if (!Options->RenderShadowMap && !Options->WireframeMode)
                 {
                     // http://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
                     // https://github.com/martin-pr/possumwood/wiki/Infinite-ground-plane-using-GLSL-shaders
@@ -2284,6 +2302,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             glUseProgram(Shader->Program);
                             glUniformMatrix4fv(OpenGLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
+                            glUniform3f(OpenGLGetUniformLocation(Shader, "u_Color"), Command->Material.Color.r, Command->Material.Color.g, Command->Material.Color.b);
 
                             OpenGLCascadeShadows(State, Shader, Options);
                             OpenGLPBRShading(State, Shader, &Command->Material);
@@ -2465,7 +2484,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
             }
             case RenderCommand_DrawSkybox:
             {
-                if (!Options->RenderShadowMap)
+                if (!Options->RenderShadowMap && !Options->WireframeMode)
                 {
                     render_command_draw_skybox *Command = (render_command_draw_skybox *)Entry;
 

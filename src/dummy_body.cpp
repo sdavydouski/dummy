@@ -28,6 +28,8 @@ SetAngularVelocity(rigid_body *Body, vec3 AngularVelocity)
 inline f32
 GetMass(rigid_body *Body)
 {
+    Assert(Body->InverseMass != 0.f);
+
     f32 Mass = 1.f / Body->InverseMass;
     return Mass;
 }
@@ -38,6 +40,12 @@ SetMass(rigid_body *Body, f32 Mass)
     Assert(Mass != 0.f);
 
     Body->InverseMass = 1.f / Mass;
+}
+
+inline void
+SetInfiniteMass(rigid_body *Body)
+{
+    Body->InverseMass = 0.f;
 }
 
 inline void
@@ -62,34 +70,6 @@ inline void
 SetCenterOfMass(rigid_body *Body, vec3 CenterOfMass)
 {
     Body->CenterOfMassLocal = CenterOfMass;
-}
-
-inline void
-SetIsAwake(rigid_body *Body, bool32 IsAwake)
-{
-    Body->IsAwake = IsAwake;
-
-    if (Body->IsAwake)
-    {
-        // Add a bit of motion to avoid it falling asleep immediately
-        Body->Motion = SleepEpsilon * 2.f;
-    }
-    else
-    {
-        Body->Velocity = vec3(0.f);
-        Body->AngularVelocity = vec3(0.f);
-    }
-}
-
-inline void
-SetCanSleep(rigid_body *Body, bool32 CanSleep)
-{
-    Body->CanSleep = CanSleep;
-
-    if (!Body->CanSleep && !Body->IsAwake)
-    {
-        SetIsAwake(Body, true);
-    }
 }
 
 inline mat3
@@ -124,56 +104,37 @@ Integrate(rigid_body *Body, f32 dt)
 {
     Assert(dt > 0.f);
 
-    if (Body->IsAwake)
-    {
-        Body->PrevPosition = Body->Position;
-        Body->PrevVelocity = Body->Velocity;
-        Body->PrevAcceleration = Body->Acceleration;
+    Body->PrevPosition = Body->Position;
+    Body->PrevVelocity = Body->Velocity;
+    Body->PrevAcceleration = Body->Acceleration;
 
-        Body->Acceleration = Body->ForceAccumulator * Body->InverseMass;
-        Body->Velocity += Body->Acceleration * dt;
-        Body->Velocity *= Power(Body->LinearDamping, dt);
-        Body->Position += Body->Velocity * dt;
+    Body->Acceleration = Body->ForceAccumulator * Body->InverseMass;
+    Body->Velocity += Body->Acceleration * dt;
+    Body->Velocity *= Power(Body->LinearDamping, dt);
+    Body->Position += Body->Velocity * dt;
 
-        Body->AngularAcceleration = Body->InverseInertiaTensorWorld * Body->TorqueAccumulator;
-        Body->AngularVelocity += Body->AngularAcceleration * dt;
-        Body->AngularVelocity *= Power(Body->AngularDamping, dt);
-        Body->Orientation += Body->AngularVelocity * dt;
-        Body->Orientation = Normalize(Body->Orientation);
+    Body->AngularAcceleration = Body->InverseInertiaTensorWorld * Body->TorqueAccumulator;
+    Body->AngularVelocity += Body->AngularAcceleration * dt;
+    Body->AngularVelocity *= Power(Body->AngularDamping, dt);
+    Body->Orientation += Body->AngularVelocity * dt;
+    Body->Orientation = Normalize(Body->Orientation);
 
-        Body->ForceAccumulator = vec3(0.f);
-        Body->TorqueAccumulator = vec3(0.f);
+    Body->ForceAccumulator = vec3(0.f);
+    Body->TorqueAccumulator = vec3(0.f);
 
-        CalculateRigidBodyState(Body);
-
-        if (Body->CanSleep)
-        {
-            f32 CurrentMotion = SquaredMagnitude(Body->Velocity) + SquaredMagnitude(Body->AngularVelocity);
-            f32 Bias = Power(0.5f, dt);
-
-            Body->Motion = Lerp(CurrentMotion, Bias, Body->Motion);
-            Body->Motion = Min(Body->Motion, SleepEpsilon * 10.f);
-
-            if (Body->Motion < SleepEpsilon)
-            {
-                SetIsAwake(Body, false);
-            }
-        }
-    }
+    CalculateRigidBodyState(Body);
 }
 
 inline void
 AddForce(rigid_body *Body, vec3 Force)
 {
     Body->ForceAccumulator += Force;
-    Body->IsAwake = true;
 }
 
 inline void
 AddTorque(rigid_body *Body, vec3 Torque)
 {
     Body->TorqueAccumulator += Torque;
-    Body->IsAwake = true;
 }
 
 inline void

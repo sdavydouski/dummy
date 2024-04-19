@@ -10,6 +10,7 @@ struct collider_box
 {
     vec3 HalfSize;
 
+    // todo: move this to collider struct?
     mat4 Offset;
     mat4 Transform;
     rigid_body *Body;
@@ -19,6 +20,7 @@ struct collider_sphere
 {
     f32 Radius;
 
+    // todo: move this to collider struct?
     mat4 Offset;
     mat4 Transform;
     rigid_body *Body;
@@ -34,5 +36,6 @@ struct collider
         collider_sphere Sphere;
     };
 
+    // todo: do I need to store it?
     aabb Bounds;
 };

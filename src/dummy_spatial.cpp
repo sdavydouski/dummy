@@ -88,6 +88,7 @@ AddToSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
     }
 }
 
+// todo: visualize grid cells
 dummy_internal void
 RemoveFromSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {
