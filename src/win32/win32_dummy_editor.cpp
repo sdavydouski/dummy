@@ -651,7 +651,7 @@ EditorRenderRigidBodyInfo(rigid_body *Body)
     {
         ImGui::InputFloat3("Position", Body->Position.Elements);
         ImGui::InputFloat3("Velocity", Body->Velocity.Elements);
-        ImGui::InputFloat3("Acceleration", Body->Acceleration.Elements);
+        //ImGui::InputFloat3("Acceleration", Body->Acceleration.Elements);
         ImGui::InputFloat4("Orientation", Body->Orientation.Elements);
         ImGui::NewLine();
     }
@@ -1189,7 +1189,7 @@ EditorRenderEntityInfo(
 
     if (ImGui::ButtonEx("Remove (X)", ImVec2(WindowSize.x, 0)))
     {
-        RemoveGameEntity(Entity);
+        RemoveGameEntity(GameState, Entity);
         GameState->SelectedEntity = 0;
     }
 
@@ -1370,9 +1370,7 @@ Win32RenderEditor(
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground |
         ImGuiWindowFlags_MenuBar;
 
-    game_camera *Camera = GameState->Mode == GameMode_World
-        ? &GameState->PlayerCamera
-        : &GameState->EditorCamera;
+    game_camera *Camera = GetActiveCamera(GameState);
 
     if (ImGui::Begin("MenuBar", 0, Flags))
     {
@@ -1453,7 +1451,7 @@ Win32RenderEditor(
                     ImGui::SliderFloat3("Dir Direction", (f32 *)&GameState->DirectionalLight.Direction, -1.f, 1.f);
                     GameState->DirectionalLight.Direction = Normalize(GameState->DirectionalLight.Direction);
 
-#if 0
+#if 1
                     const char *Skyboxes[] = { "environment_sky", "environment_desert", "environment_hill" };
                     static u32 CurrentSkyboxIndex = 0;
                     const char *PreviewValue = Skyboxes[CurrentSkyboxIndex];
@@ -1504,6 +1502,9 @@ Win32RenderEditor(
 
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Grid", (bool *)&GameState->Options.ShowGrid);
+
+                        ImGui::TableNextColumn();
+                        ImGui::Checkbox("Show Spatial Grid", (bool *)&GameState->Options.ShowSpatialGrid);
 
                         ImGui::TableNextColumn();
                         ImGui::Checkbox("Show Skybox", (bool *)&GameState->Options.ShowSkybox);
@@ -1746,12 +1747,12 @@ Win32RenderEditor(
     ImGui::SetNextWindowBgAlpha(0.3f);
     ImGui::Begin("Game Overlay", 0, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
     ImGui::Text("Size: %d, %d", GameParameters->WindowWidth, GameParameters->WindowHeight);
-#if 0
-    game_camera *PlayerCamera = &GameState->PlayerCamera;
 
-    ImGui::Text("Camera distance: %.2f", PlayerCamera->SphericalCoords.x);
-    ImGui::Text("Camera azimuth: %.2f", DEGREES(PlayerCamera->SphericalCoords.y));
-    ImGui::Text("Camera altitude: %.2f", DEGREES(PlayerCamera->SphericalCoords.z));
+#if 1
+    ImGui::Text("Camera position: %.2f, %.2f, %.2f", Camera->Position.x, Camera->Position.y, Camera->Position.z);
+    ImGui::Text("Camera distance: %.2f", Camera->SphericalCoords.x);
+    ImGui::Text("Camera azimuth: %.2f", DEGREES(Camera->SphericalCoords.y));
+    ImGui::Text("Camera altitude: %.2f", DEGREES(Camera->SphericalCoords.z));
 #endif
 
     ImGui::End();
@@ -1836,7 +1837,7 @@ Win32RenderEditor(
         {
             if (GameState->SelectedEntity)
             {
-                RemoveGameEntity(GameState->SelectedEntity);
+                RemoveGameEntity(GameState, GameState->SelectedEntity);
 
                 if (GameState->SelectedEntity == GameState->Player)
                 {

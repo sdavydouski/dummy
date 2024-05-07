@@ -104,12 +104,16 @@ Integrate(rigid_body *Body, f32 dt)
 {
     Assert(dt > 0.f);
 
+#if 0
     Body->PrevPosition = Body->Position;
     Body->PrevVelocity = Body->Velocity;
     Body->PrevAcceleration = Body->Acceleration;
+#endif
 
-    Body->Acceleration = Body->ForceAccumulator * Body->InverseMass;
-    Body->Velocity += Body->Acceleration * dt;
+
+    vec3 ForceAcceleration = Body->ForceAccumulator * Body->InverseMass;
+    vec3 TotalAcceleration = Body->Acceleration + ForceAcceleration;
+    Body->Velocity += TotalAcceleration * dt;
     Body->Velocity *= Power(Body->LinearDamping, dt);
     Body->Position += Body->Velocity * dt;
 
@@ -121,6 +125,7 @@ Integrate(rigid_body *Body, f32 dt)
 
     Body->ForceAccumulator = vec3(0.f);
     Body->TorqueAccumulator = vec3(0.f);
+    Body->Acceleration = vec3(0.f);
 
     CalculateRigidBodyState(Body);
 }

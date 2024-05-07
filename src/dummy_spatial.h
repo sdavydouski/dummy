@@ -6,6 +6,7 @@ struct spatial_hash_grid_cell
 {
     u32 EntityCount;
     game_entity *Entities[256];
+    ivec3 Coords;
 };
 
 struct spatial_hash_grid

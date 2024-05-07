@@ -113,9 +113,14 @@ FreeCameraPerFrameUpdate(game_camera *Camera, game_input *Input, f32 Delta)
     Camera->Altitude += Input->Camera.Range.y;
     Camera->Altitude = Clamp(Camera->Altitude, RADIANS(-89.f), RADIANS(89.f));
 
-    Camera->Direction = EulerToDirection(Camera->Azimuth, Camera->Altitude);
+    Camera->TargetDirection = EulerToDirection(Camera->Azimuth, Camera->Altitude);
 
-    Camera->Position += (
-        Input->Move.Range.x * (Normalize(Cross(Camera->Direction, Camera->Up))) +
-        Input->Move.Range.y * Camera->Direction) * CameraSpeed * Delta;
+    vec3 HorizontalMovement = Input->Move.Range.x * (Normalize(Cross(Camera->TargetDirection, Camera->Up)));
+    vec3 VerticalMovement = Input->Move.Range.y * Camera->TargetDirection;
+    vec3 TotalMovement = HorizontalMovement + VerticalMovement;
+
+    f32 t = Min(20.f * Delta, 1.f);
+
+    Camera->Direction = Lerp(Camera->Direction, t, Camera->TargetDirection);
+    Camera->Position += TotalMovement * CameraSpeed * Delta;
 }

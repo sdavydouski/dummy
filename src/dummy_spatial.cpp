@@ -42,9 +42,9 @@ GetCellCoordinates(spatial_hash_grid *Grid, vec3 Position)
     f32 NormalizedPositionY = Clamp((Position.y - GridBoundsMin.y) / (GridBoundsMax.y - GridBoundsMin.y), 0.f, 1.f);
     f32 NormalizedPositionZ = Clamp((Position.z - GridBoundsMin.z) / (GridBoundsMax.z - GridBoundsMin.z), 0.f, 1.f);
 
-    Result.x = Floor(NormalizedPositionX * (Grid->CellCount.x - 1));
-    Result.y = Floor(NormalizedPositionY * (Grid->CellCount.y - 1));
-    Result.z = Floor(NormalizedPositionZ * (Grid->CellCount.z - 1));
+    Result.x = Min(Floor(NormalizedPositionX * (Grid->CellCount.x)), Grid->CellCount.x - 1);
+    Result.y = Min(Floor(NormalizedPositionY * (Grid->CellCount.y)), Grid->CellCount.y - 1);
+    Result.z = Min(Floor(NormalizedPositionZ * (Grid->CellCount.z)), Grid->CellCount.z - 1);
 
     return Result;
 }
@@ -56,6 +56,7 @@ GetGridCell(spatial_hash_grid *Grid, i32 CellX, i32 CellY, i32 CellZ)
     u32 HashSlot = HashValue % Grid->TotalCellCount;
 
     spatial_hash_grid_cell *Cell = Grid->Cells + HashSlot;
+    Cell->Coords = ivec3(CellX, CellY, CellZ);
 
     return Cell;
 }
@@ -88,7 +89,6 @@ AddToSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
     }
 }
 
-// todo: visualize grid cells
 dummy_internal void
 RemoveFromSpacialGrid(spatial_hash_grid *Grid, game_entity *Entity)
 {

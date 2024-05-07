@@ -15,21 +15,21 @@ BuildModelAssets(const char *InputPath, const char *OutputPath)
 
         if (Entry.is_directory())
         {
+            char GlbFilePath[256];
+            FormatString(GlbFilePath, "%s/%s.glb", EntryPath.generic_string().c_str(), EntryName.generic_string().c_str());
+
             char FbxFilePath[256];
             FormatString(FbxFilePath, "%s/%s.fbx", EntryPath.generic_string().c_str(), EntryName.generic_string().c_str());
 
-            char GltfFilePath[256];
-            FormatString(GltfFilePath, "%s/%s.gltf", EntryPath.generic_string().c_str(), EntryName.generic_string().c_str());
-
             char FilePath[256];
 
-            if (fs::exists(FbxFilePath))
+            if (fs::exists(GlbFilePath))
+            {
+                CopyString(GlbFilePath, FilePath);
+            }
+            else if (fs::exists(FbxFilePath))
             {
                 CopyString(FbxFilePath, FilePath);
-            }
-            else if (fs::exists(GltfFilePath))
-            {
-                CopyString(GltfFilePath, FilePath);
             }
             else
             {

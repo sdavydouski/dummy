@@ -665,6 +665,48 @@ RenderFrustrum(render_commands *RenderCommands, polyhedron *Frustrum)
 }
 
 dummy_internal void
+RenderSpatialGrid(render_commands *RenderCommands, game_state *State, spatial_hash_grid *Grid)
+{
+    font *Font = GetFontAsset(&State->Assets, "Consolas");
+    vec3 HalfCellSize = Grid->CellSize / 2.f;
+
+    u32 CellsWithEntitiesCount = 0;
+    for (u32 CellIndex = 0; CellIndex < Grid->TotalCellCount; ++CellIndex)
+    {
+        spatial_hash_grid_cell *Cell = Grid->Cells + CellIndex;
+
+        if (Cell->EntityCount > 0)
+        {
+            vec3 NormalizedPosition = vec3(
+                (f32)Cell->Coords.x / Grid->CellCount.x,
+                (f32)Cell->Coords.y / Grid->CellCount.y,
+                (f32)Cell->Coords.z / Grid->CellCount.z
+            );
+
+            vec3 GridBoundsMin = Grid->Bounds.Min();
+            vec3 GridBoundsMax = Grid->Bounds.Max();
+
+            vec3 CellPosition = NormalizedPosition * (GridBoundsMax - GridBoundsMin) + GridBoundsMin + HalfCellSize;
+
+            transform Transform = CreateTransform(CellPosition, HalfCellSize);
+            vec4 Color = vec4(0.f, 1.f, 1.f, 1.f);
+
+            char Line1[256];
+            FormatString(Line1, "Cell Coords: %d, %d, %d", Cell->Coords.x, Cell->Coords.y, Cell->Coords.z);
+
+            char Line2[256];
+            FormatString(Line2, "Entity Count: %d", Cell->EntityCount);
+
+            vec3 TextOffset = vec3(0.f, HalfCellSize.y, 0.f);
+
+            DrawBox(RenderCommands, Transform, Color);
+            DrawText(RenderCommands, Line1, Font, CellPosition + TextOffset, 0.25f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawMode_WorldSpace, true);
+            DrawText(RenderCommands, Line2, Font, CellPosition + TextOffset * 0.9f, 0.25f, vec4(1.f, 1.f, 1.f, 1.f), DrawText_AlignCenter, DrawMode_WorldSpace, true);
+        }
+    }
+}
+
+dummy_internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
     // Pivot point
@@ -677,33 +719,6 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
     if (Entity->Model)
     {
         Color = vec4(0.f, 1.f, 1.f, 1.f);
-
-#if 0
-        // todo: test code
-        obb Box = Entity->Model->BoundsOBB;
-
-        vec3 HalfSize = Box.HalfExtent;
-        vec3 Position = Box.Center;
-        mat4 RotationM = Transpose(mat4(
-            vec4(Box.AxisX, 0.f),
-            vec4(Box.AxisY, 0.f),
-            vec4(Box.AxisZ, 0.f),
-            vec4(0.f, 0.f, 0.f, 1.f)
-        ));
-        quat Rotation = LookRotation(RotationM);
-
-        transform Transform = CreateTransform(Position, HalfSize, Rotation);
-        DrawBox(RenderCommands, Transform, Color);
-
-        f32 AxisLength = 4.f;
-
-        DrawLine(RenderCommands, Position, Position + Box.AxisX * AxisLength, vec4(1.f, 0.f, 0.f, 1.f), 4.f);
-        DrawLine(RenderCommands, Position, Position + Box.AxisY * AxisLength, vec4(0.f, 1.f, 0.f, 1.f), 4.f);
-        DrawLine(RenderCommands, Position, Position + Box.AxisZ * AxisLength, vec4(0.f, 0.f, 1.f, 1.f), 4.f);
-
-        return;
-        //
-#endif
     }
 
     if (Entity->Collider)
@@ -725,10 +740,6 @@ RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entit
 
     if (Entity->Body)
     {
-        //Color = vec4(1.f, 0.f, 0.f, 1.f);
-
-        //Bounds.Center += Entity->Transform.Translation - Entity->Body->Position;
-
         DrawPoint(RenderCommands, Entity->Body->CenterOfMassWorld, vec4(1.f, 0.f, 1.f, 1.f), 10.f);
     }
 
@@ -862,9 +873,12 @@ CreateGameEntity(game_state *State)
 }
 
 inline void
-RemoveGameEntity(game_entity *Entity)
+RemoveGameEntity(game_state *State, game_entity *Entity)
 {
     Assert(!Entity->Destroyed);
+
+    RemoveFromSpacialGrid(&State->WorldArea.SpatialGrid, Entity);
+
     Entity->Destroyed = true;
 }
 
@@ -936,11 +950,9 @@ AddRigidBody(game_state *State, game_entity *Entity, memory_arena *Arena)
     SetPosition(Entity->Body, Entity->Transform.Translation);
     SetOrientation(Entity->Body, Entity->Transform.Rotation);
     SetMass(Entity->Body, Mass);
-    //SetInfiniteMass(Entity->Body);
     SetCenterOfMass(Entity->Body, vec3(0.f));
     SetInertiaTensor(Entity->Body, GetCuboidInertiaTensor(Mass, Size));
-    //SetLinearDamping(Entity->Body, 0.95f);
-    SetLinearDamping(Entity->Body, 0.05f);
+    SetLinearDamping(Entity->Body, 0.95f);
     SetAngularDamping(Entity->Body, 0.8f);
 
     CalculateRigidBodyState(Entity->Body);
@@ -1128,6 +1140,7 @@ AnimateEntity(game_state *State, game_input *Input, game_entity *Entity, memory_
         vec3 ScaledRootMotion = Entity->Animation->AccRootMotion * Entity->Transform.Scale;
         vec3 RotatedScaledRootMotion = Rotate(ScaledRootMotion, Entity->Transform.Rotation);
 
+#if 1
         if (Entity->Body)
         {
             if (NearlyEqual(Entity->Body->Velocity.x, 0.f))
@@ -1140,6 +1153,7 @@ AnimateEntity(game_state *State, game_input *Input, game_entity *Entity, memory_
                 Entity->Body->Position.z += RotatedScaledRootMotion.z;
             }
         }
+#endif
 
         Entity->Animation->AccRootMotion = vec3(0.f);
     }
@@ -1187,7 +1201,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
             if (Body)
             {
-                bool32 OnTheGround = false;//NearlyEqual(Entity->Body->Position.y, 0.f);
+                bool32 OnTheGround = NearlyEqual(Entity->Body->Position.y, 0.f);
 
                 if (Collider)
                 {
@@ -1255,8 +1269,20 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                 Entity->IsGrounded = (OnTheGround || OnTheSurface);
 
+                // todo:
+#if 1
+                Body->PrevPosition = Body->Position;
+                Body->PrevVelocity = Body->Velocity;
+                Body->PrevAcceleration = Body->Acceleration;
+#endif
+
                 if (Entity->IsGrounded)
                 {
+                    if (Body->Position.y < 0.f)
+                    {
+                        Body->Position.y = 0.f;
+                    }
+
                     if (Body->Velocity.y < 0.f)
                     {
                         Body->Velocity.y = 0.f;
@@ -1270,8 +1296,17 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                 if (!Entity->IsGrounded && !Entity->IsManipulated)
                 {
-                    vec3 Gravity = vec3(0.f, -10.f, 0.f) * GetMass(Body);
+                    vec3 Gravity = vec3(0.f, -20.f, 0.f) * GetMass(Body);
 ;                   AddForce(Body, Gravity);
+                }
+
+                vec2 HorizontalVelocity = vec2(Body->Velocity.x, Body->Velocity.z);
+
+                if (Entity->IsGrounded && Magnitude(HorizontalVelocity) > 0.f)
+                {
+                    vec3 Drag = -10.f * Body->Velocity * Max(Magnitude(HorizontalVelocity), 5.f);
+                    Drag.y = 0.f;
+                    AddForce(Body, Drag);
                 }
 
                 Integrate(Body, dt);
@@ -1306,7 +1341,12 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
                         {
                             //CalculateColliderInternalState(Entity);
                             //CalculateColliderInternalState(NearbyEntity);
-
+                            vec3 mtv;
+                            if (TestAABBAABB(Collider->Bounds, NearbyBodyCollider->Bounds, &mtv))
+                            {
+                                Body->Position += mtv;
+                            }
+#if 0
                             if (TestBoxBox(&Collider->Box, &NearbyBodyCollider->Box))
                             {
                                 //Entity->DebugColor = vec3(0.f, 1.f, 0.f);
@@ -1322,6 +1362,9 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                                 Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
                             }
+#else
+
+#endif
                         }
                     }
                 }
@@ -1641,7 +1684,7 @@ LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform,
 
     u32 EntityCount = Header->EntityCount;
 
-    aabb WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
+    aabb WorldBounds = CreateAABBMinMax(vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f));
     vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&Area->SpatialGrid, WorldBounds, CellSize, &Area->Arena);
 
@@ -1709,13 +1752,17 @@ SaveEntityToFile(game_entity *Entity, char *FileName, platform_api *Platform, me
 dummy_internal void
 ClearWorldArea(game_state *State)
 {
+#if 0
     for (u32 EntityIndex = 0; EntityIndex < State->WorldArea.EntityCount; ++EntityIndex)
     {
         game_entity *Entity = State->WorldArea.Entities + EntityIndex;
         RemoveFromSpacialGrid(&State->WorldArea.SpatialGrid, Entity);
     }
+#endif
 
     ClearMemoryArena(&State->WorldArea.Arena);
+
+    InitSpatialHashGrid(&State->WorldArea.SpatialGrid, State->WorldArea.SpatialGrid.Bounds, State->WorldArea.SpatialGrid.CellSize, &State->WorldArea.Arena);
 
     State->WorldArea.EntityCount = 0;
     State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
@@ -1723,6 +1770,29 @@ ClearWorldArea(game_state *State)
     State->NextFreeEntityId = 1;
     State->SelectedEntity = 0;
     State->Player = 0;
+}
+
+inline game_camera *
+GetActiveCamera(game_state *State)
+{
+    game_camera *Camera = 0;
+
+    switch (State->Mode)
+    {
+        case GameMode_World:
+        {
+            Camera = &State->PlayerCamera;
+            break;
+        }
+        case GameMode_Menu:
+        case GameMode_Editor:
+        {
+            Camera = &State->EditorCamera;
+            break;
+        }
+    }
+
+    return Camera;
 }
 
 DLLExport GAME_INIT(GameInit)
@@ -1748,7 +1818,7 @@ DLLExport GAME_INIT(GameInit)
     State->WorldArea.MaxEntityCount = 10000;
     State->WorldArea.Entities = PushArray(&State->WorldArea.Arena, State->WorldArea.MaxEntityCount, game_entity);
 
-    aabb WorldBounds = { vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f) };
+    aabb WorldBounds = CreateAABBMinMax(vec3(-100.f, 0.f, -100.f), vec3(100.f, 20.f, 100.f));
     vec3 CellSize = vec3(5.f);
     InitSpatialHashGrid(&State->WorldArea.SpatialGrid, WorldBounds, CellSize, &State->WorldArea.Arena);
 
@@ -1822,6 +1892,7 @@ DLLExport GAME_INIT(GameInit)
     State->Options.ShowSkybox = true;
     State->Options.ShowSkeletons = false;
     State->Options.ShowCamera = false;
+    State->Options.ShowSpatialGrid = false;
     State->Options.WireframeMode = false;
 
     InitGameMenu(State);
@@ -1906,10 +1977,11 @@ SpawnPlayer(game_state *State, render_commands *RenderCommands)
     Entity->Transform = CreateTransform(vec3(0.f, 0.f, 0.f));
 
     AddModel(State, Entity, &State->Assets, "ybot", RenderCommands, &State->WorldArea.Arena);
-    AddBoxCollider(Entity, &State->WorldArea.Arena);
+    AddBoxCollider(Entity, vec3(0.3f, 0.9f, 0.3f), Translate(vec3(0.f, 0.9f, 0.f)), &State->WorldArea.Arena);
     AddRigidBody(State, Entity, &State->WorldArea.Arena);
 
     State->SelectedEntity = Entity;
+    State->Player = Entity;
 }
 
 DLLExport GAME_PROCESS_INPUT(GameProcessInput)
@@ -1931,6 +2003,11 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             InitGameMenu(State);
         }
     }
+
+    // todo:
+    ClearStream(&State->Stream);
+
+    //Out(&State->Stream, "EnableFreeCameraMovement: %d", Input->EnableFreeCameraMovement);
 
     if (Input->EditMode.IsActivated)
     {
@@ -1991,13 +2068,7 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
                     {
                         if (Player->IsGrounded)
                         {
-#if 0
-                            Player->Body->Acceleration.y = 180.f;
-#else
-                            AddForce(Player->Body, vec3(0.f, 4000.f, 0.f));
-#endif
-                            // todo:
-                            Player->Body->Position.y += 0.01f;
+                            Player->Body->Acceleration.y = 400.f;
                         }
                     }
 
@@ -2018,12 +2089,8 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
 
                     if (Player->IsGrounded)
                     {
-#if 0
-                        Player->Body->Acceleration.x = (xMoveX + xMoveY) * 40.f;
-                        Player->Body->Acceleration.z = (zMoveX + zMoveY) * 40.f;
-#else
-                        AddForce(Player->Body, vec3((xMoveX + xMoveY), 0.f, (zMoveX + zMoveY)) * 100.f);
-#endif
+                        Player->Body->Acceleration.x = (xMoveX + xMoveY) * 20.f;
+                        Player->Body->Acceleration.z = (zMoveX + zMoveY) * 20.f;
                     }
 
                     quat NewPlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(NewPlayerDirection.x, NewPlayerDirection.z)));
@@ -2342,9 +2409,6 @@ DLLExport GAME_RENDER(GameRender)
 
     AudioCommands->Settings.Volume = State->MasterVolume;
 
-    // todo:
-    ClearStream(&State->Stream);
-
     char GameLog[256];
     FormatString(GameLog, "Contact Count: %d", State->ContactResolver.ContactCount);
     Out(&State->Stream, GameLog);
@@ -2358,8 +2422,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
-        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
+        AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
 #endif
@@ -2398,7 +2462,7 @@ DLLExport GAME_RENDER(GameRender)
         case GameMode_World:
         case GameMode_Editor:
         {
-            game_camera *Camera = State->Mode == GameMode_World ? &State->PlayerCamera : &State->EditorCamera;
+            game_camera *Camera = GetActiveCamera(State);
             bool32 EnableFrustrumCulling = State->Mode == GameMode_World;
 
             // todo:
@@ -2444,6 +2508,11 @@ DLLExport GAME_RENDER(GameRender)
             if (State->Options.ShowGrid)
             {
                 DrawGrid(RenderCommands);
+            }
+
+            if (State->Options.ShowSpatialGrid)
+            {
+                RenderSpatialGrid(RenderCommands, State, &State->WorldArea.SpatialGrid);
             }
 
             u32 ShadowPlaneCount = 0;

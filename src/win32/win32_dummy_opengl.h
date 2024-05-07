@@ -3,7 +3,7 @@
 #include <glad.h>
 #include <wglext.h>
 
-#define OPENGL_RELOADABLE_SHADERS 0
+#define OPENGL_RELOADABLE_SHADERS 1
 #define OPENGL_MAX_SHADER_FILE_PATH 256
 
 #define OPENGL_MAX_POINT_LIGHT_COUNT 16

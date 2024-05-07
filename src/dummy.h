@@ -215,6 +215,7 @@ struct game_options
     bool32 ShowCamera;
     bool32 ShowGrid;
     bool32 ShowSkybox;
+    bool32 ShowSpatialGrid;
     bool32 WireframeMode;
 };
 

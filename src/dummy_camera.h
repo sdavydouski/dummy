@@ -4,9 +4,10 @@ struct game_camera
 {
     vec3 Position;
     vec3 Velocity;
-    vec3 TargetPosition;
     vec3 Direction;
     vec3 Up;
+    vec3 TargetPosition;
+    vec3 TargetDirection;
 
     union
     {

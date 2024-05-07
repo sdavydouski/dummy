@@ -7,9 +7,13 @@ CalculateColliderState(game_entity *Entity)
 
     collider *Collider = Entity->Collider;
 
+#if 1
     vec3 Position = Entity->Body
         ? Entity->Body->Position
         : Entity->Transform.Translation;
+#else
+    vec3 Position = Entity->Transform.Translation;
+#endif
 
     quat Rotation = Entity->Body
         ? Entity->Body->Orientation
