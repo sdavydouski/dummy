@@ -62,7 +62,6 @@ audio_play_options SetVolume(f32 Volume);
 void CalculateRigidBodyState(rigid_body *Body);
 f32 TransformToAxis(collider_box *Box, vec3 Axis);
 void CalculateVertices(collider_box *Box, vec3 *Vertices);
-void CalculateNormalizedVertices(collider_box *Box, vec3 *Vertices);
 bool32 TestBoxPlane(collider_box *Box, plane Plane);
 //
 
@@ -79,7 +78,6 @@ struct game_entity
     char Name[MAX_ENTITY_NAME];
     ivec3 GridCellCoords[2];
     transform Transform;
-    vec3 DebugColor;
 
 #if 1
     model *Model;
@@ -102,6 +100,7 @@ struct game_entity
 #endif
 
     // ?
+    vec3 DebugColor;
     bool32 Visible;
     bool32 Destroyed;
     bool32 IsGrounded;

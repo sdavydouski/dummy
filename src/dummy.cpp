@@ -1362,8 +1362,6 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                                 Assert(ContactResolver->ContactCount < ContactResolver->MaxContactCount);
                             }
-#else
-
 #endif
                         }
                     }
@@ -1984,7 +1982,22 @@ SpawnPlayer(game_state *State, render_commands *RenderCommands)
     State->Player = Entity;
 }
 
-DLLExport GAME_PROCESS_INPUT(GameProcessInput)
+DLLExport GAME_FRAME_START(GameFrameStart)
+{
+    game_state *State = GetGameState(Memory);
+
+
+}
+
+DLLExport GAME_FRAME_END(GameFrameEnd)
+{
+    game_state *State = GetGameState(Memory);
+
+    ClearStream(&State->Stream);
+    ClearMemoryArena(&State->FrameArena);
+}
+
+DLLExport GAME_INPUT(GameInput)
 {
     game_state *State = GetGameState(Memory);
     platform_api *Platform = Memory->Platform;
@@ -2003,11 +2016,6 @@ DLLExport GAME_PROCESS_INPUT(GameProcessInput)
             InitGameMenu(State);
         }
     }
-
-    // todo:
-    ClearStream(&State->Stream);
-
-    //Out(&State->Stream, "EnableFreeCameraMovement: %d", Input->EnableFreeCameraMovement);
 
     if (Input->EditMode.IsActivated)
     {
@@ -2409,9 +2417,11 @@ DLLExport GAME_RENDER(GameRender)
 
     AudioCommands->Settings.Volume = State->MasterVolume;
 
+#if 0
     char GameLog[256];
     FormatString(GameLog, "Contact Count: %d", State->ContactResolver.ContactCount);
     Out(&State->Stream, GameLog);
+#endif
     //
 
     if (State->Assets.State == GameAssetsState_Loaded)
@@ -2422,8 +2432,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
-        AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
+        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
 #endif
@@ -2971,8 +2981,4 @@ DLLExport GAME_RENDER(GameRender)
         PROFILE(Memory->Profiler, "GameRender:ProcessEvents");
         ProcessEvents(State, AudioCommands, RenderCommands);
     }
-
-    // todo: should probably go to FrameEnd ?
-    // todo: maybe move it out to platform layer to be more explicit? (maybe create FrameStart/FrameEnd functions?)
-    ClearMemoryArena(&State->FrameArena);
 }

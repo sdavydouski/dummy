@@ -15,6 +15,7 @@
 #include "assets.h"
 
 #include "dummy_bounds.cpp"
+#include "dummy_animation.cpp"
 
 namespace json = rapidjson;
 
@@ -711,30 +712,6 @@ ProcessAssimpBoneHierarchy(
     CurrentIndexParent = Joint->ParentIndex;
 }
 
-// todo: duplicate
-dummy_internal mat4
-CalculateGlobalJointPose(joint *CurrentJoint, transform *CurrentJointPose, skeleton_pose *Pose)
-{
-    mat4 Result = mat4(1.f);
-
-    while (true)
-    {
-        mat4 GlobalPose = Transform(*CurrentJointPose);
-        Result = GlobalPose * Result;
-
-        if (CurrentJoint->ParentIndex == -1)
-        {
-            break;
-        }
-
-        CurrentJointPose = Pose->LocalJointPoses + CurrentJoint->ParentIndex;
-        CurrentJoint = Pose->Skeleton->Joints + CurrentJoint->ParentIndex;
-    }
-
-    return Result;
-}
-
-// todo: duplicate
 inline u32
 GetMeshVerticesSize(mesh *Mesh)
 {

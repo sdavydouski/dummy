@@ -407,13 +407,15 @@ Win32LoadGameCode(wchar *SourceDLLName, wchar *TempDLLName, wchar *LockFileName)
 
         if (Result.GameDLL)
         {
-            Result.Init = (game_init *)GetProcAddress(Result.GameDLL, "GameInit");
-            Result.Reload = (game_reload *)GetProcAddress(Result.GameDLL, "GameReload");
-            Result.ProcessInput = (game_process_input *)GetProcAddress(Result.GameDLL, "GameProcessInput");
-            Result.Update = (game_update *)GetProcAddress(Result.GameDLL, "GameUpdate");
-            Result.Render = (game_render *)GetProcAddress(Result.GameDLL, "GameRender");
+            Result.Init = (game_init_func *)GetProcAddress(Result.GameDLL, "GameInit");
+            Result.Reload = (game_reload_func *)GetProcAddress(Result.GameDLL, "GameReload");
+            Result.Input = (game_input_func *)GetProcAddress(Result.GameDLL, "GameInput");
+            Result.Update = (game_update_func *)GetProcAddress(Result.GameDLL, "GameUpdate");
+            Result.Render = (game_render_func *)GetProcAddress(Result.GameDLL, "GameRender");
+            Result.FrameStart = (game_frame_start_func *)GetProcAddress(Result.GameDLL, "GameFrameStart");
+            Result.FrameEnd = (game_frame_end_func *)GetProcAddress(Result.GameDLL, "GameFrameEnd");
 
-            if (Result.Init && Result.Reload && Result.ProcessInput && Result.Update && Result.Render)
+            if (Result.Init && Result.Reload && Result.Input && Result.Update && Result.Render && Result.FrameStart && Result.FrameEnd)
             {
                 Result.IsValid = true;
             }
@@ -435,9 +437,11 @@ Win32UnloadGameCode(win32_game_code *GameCode)
     GameCode->IsValid = false;
     GameCode->Init = 0;
     GameCode->Reload = 0;
-    GameCode->ProcessInput = 0;
+    GameCode->Input = 0;
     GameCode->Update = 0;
     GameCode->Render = 0;
+    GameCode->FrameStart = 0;
+    GameCode->FrameEnd = 0;
 }
 
 inline RECT
@@ -1343,7 +1347,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 1
+#if 0
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1567,6 +1571,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameParameters.WindowWidth = PlatformState.GameWindowWidth;
                 GameParameters.WindowHeight = PlatformState.GameWindowHeight;
 
+                GameCode.FrameStart(&GameMemory);
+
                 // Input
                 {
                     PROFILE(&PlatformProfiler, "ProcessInput");
@@ -1583,7 +1589,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                         MouseInput2GameInput(&MouseInput, &GameInput);
                     }
 
-                    GameCode.ProcessInput(&GameMemory, &GameParameters, &GameInput);
+                    GameCode.Input(&GameMemory, &GameParameters, &GameInput);
                 }
 
                 // Fixed Update
@@ -1619,6 +1625,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 PROFILE(&PlatformProfiler, "EDITOR_UI_RENDER");
                 EDITOR_RENDER(&EditorState, &PlatformState, &GameMemory, &GameParameters, &GameInput);
             }
+
+            GameCode.FrameEnd(&GameMemory);
 
             ClearGameInput(&GameInput);
 

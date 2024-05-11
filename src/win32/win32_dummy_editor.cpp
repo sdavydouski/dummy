@@ -388,7 +388,7 @@ Win32InitEditor(editor_state *EditorState, win32_platform_state *PlatformState)
     EditorInitRenderer(EditorState);
 
     // Load Fonts
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
 
     // Setup Config
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;

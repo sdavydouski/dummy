@@ -63,11 +63,13 @@ struct win32_game_code
     HMODULE GameDLL;
     FILETIME LastWriteTime;
 
-    game_init *Init;
-    game_reload *Reload;
-    game_process_input *ProcessInput;
-    game_update *Update;
-    game_render *Render;
+    game_init_func *Init;
+    game_reload_func *Reload;
+    game_input_func *Input;
+    game_update_func *Update;
+    game_render_func *Render;
+    game_frame_start_func *FrameStart;
+    game_frame_end_func *FrameEnd;
 
     bool32 IsValid;
 };

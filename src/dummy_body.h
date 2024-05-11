@@ -1,8 +1,5 @@
 #pragma once
 
-// todo:
-constexpr f32 SleepEpsilon = 0.4f;
-
 struct rigid_body
 {
     vec3 Position;
