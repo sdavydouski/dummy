@@ -2432,8 +2432,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
-        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
+        //AddSkybox(RenderCommands, 2, 512, GetTextureAsset(&State->Assets, "environment_desert"));
+        //AddSkybox(RenderCommands, 3, 512, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
 #endif

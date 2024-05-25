@@ -120,10 +120,31 @@ i32 main(i32 ArgCount, char **Args)
 {
     const char *GameAssetsPath = "game/assets";
 
-    ClearFolder(GameAssetsPath);
+    if (ArgCount == 1)
+    {
+        ClearFolder(GameAssetsPath);
 
-    BuildModelAssets("assets/models", GameAssetsPath);
-    BuildFontAssets("assets/fonts", GameAssetsPath);
-    BuildAudioAssets("assets/audio", GameAssetsPath);
-    BuildTextureAssets("assets/textures", GameAssetsPath);
+        BuildModelAssets("assets/models", GameAssetsPath);
+        BuildFontAssets("assets/fonts", GameAssetsPath);
+        BuildAudioAssets("assets/audio", GameAssetsPath);
+        BuildTextureAssets("assets/textures", GameAssetsPath);
+    }
+    else if (ArgCount == 2)
+    {
+        fs::path EntryPath = Args[1];
+        fs::path EntryName = EntryPath.stem();
+
+        // todo: extend to other asset types
+        char AssetPath[256];
+        FormatString(AssetPath, "%s/%s.model.asset", GameAssetsPath, EntryName.generic_string().c_str());
+
+        printf("Processing %s...\n", EntryPath.generic_string().c_str());
+        ProcessModelAsset(EntryPath.generic_string().c_str(), AssetPath);
+    }
+    else
+    {
+        printf("Usage: %s <asset:optional>", Args[0]);
+    }
+
+    return 1;
 }

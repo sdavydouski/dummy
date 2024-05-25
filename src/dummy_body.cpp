@@ -110,7 +110,6 @@ Integrate(rigid_body *Body, f32 dt)
     Body->PrevAcceleration = Body->Acceleration;
 #endif
 
-
     vec3 ForceAcceleration = Body->ForceAccumulator * Body->InverseMass;
     vec3 TotalAcceleration = Body->Acceleration + ForceAcceleration;
     Body->Velocity += TotalAcceleration * dt;

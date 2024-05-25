@@ -388,7 +388,7 @@ Win32InitEditor(editor_state *EditorState, win32_platform_state *PlatformState)
     EditorInitRenderer(EditorState);
 
     // Load Fonts
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 16);
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Consola.ttf", 24);
 
     // Setup Config
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -1526,6 +1526,59 @@ Win32RenderEditor(
                     ImGui::SliderFloat("Master Volume", &GameState->MasterVolume, 0.f, 1.f);
 
                     ImGui::EndMenu();
+                }
+
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("Assets"))
+            {
+                if (ImGui::MenuItem("Import model..."))
+                {
+                    scoped_memory ScopedMemory(&EditorState->Arena);
+
+                    wchar WideFilePath[256] = L"";
+                    Platform->OpenFileDialog(WideFilePath, ArrayCount(WideFilePath));
+
+                    if (!StringEquals(WideFilePath, L""))
+                    {
+                        STARTUPINFO StartupInfo = { sizeof(StartupInfo) };
+                        PROCESS_INFORMATION ProcessInfo;
+
+                        wchar CommandLine[256];
+                        FormatString(CommandLine, L"assets_builder.exe %s", WideFilePath);
+
+                        wchar WorkingDirectory[32] = L"../";
+
+                        if (CreateProcessW(0, CommandLine, 0, 0, true, 0, 0, WorkingDirectory, &StartupInfo, &ProcessInfo))
+                        {
+                            WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
+                            CloseHandle(ProcessInfo.hProcess);
+                            CloseHandle(ProcessInfo.hThread);
+
+                            game_assets *Assets = &GameState->Assets;
+
+                            char FilePath[256];
+                            ConvertToString(WideFilePath, FilePath);
+
+                            char *FileName = GetLastAfterDelimiter(FilePath, '\\');
+
+                            char AssetName[256];
+                            RemoveExtension(FileName, AssetName);
+
+                            char GameAssetPath[256] = "assets\\*.model.asset";
+                            FormatString(GameAssetPath, "assets\\%s.model.asset", AssetName);
+
+                            model_asset *ModelAsset = LoadModelAsset(Platform, GameAssetPath, &Assets->Arena);
+
+                            model *Model = GetModelAsset(Assets, AssetName);
+                            InitModel(GameState, ModelAsset, Model, AssetName, &Assets->Arena, RenderCommands);
+                        }
+                        else 
+                        {
+                            Assert(!"CreateProcess failed");
+                        }
+                    }
                 }
 
                 ImGui::EndMenu();

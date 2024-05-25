@@ -1248,8 +1248,8 @@ Win32InitProfiler(platform_profiler *Profiler)
 
 COMDLG_FILTERSPEC DialogFileTypes[] =
 {
-    { L"Dummy", L"*.dummy"},
-    { L"Text", L"*.txt"},
+    /*{ L"Dummy", L"*.dummy"},
+    { L"Text", L"*.txt"},*/
     { L"All", L"*.*"},
 };
 
@@ -1347,7 +1347,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 0
+#if 1
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
@@ -1571,7 +1571,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 GameParameters.WindowWidth = PlatformState.GameWindowWidth;
                 GameParameters.WindowHeight = PlatformState.GameWindowHeight;
 
-                GameCode.FrameStart(&GameMemory);
+                {
+                    PROFILE(&PlatformProfiler, "FrameStart");
+                    GameCode.FrameStart(&GameMemory);
+                }
 
                 // Input
                 {
@@ -1626,7 +1629,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 EDITOR_RENDER(&EditorState, &PlatformState, &GameMemory, &GameParameters, &GameInput);
             }
 
-            GameCode.FrameEnd(&GameMemory);
+            {
+                PROFILE(&PlatformProfiler, "FrameEnd");
+                GameCode.FrameEnd(&GameMemory);
+            }
 
             ClearGameInput(&GameInput);
 
