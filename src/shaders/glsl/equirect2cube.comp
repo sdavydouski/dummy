@@ -1,4 +1,4 @@
-﻿//! #include "common/version.glsl"
+//! #include "common/version.glsl"
 //! #include "common/math.glsl"
 
 // Converts equirectangular projection texture into a proper cubemap

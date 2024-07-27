@@ -1,4 +1,4 @@
-﻿//? #include "version.glsl"
+//? #include "version.glsl"
 
 #define PI 3.14159f
 #define HALF_PI (PI / 2.f)
