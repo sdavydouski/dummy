@@ -246,11 +246,13 @@ OpenGLCreateProgram(u32 ShaderCount, GLuint *Shaders, bool32 CrashIfError = true
     GLint Status;
     glGetProgramiv(Program, GL_LINK_STATUS, &Status);
 
+#if 0
     if (Status == GL_TRUE)
     {
         glValidateProgram(Program);
         glGetProgramiv(Program, GL_VALIDATE_STATUS, &Status);
     }
+#endif
 
     if (Status != GL_TRUE)
     {

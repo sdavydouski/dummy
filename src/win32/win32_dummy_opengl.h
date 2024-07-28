@@ -3,6 +3,12 @@
 #include <glad.h>
 #include <wglext.h>
 
+// Enable usage of more performant GPUs on laptops
+extern "C" {
+    __declspec(dllexport) int NvOptimusEnablement = 1;
+    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+
 #define OPENGL_RELOADABLE_SHADERS 0
 #define OPENGL_MAX_SHADER_FILE_PATH 256
 
