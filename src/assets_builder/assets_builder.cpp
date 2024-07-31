@@ -110,24 +110,31 @@ BuildTextureAssets(const char *InputPath, const char *OutputPath)
 dummy_internal void
 ClearFolder(const char *Path)
 {
-    for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
+    if (fs::is_directory(Path))
     {
-        fs::remove_all(Entry.path());
+        for (const fs::directory_entry &Entry : fs::directory_iterator(Path))
+        {
+            fs::remove_all(Entry.path());
+        }
+    }
+    else
+    {
+        fs::create_directory(Path);
     }
 }
 
 i32 main(i32 ArgCount, char **Args)
 {
-    const char *GameAssetsPath = "game/assets";
+    const char *GameAssetsPath = "assets";
 
     if (ArgCount == 1)
     {
         ClearFolder(GameAssetsPath);
 
-        BuildModelAssets("assets/models", GameAssetsPath);
-        BuildFontAssets("assets/fonts", GameAssetsPath);
-        BuildAudioAssets("assets/audio", GameAssetsPath);
-        BuildTextureAssets("assets/textures", GameAssetsPath);
+        BuildModelAssets("../assets/models", GameAssetsPath);
+        BuildFontAssets("../assets/fonts", GameAssetsPath);
+        BuildAudioAssets("../assets/audio", GameAssetsPath);
+        BuildTextureAssets("../assets/textures", GameAssetsPath);
     }
     else if (ArgCount == 2)
     {

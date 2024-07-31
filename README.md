@@ -11,7 +11,7 @@ git submodule init
 git submodule update
 misc\assimp_build.bat
 ```
-Visual Studio solution is available at `src\dummy.sln`. After successful build the resulting executables and DLL can be found in `game` directory. Run `game\assets_builder.exe` to generate engine assets. Run `win32_dummy.exe` from within `game` directory to launch the engine.
+Visual Studio solution is available at `src\dummy.sln`. After successful build the resulting executables and DLL can be found in `game` directory. Run `assets_builder.exe` to generate engine assets. Run `win32_dummy.exe` to launch the engine.
 ### Linux
 Not supported
 ### MacOS
