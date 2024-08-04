@@ -1,3 +1,7 @@
+# Dummy Game Engine
+
+![Screenshot 2024-08-04 122314](https://github.com/user-attachments/assets/83d88bb3-1885-40cd-b30e-f36e10aaf099)
+
 ## Building
 ### Windows
 #### Prerequisites
