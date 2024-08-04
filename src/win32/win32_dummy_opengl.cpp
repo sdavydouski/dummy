@@ -1044,25 +1044,25 @@ OpenGLReloadShader(opengl_state *State, char *ShaderKey)
         if (!StringEquals(Shader->VertexShader.FileName, ""))
         {
             char **Source = OpenGLLoadShaderFile(State, Shader->VertexShader.FileName, Count, ScopedMemory.Arena);
-            Shaders[ShaderCount++] = OpenGLCreateShader(GL_VERTEX_SHADER, Count, Source);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_VERTEX_SHADER, Count, Source, false);
         }
 
         if (!StringEquals(Shader->GeometryShader.FileName, ""))
         {
             char **Source = OpenGLLoadShaderFile(State, Shader->GeometryShader.FileName, Count, ScopedMemory.Arena);
-            Shaders[ShaderCount++] = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, Source);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_GEOMETRY_SHADER, Count, Source, false);
         }
 
         if (!StringEquals(Shader->FragmentShader.FileName, ""))
         {
             char **Source = OpenGLLoadShaderFile(State, Shader->FragmentShader.FileName, Count, ScopedMemory.Arena);
-            Shaders[ShaderCount++] = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, Source);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_FRAGMENT_SHADER, Count, Source, false);
         }
 
         if (!StringEquals(Shader->ComputeShader.FileName, ""))
         {
             char **Source = OpenGLLoadShaderFile(State, Shader->ComputeShader.FileName, Count, ScopedMemory.Arena);
-            Shaders[ShaderCount++] = OpenGLCreateShader(GL_COMPUTE_SHADER, Count, Source);
+            Shaders[ShaderCount++] = OpenGLCreateShader(GL_COMPUTE_SHADER, Count, Source, false);
         }
 
         Program = OpenGLCreateProgram(ShaderCount, Shaders);

@@ -283,7 +283,7 @@ struct game_state
     game_options Options;
     game_menu_quad MenuQuads[4];
 
-    value_state<bool32> DanceMode;
+    bool32_state DanceMode;
 
     // todo:
     contact_resolver ContactResolver;

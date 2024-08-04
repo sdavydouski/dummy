@@ -1801,7 +1801,7 @@ Win32RenderEditor(
     ImGui::Begin("Game Overlay", 0, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
     ImGui::Text("Size: %d, %d", GameParameters->WindowWidth, GameParameters->WindowHeight);
 
-#if 1
+#if 0
     ImGui::Text("Camera position: %.2f, %.2f, %.2f", Camera->Position.x, Camera->Position.y, Camera->Position.z);
     ImGui::Text("Camera distance: %.2f", Camera->SphericalCoords.x);
     ImGui::Text("Camera azimuth: %.2f", DEGREES(Camera->SphericalCoords.y));

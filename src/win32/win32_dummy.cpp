@@ -977,7 +977,7 @@ PLATFORM_READ_FILE(Win32ReadFile)
 {
     read_file_result Result = {};
 
-    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     if (FileHandle != INVALID_HANDLE_VALUE)
     {
         LARGE_INTEGER FileSize;
@@ -1347,12 +1347,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     u32 CurrentProcessorNumber = GetCurrentProcessorNumber();
     SetThreadAffinityMask(CurrentThread, (umm) 1 << CurrentProcessorNumber);
 
-#if 1
+#if 0
     PlatformState.WindowWidth = 3200;
     PlatformState.WindowHeight = 1800;
 #else
-    PlatformState.WindowWidth = 1600;
-    PlatformState.WindowHeight = 900;
+    PlatformState.WindowWidth = 1920;
+    PlatformState.WindowHeight = 1200;
 #endif
     PlatformState.GameWindowWidth = PlatformState.WindowWidth;
     PlatformState.GameWindowHeight = PlatformState.WindowHeight;
@@ -1362,7 +1362,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     PlatformState.WindowPlacement = {sizeof(WINDOWPLACEMENT)};
     PlatformState.hInstance = hInstance;
     PlatformState.VSync = true;
-    InitValueState(&PlatformState.IsFullScreen, (bool32) true);
+    InitBool32State(&PlatformState.IsFullScreen, true);
 
     Out(&PlatformState.Stream, "Platform::Worker Thread Count: %d", MaxWorkerThreadCount);
     Out(&PlatformState.Stream, "Platform::Window Size: %d, %d", PlatformState.WindowWidth, PlatformState.WindowHeight);
@@ -1532,7 +1532,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 Win32ToggleFullScreen(&PlatformState);
             }
 
-            SavePrevValueState(&PlatformState.IsFullScreen);
+            SaveBool32State(&PlatformState.IsFullScreen);
 
 #if 1
             char WindowTitle[64];

@@ -170,33 +170,29 @@ ClearAudioCommands(game_memory *Memory)
 }
 
 //
-template <typename T>
-struct value_state
+struct bool32_state
 {
-    T Value;
-    T PrevValue;
+    bool32 Value;
+    bool32 PrevValue;
 };
 
-template <typename T>
 inline void
-InitValueState(value_state<T> *State, T Value)
+InitBool32State(bool32_state *State, bool32 Value)
 {
     State->Value = Value;
     State->PrevValue = Value;
 }
 
-template <typename T>
 inline void
-SavePrevValueState(value_state<T> *State)
+SaveBool32State(bool32_state *State)
 {
     State->PrevValue = State->Value;
 }
 
-template <typename T>
 inline bool32
-Changed(value_state<T> ValueState)
+Changed(bool32_state State)
 {
-    bool32 Result = ValueState.Value != ValueState.PrevValue;
+    bool32 Result = State.Value != State.PrevValue;
     return Result;
 }
 //

@@ -1832,6 +1832,8 @@ DLLExport GAME_INIT(GameInit)
     // todo: temp
     State->SkyboxId = 1;
 
+    InitBool32State(&State->DanceMode, false);
+
     State->ContactResolver = {};
     State->ContactResolver.PositionEpsilon = 0.001f;
     State->ContactResolver.VelocityEpsilon = 0.001f;
@@ -2432,8 +2434,8 @@ DLLExport GAME_RENDER(GameRender)
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        //AddSkybox(RenderCommands, 2, 512, GetTextureAsset(&State->Assets, "environment_desert"));
-        //AddSkybox(RenderCommands, 3, 512, GetTextureAsset(&State->Assets, "environment_hill"));
+        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
 #endif
@@ -2813,7 +2815,7 @@ DLLExport GAME_RENDER(GameRender)
                 }
             }
 
-            SavePrevValueState(&State->DanceMode);
+            SaveBool32State(&State->DanceMode);
 
             font *Font = GetFontAsset(&State->Assets, "Consolas");
 
