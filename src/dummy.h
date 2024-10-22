@@ -231,7 +231,9 @@ struct game_state
     memory_arena FrameArena;
 
     job_queue *JobQueue;
-    stream Stream;
+
+    stream PermanentStream;
+    stream FrameStream;
 
     world_area WorldArea;
 

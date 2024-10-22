@@ -2290,6 +2290,7 @@ OpenGLRenderScene(opengl_state *State, render_commands *Commands, opengl_render_
 
                             glUseProgram(Shader->Program);
                             glUniformMatrix4fv(OpenGLGetUniformLocation(Shader, "u_Model"), 1, GL_TRUE, (f32 *)Model.Elements);
+                            glUniform3f(OpenGLGetUniformLocation(Shader, "u_Color"), Command->Material.Color.r, Command->Material.Color.g, Command->Material.Color.b);
                             
                             OpenGLCascadeShadows(State, Shader, Options);
                             OpenGLBlinnPhongShading(State, Shader, &Command->Material);

@@ -1546,9 +1546,9 @@ Win32RenderEditor(
                         PROCESS_INFORMATION ProcessInfo;
 
                         wchar CommandLine[256];
-                        FormatString(CommandLine, L"assets_builder.exe %s", WideFilePath);
+                        FormatString(CommandLine, L"assets_builder.exe --model %s", WideFilePath);
 
-                        wchar WorkingDirectory[32] = L"../";
+                        wchar WorkingDirectory[32] = L"./";
 
                         if (CreateProcessW(0, CommandLine, 0, 0, true, 0, 0, WorkingDirectory, &StartupInfo, &ProcessInfo))
                         {
@@ -1573,6 +1573,8 @@ Win32RenderEditor(
 
                             model *Model = GetModelAsset(Assets, AssetName);
                             InitModel(GameState, ModelAsset, Model, AssetName, &Assets->Arena, RenderCommands);
+
+                            Out(&GameState->PermanentStream, "Loaded: %s", FilePath);
                         }
                         else 
                         {
@@ -1610,8 +1612,8 @@ Win32RenderEditor(
         ImGui::End();
     }
 
-    stream *Streams[] = { &GameState->Stream, &PlatformState->Stream, &RendererState->Stream, &AudioState->Stream };
-    const char *StreamNames[] = { "Game", "Platform", "Renderer", "Audio" };
+    stream *Streams[] = { &GameState->PermanentStream, &GameState->FrameStream, &PlatformState->Stream, &RendererState->Stream, &AudioState->Stream };
+    const char *StreamNames[] = { "Game (Permanent)", "Game (Frame)", "Platform", "Renderer", "Audio" };
 
     Assert(ArrayCount(Streams) == ArrayCount(StreamNames));
 

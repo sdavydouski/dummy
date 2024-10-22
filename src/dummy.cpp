@@ -709,43 +709,36 @@ RenderSpatialGrid(render_commands *RenderCommands, game_state *State, spatial_ha
 dummy_internal void
 RenderBoundingBox(render_commands *RenderCommands, game_state *State, game_entity *Entity)
 {
-    // Pivot point
-    DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f, 0.f, 0.f, 1.f), 10.f);
-
     aabb Bounds = GetEntityBounds(Entity);
-
-    vec4 Color = vec4(0.f, 1.f, 0.f, 1.f);
+    transform BoxTransform = CreateTransform(Bounds.Center, Bounds.HalfExtent);
+    vec4 BoxColor = vec4(0.f, 1.f, 0.f, 1.f);
 
     if (Entity->Model)
     {
-        Color = vec4(0.f, 1.f, 1.f, 1.f);
+        BoxColor = vec4(0.f, 1.f, 1.f, 1.f);
     }
 
     if (Entity->Collider)
     {
-        Color = vec4(0.f, 0.f, 1.f, 1.f);
+        BoxColor = vec4(0.f, 0.f, 1.f, 1.f);
 
-        transform T = Decompose(Entity->Collider->Box.Transform);
-        T.Scale *= Entity->Collider->Box.HalfSize;
+        transform T1 = Decompose(Entity->Collider->Box.Transform);
+        transform T2 = CreateTransform(Entity->Transform.Translation, T1.Scale, T1.Rotation);
+        mat4 M = Transform(T2) * Entity->Collider->Box.Offset;
 
-        DrawBox(RenderCommands, T, vec4(1.f, 0.f, 1.f, 1.f));
-
-        if (Entity->Body)
-        {
-            DrawPoint(RenderCommands, Entity->Body->CenterOfMassWorld, vec4(1.f, 1.f, 0.f, 1.f), 10.f);
-        }
-
-        return;
+        BoxTransform.Translation = GetTranslation(M);
+        BoxTransform.Scale = T1.Scale * Entity->Collider->Box.HalfSize;
+        BoxTransform.Rotation = T1.Rotation;
     }
 
     if (Entity->Body)
     {
-        DrawPoint(RenderCommands, Entity->Body->CenterOfMassWorld, vec4(1.f, 0.f, 1.f, 1.f), 10.f);
+        BoxColor = vec4(1.f, 0.f, 1.f, 1.f);
     }
 
-    transform Transform = CreateTransform(Bounds.Center, Bounds.HalfExtent);
-
-    DrawBox(RenderCommands, Transform, Color);
+    // Pivot point
+    DrawPoint(RenderCommands, Entity->Transform.Translation, vec4(1.f), 10.f);
+    DrawBox(RenderCommands, BoxTransform, BoxColor);
 }
 
 dummy_internal void
@@ -1700,7 +1693,7 @@ LoadWorldAreaFromFile(game_state *State, char *FileName, platform_api *Platform,
         Spec2Entity(Spec, Entity, State, RenderCommands, AudioCommands, &Area->Arena);
     }
 
-    Out(&State->Stream, "Loaded %s (Entity Count: %d)", FileName, EntityCount);
+    Out(&State->PermanentStream, "Loaded: %s (Entity Count: %d)", FileName, EntityCount);
 }
 
 dummy_internal void
@@ -1808,7 +1801,8 @@ DLLExport GAME_INIT(GameInit)
     u8 *FrameArenaBase = Memory->FrameStorage;
     InitMemoryArena(&State->FrameArena, FrameArenaBase, FrameArenaSize);
 
-    State->Stream = CreateStream(SubMemoryArena(&State->PermanentArena, Megabytes(4)));
+    State->PermanentStream = CreateStream(SubMemoryArena(&State->PermanentArena, Megabytes(4)));
+    State->FrameStream = CreateStream(SubMemoryArena(&State->PermanentArena, Megabytes(2)));
 
     State->WorldArea = {};
     State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(128));
@@ -1995,7 +1989,7 @@ DLLExport GAME_FRAME_END(GameFrameEnd)
 {
     game_state *State = GetGameState(Memory);
 
-    ClearStream(&State->Stream);
+    ClearStream(&State->FrameStream);
     ClearMemoryArena(&State->FrameArena);
 }
 

@@ -136,21 +136,32 @@ i32 main(i32 ArgCount, char **Args)
         BuildAudioAssets("../assets/audio", GameAssetsPath);
         BuildTextureAssets("../assets/textures", GameAssetsPath);
     }
-    else if (ArgCount == 2)
+    else if (ArgCount == 3)
     {
-        fs::path EntryPath = Args[1];
+        char AssetPath[256];
+        char *AssetType = Args[1];
+        fs::path EntryPath = Args[2];
         fs::path EntryName = EntryPath.stem();
 
-        // todo: extend to other asset types
-        char AssetPath[256];
-        FormatString(AssetPath, "%s/%s.model.asset", GameAssetsPath, EntryName.generic_string().c_str());
-
         printf("Processing %s...\n", EntryPath.generic_string().c_str());
-        ProcessModelAsset(EntryPath.generic_string().c_str(), AssetPath);
+
+        switch (SID(AssetType))
+        {
+            case SID("--model"):
+            {
+                FormatString(AssetPath, "%s/%s.model.asset", GameAssetsPath, EntryName.generic_string().c_str());
+                ProcessModelAsset(EntryPath.generic_string().c_str(), AssetPath);
+                break;
+            }
+            default:
+            {
+                NotImplemented;
+            }
+        }
     }
     else
     {
-        printf("Usage: %s <asset:optional>", Args[0]);
+        printf("Usage: %s <asset:type> <asset:path>", Args[0]);
     }
 
     return 1;
