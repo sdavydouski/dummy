@@ -42,6 +42,7 @@
 
 #define umm uintptr_t
 
+#define uchar unsigned char
 #define wchar wchar_t
 
 #define U8_MAX UINT8_MAX

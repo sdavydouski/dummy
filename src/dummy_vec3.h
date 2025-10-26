@@ -31,7 +31,8 @@ struct vec3
         };
     };
 
-    explicit vec3() = default;
+    vec3() = default;
+
     explicit vec3(f32 Value) : x(Value), y(Value), z(Value) {}
     explicit vec3(f32 x, f32 y, f32 z) : x(x), y(y), z(z) {}
     explicit vec3(vec2 xy, f32 z) : x(xy.x), y(xy.y), z(z) {}

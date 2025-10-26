@@ -853,7 +853,7 @@ CreateGameEntity(game_state *State)
 
     game_entity *Entity = Area->Entities + Area->EntityCount++;
 
-    *Entity = {};
+    ClearMemory(Entity, sizeof(game_entity));
 
     Assert(Area->EntityCount <= Area->MaxEntityCount);
 
@@ -1804,7 +1804,7 @@ DLLExport GAME_INIT(GameInit)
     State->PermanentStream = CreateStream(SubMemoryArena(&State->PermanentArena, Megabytes(4)));
     State->FrameStream = CreateStream(SubMemoryArena(&State->PermanentArena, Megabytes(2)));
 
-    State->WorldArea = {};
+    ClearMemory(&State->WorldArea, sizeof(world_area));
     State->WorldArea.Arena = SubMemoryArena(&State->PermanentArena, Megabytes(128));
     State->WorldArea.EntityCount = 0;
     State->WorldArea.MaxEntityCount = 10000;

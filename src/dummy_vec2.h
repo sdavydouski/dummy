@@ -23,7 +23,8 @@ struct vec2
         };
     };
 
-    explicit vec2() = default;
+    vec2() = default;
+
     explicit vec2(f32 Value) : x(Value), y(Value) {}
     explicit vec2(f32 x, f32 y) : x(x), y(y) {}
 

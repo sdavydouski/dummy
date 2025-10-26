@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory.h>
+#include <intrin.h>
 
 #undef CopyMemory
 
@@ -12,15 +13,21 @@
 inline void
 ClearMemory(void *Memory, umm Size)
 {
-    // todo: abysmally slow
+#if 0
     memset(Memory, 0, Size);
+#else
+    __stosb((uchar*) Memory, 0, Size);
+#endif
 }
 
 inline void
 CopyMemory(void *From, void *To, umm Size)
 {
-    // todo: use smth better?
+#if 0
     memcpy(To, From, Size);
+#else
+    __movsb((uchar*) To, (uchar*) From, Size);
+#endif
 }
 
 inline umm

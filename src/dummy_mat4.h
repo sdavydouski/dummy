@@ -11,6 +11,8 @@ struct mat4
         __m128 Rows_4x[4];
     };
 
+    mat4() = default;
+
     mat4(const mat4 &Value)
     {
         Rows[0] = Value.Rows[0];
@@ -18,8 +20,6 @@ struct mat4
         Rows[2] = Value.Rows[2];
         Rows[3] = Value.Rows[3];
     }
-
-    explicit mat4() = default;
 
     explicit mat4(f32 Value)
     {

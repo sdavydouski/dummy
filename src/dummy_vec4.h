@@ -59,7 +59,8 @@ struct vec4
         };
     };
 
-    explicit vec4() = default;
+    vec4() = default;
+
     explicit vec4(f32 Value) : x(Value), y(Value), z(Value), w(Value) {}
     explicit vec4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
     explicit vec4(f32 Value, vec3 Vector) : x(Value), y(Vector.x), z(Vector.y), w(Vector.z) {}

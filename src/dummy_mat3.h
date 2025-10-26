@@ -15,7 +15,7 @@ struct mat3
         Rows[2] = Value.Rows[2];
     }
 
-    explicit mat3() = default;
+    mat3() = default;
 
     explicit mat3(f32 Value)
     {
@@ -23,7 +23,7 @@ struct mat3
         Rows[1] = vec3(0.f, Value, 0.f);
         Rows[2] = vec3(0.f, 0.f, Value);
     }
-
+    
     explicit mat3(vec3 Row0, vec3 Row1, vec3 Row2)
     {
         Rows[0] = Row0;
