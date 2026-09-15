@@ -1297,7 +1297,7 @@ JOB_ENTRY_POINT(UpdateEntityBatchJob)
 
                 if (Entity->IsGrounded && Magnitude(HorizontalVelocity) > 0.f)
                 {
-                    vec3 Drag = -10.f * Body->Velocity * Max(Magnitude(HorizontalVelocity), 5.f);
+                    vec3 Drag = -20.f * Body->Velocity * Max(Magnitude(HorizontalVelocity), 7.f);
                     Drag.y = 0.f;
                     AddForce(Body, Drag);
                 }
@@ -2093,8 +2093,8 @@ DLLExport GAME_INPUT(GameInput)
 
                     if (Player->IsGrounded)
                     {
-                        Player->Body->Acceleration.x = (xMoveX + xMoveY) * 20.f;
-                        Player->Body->Acceleration.z = (zMoveX + zMoveY) * 20.f;
+                        Player->Body->Acceleration.x = (xMoveX + xMoveY) * 50.f;
+                        Player->Body->Acceleration.z = (zMoveX + zMoveY) * 50.f;
                     }
 
                     quat NewPlayerOrientation = AxisAngle2Quat(vec4(yAxis, Atan2(NewPlayerDirection.x, NewPlayerDirection.z)));
@@ -2428,19 +2428,19 @@ DLLExport GAME_RENDER(GameRender)
         InitGameTextureAssets(State, &State->Assets, RenderCommands);
 
         AddSkybox(RenderCommands, 1, 1024, GetTextureAsset(&State->Assets, "environment_sky"));
-        //AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
-        //AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
+        AddSkybox(RenderCommands, 2, 1024, GetTextureAsset(&State->Assets, "environment_desert"));
+        AddSkybox(RenderCommands, 3, 1024, GetTextureAsset(&State->Assets, "environment_hill"));
 
         State->Assets.State = GameAssetsState_Ready;
 #endif
 
         Play2D(AudioCommands, GetAudioClipAsset(&State->Assets, "Ambient 5"), SetAudioPlayOptions(0.1f, true), 2);
 
-#if 0
+#if 1
         {
             scoped_memory ScopedMemory(&State->PermanentArena);
-            LoadWorldAreaFromFile(State, (char *)"data\\scene_4.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
-            State->Player = (State->WorldArea.Entities + 4);
+            LoadWorldAreaFromFile(State, (char *)"data\\ybot.dummy", Platform, RenderCommands, AudioCommands, ScopedMemory.Arena);
+            State->Player = (State->WorldArea.Entities + 0);
         }
 #endif
     }
